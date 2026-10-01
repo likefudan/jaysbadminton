@@ -100,6 +100,7 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
           <Field label="结束" type="time" value={endTime} onInput={setEnd} />
         </div>
         <VenueFields
+          base={props.base}
           venues={d.locations}
           venue={location}
           address={address}
@@ -143,6 +144,7 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
 
 /** 场馆 + 地址, with one-tap 最近的场馆 that fill both. */
 function VenueFields(props: {
+  base: string;
   venues: { name: string; address: string }[];
   venue: string;
   address: string;
@@ -176,7 +178,7 @@ function VenueFields(props: {
           if (known) props.onAddress(known.address);
         }}
       />
-      <AddressInput value={props.address} onInput={props.onAddress} onPlace={(name) => !props.venue.trim() && props.onVenue(name)} />
+      <AddressInput base={props.base} value={props.address} onInput={props.onAddress} onPlace={(name) => !props.venue.trim() && props.onVenue(name)} />
     </>
   );
 }
@@ -403,7 +405,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
         <Field label="开始" type="time" value={startTime} onInput={setStart} />
         <Field label="结束" type="time" value={endTime} onInput={setEnd} />
       </div>
-      <VenueFields venues={[]} venue={location} address={address} onVenue={setLocation} onAddress={setAddress} />
+      <VenueFields base={props.eb.replace(/\/events\/\d+$/, "")} venues={[]} venue={location} address={address} onVenue={setLocation} onAddress={setAddress} />
       {props.e.status === "open" && <p class="muted small">报名截止时间会按原来的提前量重新计算；如果已经过了，报名会立即截止。</p>}
       {error && <p class="error">{error}</p>}
       <button class="button block" disabled={busy} onClick={save}>

@@ -12,6 +12,7 @@ declare global {
       TOKEN_KEY: string;
       ADMIN_PASSWORD: string;
       TELEGRAM_BOT_TOKEN?: string;
+      GOOGLE_MAPS_API_KEY?: string;
       SITE_ORIGIN: string;
     }
   }
