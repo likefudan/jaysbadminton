@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "./env";
+import { closeExpired } from "./events";
 import { HttpError } from "./http";
 import { adminRoutes } from "./routes/admin";
 import { memberRoutes } from "./routes/member";
@@ -33,8 +34,9 @@ app.onError((err, c) => {
 
 export default {
   fetch: app.fetch,
-  async scheduled(_controller, _env, _ctx) {
-    // Reminders, deadline closing and dunning land here in later cards.
+  async scheduled(_controller, env, _ctx) {
+    await closeExpired(env);
+    // Reminders and dunning land here in card 6.
   },
   async email(message, _env, _ctx) {
     // Venmo email ingestion lands here in card 5; until then drop everything.

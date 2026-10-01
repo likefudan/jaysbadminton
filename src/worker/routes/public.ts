@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import type { HomeResponse, PublicEvent } from "../../shared/types";
+import { closeExpired, detail, summaries, type EventRow } from "../events";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
@@ -6,7 +8,35 @@ import { createMember, issueMemberToken, memberLink } from "../members";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
-publicRoutes.get("/home", (c) => c.json({ openEvents: [], pastEvents: [], leaderboard: [] }));
+publicRoutes.get("/home", async (c) => {
+  await closeExpired(c.env);
+  const current = await c.env.DB.prepare(
+    "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at",
+  ).all<EventRow>();
+  const past = await c.env.DB.prepare(
+    "SELECT * FROM events WHERE status IN ('settled', 'cancelled') ORDER BY start_at DESC LIMIT 20",
+  ).all<EventRow>();
+  return c.json<HomeResponse>({
+    currentEvents: await summaries(c.env, current.results),
+    pastEvents: await summaries(c.env, past.results),
+    leaderboard: [],
+  });
+});
+
+publicRoutes.get("/events/:code", async (c) => {
+  await closeExpired(c.env);
+  const e = await c.env.DB.prepare("SELECT * FROM events WHERE code = ? ORDER BY start_at DESC LIMIT 1")
+    .bind(c.req.param("code").toUpperCase())
+    .first<EventRow>();
+  if (!e) throw new HttpError(404, "event_not_found", "找不到这个活动");
+  const d = await detail(c.env, e);
+  const showAttendance = e.status === "finalized" || e.status === "settled";
+  return c.json<PublicEvent>({
+    ...d,
+    roster: d.roster.map((r) => ({ name: r.name, isFriend: r.friendIndex > 0, attended: r.attended })),
+    showAttendance,
+  });
+});
 
 publicRoutes.post("/join", async (c) => {
   const body = await readJson(c.req.raw);

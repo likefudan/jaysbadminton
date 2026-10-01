@@ -5,6 +5,7 @@ import { assertAdminToken, checkPassword, endSession, hasSession, issueAdminToke
 import { now } from "../db";
 import type { Env } from "../env";
 import { HttpError, badRequest, readJson, str } from "../http";
+import { adminEventRoutes } from "./adminEvents";
 import { type MemberRow, issueMemberToken, memberLink, requireMember, revealMemberToken, toSummary } from "../members";
 
 export const adminRoutes = new Hono<{ Bindings: Env }>();
@@ -96,3 +97,5 @@ adminRoutes.post("/:token/settings/rotate-admin", async (c) => {
   const token = await issueAdminToken(c.env);
   return c.json<LinkResponse>({ link: `${origin(c.req.url)}/admin/${token}` });
 });
+
+adminRoutes.route("/:token", adminEventRoutes);
