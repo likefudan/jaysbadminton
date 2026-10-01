@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDollars, paymentCode, settle, venmoLink } from "../src/shared/settle";
+import { parseDollars, settle, venmoLink } from "../src/shared/settle";
 
 const row = (memberId: string, friendIndex: number, attended = true) => ({ memberId, friendIndex, name: `${memberId}-${friendIndex}`, attended });
 
@@ -38,10 +38,9 @@ describe("money helpers", () => {
     expect(parseDollars("1.234")).toBeNull();
   });
 
-  it("builds payment codes and Venmo links", () => {
-    expect(paymentCode("1006", "M007")).toBe("BM1006-M007");
-    expect(venmoLink("@KeLi8916", 1273, "BM1006-M007")).toBe(
-      "https://venmo.com/?txn=pay&recipients=KeLi8916&amount=12.73&note=BM1006-M007",
+  it("builds Venmo links", () => {
+    expect(venmoLink("@KeLi8916", 1273, "xiaoming-jbm20261006-m007")).toBe(
+      "https://venmo.com/?txn=pay&recipients=KeLi8916&amount=12.73&note=xiaoming-jbm20261006-m007",
     );
   });
 });

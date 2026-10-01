@@ -72,7 +72,7 @@ D1 (SQLite) holds nine tables. Money is stored as integer cents, times as UTC IS
 | `events` | `id`, `code` (1006, 1006B), `date`, `start_at`, `end_at`, `location`, `deadline_at`, `deadline_offset_min`, `status` (open / closed / finalized / settled / cancelled), `finalized_at`, `settled_at`, `dunning_stopped`, `created_at` | `settled` = all paid and archived; read-only from then on |
 | `registrations` | `id`, `event_id`, `member_id`, `friend_index` (0 = the member), `friend_name`, `attended` (default 1), `added_by_owner`, `created_at`, `updated_at` | Friends hang off the member who pays for them; Owner-added walk-ins ignore the friend cap |
 | `settlements` | `event_id`, `court_total_cents`, `shuttle_count`, `shuttle_price_cents`, `registered_count`, `attended_count`, `court_share_cents`, `shuttle_share_cents`, `finalized_at` | One row per event; recomputed on every edit before archive |
-| `payments` | `event_id`, `member_id`, `amount_due_cents`, `payment_code` (BM1006-M007), `status` (unpaid / paid / anomaly), `method` (venmo\_auto / manual), `amount_paid_cents`, `paid_at`, `venmo_txn_id`, `email_id` | One row per paying member per event; friends roll up here |
+| `payments` | `event_id`, `member_id`, `amount_due_cents`, `payment_code` (xiaoming-jbm20261006-m007), `status` (unpaid / paid / anomaly), `method` (venmo\_auto / manual), `amount_paid_cents`, `paid_at`, `venmo_txn_id`, `email_id` | One row per paying member per event; friends roll up here |
 | `inbound_payments` | `venmo_txn_id` (unique), `email_id`, `payer_name`, `amount_cents`, `note`, `received_at`, `kind` (unmatched / other / parse\_failed), `state` (open / linked / ignored), `raw_text` | Everything the email parser saw that did not auto-match |
 | `locations` | `name`, `last_used_at`, `use_count` | Feeds the location dropdown |
 | `settings` | `key`, `value` | Friend cap N, Venmo username, Zelle account, Telegram chat ID, reminder on/off + hours, dunning hour, last shuttle price, last event times, last deadline offset, admin/export token hashes |
@@ -124,7 +124,7 @@ Settlement is one pure function, `settle(roster, inputs)`, shared by preview and
 3. Each row owes the court share, plus the shuttle share if attended. A member owes the sum of their own row and their friends' rows.
 4. On every change before archive, recompute `amount_due_cents` for rows still `unpaid`; leave `paid` and `anomaly` rows untouched.
 
-**Payment code**: `BM{event code}-{member id}`, e.g. `BM1006-M007`. Unique per (event, member) and short enough to type by hand.
+**Payment code**: `{name}-jbm{yyyymmdd}{suffix}-m{number}`, all lowercase, e.g. `xiaoming-jbm20261006-m007` (a second event that day gets `jbm20261006b`). The name is the username in toneless pinyin (pinyin-pro) or lowercase Latin with spaces as underscores. It is generated at Finalize and never changed by renames. Only the `jbm` and `m` parts are matched, so the name is cosmetic; the earlier `BM1006-M007` form is still recognised.
 
 **Venmo button**: a link to `https://venmo.com/{owner}?txn=pay&amount={amount}&note={code}` (the current web pay link; the exact format is verified on a real phone before launch, since Venmo has changed it before). The page also prints the username, amount and code as plain text, the Zelle account, and the hint to open in the system browser when WeChat blocks the link.
 
@@ -135,7 +135,7 @@ A Gmail filter forwards only mail from `venmo@venmo.com` to `venmo@jaysbadminton
 1. **Accept or drop**: the original sender (from the forwarded headers) must be `venmo@venmo.com` and the subject must contain `paid` and `to your Venmo account`; anything else is dropped. The envelope sender must also be the Owner's Gmail (Gmail forwarding keeps it as the envelope sender), and the message must carry a passing DKIM signature for venmo.com in its Authentication-Results/ARC headers, so a forged "Venmo" email sent straight to the address cannot mark anyone as paid.
 2. **Parse** the text body (HTML stripped with `postal-mime` when no text part exists) using the field rules in the requirements: payer before `paid you`, first `$` amount, note between the amount and `Money credited to your Venmo account.`, date, `Transaction ID`, and `Sent to` (must equal the configured Venmo username).
 3. **De-duplicate** on the Venmo transaction ID; a second copy is ignored.
-4. **Match** the note against `/BM\s*(\d{4}[A-Z]?)\s*-\s*(M\d+)/i` among events that are not archived:
+4. **Match** the note against `/jbm\s*(\d{8})([a-z]?)\s*-\s*m(\d+)/i` among events that are not archived:
    - match and amount equal → mark the payment `paid` (`venmo_auto`), store amount, time and transaction ID, then run the "all collected?" check;
    - match but amount differs, or the payment is already paid → record it, set `anomaly`, notify the Owner;
    - a code that matches nothing → `inbound_payments` kind `unmatched`, notify the Owner;

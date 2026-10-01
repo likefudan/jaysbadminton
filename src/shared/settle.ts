@@ -81,8 +81,6 @@ export function parseDollars(raw: string | number): number | null {
   return Number(whole) * 100 + Number(frac.padEnd(2, "0"));
 }
 
-export const paymentCode = (eventCode: string, memberId: string) => `BM${eventCode}-${memberId}`;
-
 /** Venmo pay link with amount and note pre-filled (verified on a real phone before launch). */
 export function venmoLink(username: string, cents: number, note: string): string {
   const user = username.replace(/^@/, "");

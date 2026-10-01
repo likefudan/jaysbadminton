@@ -35,7 +35,7 @@ describe("settlement", () => {
     expect(preview).toMatchObject({ registered: 4, attended: 3, courtShareCents: 2500, shuttleShareCents: 600 });
 
     expect((await s.admin.call(`${s.eb}/finalize`, s.fees)).status).toBe(200);
-    expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 3100 + 2500, status: "unpaid", paymentCode: `BM${s.e.code}-${s.alice.id}` });
+    expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 3100 + 2500, status: "unpaid", paymentCode: `alice-jbm${s.e.date.replace(/-/g, "")}-${s.alice.id.toLowerCase()}` });
     expect(await payment(s, "Bob")).toMatchObject({ amountDueCents: 3100, status: "unpaid" });
     expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 3100, status: "paid", method: "manual" });
 

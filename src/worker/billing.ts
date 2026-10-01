@@ -1,6 +1,7 @@
-import { paymentCode, settle, type SettleInput, type Settlement, type SettleRow } from "../shared/settle";
+import { settle, type SettleInput, type Settlement, type SettleRow } from "../shared/settle";
 import type { PaymentRow } from "../shared/types";
 import { now, setSetting } from "./db";
+import { paymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
 
@@ -33,8 +34,13 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   const { results: existing } = await env.DB.prepare("SELECT member_id, status FROM payments WHERE event_id = ?")
     .bind(e.id)
     .all<{ member_id: string; status: string }>();
-  const owners = await env.DB.prepare("SELECT id FROM members WHERE is_owner = 1").all<{ id: string }>();
-  const ownerIds = new Set(owners.results.map((o) => o.id));
+  const people = await env.DB.prepare(
+    `SELECT id, username, is_owner FROM members WHERE id IN (SELECT member_id FROM registrations WHERE event_id = ?)`,
+  )
+    .bind(e.id)
+    .all<{ id: string; username: string; is_owner: number }>();
+  const ownerIds = new Set(people.results.filter((p) => p.is_owner === 1).map((p) => p.id));
+  const usernames = new Map(people.results.map((p) => [p.id, p.username]));
   const prev = new Map(existing.map((p) => [p.member_id, p.status]));
   const billed = new Set(result.bills.map((b) => b.memberId));
 
@@ -71,7 +77,7 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
           e.id,
           b.memberId,
           b.totalCents,
-          paymentCode(e.code, b.memberId),
+          paymentCode(usernames.get(b.memberId) ?? "", e.date, e.code, b.memberId),
           owner ? "paid" : "unpaid",
           owner ? "manual" : null,
           owner ? b.totalCents : null,
