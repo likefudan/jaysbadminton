@@ -54,4 +54,4 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
       - if: inputs.reset_admin_link
-        run: npx wrangler d1 execute DB --remote --command "DELETE FROM settings WHERE key = 'admin_token_hash'"
+        run: npx wrangler d1 execute DB --remote --command "DELETE FROM settings WHERE key IN ('admin_token_hash', 'admin_token_enc')"

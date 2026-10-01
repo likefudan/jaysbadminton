@@ -1088,3 +1088,91 @@ ol.steps li {
   margin-left: 8px;
   color: var(--accent);
 }
+
+/* ---- Admin guide ---- */
+.guide-section {
+  border-top: 1px solid var(--border);
+  padding: 4px 0;
+}
+.guide-section:first-of-type {
+  border-top: 0;
+}
+.guide-section summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 0;
+  font-weight: 650;
+  display: flex;
+  justify-content: space-between;
+}
+.guide-section summary::-webkit-details-marker {
+  display: none;
+}
+.guide-section summary::after {
+  content: "›";
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+.guide-section[open] summary::after {
+  transform: rotate(90deg);
+}
+.guide-body {
+  padding-bottom: 8px;
+  font-size: 15px;
+}
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.checklist li {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 15px;
+}
+.checklist .tick {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  background: var(--field);
+}
+.checklist li.done .tick {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--fill-1), var(--fill-2));
+}
+.checklist li.done b {
+  color: var(--muted);
+}
+.inline-copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 6px 0 2px;
+}
+.inline-copy code,
+.guide-body code {
+  word-break: break-all;
+  font-size: 13px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--field);
+  border: 1px solid var(--border);
+}
+.status-line {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  border: 1px solid var(--border);
+  font-size: 14px;
+}

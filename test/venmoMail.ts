@@ -28,7 +28,7 @@ export async function testKey() {
     const spki = (await crypto.subtle.exportKey("spki", keys.publicKey)) as ArrayBuffer;
     publicRecord = `v=DKIM1; k=rsa; p=${b64(spki)}`;
   }
-  return { keys, resolveKey: async (s: string, d: string) => (s === "test" && d === "venmo.com" ? publicRecord : null) };
+  return { keys, resolveKey: async (s: string, d: string) => (s === "test" && (d === "venmo.com" || d === "google.com") ? publicRecord : null) };
 }
 
 const b64 = (b: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(b)));
@@ -52,7 +52,7 @@ export function receiptHtml(f: Required<ReceiptFields>): string {
 }
 
 /** A complete raw message, DKIM-signed for venmo.com unless `sign` is false. */
-export async function venmoEmail(fields: ReceiptFields = {}, opts: { sign?: boolean; tamper?: (raw: string) => string; html?: (html: string) => string } = {}) {
+export async function venmoEmail(fields: ReceiptFields = {}, opts: { sign?: boolean; tamper?: (raw: string) => string; html?: (html: string) => string; domain?: string; subject?: string; body?: string } = {}) {
   const f: Required<ReceiptFields> = {
     payer: "Alice W",
     amount: "56.00",
@@ -66,12 +66,12 @@ export async function venmoEmail(fields: ReceiptFields = {}, opts: { sign?: bool
   const body =
     `------=_Part_1${CRLF}Content-Type: text/plain; charset=UTF-8${CRLF}${CRLF}${CRLF}` +
     `------=_Part_1${CRLF}Content-Type: text/html; charset=UTF-8${CRLF}Content-Transfer-Encoding: 8bit${CRLF}${CRLF}` +
-    (opts.html ?? ((h: string) => h))(receiptHtml(f)).replace(/\n/g, CRLF) +
+    (opts.body ?? (opts.html ?? ((h: string) => h))(receiptHtml(f))).replace(/\n/g, CRLF) +
     `${CRLF}------=_Part_1--${CRLF}`;
   const signedHeaders = [
     `From: ${f.from}`,
     `To: ${f.to}`,
-    `Subject: ${f.payer} paid $${f.amount} to your Venmo account. Leave it in Venmo or${CRLF} transfer it to your bank account.`,
+    `Subject: ${opts.subject ?? `${f.payer} paid $${f.amount} to your Venmo account. Leave it in Venmo or${CRLF} transfer it to your bank account.`}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/alternative;${CRLF}\tboundary="----=_Part_1"`,
     `Message-ID: <${f.txnId}@email.example.com>`,
@@ -82,7 +82,7 @@ export async function venmoEmail(fields: ReceiptFields = {}, opts: { sign?: bool
     const { keys } = await testKey();
     const bodyBytes = new TextEncoder().encode(body);
     const bh = b64(await crypto.subtle.digest("SHA-256", canonicalBody(bodyBytes, "simple")));
-    const unsigned = `DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;${CRLF}\ts=test; d=venmo.com; t=1790579195;${CRLF}\th=From:To:Subject:MIME-Version:Content-Type:Message-ID:Date;${CRLF}\tbh=${bh};${CRLF}\tb=`;
+    const unsigned = `DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;${CRLF}\ts=test; d=${opts.domain ?? "venmo.com"}; t=1790579195;${CRLF}\th=From:To:Subject:MIME-Version:Content-Type:Message-ID:Date;${CRLF}\tbh=${bh};${CRLF}\tb=`;
     const { headers } = splitMessage(new TextEncoder().encode(`${head}${CRLF}${CRLF}`));
     const data =
       signedHeaderBlock(headers, ["from", "to", "subject", "mime-version", "content-type", "message-id", "date"], "relaxed") +

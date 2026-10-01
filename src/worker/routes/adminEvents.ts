@@ -23,7 +23,7 @@ import { badRequest, readJson, str } from "../http";
 import { SITE_TITLE_MAX, siteTheme, siteTitle } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
-import { inboundRows, openPayments, refundRows } from "../inbound";
+import { emailStatus, inboundRows, openPayments, refundRows } from "../inbound";
 import { message, notifySettings } from "../notify";
 import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
@@ -491,3 +491,6 @@ adminEventRoutes.get("/places", async (c) => {
 adminEventRoutes.get("/places/:id", async (c) =>
   c.json({ address: await resolveAddress(c.env, c.req.param("id"), (c.req.query("s") ?? "").slice(0, 64)) }),
 );
+
+/** 转发状态: when the last Venmo/Gmail email arrived and what happened to it. */
+adminEventRoutes.get("/email-status", async (c) => c.json(await emailStatus(c.env)));

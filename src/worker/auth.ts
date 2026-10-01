@@ -1,6 +1,6 @@
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { Context } from "hono";
-import { hashPassword, hmac, randomToken, sha256, verifyPassword } from "./lib/crypto";
+import { decryptToken, encryptToken, hashPassword, hmac, randomToken, sha256, verifyPassword } from "./lib/crypto";
 import { getSettings, now, setSetting } from "./db";
 import type { Env } from "./env";
 import { HttpError, invalidLink } from "./http";
@@ -66,11 +66,27 @@ export async function adminLinkExists(env: Env): Promise<boolean> {
   return !!s.admin_token_hash;
 }
 
-/** Creates (or replaces) the admin link token and returns the raw token. */
+/**
+ * Creates (or replaces) the admin link token and returns the raw token. It is kept hashed (to
+ * check links) and encrypted (so the Owner's Telegram can be sent the link again).
+ */
 export async function issueAdminToken(env: Env): Promise<string> {
   const token = randomToken();
-  await setSetting(env.DB, "admin_token_hash", await sha256(token)).run();
+  await env.DB.batch([
+    setSetting(env.DB, "admin_token_hash", await sha256(token)),
+    setSetting(env.DB, "admin_token_enc", await encryptToken(token, env.TOKEN_KEY)),
+  ]);
   return token;
+}
+
+/** The current admin link token, or a new one when the stored link predates encryption. */
+export async function currentAdminToken(env: Env): Promise<{ token: string; renewed: boolean }> {
+  const s = await getSettings(env.DB, ["admin_token_hash", "admin_token_enc"]);
+  if (s.admin_token_hash && s.admin_token_enc) {
+    const token = await decryptToken(s.admin_token_enc, env.TOKEN_KEY);
+    if ((await sha256(token)) === s.admin_token_hash) return { token, renewed: false };
+  }
+  return { token: await issueAdminToken(env), renewed: true };
 }
 
 export async function assertAdminToken(env: Env, token: string): Promise<void> {
