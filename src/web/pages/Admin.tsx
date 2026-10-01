@@ -159,6 +159,13 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     if (!confirm(`停用后 ${m.username} 不能再报名，正在报名中的活动会被取消报名；他的链接还能用来付清欠款。继续吗？`)) return;
     if (await run(() => api(`${props.base}/members/${m.id}/deactivate`, {}))) props.onChange();
   }
+  /** For members disabled before links were kept: a fresh link so they can pay what they owe. */
+  async function newLink(m: MemberSummary) {
+    const r = await run(() => api<LinkResponse>(`${props.base}/members/${m.id}/regenerate`, {}));
+    if (!r) return;
+    setShown({ name: m.username, link: r.link, fresh: true });
+    props.onChange();
+  }
   async function reactivate(m: MemberSummary) {
     if (!confirm(`恢复 ${m.username} 为正常成员？`)) return;
     const r = await run(() => api<{ link: string | null }>(`${props.base}/members/${m.id}/reactivate`, {}));
@@ -222,9 +229,15 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
                   </small>
                 </div>
                 <div class="actions">
-                  <button class="button secondary" disabled={busy} onClick={() => view(m)}>
-                    链接
-                  </button>
+                  {m.hasLink ? (
+                    <button class="button secondary" disabled={busy} onClick={() => view(m)}>
+                      链接
+                    </button>
+                  ) : (
+                    <button class="button secondary" disabled={busy} onClick={() => newLink(m)}>
+                      生成链接
+                    </button>
+                  )}
                   <button class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
                     恢复
                   </button>

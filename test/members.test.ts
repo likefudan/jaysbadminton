@@ -212,3 +212,20 @@ describe("reset all data", () => {
     expect(results).toEqual([{ id: "M001", username: "Ming", is_owner: 1 }]);
   });
 });
+
+describe("links for disabled members", () => {
+  it("lets the admin generate a link for a member disabled under the old rules, but never for a deleted one", async () => {
+    const ctx = await setUpAdmin();
+    const { id } = await approveMember(ctx, "Eve");
+    await ctx.admin.call(`${ctx.base}/members/${id}/deactivate`, {});
+    await env.DB.prepare("UPDATE members SET token_hash = NULL, token_enc = NULL WHERE id = ?").bind(id).run();
+    expect((await ctx.admin.call(`${ctx.base}/members`)).data.inactive[0].hasLink).toBe(false);
+
+    const { link } = (await ctx.admin.call(`${ctx.base}/members/${id}/regenerate`, {})).data;
+    expect((await anon.call(`/api/m/${tokenOf(link)}/me`)).data).toMatchObject({ active: false });
+    expect((await ctx.admin.call(`${ctx.base}/members`)).data.inactive[0].hasLink).toBe(true);
+
+    await ctx.admin.call(`${ctx.base}/members/${id}/delete`, {});
+    expect((await ctx.admin.call(`${ctx.base}/members/${id}/regenerate`, {})).status).toBe(400);
+  });
+});
