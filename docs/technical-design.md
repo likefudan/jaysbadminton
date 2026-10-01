@@ -40,7 +40,7 @@ One Worker answers everything on `https://jaysbadminton.llmat.dev`: page paths r
 | `/join` | Public | Join request form (username, WeChat nickname) |
 | `/e/{code}` | Public | One event: time, place, deadline, headcount, roster, attendance after Finalize |
 | `/m/{memberToken}` | Member | Sign-up with friends, rename, amounts owed + Venmo button, personal stats |
-| `/admin/{adminToken}` | Owner | Approvals, members, events, roster edits, settlement, payment board, other payments, settings, exports |
+| `/admin/{adminToken}` | Owner | Approvals, members, events, roster edits, settlement, payment board, 待确认 Venmo payments, settings, exports |
 | `/api/...` | Mixed | JSON API (see API) |
 | `/export/...` | Owner (export key) | CSV downloads and the JSON feed for the Google Sheets mirror |
 
@@ -72,8 +72,9 @@ D1 (SQLite) holds nine tables. Money is stored as integer cents, times as UTC IS
 | `events` | `id`, `code` (1006, 1006B), `date`, `start_at`, `end_at`, `location`, `deadline_at`, `deadline_offset_min`, `status` (open / closed / finalized / settled / cancelled), `finalized_at`, `settled_at`, `dunning_stopped`, `created_at` | `settled` = all paid and archived; read-only from then on |
 | `registrations` | `id`, `event_id`, `member_id`, `friend_index` (0 = the member), `friend_name`, `attended` (default 1), `added_by_owner`, `created_at`, `updated_at` | Friends hang off the member who pays for them; Owner-added walk-ins ignore the friend cap |
 | `settlements` | `event_id`, `court_total_cents`, `shuttle_count`, `shuttle_price_cents`, `registered_count`, `attended_count`, `court_share_cents`, `shuttle_share_cents`, `finalized_at` | One row per event; recomputed on every edit before archive |
-| `payments` | `event_id`, `member_id`, `amount_due_cents`, `payment_code` (xiaoming-jbm20261006-m007), `status` (unpaid / paid / anomaly), `method` (venmo\_auto / manual), `amount_paid_cents`, `paid_at`, `venmo_txn_id`, `email_id` | One row per paying member per event; friends roll up here |
-| `inbound_payments` | `venmo_txn_id` (unique), `email_id`, `payer_name`, `amount_cents`, `note`, `received_at`, `kind` (unmatched / other / parse\_failed), `state` (open / linked / ignored), `raw_text` | Everything the email parser saw that did not auto-match |
+| `payments` | `event_id`, `member_id`, `amount_due_cents`, `payment_code` (xiaoming-jbm20261006-m007), `status` (unpaid / partial / paid), `amount_paid_cents` (sum of receipts), `refunded_cents`, `paid_at` | One row per paying member per event; friends roll up here |
+| `payment_receipts` | `payment_id`, `amount_cents`, `method` (venmo / manual), `venmo_txn_id` (unique), `payer_name`, `received_at` | Every payment toward a bill; a bill can be paid in several pieces |
+| `inbound_payments` | `venmo_txn_id` (unique), `email_id`, `payer_name`, `amount_cents`, `note`, `received_at`, `kind` (unmatched = 待确认), `state` (open / linked / ignored), `linked_payment_id`, `reason` | Venmo payments with our code that the Owner reviews; unrelated payments are not stored |
 | `locations` | `name`, `last_used_at`, `use_count` | Feeds the location dropdown |
 | `settings` | `key`, `value` | Friend cap N, Venmo username, Zelle account, Telegram chat ID, reminder on/off + hours, dunning hour, last shuttle price, last event times, last deadline offset, admin/export token hashes |
 | `notification_log` | `event_id`, `type`, `sent_on` (Pacific date), `sent_at` | Unique on (event, type, sent\_on) so a retried cron run never double-sends |
@@ -122,7 +123,7 @@ Settlement is one pure function, `settle(roster, inputs)`, shared by preview and
 1. Count every roster row (members and friends) as registered; count rows with `attended = 1` as attended.
 2. Work in integer cents and round each share **up** with integer math (`Math.ceil(a / b)` on cents), so floating point never under-charges.
 3. Each row owes the court share, plus the shuttle share if attended. A member owes the sum of their own row and their friends' rows.
-4. On every change before archive, recompute `amount_due_cents` for rows still `unpaid`; leave `paid` and `anomaly` rows untouched.
+4. On every change before archive, recompute `amount_due_cents` for rows still `unpaid` or `partial` (then their status from the receipts); leave `paid` rows untouched.
 
 **Payment code**: `{name}-jbm{yyyymmdd}{suffix}-m{number}`, all lowercase, e.g. `xiaoming-jbm20261006-m007` (a second event that day gets `jbm20261006b`). The name is the username in toneless pinyin (pinyin-pro) or lowercase Latin with spaces as underscores. It is generated at Finalize and never changed by renames. Only the `jbm` and `m` parts are matched, so the name is cosmetic; the earlier `BM1006-M007` form is still recognised.
 
@@ -132,16 +133,16 @@ Settlement is one pure function, `settle(roster, inputs)`, shared by preview and
 
 A Gmail filter forwards only mail from `venmo@venmo.com` to `venmo@jaysbadminton.llmat.dev`; Cloudflare Email Routing hands each message to the Worker's `email()` handler, which matches it within seconds. The Worker never has access to the Owner's mailbox.
 
-1. **Accept or drop**: the original sender (from the forwarded headers) must be `venmo@venmo.com` and the subject must contain `paid` and `to your Venmo account`; anything else is dropped. The envelope sender must also be the Owner's Gmail (Gmail forwarding keeps it as the envelope sender), and the message must carry a passing DKIM signature for venmo.com in its Authentication-Results/ARC headers, so a forged "Venmo" email sent straight to the address cannot mark anyone as paid.
-2. **Parse** the text body (HTML stripped with `postal-mime` when no text part exists) using the field rules in the requirements: payer before `paid you`, first `$` amount, note between the amount and `Money credited to your Venmo account.`, date, `Transaction ID`, and `Sent to` (must equal the configured Venmo username).
+1. **Accept or drop**: the From address must be `venmo@venmo.com` and the subject must read `… paid $X.XX to your Venmo account`; anything else is dropped silently (never bounced). The Worker then verifies Venmo's own DKIM signature itself (`d=venmo.com`, rsa-sha256, From, To and Subject signed, exactly one of each, no `l=`), fetching the public key over DNS-over-HTTPS (Cloudflare, falling back to Google). Gmail forwarding and Email Routing only add headers on top, so the signature survives; this was checked against a real forwarded receipt. A forged "Venmo" email sent straight to the address fails here and is dropped. If DNS is unreachable the email is never auto-marked (see step 4).
+2. **Parse** the HTML body (Venmo receipts carry an empty text part): HTML is flattened to lines, then the field rules in the requirements apply: payer before `paid you`, the amount after it (Venmo splits `$7.00` across several elements, so the pieces are joined and cross-checked against the subject), note up to `Money credited to your Venmo account.`, then the `Date`, `Transaction ID` and `Sent to` values. `Sent to` must equal the configured Venmo username and the signed `To` header must be exactly the configured Venmo notification email (the address on the Venmo account; required together with the username in settings), otherwise the email is ignored. `Delivered-To` is not used: Gmail adds it and it is not signed.
 3. **De-duplicate** on the Venmo transaction ID; a second copy is ignored.
-4. **Match** the note against `/jbm\s*(\d{8})([a-z]?)\s*-\s*m(\d+)/i` among events that are not archived:
-   - match and amount equal → mark the payment `paid` (`venmo_auto`), store amount, time and transaction ID, then run the "all collected?" check;
-   - match but amount differs, or the payment is already paid → record it, set `anomaly`, notify the Owner;
-   - a code that matches nothing → `inbound_payments` kind `unmatched`, notify the Owner;
-   - no code at all → kind `other`, no notification (unrelated personal payments land here);
-   - parse failure → kind `parse_failed` with the raw text, notify the Owner.
-5. Keep the first 50 KB of raw text for every inbound row so parsing bugs can be replayed in tests.
+4. **Match**: the Owner forwards every Venmo receipt, most unrelated to badminton, so only notes matching `/([a-z0-9_]+)\s*-\s*jbm\s*(\d{8})([a-z]?)\s*-\s*m(\d+)/i` whose name part belongs to a group member (current username in pinyin, or the name printed on any bill) and whose date + suffix is an existing event are acted on:
+   - the member has a bill on that event and the name is the one printed on the bill (fixed when the bill is created; renames do not change it) → add a `payment_receipts` row (amount, transaction ID, payer) and recompute the bill: total < due → `partial`, total ≥ due → `paid` (run the "all collected?" check), total > due → the excess is listed under 需要退款 until the Owner marks it refunded. This also applies to archived events, which can only gain an over-payment;
+   - the event exists but the bill cannot be pinned down (no bill for that member number, name and number are different people, event not settled yet, cancelled, or already archived) → `inbound_payments` kind `unmatched` with a reason, shown under 待确认, notify the Owner;
+   - anything else (no code, no name, unknown name or event, unparseable email) → ignored and not stored.
+   - If DNS was down and the signature could not be checked, an email that would otherwise be acted on goes to 待确认 instead; it is never auto-marked.
+
+The admin page's 收款 tab lists the 待确认 rows with their reason; the Owner links one to an open bill (marks it paid with that amount) or ignores it.
 
 **Gmail forwarding confirmation**: while the Owner adds the forwarding address, Email Routing temporarily forwards that address to the Owner's Gmail so Google's confirmation link arrives; the route is switched to the Worker before the Gmail filter is created, avoiding a forwarding loop. The sample email from the requirements becomes the first parser test fixture.
 
@@ -156,7 +157,7 @@ One Cron Trigger runs every 10 minutes (`*/10 * * * *`, UTC); the handler conver
 | Settle reminder | `now ≥ end_at` and not finalized | Hourly (log key = Pacific date + hour) |
 | Daily dunning | `now ≥ finalized_at + 24 h`, local hour = dunning hour, someone unpaid, dunning not stopped | Daily: one summary + one message per unpaid member |
 | All collected | Triggered inline whenever a payment flips to paid (email or manual) and none remain | Once, then the event is archived |
-| Payment needs review | Inline from the email handler (unmatched, anomaly, parse failure) | Per email |
+| Payment needs review | Inline from the email handler (待确认, partial payment, over-payment to refund) | Per email |
 
 **Telegram**: `POST https://api.telegram.org/bot{token}/sendMessage` to the Owner's chat ID with `parse_mode: HTML`. Each message has the Owner's details first, then a divider and the text to paste into WeChat inside a `<pre>` block so one tap copies it. Per-person dunning messages are separate Telegram messages so each can be forwarded to a private chat on its own. The bot token is a Worker secret; the chat ID is a setting. A failed send is logged and retried on the next run.
 

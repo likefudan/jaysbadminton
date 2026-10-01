@@ -1,31 +1,11 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { Client, approveMember, createTestEvent, setUpAdmin } from "./helpers";
+import { Client, billingScenario as scenario, createTestEvent, expire, setUpAdmin } from "./helpers";
 
 const anon = new Client();
-const expire = (id: number) =>
-  env.DB.prepare("UPDATE events SET deadline_at = ?, status = 'closed' WHERE id = ?").bind(new Date(Date.now() - 60_000).toISOString(), id).run();
+type Scenario = Awaited<ReturnType<typeof scenario>>;
 
-/** Owner Jay plays; Alice brings Tom (absent); Bob comes alone. 4 registered, 3 attended. */
-async function scenario() {
-  const ctx = await setUpAdmin();
-  await ctx.admin.call(`${ctx.base}/settings`, { venmoUsername: "@KeLi8916", zelleAccount: "jay@example.com" });
-  const e = await createTestEvent(ctx);
-  const alice = await approveMember(ctx, "Alice");
-  const bob = await approveMember(ctx, "Bob");
-  const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active.find((m: { isOwner: boolean }) => m.isOwner).id;
-  await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: owner, includeSelf: true, friends: [] });
-  await anon.call(`${alice.base}/events/${e.id}/signup`, { friends: ["Tom"] });
-  await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: [] });
-  await expire(e.id);
-  const d = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data;
-  const tom = d.roster.find((r: { name: string }) => r.name === "Tom");
-  await ctx.admin.call(`${ctx.base}/events/${e.id}/attendance`, { registrationId: tom.id, attended: false });
-  const fees = { courtTotal: "100", shuttleCount: 6, shuttlePrice: "3" }; // court 25.00, shuttle 18/3 = 6.00
-  return { ...ctx, e, alice, bob, owner, fees, eb: `${ctx.base}/events/${e.id}` };
-}
-
-const payment = async (s: Awaited<ReturnType<typeof scenario>>, name: string) =>
+const payment = async (s: Scenario, name: string) =>
   (await s.admin.call(`${s.eb}/settlement`)).data.payments.find((p: { memberName: string }) => p.memberName === name);
 
 describe("settlement", () => {
@@ -37,7 +17,8 @@ describe("settlement", () => {
     expect((await s.admin.call(`${s.eb}/finalize`, s.fees)).status).toBe(200);
     expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 3100 + 2500, status: "unpaid", paymentCode: `alice-jbm${s.e.date.replace(/-/g, "")}-${s.alice.id.toLowerCase()}` });
     expect(await payment(s, "Bob")).toMatchObject({ amountDueCents: 3100, status: "unpaid" });
-    expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 3100, status: "paid", method: "manual" });
+    expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 3100, status: "paid", amountPaidCents: 3100 });
+    expect((await payment(s, "Jay")).receipts).toMatchObject([{ method: "manual", amountCents: 3100 }]);
 
     const mine = (await anon.call(`${s.alice.base}/events`)).data.events[0];
     expect(mine.payment).toMatchObject({ amountCents: 5600, status: "unpaid", venmoUsername: "KeLi8916", zelleAccount: "jay@example.com" });
@@ -89,8 +70,9 @@ describe("collection and archive", () => {
     const a = await payment(s, "Alice");
     const b = await payment(s, "Bob");
     expect((await s.admin.call(`${s.base}/payments/${a.id}/mark-paid`, {})).data.settled).toBe(false);
-    await s.admin.call(`${s.base}/payments/${a.id}/unmark`, {});
-    expect((await payment(s, "Alice")).status).toBe("unpaid");
+    const receipt = (await payment(s, "Alice")).receipts[0];
+    await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {});
+    expect(await payment(s, "Alice")).toMatchObject({ status: "unpaid", amountPaidCents: 0, receipts: [] });
     await s.admin.call(`${s.base}/payments/${a.id}/mark-paid`, {});
     expect((await s.admin.call(`${s.base}/payments/${b.id}/mark-paid`, {})).data.settled).toBe(true);
 
@@ -98,7 +80,8 @@ describe("collection and archive", () => {
     expect(ev.status).toBe("settled");
     const add = await s.admin.call(`${s.eb}/roster/add`, { memberId: s.bob.id, includeSelf: false, friends: ["x"] });
     expect(add.data.error.message).toBe("这个活动已收齐归档，不能再修改");
-    expect((await s.admin.call(`${s.base}/payments/${a.id}/unmark`, {})).data.error.message).toBe("这个活动已收齐归档，不能再修改");
+    const paid = (await payment(s, "Alice")).receipts[0];
+    expect((await s.admin.call(`${s.base}/receipts/${paid.id}/remove`, {})).data.error.message).toBe("这个活动已收齐归档，不能再修改");
     expect((await s.admin.call(`${s.eb}/finalize`, s.fees)).data.error.message).toBe("这个活动已收齐归档，不能再修改");
 
     const home = (await anon.call("/api/public/home")).data;

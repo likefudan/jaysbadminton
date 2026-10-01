@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "./env";
 import { closeExpired } from "./events";
 import { HttpError } from "./http";
+import { MAX_EMAIL_BYTES, handleEmail } from "./inbound";
 import { adminRoutes } from "./routes/admin";
 import { memberRoutes } from "./routes/member";
 import { publicRoutes } from "./routes/public";
@@ -38,8 +39,17 @@ export default {
     await closeExpired(env);
     // Reminders and dunning land here in card 6.
   },
-  async email(message, _env, _ctx) {
-    // Venmo email ingestion lands here in card 5; until then drop everything.
-    message.setReject("Not accepting mail yet");
+  async email(message, env, _ctx) {
+    // Never bounce or throw: a bounce would land in the Owner's Gmail for every non-receipt.
+    try {
+      if (message.rawSize > MAX_EMAIL_BYTES) {
+        console.warn("email too large:", message.rawSize);
+        return;
+      }
+      const raw = new Uint8Array(await new Response(message.raw).arrayBuffer());
+      console.log("email:", await handleEmail(env, raw));
+    } catch (err) {
+      console.error("email handler failed:", err);
+    }
   },
 } satisfies ExportedHandler<Env>;

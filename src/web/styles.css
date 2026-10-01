@@ -186,6 +186,7 @@ a {
 }
 .row .who {
   min-width: 0;
+  flex: 1;
 }
 .row .who small {
   display: block;
@@ -200,6 +201,7 @@ a {
 .actions .button {
   min-height: 40px;
   padding: 0 12px;
+  white-space: nowrap;
 }
 .button.danger {
   background: transparent;
@@ -484,4 +486,79 @@ table.bills td:last-child {
 }
 .spaced {
   margin-bottom: 12px;
+}
+.inbound {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.inbound:first-of-type {
+  border-top: 0;
+}
+.inbound .badge {
+  margin-left: 6px;
+}
+.inbound .note {
+  margin-top: 4px;
+  word-break: break-word;
+}
+.block {
+  display: block;
+}
+.link-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.link-row select {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+}
+.link-row .button {
+  min-height: 44px;
+  padding: 0 14px;
+}
+.inbound .reason {
+  margin: 6px 0 0;
+  color: var(--danger);
+}
+.pay-row {
+  border-top: 1px solid var(--border);
+}
+.pay-row:first-of-type {
+  border-top: 0;
+}
+.pay-row .row {
+  border-top: 0;
+}
+.pay-status.unpaid {
+  color: var(--muted);
+}
+.pay-status.partial,
+.refund {
+  color: var(--danger);
+}
+.receipts {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+.receipts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+.undo {
+  margin-left: 8px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--danger);
+  font: inherit;
+  text-decoration: underline;
+  min-height: 28px;
 }

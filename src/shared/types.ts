@@ -92,7 +92,16 @@ export const STATUS_ZH: Record<EventStatus, string> = {
   cancelled: "已取消",
 };
 
-export type PaymentStatus = "unpaid" | "paid" | "anomaly";
+export type PaymentStatus = "unpaid" | "partial" | "paid";
+
+/** One payment toward a bill; a bill can be paid in several pieces. */
+export interface Receipt {
+  id: number;
+  amountCents: number;
+  method: "venmo" | "manual";
+  payerName: string | null;
+  receivedAt: string;
+}
 
 export interface PaymentRow {
   id: number;
@@ -102,9 +111,10 @@ export interface PaymentRow {
   amountDueCents: number;
   paymentCode: string;
   status: PaymentStatus;
-  method: "venmo_auto" | "manual" | null;
-  amountPaidCents: number | null;
-  paidAt: string | null;
+  amountPaidCents: number; // sum of receipts
+  /** Over-payment still to send back (paid − due − already refunded), 0 when none. */
+  refundCents: number;
+  receipts: Receipt[];
 }
 
 export interface SettlementInputs {
@@ -121,10 +131,58 @@ export interface SettlementView {
 }
 
 export interface MyPayment {
-  amountCents: number;
+  amountCents: number; // due
+  paidCents: number;
+  refundCents: number;
   status: PaymentStatus;
   code: string;
   shares: import("./settle").Share[];
   venmoUsername: string;
   zelleAccount: string;
+}
+
+export type InboundKind = "unmatched"; // older rows may hold "anomaly" / "other" / "parse_failed"
+
+/** A forwarded Venmo payment the Owner reviews (待确认), or one already handled. */
+export interface InboundRow {
+  id: number;
+  kind: InboundKind;
+  state: "open" | "linked" | "ignored";
+  payerName: string | null;
+  amountCents: number | null;
+  note: string | null;
+  receivedAt: string;
+  txnId: string | null;
+  /** Why it needs review, or what was done with it. */
+  reason: string | null;
+  linked: { paymentId: number; memberName: string; eventLabel: string } | null;
+}
+
+/** A payment still waiting for money, offered as a link target for an inbound row. */
+export interface OpenPayment {
+  id: number;
+  eventLabel: string; // "10月6日 周二"
+  memberName: string;
+  amountDueCents: number;
+  amountPaidCents: number;
+  status: PaymentStatus;
+  paymentCode: string;
+}
+
+/** A bill that received more than it was due and still has money to send back. */
+export interface RefundRow {
+  paymentId: number;
+  eventLabel: string;
+  memberName: string;
+  amountDueCents: number;
+  amountPaidCents: number;
+  refundCents: number;
+  receipts: Receipt[];
+}
+
+export interface InboundResponse {
+  open: InboundRow[];
+  done: InboundRow[];
+  payments: OpenPayment[];
+  refunds: RefundRow[];
 }
