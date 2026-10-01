@@ -16,7 +16,8 @@ describe("Pacific time helpers", () => {
   });
 
   it("formats in Chinese", () => {
-    expect(formatDateZh("2026-10-06")).toBe("10月6日 周二");
+    expect(formatDateZh("2026-10-06")).toBe("2026年10月6日 周二");
+    expect(formatDateZh("2026-10-06", false)).toBe("10月6日 周二");
     expect(formatInstantZh("2026-10-06T03:00:00.000Z")).toBe("10月5日 周一 20:00");
   });
 });

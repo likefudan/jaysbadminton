@@ -12,6 +12,7 @@ export interface EventRow {
   end_at: string;
   location: string;
   address: string;
+  title: string;
   deadline_at: string;
   deadline_offset_min: number;
   status: EventStatus;
@@ -45,6 +46,7 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
     endTime: toPacific(e.end_at).time,
     location: e.location,
     address: e.address,
+    title: e.title,
     deadlineAt: e.deadline_at,
     status: e.status,
     headcount,
@@ -117,6 +119,7 @@ export interface CreateEventInput {
   endTime: string;
   location: string;
   address: string;
+  title?: string;
   deadlineDays: number;
   deadlineHours: number;
 }
@@ -136,6 +139,15 @@ export function validateEventInput(i: CreateEventInput): { startAt: string; endA
   const deadlineAt = new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
   if (deadlineAt <= now()) throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
   return { startAt, endAt, deadlineAt, offsetMin };
+}
+
+export const TITLE_MAX = 30;
+
+/** The optional event title, trimmed; too long is refused rather than cut. */
+export function cleanTitle(title: string | undefined): string {
+  const t = (title ?? "").trim();
+  if ([...t].length > TITLE_MAX) throw badRequest(`活动标题最多 ${TITLE_MAX} 个字`);
+  return t;
 }
 
 export function checkVenue(venue: string, address: string): void {
@@ -163,10 +175,10 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const code = input.date.slice(5, 7) + input.date.slice(8, 10) + (n === 0 ? "" : String.fromCharCode(65 + n)); // 1006, 1006B, 1006C
   const ts = now();
   const res = await env.DB.prepare(
-    `INSERT INTO events (code, date, start_at, end_at, location, address, deadline_at, deadline_offset_min, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?) RETURNING id`,
+    `INSERT INTO events (code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?) RETURNING id`,
   )
-    .bind(code, input.date, v.startAt, v.endAt, location, address, v.deadlineAt, v.offsetMin, ts)
+    .bind(code, input.date, v.startAt, v.endAt, location, address, cleanTitle(input.title), v.deadlineAt, v.offsetMin, ts)
     .first<{ id: number }>();
   await env.DB.batch([
     saveVenue(env, location, address, ts),

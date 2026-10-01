@@ -54,9 +54,10 @@ export const TABLES = {
       );
       return {
         title: this.title,
-        columns: ["活动编号", "日期", "开始", "结束", "场馆", "地址", "状态", "报名人数", "到场人数", "报名截止", "结算时间", "收齐时间"],
+        columns: ["活动编号", "标题", "日期", "开始", "结束", "场馆", "地址", "状态", "报名人数", "到场人数", "报名截止", "结算时间", "收齐时间"],
         rows: rows.map((e) => [
           eventNumber(e.date, e.code),
+          e.title ?? "",
           e.date,
           toPacific(e.start_at).time,
           toPacific(e.end_at).time,

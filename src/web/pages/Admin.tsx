@@ -393,6 +393,7 @@ function ResetAll(props: { base: string }) {
 
 interface GeneralSettings {
   siteTitle: string;
+  showLeaderboard: boolean;
   friendCap: number;
   venmoUsername: string;
   venmoEmail: string;
@@ -405,27 +406,81 @@ function FriendCap(props: { base: string }) {
 }
 
 function GeneralForm(props: { base: string; initial: GeneralSettings }) {
+  return (
+    <>
+      <PublicPageCard base={props.base} initial={props.initial} />
+      <SignupCard base={props.base} initial={props.initial} />
+    </>
+  );
+}
+
+/** 公共页面: what anyone with the site address sees. */
+function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
   const [title, setTitle] = useState(props.initial.siteTitle);
+  const [board, setBoard] = useState(props.initial.showLeaderboard);
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  async function toggleBoard(on: boolean) {
+    setBoard(on);
+    if (!(await run(() => api(`${props.base}/settings`, { showLeaderboard: on })))) setBoard(!on);
+  }
+  return (
+    <Card title="公共页面">
+      <Field
+        label="网站标题"
+        value={title}
+        onInput={(v) => {
+          setTitle(v);
+          setSaved(false);
+        }}
+        hint="显示在每个页面顶部和浏览器标签上"
+      />
+      <button
+        class="button secondary block"
+        disabled={busy}
+        onClick={async () => {
+          if (await run(() => api(`${props.base}/settings`, { siteTitle: title }))) {
+            setSaved(true);
+            setSiteTitle(title.trim());
+          }
+        }}
+      >
+        {saved ? "已保存" : "保存标题"}
+      </button>
+      <label class="switch-card plain">
+        <span>
+          <strong>展示排行榜</strong>
+          <small>在首页显示出勤排行榜（只有名字和次数，没有金额）</small>
+        </span>
+        <input type="checkbox" role="switch" checked={board} disabled={busy} onChange={(e) => toggleBoard((e.target as HTMLInputElement).checked)} />
+      </label>
+      {error && <p class="error">{error}</p>}
+      <p class="muted small">首页和活动页对所有人公开：只显示活动时间、地点和报名人数，不显示名单和收款情况。</p>
+    </Card>
+  );
+}
+
+function SignupCard(props: { base: string; initial: GeneralSettings }) {
   const [cap, setCap] = useState(String(props.initial.friendCap));
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useAction();
-  const edit = (f: (v: string) => void) => (v: string) => {
-    f(v);
-    setSaved(false);
-  };
   return (
-    <Card title="网站与报名设置">
-      <Field label="网站标题" value={title} onInput={edit(setTitle)} hint="显示在每个页面顶部和浏览器标签上" />
-      <Field label="每人最多带几个朋友" type="number" value={cap} onInput={edit(setCap)} />
+    <Card title="报名设置">
+      <Field
+        label="每人最多带几个朋友"
+        type="number"
+        value={cap}
+        onInput={(v) => {
+          setCap(v);
+          setSaved(false);
+        }}
+      />
       {error && <p class="error">{error}</p>}
       <button
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
-          if (await run(() => api(`${props.base}/settings`, { siteTitle: title, friendCap: Number(cap) }))) {
-            setSaved(true);
-            setSiteTitle(title.trim());
-          }
+          if (await run(() => api(`${props.base}/settings`, { friendCap: Number(cap) }))) setSaved(true);
         }}
       >
         {saved ? "已保存" : "保存"}

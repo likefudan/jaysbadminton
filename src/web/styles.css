@@ -1257,3 +1257,16 @@ details.fold[open] summary::after {
 details.fold[open] summary {
   margin-bottom: 8px;
 }
+.switch-card.plain {
+  margin: 14px 0 6px;
+}
+.event-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.status-closed,
+.status-cancelled {
+  color: var(--muted);
+}

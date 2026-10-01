@@ -43,6 +43,7 @@ export interface EventSummary {
   endTime: string;
   location: string; // venue name
   address: string; // street address, may be empty for older events
+  title: string; // optional, e.g. "HappyTuesday 比赛"; "" when not set
   deadlineAt: string; // UTC ISO
   status: EventStatus;
   headcount: number; // members + friends
@@ -85,7 +86,7 @@ export interface EventDefaults {
 export interface HomeResponse {
   currentEvents: EventSummary[];
   pastEvents: EventSummary[];
-  leaderboard: Leaderboard;
+  leaderboard: Leaderboard | null; // null when the Owner hides it
 }
 
 export interface RankEntry {
@@ -113,10 +114,8 @@ export interface MyStats {
   lastYearSpendCents: number;
 }
 
-export interface PublicEvent extends EventSummary {
-  roster: { name: string; isFriend: boolean; attended: boolean }[];
-  showAttendance: boolean;
-}
+/** What anyone can see about an event: no names, just the head count. */
+export type PublicEvent = EventSummary;
 
 export const STATUS_ZH: Record<EventStatus, string> = {
   open: "报名中",

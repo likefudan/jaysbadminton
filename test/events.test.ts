@@ -55,8 +55,11 @@ describe("member sign-up", () => {
     expect(mine.myFriends).toEqual(["Tom", ""]);
     expect(mine.headcount).toBe(3);
 
+    // Anyone can see how many signed up, but not who.
     const pub = (await anon.call(`/api/public/events/${e.code}`)).data;
-    expect(pub.roster.map((r: { name: string }) => r.name)).toEqual(["Alice", "Tom", "Alice的朋友2"]);
+    expect(pub.headcount).toBe(3);
+    expect(JSON.stringify(pub)).not.toMatch(/Alice|Tom/);
+    expect(JSON.stringify((await anon.call("/api/public/home")).data)).not.toMatch(/Tom|Alice的朋友/);
 
     await anon.call(`${alice.base}/events/${e.id}/signup`, { friends: [] });
     mine = (await anon.call(`${alice.base}/events`)).data.events[0];
@@ -221,5 +224,25 @@ describe("Owner joins own event", () => {
     expect(withMe.roster.map((r: { memberName: string; addedByOwner: boolean }) => [r.memberName, r.addedByOwner])).toEqual([["Jay", false]]);
     const without = await createTestEvent(ctx, { joinSelf: false, startTime: "09:00", endTime: "11:00" });
     expect(without.roster).toEqual([]);
+  });
+});
+
+describe("event title and public leaderboard switch", () => {
+  it("keeps an optional title, editable later, and refuses one that is too long", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx, { title: "  HappyTuesday 比赛 " });
+    expect(e.title).toBe("HappyTuesday 比赛");
+    expect((await createTestEvent(ctx, { startTime: "08:00", endTime: "09:00" })).title).toBe("");
+    expect((await ctx.admin.call(`${ctx.base}/events`, { date: futureDate(9), startTime: "19:00", endTime: "21:00", location: "X", deadlineDays: 1, deadlineHours: 0, title: "长".repeat(31) })).status).toBe(400);
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, { date: e.date, startTime: e.startTime, endTime: e.endTime, location: e.location, title: "决赛" });
+    expect((await new Client().call(`/api/public/events/${e.code}`)).data.title).toBe("决赛");
+  });
+
+  it("hides the leaderboard from the public page when the Owner turns it off", async () => {
+    const ctx = await setUpAdmin();
+    expect((await new Client().call("/api/public/home")).data.leaderboard).not.toBeNull();
+    await ctx.admin.call(`${ctx.base}/settings`, { showLeaderboard: false });
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.showLeaderboard).toBe(false);
+    expect((await new Client().call("/api/public/home")).data.leaderboard).toBeNull();
   });
 });

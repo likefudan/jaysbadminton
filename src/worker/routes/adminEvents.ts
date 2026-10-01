@@ -12,6 +12,7 @@ import {
   detail,
   friendCap,
   checkVenue,
+  cleanTitle,
   getEvent,
   saveVenue,
   setSignup,
@@ -74,6 +75,7 @@ adminEventRoutes.post("/events", async (c) => {
     endTime: str(b.endTime),
     location: str(b.location),
     address: str(b.address),
+    title: str(b.title),
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
@@ -139,8 +141,8 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   const ts = now();
   await c.env.DB.batch([
     c.env.DB.prepare(
-      "UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, deadline_at = ?, status = ? WHERE id = ?",
-    ).bind(date, startAt, endAt, location, address, deadline, status, e.id),
+      "UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, deadline_at = ?, status = ? WHERE id = ?",
+    ).bind(date, startAt, endAt, location, address, b.title === undefined ? e.title : cleanTitle(str(b.title)), deadline, status, e.id),
     saveVenue(c.env, location, address, ts),
   ]);
   return c.json(await detail(c.env, await getEvent(c.env, e.id)));
@@ -226,6 +228,7 @@ adminEventRoutes.get("/settings", async (c) => {
     zelleAccount: s.zelle_account ?? "",
     siteTitle: await siteTitle(c.env),
     theme: await siteTheme(c.env),
+    showLeaderboard: (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard !== "0",
     ...(await notifySettings(c.env)),
   });
 });
@@ -244,6 +247,7 @@ adminEventRoutes.post("/settings", async (c) => {
     if ([...t].length > SITE_TITLE_MAX) throw badRequest(`网站标题最多 ${SITE_TITLE_MAX} 个字`);
     writes.push(setSetting(c.env.DB, "site_title", t));
   }
+  if (b.showLeaderboard !== undefined) writes.push(setSetting(c.env.DB, "show_leaderboard", b.showLeaderboard === false ? "0" : "1"));
   if (b.theme !== undefined) {
     if (!isTheme(b.theme)) throw badRequest("没有这个配色");
     writes.push(setSetting(c.env.DB, "theme", b.theme));

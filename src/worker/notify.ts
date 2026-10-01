@@ -43,7 +43,8 @@ async function once(env: Env, eventId: number, type: string, key: string, send: 
   }
 }
 
-const day = (e: EventRow) => formatDateZh(e.date);
+/** "HappyTuesday 比赛 2026年10月7日 周三", or just the date when there is no title. */
+const day = (e: EventRow) => (e.title ? `${e.title} ${formatDateZh(e.date)}` : formatDateZh(e.date));
 const when = (e: EventRow) => `${day(e)} ${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`;
 const eventLink = (env: Env, e: EventRow) => `${env.SITE_ORIGIN}/e/${e.code}`;
 
@@ -207,7 +208,8 @@ export async function notifyCollected(env: Env, eventId: number): Promise<void> 
     const lines = [
       "🎉 费用已全部收齐，活动已归档",
       "",
-      `日期：${e.date.slice(0, 4)}年${day(e)} ${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`,
+      ...(e.title ? [`活动：${e.title}`] : []),
+      `日期：${formatDateZh(e.date)} ${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`,
       `活动编号：jbm${e.date.replace(/-/g, "")}${e.code.slice(4).toLowerCase()}`,
       `场馆：${e.location}`,
       ...(e.address ? [`地址：${e.address}`] : []),
