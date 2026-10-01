@@ -5,7 +5,43 @@
 A sign-up and fee-collection site for a casual weekly badminton group (~50 members, 20–30 per session). Members sign up through a private link, the Owner enters court and shuttlecock costs, the system splits the bill, members pay through a pre-filled Venmo link, and forwarded Venmo receipt emails mark payments as paid automatically. Notifications go to the Owner on Telegram, ready to paste into WeChat.
 
 - **Site**: https://jaysbadminton.llmat.dev
-- **Stack**: Cloudflare Workers + D1 + Cron Triggers + Email Routing (free tier), with a daily Google Sheets mirror via Apps Script
+- **Stack**: Preact + Vite front end; Hono API on Cloudflare Workers with D1 (SQLite), Cron Triggers and Email Routing, all on the free tier; Telegram for notifications; optional daily Google Sheets mirror via Apps Script
+
+## Screenshots
+
+Phone-sized renders with demo data (names, venues and accounts are made up).
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/home.jpg" width="240" alt="Public home page"><br><sub>公开首页：近期活动、排行榜（不显示名单和金额）</sub></td>
+    <td align="center"><img src="docs/screenshots/member-bill.jpg" width="240" alt="Member page with bill"><br><sub>成员专属页：账单明细、一键 Venmo 付款</sub></td>
+    <td align="center"><img src="docs/screenshots/dark.jpg" width="240" alt="Dark mode"><br><sub>深色模式</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/admin-events.jpg" width="240" alt="Admin events"><br><sub>管理页：活动列表</sub></td>
+    <td align="center"><img src="docs/screenshots/admin-payments.jpg" width="240" alt="Payment board"><br><sub>到场标记与收款看板</sub></td>
+    <td align="center"><img src="docs/screenshots/admin-create.jpg" width="240" alt="Create event"><br><sub>新建活动：最近的场馆、地址联想</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/admin-settings.jpg" width="240" alt="Settings"><br><sub>设置：配色、收款设置（加锁）、公共页面</sub></td>
+    <td align="center" colspan="2">
+      <img src="docs/screenshots/theme-ocean.jpg" width="115" alt="Ocean theme">
+      <img src="docs/screenshots/theme-grape.jpg" width="115" alt="Grape theme">
+      <img src="docs/screenshots/theme-sunset.jpg" width="115" alt="Sunset theme">
+      <img src="docs/screenshots/theme-forest.jpg" width="115" alt="Forest theme">
+      <br><sub>7 种低饱和度配色，管理员一键切换</sub>
+    </td>
+  </tr>
+</table>
+
+## Features
+
+- **报名**：成员用专属链接报名、带朋友；管理员可代加临时人员、立即截止、紧急修改时间地点
+- **结算**：输入场地费、用球数和单价，按到场情况自动算出每人金额（含朋友份额）
+- **收款**：预填 Venmo 链接；Gmail 转发的 Venmo 收款邮件经签名校验后自动对账，支持部分付款、多付退款、待确认关联
+- **通知**：Telegram 截止前提醒、截止名单、结算提醒、每日账单提醒（可直接复制到微信）、收齐存档
+- **统计与数据**：公开排行榜、个人统计、CSV 导出、每天同步到 Google 表格
+- **管理**：成员审核 / 停用 / 恢复 / 删除，收款设置加锁，配色模板，管理员指南，Telegram 找回管理链接
 
 ## Docs
 
