@@ -1,5 +1,7 @@
 import { Hono } from "hono";
-import type { EventDefaults } from "../../shared/types";
+import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
+import type { EventDefaults, SettlementView } from "../../shared/types";
+import { checkCollected, finalize, paymentRows, recomputeIfFinalized, savedInput, settleRows } from "../billing";
 import { isDate, isTime, pacificToUtc } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
 import type { Env } from "../env";
@@ -119,6 +121,7 @@ adminEventRoutes.post("/events/:id/roster/add", async (c) => {
     ...(includeSelf ? [insert(0, null)] : []),
     ...friends.map((f) => insert(next++, f.trim().slice(0, 20) || null)),
   ]);
+  await recomputeIfFinalized(c.env, e);
   return c.json(await detail(c.env, e));
 });
 
@@ -139,15 +142,129 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   assertRosterEditable(e);
   await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?").bind(Number(c.req.param("rid")), e.id).run();
+  await recomputeIfFinalized(c.env, e);
   return c.json(await detail(c.env, e));
 });
 
-adminEventRoutes.get("/settings", async (c) => c.json({ friendCap: await friendCap(c.env) }));
+adminEventRoutes.get("/settings", async (c) => {
+  const s = await getSettings(c.env.DB, ["venmo_username", "zelle_account"]);
+  return c.json({ friendCap: await friendCap(c.env), venmoUsername: s.venmo_username ?? "", zelleAccount: s.zelle_account ?? "" });
+});
 
 adminEventRoutes.post("/settings", async (c) => {
   const b = await readJson(c.req.raw);
-  const cap = num(b.friendCap);
-  if (!Number.isInteger(cap) || cap < 0 || cap > 10) throw badRequest("带朋友上限请填 0–10");
-  await setSetting(c.env.DB, "friend_cap", String(cap)).run();
+  const writes = [];
+  if (b.friendCap !== undefined) {
+    const cap = num(b.friendCap);
+    if (!Number.isInteger(cap) || cap < 0 || cap > 10) throw badRequest("带朋友上限请填 0–10");
+    writes.push(setSetting(c.env.DB, "friend_cap", String(cap)));
+  }
+  if (b.venmoUsername !== undefined) {
+    const v = str(b.venmoUsername).trim().replace(/^@/, "");
+    if (v && !/^[A-Za-z0-9_-]{2,30}$/.test(v)) throw badRequest("Venmo 用户名格式不对（不用加 @）");
+    writes.push(setSetting(c.env.DB, "venmo_username", v));
+  }
+  if (b.zelleAccount !== undefined) writes.push(setSetting(c.env.DB, "zelle_account", str(b.zelleAccount).trim().slice(0, 60)));
+  if (writes.length) await c.env.DB.batch(writes);
+  return c.json({ ok: true });
+});
+
+// ---- Attendance, settlement and payments ----
+
+adminEventRoutes.post("/events/:id/attendance", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  assertRosterEditable(e);
+  const b = await readJson(c.req.raw);
+  await c.env.DB.prepare("UPDATE registrations SET attended = ?, updated_at = ? WHERE id = ? AND event_id = ?")
+    .bind(b.attended === false ? 0 : 1, now(), num(b.registrationId), e.id)
+    .run();
+  await recomputeIfFinalized(c.env, e);
+  return c.json(await detail(c.env, e));
+});
+
+function readInput(b: Record<string, unknown>): SettleInput {
+  const court = parseDollars(str(b.courtTotal) || String(b.courtTotal ?? ""));
+  const price = parseDollars(str(b.shuttlePrice) || String(b.shuttlePrice ?? ""));
+  const count = num(b.shuttleCount);
+  if (court === null) throw badRequest("请填写场地总费用（美元）");
+  if (!Number.isInteger(count) || count < 0 || count > 500) throw badRequest("请填写用球个数");
+  if (price === null) throw badRequest("请填写羽毛球单价（美元）");
+  return { courtTotalCents: court, shuttleCount: count, shuttlePriceCents: price };
+}
+
+function assertSettleable(e: EventRow) {
+  if (e.status === "open") throw badRequest("报名还没截止，不能结算");
+  if (e.status === "settled") throw badRequest("这个活动已收齐归档，不能再修改");
+  if (e.status === "cancelled") throw badRequest("这个活动已取消");
+}
+
+adminEventRoutes.get("/events/:id/settlement", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  const input = await savedInput(c.env, e.id);
+  const s = await getSettings(c.env.DB, ["last_shuttle_price_cents"]);
+  const payments = await paymentRows(c.env, e.id);
+  return c.json<SettlementView>({
+    inputs: input && {
+      courtTotal: dollars(input.courtTotalCents),
+      shuttleCount: input.shuttleCount,
+      shuttlePrice: dollars(input.shuttlePriceCents),
+    },
+    defaultShuttlePrice: s.last_shuttle_price_cents ? dollars(Number(s.last_shuttle_price_cents)) : "",
+    payments,
+    totals: {
+      dueCents: payments.reduce((t, p) => t + p.amountDueCents, 0),
+      paidCents: payments.reduce((t, p) => t + (p.status === "paid" ? (p.amountPaidCents ?? 0) : 0), 0),
+      unpaidCount: payments.filter((p) => p.status !== "paid").length,
+    },
+  });
+});
+
+adminEventRoutes.post("/events/:id/preview", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  assertSettleable(e);
+  const input = readInput(await readJson(c.req.raw));
+  return c.json(settle(await settleRows(c.env, e.id), input));
+});
+
+adminEventRoutes.post("/events/:id/finalize", async (c) => {
+  await closeExpired(c.env);
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  assertSettleable(e);
+  const input = readInput(await readJson(c.req.raw));
+  if ((await settleRows(c.env, e.id)).length === 0) throw badRequest("名单是空的，不能结算");
+  await finalize(c.env, e, input);
+  return c.json({ ok: true });
+});
+
+async function paymentEvent(env: Env, paymentId: number) {
+  const p = await env.DB.prepare("SELECT event_id, status, amount_due_cents FROM payments WHERE id = ?")
+    .bind(paymentId)
+    .first<{ event_id: number; status: string; amount_due_cents: number }>();
+  if (!p) throw badRequest("找不到这笔应付款");
+  const e = await getEvent(env, p.event_id);
+  if (e.status !== "finalized") throw badRequest("这个活动已收齐归档，不能再修改");
+  return { p, e };
+}
+
+adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
+  const id = Number(c.req.param("pid"));
+  const { p, e } = await paymentEvent(c.env, id);
+  await c.env.DB.prepare(
+    "UPDATE payments SET status = 'paid', method = 'manual', amount_paid_cents = COALESCE(amount_paid_cents, ?), paid_at = ? WHERE id = ?",
+  )
+    .bind(p.amount_due_cents, now(), id)
+    .run();
+  const settled = await checkCollected(c.env, e.id);
+  return c.json({ ok: true, settled });
+});
+
+adminEventRoutes.post("/payments/:pid/unmark", async (c) => {
+  const id = Number(c.req.param("pid"));
+  await paymentEvent(c.env, id);
+  await c.env.DB.prepare(
+    "UPDATE payments SET status = 'unpaid', method = NULL, amount_paid_cents = NULL, paid_at = NULL, venmo_txn_id = NULL WHERE id = ?",
+  )
+    .bind(id)
+    .run();
   return c.json({ ok: true });
 });

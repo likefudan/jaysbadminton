@@ -5,6 +5,7 @@ import { api } from "../api";
 import { Card, Empty, Field, Load, Page, useAction } from "../components";
 import { EventInfo } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
+import { PaymentBox } from "../PaymentBox";
 import { useApi } from "../hooks";
 
 export function Member(props: { token?: string }) {
@@ -102,7 +103,7 @@ function SignupCard(props: { base: string; e: MyEvent; cap: number; onChange: ()
   return (
     <Card>
       <EventInfo e={e} />
-      {signedUp && !editing && (
+      {signedUp && !editing && !e.payment && (
         <p class="ok">
           ✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}
         </p>
@@ -139,7 +140,8 @@ function SignupCard(props: { base: string; e: MyEvent; cap: number; onChange: ()
           )}
         </>
       )}
-      {!e.canEdit && e.status !== "open" && signedUp && <p class="muted small">报名已截止，需要修改请联系管理员。</p>}
+      {!e.canEdit && e.status === "closed" && signedUp && <p class="muted small">报名已截止，需要修改请联系管理员。费用会在活动后公布。</p>}
+      {e.payment && <PaymentBox p={e.payment} />}
     </Card>
   );
 }

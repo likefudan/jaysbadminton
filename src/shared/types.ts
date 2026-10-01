@@ -59,6 +59,8 @@ export interface MyEvent extends EventSummary {
   /** null when not signed up; otherwise the names entered for each friend ("" = unnamed). */
   myFriends: string[] | null;
   canEdit: boolean;
+  /** Present once the event is finalized and the member owes something. */
+  payment: MyPayment | null;
 }
 
 export interface EventDefaults {
@@ -89,3 +91,40 @@ export const STATUS_ZH: Record<EventStatus, string> = {
   settled: "已收齐",
   cancelled: "已取消",
 };
+
+export type PaymentStatus = "unpaid" | "paid" | "anomaly";
+
+export interface PaymentRow {
+  id: number;
+  memberId: string;
+  memberName: string;
+  isOwner: boolean;
+  amountDueCents: number;
+  paymentCode: string;
+  status: PaymentStatus;
+  method: "venmo_auto" | "manual" | null;
+  amountPaidCents: number | null;
+  paidAt: string | null;
+}
+
+export interface SettlementInputs {
+  courtTotal: string; // dollars as typed
+  shuttleCount: number;
+  shuttlePrice: string;
+}
+
+export interface SettlementView {
+  inputs: SettlementInputs | null; // saved inputs once finalized
+  defaultShuttlePrice: string;
+  payments: PaymentRow[];
+  totals: { dueCents: number; paidCents: number; unpaidCount: number };
+}
+
+export interface MyPayment {
+  amountCents: number;
+  status: PaymentStatus;
+  code: string;
+  shares: import("./settle").Share[];
+  venmoUsername: string;
+  zelleAccount: string;
+}

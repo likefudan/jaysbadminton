@@ -263,24 +263,38 @@ function Settings(props: { base: string }) {
   );
 }
 
-function FriendCap(props: { base: string }) {
-  const [s] = useApi<{ friendCap: number }>(`${props.base}/settings`);
-  return <Load result={s}>{(v) => <FriendCapForm base={props.base} initial={v.friendCap} />}</Load>;
+interface GeneralSettings {
+  friendCap: number;
+  venmoUsername: string;
+  zelleAccount: string;
 }
 
-function FriendCapForm(props: { base: string; initial: number }) {
-  const [cap, setCap] = useState(String(props.initial));
+function FriendCap(props: { base: string }) {
+  const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
+  return <Load result={s}>{(v) => <GeneralForm base={props.base} initial={v} />}</Load>;
+}
+
+function GeneralForm(props: { base: string; initial: GeneralSettings }) {
+  const [cap, setCap] = useState(String(props.initial.friendCap));
+  const [venmo, setVenmo] = useState(props.initial.venmoUsername);
+  const [zelle, setZelle] = useState(props.initial.zelleAccount);
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useAction();
+  const edit = (f: (v: string) => void) => (v: string) => {
+    f(v);
+    setSaved(false);
+  };
   return (
-    <Card title="报名设置">
-      <Field label="每人最多带几个朋友" type="number" value={cap} onInput={(v) => { setCap(v); setSaved(false); }} />
+    <Card title="报名与收款设置">
+      <Field label="每人最多带几个朋友" type="number" value={cap} onInput={edit(setCap)} />
+      <Field label="你的 Venmo 用户名" value={venmo} onInput={edit(setVenmo)} hint="不用加 @，例如 KeLi8916" />
+      <Field label="你的 Zelle 账号（选填）" value={zelle} onInput={edit(setZelle)} hint="手机号或邮箱，显示在付款页作为备选" />
       {error && <p class="error">{error}</p>}
       <button
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
-          if (await run(() => api(`${props.base}/settings`, { friendCap: Number(cap) }))) setSaved(true);
+          if (await run(() => api(`${props.base}/settings`, { friendCap: Number(cap), venmoUsername: venmo, zelleAccount: zelle }))) setSaved(true);
         }}
       >
         {saved ? "已保存" : "保存"}

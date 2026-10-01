@@ -1,5 +1,8 @@
 import { Hono } from "hono";
-import type { MeResponse, MyEvent } from "../../shared/types";
+import { settle } from "../../shared/settle";
+import type { MeResponse, MyEvent, MyPayment, PaymentStatus } from "../../shared/types";
+import { savedInput, settleRows } from "../billing";
+import { getSettings } from "../db";
 import { closeExpired, friendCap, getEvent, removeSignup, setSignup, summaries, type EventRow, validateFriends } from "../events";
 import type { Env } from "../env";
 import { badRequest, invalidLink, readJson, str } from "../http";
@@ -29,22 +32,50 @@ memberRoutes.post("/:token/rename", async (c) => {
 memberRoutes.get("/:token/events", async (c) => {
   const m = c.get("member");
   await closeExpired(c.env);
+  // Settled events stay on the member page for 30 days so people can see they are paid up.
   const { results } = await c.env.DB.prepare(
-    "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at",
-  ).all<EventRow>();
+    `SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized')
+       OR (status = 'settled' AND settled_at > ?) ORDER BY start_at`,
+  )
+    .bind(new Date(Date.now() - 30 * 86400_000).toISOString())
+    .all<EventRow>();
+  const pays = await c.env.DB.prepare(
+    "SELECT event_id, amount_due_cents, payment_code, status FROM payments WHERE member_id = ?",
+  )
+    .bind(m.id)
+    .all<{ event_id: number; amount_due_cents: number; payment_code: string; status: PaymentStatus }>();
+  const s = await getSettings(c.env.DB, ["venmo_username", "zelle_account"]);
   const mine = await c.env.DB.prepare("SELECT event_id, friend_index, friend_name FROM registrations WHERE member_id = ?")
     .bind(m.id)
     .all<{ event_id: number; friend_index: number; friend_name: string | null }>();
   const list = await summaries(c.env, results);
-  const events: MyEvent[] = list.map((e) => {
+  const events: MyEvent[] = [];
+  for (const e of list) {
     const rows = mine.results.filter((r) => r.event_id === e.id);
     const friends = rows.filter((r) => r.friend_index > 0).sort((a, b) => a.friend_index - b.friend_index);
-    return {
+    const pay = pays.results.find((p) => p.event_id === e.id);
+    // Settled events only matter to members who were billed.
+    if (e.status === "settled" && !pay) continue;
+    let payment: MyPayment | null = null;
+    if (pay && (e.status === "finalized" || e.status === "settled")) {
+      const input = await savedInput(c.env, e.id);
+      const bill = input ? settle(await settleRows(c.env, e.id), input).bills.find((b) => b.memberId === m.id) : undefined;
+      payment = {
+        amountCents: pay.amount_due_cents,
+        status: pay.status,
+        code: pay.payment_code,
+        shares: bill?.shares ?? [],
+        venmoUsername: s.venmo_username ?? "",
+        zelleAccount: s.zelle_account ?? "",
+      };
+    }
+    events.push({
       ...e,
       myFriends: rows.length === 0 ? null : friends.map((f) => f.friend_name ?? ""),
       canEdit: e.status === "open",
-    };
-  });
+      payment,
+    });
+  }
   return c.json({ events, friendCap: await friendCap(c.env) });
 });
 
