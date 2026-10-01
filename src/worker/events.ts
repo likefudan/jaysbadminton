@@ -11,6 +11,7 @@ export interface EventRow {
   start_at: string;
   end_at: string;
   location: string;
+  address: string;
   deadline_at: string;
   deadline_offset_min: number;
   status: EventStatus;
@@ -43,6 +44,7 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
     startTime: toPacific(e.start_at).time,
     endTime: toPacific(e.end_at).time,
     location: e.location,
+    address: e.address,
     deadlineAt: e.deadline_at,
     status: e.status,
     headcount,
@@ -114,6 +116,7 @@ export interface CreateEventInput {
   startTime: string;
   endTime: string;
   location: string;
+  address: string;
   deadlineDays: number;
   deadlineHours: number;
 }
@@ -121,8 +124,7 @@ export interface CreateEventInput {
 export function validateEventInput(i: CreateEventInput): { startAt: string; endAt: string; deadlineAt: string; offsetMin: number } {
   if (!isDate(i.date)) throw badRequest("请选择日期");
   if (!isTime(i.startTime) || !isTime(i.endTime)) throw badRequest("请填写开始和结束时间");
-  if (!i.location.trim()) throw badRequest("请填写地点");
-  if ([...i.location.trim()].length > 60) throw badRequest("地点最多 60 个字");
+  checkVenue(i.location, i.address);
   const days = Math.floor(i.deadlineDays);
   const hours = Math.floor(i.deadlineHours);
   if (!(days >= 0 && days <= 14 && hours >= 0 && hours <= 23)) throw badRequest("截止时间请选择提前 0–14 天、0–23 小时");
@@ -136,25 +138,38 @@ export function validateEventInput(i: CreateEventInput): { startAt: string; endA
   return { startAt, endAt, deadlineAt, offsetMin };
 }
 
+export function checkVenue(venue: string, address: string): void {
+  if (!venue.trim()) throw badRequest("请填写场馆");
+  if ([...venue.trim()].length > 60) throw badRequest("场馆名最多 60 个字");
+  if ([...address.trim()].length > 200) throw badRequest("地址最多 200 个字");
+}
+
+/** Remembers a venue and its address for the 最近的场馆 list. */
+export function saveVenue(env: Env, venue: string, address: string, ts: string): D1PreparedStatement {
+  return env.DB.prepare(
+    `INSERT INTO locations (name, address, last_used_at, use_count) VALUES (?, ?, ?, 1)
+     ON CONFLICT (name) DO UPDATE SET address = CASE WHEN excluded.address != '' THEN excluded.address ELSE address END,
+       last_used_at = excluded.last_used_at, use_count = use_count + 1`,
+  ).bind(venue, address, ts);
+}
+
 export async function createEvent(env: Env, input: CreateEventInput): Promise<EventRow> {
   const v = validateEventInput(input);
   const location = input.location.trim();
+  const address = input.address.trim();
   const sameDay = await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE date = ?").bind(input.date).first<{ n: number }>();
   const n = sameDay?.n ?? 0;
   if (n >= 26) throw badRequest("同一天的活动太多了");
   const code = input.date.slice(5, 7) + input.date.slice(8, 10) + (n === 0 ? "" : String.fromCharCode(65 + n)); // 1006, 1006B, 1006C
   const ts = now();
   const res = await env.DB.prepare(
-    `INSERT INTO events (code, date, start_at, end_at, location, deadline_at, deadline_offset_min, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?) RETURNING id`,
+    `INSERT INTO events (code, date, start_at, end_at, location, address, deadline_at, deadline_offset_min, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?) RETURNING id`,
   )
-    .bind(code, input.date, v.startAt, v.endAt, location, v.deadlineAt, v.offsetMin, ts)
+    .bind(code, input.date, v.startAt, v.endAt, location, address, v.deadlineAt, v.offsetMin, ts)
     .first<{ id: number }>();
   await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO locations (name, last_used_at, use_count) VALUES (?, ?, 1)
-       ON CONFLICT (name) DO UPDATE SET last_used_at = excluded.last_used_at, use_count = use_count + 1`,
-    ).bind(location, ts),
+    saveVenue(env, location, address, ts),
     setSetting(env.DB, "last_start_time", input.startTime),
     setSetting(env.DB, "last_end_time", input.endTime),
     setSetting(env.DB, "last_location", location),

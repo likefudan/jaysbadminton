@@ -11,14 +11,17 @@ import {
   createEvent,
   detail,
   friendCap,
+  checkVenue,
   getEvent,
+  saveVenue,
   setSignup,
   summaries,
   validateFriends,
   type EventRow,
 } from "../events";
 import { badRequest, readJson, str } from "../http";
-import { SITE_TITLE_MAX, siteTitle } from "../site";
+import { SITE_TITLE_MAX, siteTheme, siteTitle } from "../site";
+import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
 import { inboundRows, openPayments, refundRows } from "../inbound";
 import { message, notifySettings } from "../notify";
@@ -43,14 +46,18 @@ adminEventRoutes.get("/events", async (c) => {
 adminEventRoutes.get("/events/defaults", async (c) => {
   const s = await getSettings(c.env.DB, ["last_start_time", "last_end_time", "last_location", "last_deadline_offset_min"]);
   const offset = Number(s.last_deadline_offset_min ?? 1440);
-  const { results } = await c.env.DB.prepare("SELECT name FROM locations ORDER BY last_used_at DESC LIMIT 10").all<{ name: string }>();
+  const { results } = await c.env.DB.prepare("SELECT name, address FROM locations ORDER BY last_used_at DESC LIMIT 10").all<{
+    name: string;
+    address: string;
+  }>();
   return c.json<EventDefaults>({
     startTime: s.last_start_time ?? "19:00",
     endTime: s.last_end_time ?? "21:00",
     location: s.last_location ?? "",
+    address: results.find((r) => r.name === s.last_location)?.address ?? "",
     deadlineDays: Math.floor(offset / 1440),
     deadlineHours: Math.floor((offset % 1440) / 60),
-    locations: results.map((r) => r.name),
+    locations: results,
     friendCap: await friendCap(c.env),
   });
 });
@@ -62,6 +69,7 @@ adminEventRoutes.post("/events", async (c) => {
     startTime: str(b.startTime),
     endTime: str(b.endTime),
     location: str(b.location),
+    address: str(b.address),
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
@@ -111,10 +119,10 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   const startTime = str(b.startTime);
   const endTime = str(b.endTime);
   const location = str(b.location).trim();
+  const address = (b.address === undefined ? e.address : str(b.address)).trim();
   if (!isDate(date)) throw badRequest("请选择日期");
   if (!isTime(startTime) || !isTime(endTime)) throw badRequest("请填写开始和结束时间");
-  if (!location) throw badRequest("请填写地点");
-  if ([...location].length > 60) throw badRequest("地点最多 60 个字");
+  checkVenue(location, address);
   const startAt = pacificToUtc(date, startTime);
   let endAt = pacificToUtc(date, endTime);
   if (endAt <= startAt) endAt = new Date(Date.parse(endAt) + 86400_000).toISOString();
@@ -127,12 +135,9 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   const ts = now();
   await c.env.DB.batch([
     c.env.DB.prepare(
-      "UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, deadline_at = ?, status = ? WHERE id = ?",
-    ).bind(date, startAt, endAt, location, deadline, status, e.id),
-    c.env.DB.prepare(
-      `INSERT INTO locations (name, last_used_at, use_count) VALUES (?, ?, 1)
-       ON CONFLICT (name) DO UPDATE SET last_used_at = excluded.last_used_at, use_count = use_count + 1`,
-    ).bind(location, ts),
+      "UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, deadline_at = ?, status = ? WHERE id = ?",
+    ).bind(date, startAt, endAt, location, address, deadline, status, e.id),
+    saveVenue(c.env, location, address, ts),
   ]);
   return c.json(await detail(c.env, await getEvent(c.env, e.id)));
 });
@@ -216,6 +221,7 @@ adminEventRoutes.get("/settings", async (c) => {
     venmoEmail: s.venmo_email ?? "",
     zelleAccount: s.zelle_account ?? "",
     siteTitle: await siteTitle(c.env),
+    theme: await siteTheme(c.env),
     ...(await notifySettings(c.env)),
   });
 });
@@ -242,6 +248,10 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!t) throw badRequest("请填写网站标题");
     if ([...t].length > SITE_TITLE_MAX) throw badRequest(`网站标题最多 ${SITE_TITLE_MAX} 个字`);
     writes.push(setSetting(c.env.DB, "site_title", t));
+  }
+  if (b.theme !== undefined) {
+    if (!isTheme(b.theme)) throw badRequest("没有这个配色");
+    writes.push(setSetting(c.env.DB, "theme", b.theme));
   }
   if (b.reminderEnabled !== undefined) writes.push(setSetting(c.env.DB, "reminder_enabled", b.reminderEnabled === false ? "0" : "1"));
   if (b.reminderHours !== undefined) {

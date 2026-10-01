@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { AddressInput } from "../AddressInput";
 import type { EventDefaults, EventDetail, EventSummary, MemberSummary, RosterEntry } from "../../shared/types";
 import { formatDateZh } from "../../shared/time";
 import { api } from "../api";
@@ -70,6 +71,7 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
   const [startTime, setStart] = useState(d.startTime);
   const [endTime, setEnd] = useState(d.endTime);
   const [location, setLocation] = useState(d.location);
+  const [address, setAddress] = useState(d.address);
   const [days, setDays] = useState(d.deadlineDays);
   const [hours, setHours] = useState(d.deadlineHours);
   const [joinSelf, setJoinSelf] = useState(true);
@@ -77,29 +79,33 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
 
   async function submit(ev: Event) {
     ev.preventDefault();
-    const r = await run(() =>
-      api<EventDetail>(`${props.base}/events`, { date, startTime, endTime, location, deadlineDays: days, deadlineHours: hours, joinSelf }),
-    );
+    const body = { date, startTime, endTime, location, address, deadlineDays: days, deadlineHours: hours, joinSelf };
+    const r = await run(() => api<EventDetail>(`${props.base}/events`, body));
     if (r) props.onDone(r.id);
   }
 
   return (
     <Card title="新建活动">
       <form onSubmit={submit}>
+        <label class={`switch-card ${joinSelf ? "on" : ""}`}>
+          <span>
+            <strong>我自己也报名</strong>
+            <small>创建后你会直接出现在报名名单里</small>
+          </span>
+          <input type="checkbox" role="switch" checked={joinSelf} onChange={(e) => setJoinSelf((e.target as HTMLInputElement).checked)} />
+        </label>
         <Field label="日期" type="date" value={date} onInput={setDate} />
         <div class="inline">
           <Field label="开始" type="time" value={startTime} onInput={setStart} />
           <Field label="结束" type="time" value={endTime} onInput={setEnd} />
         </div>
-        <label class="field">
-          <span>地点</span>
-          <input list="locations" value={location} onInput={(e) => setLocation((e.target as HTMLInputElement).value)} />
-          <datalist id="locations">
-            {d.locations.map((l) => (
-              <option key={l} value={l} />
-            ))}
-          </datalist>
-        </label>
+        <VenueFields
+          venues={d.locations}
+          venue={location}
+          address={address}
+          onVenue={setLocation}
+          onAddress={setAddress}
+        />
         <div class="field">
           <span>报名截止：活动开始前</span>
         </div>
@@ -123,10 +129,6 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
             </select>
           </label>
         </div>
-        <label class="check">
-          <input type="checkbox" checked={joinSelf} onChange={(e) => setJoinSelf((e.target as HTMLInputElement).checked)} />
-          我自己也报名
-        </label>
         {error && <p class="error">{error}</p>}
         <button class="button block" disabled={busy || !date}>
           创建活动
@@ -136,6 +138,46 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
         </button>
       </form>
     </Card>
+  );
+}
+
+/** 场馆 + 地址, with one-tap 最近的场馆 that fill both. */
+function VenueFields(props: {
+  venues: { name: string; address: string }[];
+  venue: string;
+  address: string;
+  onVenue: (v: string) => void;
+  onAddress: (v: string) => void;
+}) {
+  const pick = (v: { name: string; address: string }) => {
+    props.onVenue(v.name);
+    props.onAddress(v.address);
+  };
+  return (
+    <>
+      {props.venues.length > 0 && (
+        <div class="field">
+          <span>最近的场馆</span>
+          <div class="chips">
+            {props.venues.map((v) => (
+              <button type="button" key={v.name} class={v.name === props.venue ? "chip on" : "chip"} onClick={() => pick(v)}>
+                {v.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <Field
+        label="场馆"
+        value={props.venue}
+        onInput={(v) => {
+          props.onVenue(v);
+          const known = props.venues.find((x) => x.name === v.trim());
+          if (known) props.onAddress(known.address);
+        }}
+      />
+      <AddressInput value={props.address} onInput={props.onAddress} onPlace={(name) => !props.venue.trim() && props.onVenue(name)} />
+    </>
   );
 }
 
@@ -334,6 +376,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const [startTime, setStart] = useState(props.e.startTime);
   const [endTime, setEnd] = useState(props.e.endTime);
   const [location, setLocation] = useState(props.e.location);
+  const [address, setAddress] = useState(props.e.address);
   const { busy, error, run } = useAction();
 
   if (!open) {
@@ -347,7 +390,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
     const msg =
       "修改会立即显示在活动页和成员页，但不会自动通知任何人，请自己在群里说明。活动代号和已发出的链接不变。确定修改吗？";
     if (!confirm(msg)) return;
-    if (await run(() => api(`${props.eb}/edit`, { date, startTime, endTime, location }))) {
+    if (await run(() => api(`${props.eb}/edit`, { date, startTime, endTime, location, address }))) {
       setOpen(false);
       props.onDone();
     }
@@ -360,7 +403,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
         <Field label="开始" type="time" value={startTime} onInput={setStart} />
         <Field label="结束" type="time" value={endTime} onInput={setEnd} />
       </div>
-      <Field label="地点" value={location} onInput={setLocation} />
+      <VenueFields venues={[]} venue={location} address={address} onVenue={setLocation} onAddress={setAddress} />
       {props.e.status === "open" && <p class="muted small">报名截止时间会按原来的提前量重新计算；如果已经过了，报名会立即截止。</p>}
       {error && <p class="error">{error}</p>}
       <button class="button block" disabled={busy} onClick={save}>

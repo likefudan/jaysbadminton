@@ -102,7 +102,7 @@ async function closedNotice(env: Env, e: EventRow, at: Date): Promise<void> {
       env,
       message(
         `🔒 ${day(e)} 的活动报名已截止，共 ${list.length} 人。`,
-        `${when(e)} 羽毛球报名已截止，共 ${list.length} 人。\n地点：${e.location}\n${names}`,
+        `${when(e)} 羽毛球报名已截止，共 ${list.length} 人。\n地点：${e.location}${e.address ? `（${e.address}）` : ""}\n${names}`,
       ),
     );
   });
