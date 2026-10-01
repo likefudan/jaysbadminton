@@ -7,6 +7,8 @@ import { Home } from "./pages/Home";
 import { Join } from "./pages/Join";
 import { Member } from "./pages/Member";
 import { NotFound } from "./pages/NotFound";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "./styles.css";
 
 function App() {

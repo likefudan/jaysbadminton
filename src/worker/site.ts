@@ -1,6 +1,6 @@
 import { getSettings } from "./db";
 import type { Env } from "./env";
-import { DEFAULT_THEME, isTheme, type ThemeId } from "../shared/themes";
+import { normalizeTheme, type ThemeId } from "../shared/themes";
 
 export const DEFAULT_SITE_TITLE = "Jay's 羽毛球";
 export const SITE_TITLE_MAX = 30;
@@ -12,5 +12,5 @@ export async function siteTitle(env: Env): Promise<string> {
 
 export async function siteTheme(env: Env): Promise<ThemeId> {
   const s = await getSettings(env.DB, ["theme"]);
-  return isTheme(s.theme) ? s.theme : DEFAULT_THEME;
+  return normalizeTheme(s.theme); // a pre-2026 palette name maps to its nearest new look
 }

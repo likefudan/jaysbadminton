@@ -15,7 +15,7 @@ Phone-sized renders with demo data (names, venues and accounts are made up).
   <tr>
     <td align="center"><img src="docs/screenshots/home.jpg" width="240" alt="Public home page"><br><sub>公开首页：近期活动、排行榜（不显示名单和金额）</sub></td>
     <td align="center"><img src="docs/screenshots/member-bill.jpg" width="240" alt="Member page with bill"><br><sub>成员专属页：账单明细、一键 Venmo 付款</sub></td>
-    <td align="center"><img src="docs/screenshots/dark.jpg" width="240" alt="Dark mode"><br><sub>深色模式</sub></td>
+    <td align="center"><img src="docs/screenshots/dark.jpg" width="240" alt="Dark mode"><br><sub>简约 · 深色</sub></td>
   </tr>
   <tr>
     <td align="center"><img src="docs/screenshots/admin-events.jpg" width="240" alt="Admin events"><br><sub>管理页：活动列表</sub></td>
@@ -23,14 +23,14 @@ Phone-sized renders with demo data (names, venues and accounts are made up).
     <td align="center"><img src="docs/screenshots/admin-create.jpg" width="240" alt="Create event"><br><sub>新建活动：最近的场馆、地址联想</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/admin-settings.jpg" width="240" alt="Settings"><br><sub>设置：配色、收款设置（加锁）、公共页面</sub></td>
-    <td align="center" colspan="2">
-      <img src="docs/screenshots/theme-ocean.jpg" width="115" alt="Ocean theme">
-      <img src="docs/screenshots/theme-grape.jpg" width="115" alt="Grape theme">
-      <img src="docs/screenshots/theme-sunset.jpg" width="115" alt="Sunset theme">
-      <img src="docs/screenshots/theme-forest.jpg" width="115" alt="Forest theme">
-      <br><sub>7 种低饱和度配色，管理员一键切换</sub>
-    </td>
+    <td align="center"><img src="docs/screenshots/admin-settings.jpg" width="240" alt="Settings"><br><sub>设置：默认外观、收款设置（加锁）、公共页面</sub></td>
+    <td align="center"><img src="docs/screenshots/appearance.jpg" width="240" alt="Appearance sheet"><br><sub>右上角 ◐：每个人自己选风格、强调色、浅色 / 深色</sub></td>
+    <td align="center"><img src="docs/screenshots/look-aurora-violet-light.jpg" width="240" alt="Aurora style"><br><sub>极光风格 · 紫青</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/look-aurora-violet-dark.jpg" width="240" alt="Aurora dark"><br><sub>极光 · 深色</sub></td>
+    <td align="center"><img src="docs/screenshots/look-minimal-forest-light.jpg" width="240" alt="Minimal forest"><br><sub>简约 · 森林绿</sub></td>
+    <td align="center"><img src="docs/screenshots/look-aurora-sunset-light.jpg" width="240" alt="Aurora sunset"><br><sub>极光 · 日落</sub></td>
   </tr>
 </table>
 
@@ -41,7 +41,7 @@ Phone-sized renders with demo data (names, venues and accounts are made up).
 - **收款**：预填 Venmo 链接；Gmail 转发的 Venmo 收款邮件经签名校验后自动对账，支持部分付款、多付退款、待确认关联
 - **通知**：Telegram 截止前提醒、截止名单、结算提醒、每日账单提醒（可直接复制到微信）、收齐存档
 - **统计与数据**：公开排行榜、个人统计、CSV 导出、每天同步到 Google 表格
-- **管理**：成员审核 / 停用 / 恢复 / 删除，收款设置加锁，配色模板，管理员指南，Telegram 找回管理链接
+- **管理**：成员审核 / 停用 / 恢复 / 删除，收款设置加锁，两种外观风格 × 4 个强调色（每人可自选、支持深色），管理员指南，Telegram 找回管理链接
 
 ## Docs
 

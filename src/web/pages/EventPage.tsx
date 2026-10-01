@@ -10,7 +10,7 @@ export function EventPage(props: { code?: string }) {
   return (
     <Load result={ev}>
       {(e) => (
-        <Page title={e.title || `${formatDateZh(e.date)} 羽毛球`}>
+        <Page title={e.title || formatDateZh(e.date, false)} eyebrow={`${e.date.slice(0, 4)} · 羽毛球活动`}>
           <Card>
             <EventInfo e={e} publicView />
           </Card>

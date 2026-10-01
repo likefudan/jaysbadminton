@@ -9,8 +9,8 @@ import { InboundTab } from "./AdminInbound";
 import { RemindersCard, TelegramCard } from "./AdminTelegram";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide } from "./AdminGuide";
-import { applyTheme, setSiteTitle } from "../site";
-import { DEFAULT_THEME, THEMES } from "../../shared/themes";
+import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
+import { STYLES, type ThemeId } from "../../shared/themes";
 
 type Tab = "events" | "inbound" | "pending" | "members" | "settings";
 
@@ -587,35 +587,40 @@ function PaymentForm(props: { base: string; initial: GeneralSettings; first: boo
   );
 }
 
-/** 外观配色: tapping a swatch previews it at once and saves it for everyone. */
+/** 网站默认外观: what everyone sees unless they pick their own look; saved at once. */
 function ThemeCard(props: { base: string }) {
-  const [current, setCurrent] = useState(document.documentElement.dataset.theme ?? DEFAULT_THEME);
+  const a = useAppearance();
   const { error, run } = useAction();
-  async function choose(id: string) {
-    const before = current;
-    setCurrent(id);
-    applyTheme(id);
-    if (!(await run(() => api(`${props.base}/settings`, { theme: id })))) {
-      setCurrent(before);
-      applyTheme(before);
-    }
+  async function choose(id: ThemeId) {
+    const before = a.site;
+    setSiteTheme(id);
+    if (!(await run(() => api(`${props.base}/settings`, { theme: id })))) setSiteTheme(before);
   }
   return (
-    <Card>
-      <div class="theme-row">
-        <span class="theme-label">配色</span>
-        {THEMES.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            title={t.name}
-            aria-label={t.name}
-            class={t.id === current ? "swatch on" : "swatch"}
-            style={{ background: `linear-gradient(135deg, ${t.swatch[0]}, ${t.swatch[1]})` }}
-            onClick={() => choose(t.id)}
-          />
-        ))}
-      </div>
+    <Card title="默认外观">
+      {STYLES.map((s) => (
+        <div key={s.id} class="theme-row">
+          <span class="theme-label">{s.name}</span>
+          {s.accents.map((x) => {
+            const id = `${s.id}-${x.id}` as ThemeId;
+            return (
+              <button
+                key={id}
+                type="button"
+                title={x.name}
+                aria-label={`${s.name} ${x.name}`}
+                class={id === a.site ? "swatch on" : "swatch"}
+                style={{ background: `linear-gradient(135deg, ${x.swatch[0]}, ${x.swatch[1]})` }}
+                onClick={() => choose(id)}
+              />
+            );
+          })}
+        </div>
+      ))}
+      <p class="muted small">
+        所有人默认看到的样子。每个人也可以点右上角的 ◐ 换成自己喜欢的，只对他自己的手机生效。
+        {a.mine && "（你自己选了别的外观，所以这里换了你看不到变化。）"}
+      </p>
       {error && <p class="error">{error}</p>}
     </Card>
   );

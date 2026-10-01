@@ -190,6 +190,22 @@ describe("site title", () => {
   });
 });
 
+describe("default appearance", () => {
+  it("defaults to 简约·珊瑚橙, accepts the eight looks and nothing else", async () => {
+    expect((await anon.call("/api/public/site")).data.theme).toBe("minimal-coral");
+    const { admin, base } = await setUpAdmin();
+    expect((await admin.call(`${base}/settings`, { theme: "aurora-violet" })).status).toBe(200);
+    expect((await anon.call("/api/public/site")).data.theme).toBe("aurora-violet");
+    expect((await admin.call(`${base}/settings`, { theme: "lagoon" })).status).toBe(400);
+    expect((await admin.call(`${base}/settings`, { theme: "aurora-coral" })).status).toBe(400);
+  });
+
+  it("maps a palette saved before styles existed to its nearest look", async () => {
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('theme', 'sakura')").run();
+    expect((await anon.call("/api/public/site")).data.theme).toBe("aurora-sunset");
+  });
+});
+
 describe("reset all data", () => {
   it("needs the phrase and the password, then returns the site to first-time setup", async () => {
     const ctx = await setUpAdmin();
