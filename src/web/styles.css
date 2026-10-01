@@ -518,12 +518,7 @@ table.bills td:last-child {
   min-height: 44px;
   padding: 0 14px;
 }
-pre.raw {
-  max-height: 240px;
-  overflow: auto;
-  white-space: pre-wrap;
-  font-size: 12px;
-  background: var(--bg);
-  padding: 8px;
-  border-radius: 6px;
+.inbound .reason {
+  margin: 6px 0 0;
+  color: var(--danger);
 }

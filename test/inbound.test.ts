@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { KeyLookupError, verifyDkim } from "../src/worker/email/dkim";
 import { htmlLines, parseEmail } from "../src/worker/email/parse";
 import { handleEmail } from "../src/worker/inbound";
-import { billingScenario } from "./helpers";
+import { Client, billingScenario } from "./helpers";
 import { receiptHtml, testKey, venmoEmail, type ReceiptFields } from "./venmoMail";
 
 let resolveKey: Awaited<ReturnType<typeof testKey>>["resolveKey"];
@@ -62,13 +62,15 @@ describe("DKIM", () => {
     for (const opts of cases) expect((await verifyDkim((await venmoEmail({}, opts)).raw, "venmo.com", resolveKey)).ok).toBe(false);
   });
 
-  it("drops forged and unrelated mail before touching the database", async () => {
-    expect(await deliver({}, { sign: false })).toBe("bad_signature");
-    expect(await deliver({ from: "Venmo <venmo@evil.example>" })).toBe("not_venmo");
-    const { n } = (await env.DB.prepare("SELECT COUNT(*) AS n FROM inbound_payments").first<{ n: number }>())!;
-    expect(n).toBe(0);
+  it("drops forged and unrelated mail", async () => {
+    const s = await finalized();
+    expect(await deliver({ note: s.aliceCode }, { sign: false })).toBe("bad_signature");
+    expect(await deliver({ note: s.aliceCode, from: "Venmo <venmo@evil.example>" })).toBe("not_venmo");
+    expect(await s.by("Alice")).toMatchObject({ status: "unpaid" });
   });
 });
+
+const inboundCount = async () => (await env.DB.prepare("SELECT COUNT(*) AS n FROM inbound_payments").first<{ n: number }>())!.n;
 
 describe("matching", () => {
   it("marks the exact amount paid, ignores the same transaction twice, and archives when collected", async () => {
@@ -77,77 +79,107 @@ describe("matching", () => {
     expect(await s.by("Alice")).toMatchObject({ status: "paid", method: "venmo_auto", amountPaidCents: 5600 });
     expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T1" })).toBe("duplicate");
 
-    // Case and stray spaces in the code are tolerated; the name part is ignored.
-    const loose = s.bobCode.replace(/^[^-]+/, "Robert").replace("-m", " - M").toUpperCase();
+    // Case and stray spaces are tolerated.
+    const loose = s.bobCode.replace("-m", " - M").toUpperCase();
     expect(await deliver({ amount: "31.00", note: loose, txnId: "T2" })).toBe("paid");
     expect((await s.admin.call(s.eb)).data.status).toBe("settled");
   });
 
-  it("records a wrong amount as an anomaly on the payment", async () => {
+  it("flags a wrong amount, and a second payment for a paid bill, as 金额异常", async () => {
     const s = await finalized();
     expect(await deliver({ amount: "50.00", note: s.aliceCode, txnId: "T3" })).toBe("anomaly");
     expect(await s.by("Alice")).toMatchObject({ status: "anomaly", amountPaidCents: 5000 });
+
+    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "T4" })).toBe("paid");
+    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "T5" })).toBe("anomaly");
+    expect(await s.by("Bob")).toMatchObject({ status: "anomaly", amountPaidCents: 6200 });
+    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "T5" })).toBe("duplicate");
+    // Neither needs the 待确认 list; the board shows them.
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toEqual([]);
   });
 
-  it("lists a second payment for a paid bill, unknown codes and plain payments for the Owner", async () => {
+  it("asks the Owner when the event is ours but the bill cannot be pinned down", async () => {
     const s = await finalized();
-    await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T4" });
-    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T5" })).toBe("anomaly");
-    expect(await deliver({ amount: "31.00", note: "x-jbm20991231-m999", txnId: "T6" })).toBe("unmatched");
-    expect(await deliver({ amount: "12.00", note: "Milktea9/27", txnId: "T7" })).toBe("other");
-    expect(await deliver({ amount: "12.00", note: "Milktea", txnId: "T8", sentTo: "someone_else" })).toBe("wrong_recipient");
-    // Right username, but Venmo addressed the receipt to someone else's email.
-    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T8b", to: "carol@example.com" })).toBe("wrong_recipient");
-    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T8c", to: "Owner@Example.com, carol@example.com" })).toBe("wrong_recipient");
-
-    const inbound = (await s.admin.call(`${s.base}/inbound`)).data;
-    expect(inbound.open.map((i: { kind: string }) => i.kind).sort()).toEqual(["anomaly", "other", "unmatched"]);
-    expect(inbound.open.find((i: { kind: string }) => i.kind === "anomaly").linked.memberName).toBe("Alice");
-    expect(inbound.payments.map((p: { memberName: string }) => p.memberName)).toEqual(["Bob"]);
+    const day = s.aliceCode.split("-")[1]; // jbmYYYYMMDD
+    const cases: [string, string][] = [
+      [`alice-${day}-m099`, "编号里的成员没有这次活动的应付款"],
+      [`alice-${day}-${s.bob.id.toLowerCase()}`, `备注里的名字和编号 ${s.bob.id.toLowerCase()} 不是同一个人`],
+    ];
+    for (const [i, [note]] of cases.entries()) expect(await deliver({ note, txnId: `R${i}` })).toBe("review");
+    const { open } = (await s.admin.call(`${s.base}/inbound`)).data;
+    expect(open.map((i: { reason: string }) => i.reason).sort()).toEqual(cases.map((c) => c[1]).sort());
   });
 
-  it("keeps a signed receipt it cannot read, with its text", async () => {
-    await billingScenario();
+  it("ignores everything else without storing it", async () => {
+    const s = await finalized();
+    const day = s.aliceCode.split("-")[1];
+    const ignored = [
+      "Milktea9/27", // no code
+      "", // no note
+      `${day}-${s.alice.id.toLowerCase()}`, // code without a name
+      `carol-${day}-${s.alice.id.toLowerCase()}`, // nobody in the group is called carol
+      `alice-jbm20991231-${s.alice.id.toLowerCase()}`, // no such event
+    ];
+    for (const [i, note] of ignored.entries()) expect(await deliver({ note, txnId: `I${i}` })).toBe("ignored");
+    expect(await deliver({ note: s.aliceCode, txnId: "W1", sentTo: "someone_else" })).toBe("wrong_recipient");
+    // Right username, but Venmo addressed the receipt to someone else's email.
+    expect(await deliver({ note: s.aliceCode, txnId: "W2", to: "carol@example.com" })).toBe("wrong_recipient");
+    expect(await deliver({ note: s.aliceCode, txnId: "W3", to: "Owner@Example.com, carol@example.com" })).toBe("wrong_recipient");
     const html = (h: string) => h.replace("<h3>Transaction ID</h3>", "<h3>Reference</h3>");
-    expect(await deliver({ txnId: "T10" }, { html })).toBe("parse_failed");
-    const row = await env.DB.prepare("SELECT kind, raw_text FROM inbound_payments").first<{ kind: string; raw_text: string }>();
-    expect(row!.raw_text).toContain("Reference\nT10");
+    expect(await deliver({ note: s.aliceCode, txnId: "W4" }, { html })).toBe("parse_failed");
+    expect(await inboundCount()).toBe(0);
+    expect(await s.by("Alice")).toMatchObject({ status: "unpaid" });
+  });
+
+  it("still recognises a member by the name on the bill after a rename", async () => {
+    const s = await finalized();
+    expect((await new Client().call(`${s.alice.base}/rename`, { username: "Alicia" })).status).toBe(200);
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "N1" })).toBe("paid");
   });
 });
 
 describe("Owner review", () => {
-  it("links a plain payment to a bill, ignores another, and archives when collected", async () => {
+  it("links a 待确认 payment to a bill, ignores another, and archives when collected", async () => {
     const s = await finalized();
+    const day = s.aliceCode.split("-")[1];
     await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T11" });
-    await deliver({ amount: "31.00", note: "for wednesday", txnId: "T12" });
-    await deliver({ amount: "9.00", note: "lunch", txnId: "T13" });
+    await deliver({ amount: "31.00", note: `bob-${day}-m099`, txnId: "T12" });
+    await deliver({ amount: "9.00", note: `alice-${day}-m098`, txnId: "T13" });
     const { open, payments } = (await s.admin.call(`${s.base}/inbound`)).data;
-    const wed = open.find((i: { note: string }) => i.note === "for wednesday");
-    const lunch = open.find((i: { note: string }) => i.note === "lunch");
+    const bobs = open.find((i: { note: string }) => i.note.startsWith("bob"));
+    const other = open.find((i: { note: string }) => i.note.startsWith("alice"));
 
-    const linked = await s.admin.call(`${s.base}/inbound/${wed.id}/link`, { paymentId: payments[0].id });
+    const linked = await s.admin.call(`${s.base}/inbound/${bobs.id}/link`, { paymentId: payments[0].id });
     expect(linked.data).toEqual({ ok: true, settled: true });
     expect(await s.by("Bob")).toMatchObject({ status: "paid", method: "manual", amountPaidCents: 3100 });
-    expect((await s.admin.call(`${s.base}/inbound/${wed.id}/link`, { paymentId: payments[0].id })).status).toBe(400);
+    expect((await s.admin.call(`${s.base}/inbound/${bobs.id}/link`, { paymentId: payments[0].id })).status).toBe(400);
 
-    expect((await s.admin.call(`${s.base}/inbound/${lunch.id}/ignore`, {})).status).toBe(200);
+    expect((await s.admin.call(`${s.base}/inbound/${other.id}/ignore`, {})).status).toBe(200);
     const after = (await s.admin.call(`${s.base}/inbound`)).data;
     expect(after.open).toEqual([]);
     expect(after.done.map((i: { state: string }) => i.state).sort()).toEqual(["ignored", "linked"]);
   });
+
+  it("sends payments for an archived event to 待确认", async () => {
+    const s = await finalized();
+    await deliver({ amount: "56.00", note: s.aliceCode, txnId: "A1" });
+    await deliver({ amount: "31.00", note: s.bobCode, txnId: "A2" });
+    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "A3" })).toBe("review");
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open[0].reason).toBe("这次活动已收齐归档，可能是重复付款");
+  });
 });
 
 describe("DNS trouble", () => {
-  it("parks a receipt for review when Venmo's key cannot be fetched", async () => {
+  it("never marks an unverified receipt paid, and only keeps ours for review", async () => {
     const s = await finalized();
     const down = async () => {
       throw new KeyLookupError("DNS lookup failed");
     };
-    const { raw } = await venmoEmail({ amount: "56.00", note: s.aliceCode, txnId: "T20" });
-    expect(await handleEmail(env, raw, { resolveKey: down })).toBe("parse_failed");
+    const send = async (f: ReceiptFields) => handleEmail(env, (await venmoEmail(f)).raw, { resolveKey: down });
+    expect(await send({ amount: "56.00", note: s.aliceCode, txnId: "D1" })).toBe("review");
+    expect(await send({ amount: "7.00", note: "Milktea", txnId: "D2" })).toBe("ignored");
     expect(await s.by("Alice")).toMatchObject({ status: "unpaid" });
-    const row = await env.DB.prepare("SELECT raw_text FROM inbound_payments").first<{ raw_text: string }>();
-    expect(row!.raw_text).toMatch(/^\[无法校验 Venmo 签名/);
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open[0].reason).toMatch(/无法校验 Venmo 签名/);
   });
 });
 

@@ -131,7 +131,7 @@ export interface MyPayment {
 
 export type InboundKind = "unmatched" | "anomaly" | "other" | "parse_failed";
 
-/** A forwarded Venmo email that did not mark a payment by itself. */
+/** A forwarded Venmo payment the Owner reviews (待确认), or one already handled. */
 export interface InboundRow {
   id: number;
   kind: InboundKind;
@@ -141,7 +141,8 @@ export interface InboundRow {
   note: string | null;
   receivedAt: string;
   txnId: string | null;
-  rawText: string | null; // parse_failed only
+  /** Why it needs review, or what was done with it. */
+  reason: string | null;
   linked: { paymentId: number; memberName: string; eventLabel: string } | null;
 }
 

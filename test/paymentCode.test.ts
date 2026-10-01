@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { noteName, parsePaymentCode, paymentCode } from "../src/worker/paymentCode";
+import { codeName, noteName, parsePaymentCode, paymentCode } from "../src/worker/paymentCode";
 
 describe("payment codes", () => {
   it("builds lowercase notes with pinyin names", () => {
@@ -15,15 +15,17 @@ describe("payment codes", () => {
     expect(noteName("🏸🏸")).toBe("member");
   });
 
-  it("parses codes from notes, ignoring the name and case", () => {
-    expect(parsePaymentCode("xiaoming-jbm20261007-m002")).toEqual({ date: "2026-10-07", eventCode: "1007", memberId: "M002" });
-    expect(parsePaymentCode("Thanks! Xiao-Ming-JBM20261007B-M002 🏸")).toEqual({ date: "2026-10-07", eventCode: "1007B", memberId: "M002" });
-    expect(parsePaymentCode("jbm 20261007 - m2")).toEqual({ date: "2026-10-07", eventCode: "1007", memberId: "M002" });
+  it("parses codes from notes, ignoring case and stray spaces", () => {
+    expect(parsePaymentCode("xiaoming-jbm20261007-m002")).toEqual({ name: "xiaoming", date: "2026-10-07", eventCode: "1007", memberId: "M002" });
+    expect(parsePaymentCode("Thanks! XiaoMing-JBM20261007B-M002 🏸")).toEqual({ name: "xiaoming", date: "2026-10-07", eventCode: "1007B", memberId: "M002" });
+    expect(parsePaymentCode("alice_wang - jbm 20261007 - m2")).toEqual({ name: "alice_wang", date: "2026-10-07", eventCode: "1007", memberId: "M002" });
+    expect(parsePaymentCode("jbm20261007-m002")).toMatchObject({ name: null, memberId: "M002" });
   });
 
-  it("still reads the earlier BM format and ignores unrelated notes", () => {
-    expect(parsePaymentCode("BM1007-M002")).toEqual({ date: null, eventCode: "1007", memberId: "M002" });
+  it("ignores unrelated notes", () => {
+    expect(parsePaymentCode("BM1007-M002")).toBeNull();
     expect(parsePaymentCode("Milktea9/27")).toBeNull();
     expect(parsePaymentCode("rent 20261007")).toBeNull();
+    expect(codeName("alice_wang-jbm20261007b-m003")).toBe("alice_wang");
   });
 });

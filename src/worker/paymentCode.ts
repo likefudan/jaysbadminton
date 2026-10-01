@@ -3,8 +3,8 @@ import { pinyin } from "pinyin-pro";
 /**
  * Venmo note for a bill: "<name>-jbm<yyyymmdd><suffix>-m<number>", all lowercase,
  * e.g. "xiaoming-jbm20261007-m002" or, for a second event that day, "...-jbm20261007b-m002".
- * Only the jbm and m parts identify the bill; the name is there so the Owner recognises
- * payments in Venmo, so a rename or an odd pinyin reading never breaks matching.
+ * The jbm and m parts identify the bill; the name must also belong to someone in the group,
+ * which filters out the Owner's unrelated Venmo payments (see inbound.ts).
  */
 
 /** Chinese to toneless pinyin, letters lowercased, spaces and dashes to "_", anything else dropped. */
@@ -27,28 +27,29 @@ export function paymentCode(username: string, eventDate: string, eventCode: stri
 }
 
 export interface ParsedCode {
-  /** Pacific event date YYYY-MM-DD, or null for legacy codes that only carry MMDD. */
-  date: string | null;
+  /** The name part as typed, lowercased, e.g. "xiaoming"; null when the note has none. */
+  name: string | null;
+  /** Pacific event date YYYY-MM-DD. */
+  date: string;
   /** Event code as stored on events, e.g. "1007" or "1007B". */
   eventCode: string;
   memberId: string; // "M002"
 }
 
-const CURRENT = /jbm\s*(\d{4})(\d{2})(\d{2})([a-z]?)\s*-\s*m(\d+)/i;
-const LEGACY = /BM\s*(\d{4})([A-Z]?)\s*-\s*M(\d+)/i;
+const CODE = /(?:([a-z0-9_]+)\s*-\s*)?jbm\s*(\d{4})(\d{2})(\d{2})([a-z]?)\s*-\s*m(\d+)/i;
 
 /** Finds a payment code anywhere in a Venmo note; tolerant of case and stray spaces. */
 export function parsePaymentCode(note: string): ParsedCode | null {
-  const m = CURRENT.exec(note);
-  if (m) {
-    const [, y, mo, d, suffix, num] = m;
-    return {
-      date: `${y}-${mo}-${d}`,
-      eventCode: `${mo}${d}${suffix!.toUpperCase()}`,
-      memberId: `M${num!.padStart(3, "0")}`,
-    };
-  }
-  const l = LEGACY.exec(note);
-  if (l) return { date: null, eventCode: `${l[1]}${l[2]!.toUpperCase()}`, memberId: `M${l[3]!.padStart(3, "0")}` };
-  return null;
+  const m = CODE.exec(note);
+  if (!m) return null;
+  const [, name, y, mo, d, suffix, num] = m;
+  return {
+    name: name ? name.toLowerCase() : null,
+    date: `${y}-${mo}-${d}`,
+    eventCode: `${mo}${d}${suffix!.toUpperCase()}`,
+    memberId: `M${num!.padStart(3, "0")}`,
+  };
 }
+
+/** The name part of a stored payment code. */
+export const codeName = (code: string) => code.slice(0, code.lastIndexOf("-jbm"));

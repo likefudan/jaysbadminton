@@ -40,7 +40,7 @@ One Worker answers everything on `https://jaysbadminton.llmat.dev`: page paths r
 | `/join` | Public | Join request form (username, WeChat nickname) |
 | `/e/{code}` | Public | One event: time, place, deadline, headcount, roster, attendance after Finalize |
 | `/m/{memberToken}` | Member | Sign-up with friends, rename, amounts owed + Venmo button, personal stats |
-| `/admin/{adminToken}` | Owner | Approvals, members, events, roster edits, settlement, payment board, other payments, settings, exports |
+| `/admin/{adminToken}` | Owner | Approvals, members, events, roster edits, settlement, payment board, 待确认 Venmo payments, settings, exports |
 | `/api/...` | Mixed | JSON API (see API) |
 | `/export/...` | Owner (export key) | CSV downloads and the JSON feed for the Google Sheets mirror |
 
@@ -73,7 +73,7 @@ D1 (SQLite) holds nine tables. Money is stored as integer cents, times as UTC IS
 | `registrations` | `id`, `event_id`, `member_id`, `friend_index` (0 = the member), `friend_name`, `attended` (default 1), `added_by_owner`, `created_at`, `updated_at` | Friends hang off the member who pays for them; Owner-added walk-ins ignore the friend cap |
 | `settlements` | `event_id`, `court_total_cents`, `shuttle_count`, `shuttle_price_cents`, `registered_count`, `attended_count`, `court_share_cents`, `shuttle_share_cents`, `finalized_at` | One row per event; recomputed on every edit before archive |
 | `payments` | `event_id`, `member_id`, `amount_due_cents`, `payment_code` (xiaoming-jbm20261006-m007), `status` (unpaid / paid / anomaly), `method` (venmo\_auto / manual), `amount_paid_cents`, `paid_at`, `venmo_txn_id`, `email_id` | One row per paying member per event; friends roll up here |
-| `inbound_payments` | `venmo_txn_id` (unique), `email_id`, `payer_name`, `amount_cents`, `note`, `received_at`, `kind` (unmatched / other / parse\_failed), `state` (open / linked / ignored), `raw_text` | Everything the email parser saw that did not auto-match |
+| `inbound_payments` | `venmo_txn_id` (unique), `email_id`, `payer_name`, `amount_cents`, `note`, `received_at`, `kind` (unmatched = 待确认, anomaly = a second payment already added to its bill), `state` (open / linked / ignored), `linked_payment_id`, `reason` | Venmo payments with our code that the Owner reviews; unrelated payments are not stored |
 | `locations` | `name`, `last_used_at`, `use_count` | Feeds the location dropdown |
 | `settings` | `key`, `value` | Friend cap N, Venmo username, Zelle account, Telegram chat ID, reminder on/off + hours, dunning hour, last shuttle price, last event times, last deadline offset, admin/export token hashes |
 | `notification_log` | `event_id`, `type`, `sent_on` (Pacific date), `sent_at` | Unique on (event, type, sent\_on) so a retried cron run never double-sends |
@@ -132,19 +132,17 @@ Settlement is one pure function, `settle(roster, inputs)`, shared by preview and
 
 A Gmail filter forwards only mail from `venmo@venmo.com` to `venmo@jaysbadminton.llmat.dev`; Cloudflare Email Routing hands each message to the Worker's `email()` handler, which matches it within seconds. The Worker never has access to the Owner's mailbox.
 
-1. **Accept or drop**: the From address must be `venmo@venmo.com` and the subject must read `… paid $X.XX to your Venmo account`; anything else is dropped silently (never bounced). The Worker then verifies Venmo's own DKIM signature itself (`d=venmo.com`, rsa-sha256, From, To and Subject signed, exactly one of each, no `l=`), fetching the public key over DNS-over-HTTPS (Cloudflare, falling back to Google). Gmail forwarding and Email Routing only add headers on top, so the signature survives; this was checked against a real forwarded receipt. A forged "Venmo" email sent straight to the address fails here and is dropped. If DNS is unreachable the email is not dropped but parked as `parse_failed` for the Owner, never auto-marked.
+1. **Accept or drop**: the From address must be `venmo@venmo.com` and the subject must read `… paid $X.XX to your Venmo account`; anything else is dropped silently (never bounced). The Worker then verifies Venmo's own DKIM signature itself (`d=venmo.com`, rsa-sha256, From, To and Subject signed, exactly one of each, no `l=`), fetching the public key over DNS-over-HTTPS (Cloudflare, falling back to Google). Gmail forwarding and Email Routing only add headers on top, so the signature survives; this was checked against a real forwarded receipt. A forged "Venmo" email sent straight to the address fails here and is dropped. If DNS is unreachable the email is never auto-marked (see step 4).
 2. **Parse** the HTML body (Venmo receipts carry an empty text part): HTML is flattened to lines, then the field rules in the requirements apply: payer before `paid you`, the amount after it (Venmo splits `$7.00` across several elements, so the pieces are joined and cross-checked against the subject), note up to `Money credited to your Venmo account.`, then the `Date`, `Transaction ID` and `Sent to` values. `Sent to` must equal the configured Venmo username and the signed `To` header must be exactly the configured Venmo notification email (the address on the Venmo account; required together with the username in settings), otherwise the email is ignored. `Delivered-To` is not used: Gmail adds it and it is not signed.
 3. **De-duplicate** on the Venmo transaction ID; a second copy is ignored.
-4. **Match** the note against `/jbm\s*(\d{8})([a-z]?)\s*-\s*m(\d+)/i` among events that are not archived:
-   - match and amount equal → mark the payment `paid` (`venmo_auto`), store amount, time and transaction ID, then run the "all collected?" check;
-   - match but amount differs → store the amount on the payment and set it to `anomaly` (shown on the event's payment board);
-   - match but the payment is already paid or flagged → `inbound_payments` kind `anomaly` linked to that payment (a second payment), notify the Owner;
-   - a code that matches nothing → `inbound_payments` kind `unmatched`, notify the Owner;
-   - no code at all → kind `other`, no notification (unrelated personal payments land here);
-   - parse failure → kind `parse_failed` with the raw text, notify the Owner.
-5. Keep the first 50 KB of the flattened text for `parse_failed` rows so parsing bugs can be replayed in tests.
+4. **Match**: the Owner forwards every Venmo receipt, most unrelated to badminton, so only notes matching `/([a-z0-9_]+)\s*-\s*jbm\s*(\d{8})([a-z]?)\s*-\s*m(\d+)/i` whose name part belongs to a group member (current username in pinyin, or the name printed on any bill) and whose date + suffix is an existing event are acted on:
+   - the member has a bill on that finalized event, the name is that member's, and the amount equals what is due → mark the payment `paid` (`venmo_auto`), store amount, time and transaction ID, then run the "all collected?" check;
+   - amount differs, or the bill is already paid → set the bill to `anomaly` and add the amount to `amount_paid_cents` (a second payment is also kept as a handled `inbound_payments` row so its transaction ID is not counted twice), notify the Owner;
+   - the event exists but the bill cannot be pinned down (no bill for that member number, name and number are different people, event not settled yet, cancelled, or already archived) → `inbound_payments` kind `unmatched` with a reason, shown under 待确认, notify the Owner;
+   - anything else (no code, no name, unknown name or event, unparseable email) → ignored and not stored.
+   - If DNS was down and the signature could not be checked, an email that would otherwise be acted on goes to 待确认 instead; it is never auto-marked.
 
-The admin page's 收款 tab lists open inbound rows (待确认 and 其他收款); the Owner links one to an open bill (marks it paid with that amount) or ignores it.
+The admin page's 收款 tab lists the 待确认 rows with their reason; the Owner links one to an open bill (marks it paid with that amount) or ignores it.
 
 **Gmail forwarding confirmation**: while the Owner adds the forwarding address, Email Routing temporarily forwards that address to the Owner's Gmail so Google's confirmation link arrives; the route is switched to the Worker before the Gmail filter is created, avoiding a forwarding loop. The sample email from the requirements becomes the first parser test fixture.
 
