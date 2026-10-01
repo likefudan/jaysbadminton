@@ -3,6 +3,7 @@ import { formatDateZh, toPacific } from "../shared/time";
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
+import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { escapeHtml, sendToOwner } from "./telegram";
 
 /**
@@ -18,14 +19,16 @@ export interface NotifySettings {
   reminderEnabled: boolean;
   reminderHours: number;
   dunningHour: number;
+  weeklyDigest: boolean;
 }
 
 export async function notifySettings(env: Env): Promise<NotifySettings> {
-  const s = await getSettings(env.DB, ["reminder_enabled", "reminder_hours", "dunning_hour"]);
+  const s = await getSettings(env.DB, ["reminder_enabled", "reminder_hours", "dunning_hour", "weekly_digest"]);
   return {
     reminderEnabled: s.reminder_enabled !== "0",
     reminderHours: Number(s.reminder_hours ?? 6),
     dunningHour: Number(s.dunning_hour ?? 10),
+    weeklyDigest: s.weekly_digest !== "0",
   };
 }
 
@@ -33,7 +36,7 @@ export async function notifySettings(env: Env): Promise<NotifySettings> {
  * Sends at most once per (event, type, key). The log row is written first so overlapping cron
  * runs cannot both send; if Telegram fails the row is removed and the next run tries again.
  */
-async function once(env: Env, eventId: number, type: string, key: string, send: () => Promise<boolean>): Promise<void> {
+export async function once(env: Env, eventId: number, type: string, key: string, send: () => Promise<boolean>): Promise<void> {
   const claim = await env.DB.prepare("INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, ?, ?, ?)")
     .bind(eventId, type, key, now())
     .run();
@@ -66,7 +69,15 @@ export async function runScheduled(env: Env, at: Date = new Date()): Promise<voi
       await dailyDunning(env, e, at, cfg);
     } catch (err) {
       console.error(`notifications for event ${e.id} failed:`, err);
+      await recordCronError(env, err);
     }
+  }
+  try {
+    await forwardingWatch(env, at, cfg);
+    await weeklyDigest(env, at, cfg);
+  } catch (err) {
+    console.error("health notifications failed:", err);
+    await recordCronError(env, err);
   }
 }
 

@@ -3,3 +3,7 @@ dist/
 .wrangler/
 .dev.vars
 *.log
+
+# Browser test output
+test-results/
+playwright-report/

@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pacificToUtc } from "../src/shared/time";
 import { handleEmail, recordEmailOutcome } from "../src/worker/inbound";
+import { digestText, emailProblemAlert } from "../src/worker/health";
 import { runScheduled } from "../src/worker/notify";
 import { webhookSecret } from "../src/worker/telegram";
 import { ORIGIN, billingScenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
@@ -131,6 +132,8 @@ describe("scheduled notifications", () => {
     expect(finalized[0]).toContain("费用已经出来了");
 
     calls = [];
+    // Forwarding is healthy and the Monday digest is off: this test is about bill reminders only.
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('email_last_at', ?), ('weekly_digest', '0')").bind(new Date().toISOString()).run();
     const today = futureDate(0);
     await runScheduled(env, pacific(today, "10:05")); // less than 24 h after Finalize
     expect(sent()).toEqual([]);
@@ -286,5 +289,101 @@ describe("forwarding status", () => {
     const s = (await ctx.admin.call(`${ctx.base}/email-status`)).data;
     expect(s.lastAt).not.toBeNull();
     expect(s.outcome).toContain("转发工作正常");
+  });
+});
+
+describe("health alerts", () => {
+  /** The next Monday (Pacific) on or after a date, so the digest test does not depend on today. */
+  function nextMonday(from: string): string {
+    const d = new Date(`${from}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + ((8 - d.getUTCDay()) % 7));
+    return d.toISOString().slice(0, 10);
+  }
+
+  it("alerts once a day about a Venmo email it could not use", async () => {
+    await setUpAdmin();
+    await connectChat();
+    const at = pacific(futureDate(0), "12:00");
+    await emailProblemAlert(env, "parse_failed", at);
+    await emailProblemAlert(env, "parse_failed", new Date(at.getTime() + 3600_000));
+    await emailProblemAlert(env, "wrong_recipient", at);
+    await emailProblemAlert(env, "paid", at);
+    await emailProblemAlert(env, "ignored", at);
+    expect(sent()).toHaveLength(2);
+    expect(sent()[0]).toContain("读不懂");
+    expect(sent()[1]).toContain("收款设置");
+  });
+
+  it("warns when bills are out but no Venmo email has come for days, once per quiet spell", async () => {
+    const s = await billingScenario();
+    await connectChat();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('weekly_digest', '0')").run();
+    const day = futureDate(0);
+    calls = [];
+
+    // Bills only just went out: nothing yet.
+    await runScheduled(env, pacific(day, "10:05"));
+    expect(sent().filter((t) => t.includes("📭"))).toEqual([]);
+
+    // Four days on, still no email at all, at the bill-reminder hour only.
+    await env.DB.prepare("UPDATE events SET finalized_at = '2000-01-01T00:00:00.000Z'").run();
+    await runScheduled(env, pacific(day, "14:05"));
+    expect(sent().filter((t) => t.includes("📭"))).toEqual([]);
+    await runScheduled(env, pacific(day, "10:15"));
+    await runScheduled(env, pacific(futureDate(1), "10:05"));
+    const quiet = sent().filter((t) => t.includes("📭"));
+    expect(quiet).toHaveLength(1);
+    expect(quiet[0]).toContain("还没收到过任何 Venmo 邮件");
+    expect(quiet[0]).toContain("2 笔账单没付清");
+
+    // An email arrives: forwarding works, no alert while it is recent.
+    calls = [];
+    await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('email_last_at', ?)").bind(pacific(day, "09:00").toISOString()).run();
+    await runScheduled(env, pacific(futureDate(2), "10:05"));
+    expect(sent().filter((t) => t.includes("📭"))).toEqual([]);
+  });
+
+  it("sends a weekly digest on Monday at the bill-reminder hour", async () => {
+    const s = await billingScenario();
+    await connectChat();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const monday = nextMonday(futureDate(0));
+    const at = pacific(monday, "10:05");
+    const recent = new Date(at.getTime() - 2 * 24 * 3600_000).toISOString();
+    await env.DB.prepare("DELETE FROM email_log").run();
+    await env.DB.prepare("INSERT INTO email_log (received_at, outcome) VALUES (?, 'paid'), (?, 'paid'), (?, 'review'), (?, 'ignored'), ('2000-01-01T00:00:00.000Z', 'paid')")
+      .bind(recent, recent, recent, recent)
+      .run();
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('email_last_at', ?)").bind(recent).run();
+
+    const text = await digestText(env, at);
+    expect(text).toContain("📊 每周简报");
+    expect(text).toContain("Venmo 邮件：收到 4 封（自动记账 2，待确认 1，无关收款（已忽略） 1）");
+    expect(text).toContain("未付清账单：2 笔，共 $87.00");
+    expect(text).toContain("✓ 邮件转发");
+    expect(text).toContain("✓ 定时任务：正常");
+    expect(text).toContain("Google 表格同步：没有开启");
+    // Old rows are pruned.
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM email_log").first("n")).toBe(4);
+
+    calls = [];
+    await runScheduled(env, pacific(monday, "09:05"));
+    await runScheduled(env, at);
+    await runScheduled(env, new Date(at.getTime() + 600_000));
+    expect(sent().filter((t) => t.includes("📊"))).toHaveLength(1);
+
+    // It can be switched off.
+    await s.admin.call(`${s.base}/settings`, { weeklyDigest: false });
+    expect((await s.admin.call(`${s.base}/settings`)).data.weeklyDigest).toBe(false);
+  });
+
+  it("logs every Venmo email outcome for the digest, but not spam", async () => {
+    await env.DB.prepare("DELETE FROM email_log").run();
+    await recordEmailOutcome(env, "not_venmo");
+    await recordEmailOutcome(env, "paid");
+    await recordEmailOutcome(env, "parse_failed");
+    const { results } = await env.DB.prepare("SELECT outcome FROM email_log ORDER BY id").all<{ outcome: string }>();
+    expect(results.map((r) => r.outcome)).toEqual(["paid", "parse_failed"]);
   });
 });

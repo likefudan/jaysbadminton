@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { calendarEntry, icsFile } from "../../shared/calendar";
 import type { HomeResponse, PublicEvent } from "../../shared/types";
 import { closeExpired, summaries, type EventRow } from "../events";
 import { getSettings } from "../db";
@@ -37,6 +38,19 @@ publicRoutes.get("/events/:code", async (c) => {
   // Public: the head count only, never who signed up.
   const [summary] = await summaries(c.env, [e]);
   return c.json<PublicEvent>(summary!);
+});
+
+/** 加入日历: the event as an .ics file; iPhone opens it straight into Calendar. */
+publicRoutes.get("/events/:code/calendar.ics", async (c) => {
+  const e = await c.env.DB.prepare("SELECT * FROM events WHERE code = ? ORDER BY start_at DESC LIMIT 1")
+    .bind(c.req.param("code").toUpperCase())
+    .first<EventRow>();
+  if (!e) throw new HttpError(404, "event_not_found", "找不到这个活动");
+  const [summary] = await summaries(c.env, [e]);
+  return c.body(icsFile(calendarEntry(summary!, c.env.SITE_ORIGIN)), 200, {
+    "Content-Type": "text/calendar; charset=utf-8",
+    "Content-Disposition": `inline; filename="badminton-${e.date}.ics"`,
+  });
 });
 
 const MAX_PENDING = 30;

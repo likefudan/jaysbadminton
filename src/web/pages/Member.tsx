@@ -3,6 +3,7 @@ import { checkUsername } from "../../shared/rules";
 import type { MeResponse, MyEvent, PaymentStatus } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, Load, Page, SectionTitle, useAction } from "../components";
+import { CalendarLinks } from "../Calendar";
 import { EventInfo } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
@@ -112,9 +113,12 @@ function SignupCard(props: { base: string; e: MyEvent; cap: number; onChange: ()
     <Card>
       <EventInfo e={e} status={e.payment ? BILL_STATUS[e.payment.status] : undefined} />
       {signedUp && !editing && !e.payment && (
-        <p class="ok">
-          ✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}
-        </p>
+        <>
+          <p class="ok">
+            ✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}
+          </p>
+          <CalendarLinks e={e} />
+        </>
       )}
       {!signedUp && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
       {e.canEdit && editing && (

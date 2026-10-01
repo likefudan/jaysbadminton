@@ -237,7 +237,12 @@ const OUTCOME_ZH: Record<EmailOutcome, string> = {
 /** Remembers the last email that got past the From check, for the 转发状态 line in the guide. */
 export async function recordEmailOutcome(env: Env, outcome: EmailOutcome): Promise<void> {
   if (outcome === "not_venmo" || outcome === "too_large") return; // spam and noise
-  await env.DB.batch([setSetting(env.DB, "email_last_at", now()), setSetting(env.DB, "email_last_outcome", outcome)]);
+  const at = now();
+  await env.DB.batch([
+    setSetting(env.DB, "email_last_at", at),
+    setSetting(env.DB, "email_last_outcome", outcome),
+    env.DB.prepare("INSERT INTO email_log (received_at, outcome) VALUES (?, ?)").bind(at, outcome),
+  ]);
 }
 
 export async function emailStatus(env: Env): Promise<{ lastAt: string | null; outcome: string | null }> {

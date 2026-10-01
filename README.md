@@ -39,7 +39,8 @@ Phone-sized renders with demo data (names, venues and accounts are made up).
 - **报名**：成员用专属链接报名、带朋友；管理员可代加临时人员、立即截止、紧急修改时间地点
 - **结算**：输入场地费、用球数和单价，按到场情况自动算出每人金额（含朋友份额）
 - **收款**：预填 Venmo 链接；Gmail 转发的 Venmo 收款邮件经签名校验后自动对账，支持部分付款、多付退款、待确认关联
-- **通知**：Telegram 截止前提醒、截止名单、结算提醒、每日账单提醒（可直接复制到微信）、收齐存档
+- **通知**：Telegram 截止前提醒、截止名单、结算提醒、每日账单提醒（可直接复制到微信）、收齐存档；Venmo 邮件异常和转发中断告警、每周健康简报
+- **分享与日历**：微信分享卡片显示活动时间地点和人数；一键加入 iPhone / Google 日历；挥拍图标，可添加到手机主屏幕
 - **统计与数据**：公开排行榜、个人统计、CSV 导出、每天同步到 Google 表格
 - **管理**：成员审核 / 停用 / 恢复 / 删除，收款设置加锁，两种外观风格 × 4 个强调色（每人可自选、支持深色），管理员指南，Telegram 找回管理链接
 
@@ -73,7 +74,7 @@ npm run typecheck
 
 ## Deployment
 
-Every push to `main` runs typecheck, tests and build, then deploys with GitHub Actions (`.github/workflows/ci.yml`): it finds or creates the `jaysbadminton` D1 database, applies migrations, runs `wrangler deploy` (which also attaches the `jaysbadminton.llmat.dev` custom domain), and finally smoke-tests the live site from the outside (`scripts/smoke.mjs`).
+Every push to `main` runs typecheck, tests, build and the browser tests (`npm run test:e2e`, Playwright on a local Worker), then deploys with GitHub Actions (`.github/workflows/ci.yml`): it finds or creates the `jaysbadminton` D1 database, applies migrations, runs `wrangler deploy` (which also attaches the `jaysbadminton.llmat.dev` custom domain), and finally smoke-tests the live site from the outside (`scripts/smoke.mjs`).
 
 Repository secrets required:
 

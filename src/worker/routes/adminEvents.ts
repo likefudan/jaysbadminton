@@ -263,6 +263,7 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!Number.isInteger(h) || h < 0 || h > 23) throw badRequest("账单提醒时间请选 0–23 点");
     writes.push(setSetting(c.env.DB, "dunning_hour", String(h)));
   }
+  if (b.weeklyDigest !== undefined) writes.push(setSetting(c.env.DB, "weekly_digest", b.weeklyDigest === false ? "0" : "1"));
   if (writes.length) await c.env.DB.batch(writes);
   return c.json({ ok: true });
 });

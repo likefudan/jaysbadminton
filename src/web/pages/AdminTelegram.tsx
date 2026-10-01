@@ -90,6 +90,7 @@ interface ReminderSettings {
   reminderEnabled: boolean;
   reminderHours: number;
   dunningHour: number;
+  weeklyDigest: boolean;
 }
 
 export function RemindersCard(props: { base: string }) {
@@ -101,11 +102,12 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
   const [enabled, setEnabled] = useState(props.initial.reminderEnabled);
   const [hours, setHours] = useState(String(props.initial.reminderHours));
   const [dunning, setDunning] = useState(props.initial.dunningHour);
+  const [digest, setDigest] = useState(props.initial.weeklyDigest);
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useAction();
 
   async function save() {
-    const body = { reminderEnabled: enabled, reminderHours: Number(hours), dunningHour: dunning };
+    const body = { reminderEnabled: enabled, reminderHours: Number(hours), dunningHour: dunning, weeklyDigest: digest };
     if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
   }
 
@@ -150,6 +152,20 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
         </select>
         <small class="muted">Finalize 满 24 小时后，每天这个时间发一次收款汇总和每个人的账单提醒，直到收齐。</small>
       </label>
+      <label class="check">
+        <input
+          type="checkbox"
+          checked={digest}
+          onChange={(e) => {
+            setDigest((e.target as HTMLInputElement).checked);
+            setSaved(false);
+          }}
+        />
+        每周一发送健康简报
+      </label>
+      <p class="muted small">
+        简报在账单提醒时间发送：上周收到多少 Venmo 邮件、自动记了几笔、还有多少没付清，以及邮件转发、定时任务、Google 表格同步是否正常。另外，Venmo 邮件读不懂、或者有欠款却好几天没收到任何 Venmo 邮件时，会立即提醒你。
+      </p>
       {error && <p class="error">{error}</p>}
       <button class="button secondary block" disabled={busy} onClick={save}>
         {saved ? "已保存" : "保存"}

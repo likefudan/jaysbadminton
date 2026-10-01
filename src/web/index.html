@@ -29,9 +29,20 @@
         d.setAttribute("data-mode", m);
       })();
     </script>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="羽毛球" />
+    <meta name="description" content="报名、结算、付款，一个链接搞定。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Jay's 羽毛球" />
+    <meta property="og:description" content="报名、结算、付款，一个链接搞定。" />
+    <meta property="og:image" content="https://jaysbadminton.llmat.dev/og-image.jpg" />
   </head>
   <body>
+    <!-- Older WeChat versions take a link preview's picture from the first large image on the page. -->
+    <img src="/og-image.jpg" alt="" width="1" height="1" style="position: absolute; left: -9999px" />
     <div id="app"></div>
     <script type="module" src="./main.tsx"></script>
   </body>

@@ -2244,3 +2244,49 @@ a.ev-meta {
   font-size: 14px;
   font-weight: 500;
 }
+.logo {
+  color: var(--acc-ink);
+}
+[data-style="aurora"] .logo {
+  color: #ffffff;
+}
+
+/* ---- 加入日历 ---- */
+.calendar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.calendar-label {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+.calendar-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.calendar-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.ok + .calendar {
+  margin-top: 4px;
+}
+.calendar + .inline,
+.calendar + .button {
+  margin-top: 14px;
+}
