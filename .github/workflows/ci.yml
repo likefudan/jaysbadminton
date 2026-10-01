@@ -51,5 +51,6 @@ jobs:
       - run: node scripts/sync-secrets.mjs
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       - if: inputs.reset_admin_link
         run: npx wrangler d1 execute DB --remote --command "DELETE FROM settings WHERE key = 'admin_token_hash'"

@@ -53,6 +53,7 @@ export interface RosterEntry {
 
 export interface EventDetail extends EventSummary {
   roster: RosterEntry[];
+  dunningStopped: boolean;
 }
 
 export interface MyEvent extends EventSummary {

@@ -1,6 +1,7 @@
 import { settle, type SettleInput, type Settlement, type SettleRow } from "../shared/settle";
 import type { PaymentRow, Receipt } from "../shared/types";
 import { now, setSetting } from "./db";
+import { notifyCollected, notifyFinalized } from "./notify";
 import { paymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
@@ -103,11 +104,13 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
 }
 
 export async function finalize(env: Env, e: EventRow, input: SettleInput): Promise<void> {
+  const first = e.status !== "finalized";
   await applySettlement(env, e, input);
   await env.DB.batch([
     env.DB.prepare("UPDATE events SET status = 'finalized', finalized_at = COALESCE(finalized_at, ?) WHERE id = ?").bind(now(), e.id),
     setSetting(env.DB, "last_shuttle_price_cents", String(input.shuttlePriceCents)),
   ]);
+  if (first) await notifyFinalized(env, e);
   await checkCollected(env, e.id);
 }
 
@@ -132,7 +135,9 @@ export async function checkCollected(env: Env, eventId: number): Promise<boolean
   )
     .bind(now(), eventId, eventId)
     .run();
-  return res.meta.changes > 0;
+  if (res.meta.changes === 0) return false;
+  await notifyCollected(env, eventId);
+  return true;
 }
 
 export async function paymentRows(env: Env, eventId: number): Promise<PaymentRow[]> {

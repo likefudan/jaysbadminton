@@ -90,6 +90,12 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
     if (await run(() => api(`${props.base}/receipts/${r.id}/remove`, {}))) props.onDone();
   }
 
+  async function toggleDunning() {
+    const stop = !props.e.dunningStopped;
+    if (stop && !confirm("停止后不再发送这个活动的每日收款汇总和催款消息，但未付记录保留、活动不归档。继续吗？")) return;
+    if (await run(() => api(`${props.base}/events/${props.e.id}/dunning`, { stop }))) props.onDone();
+  }
+
   return (
     <>
       {settled && <div class="collected">✓ 已收齐，活动已归档</div>}
@@ -136,6 +142,11 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
             {!p.isOwner && <ReceiptList receipts={p.receipts} busy={busy} onRemove={settled ? undefined : (r) => remove(p, r)} />}
           </div>
         ))}
+        {!settled && v.totals.unpaidCount > 0 && (
+          <button class="link-button" disabled={busy} onClick={toggleDunning}>
+            {props.e.dunningStopped ? "已停止催款 · 点此恢复每日催款" : "停止催款"}
+          </button>
+        )}
       </Card>
     </>
   );

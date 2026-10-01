@@ -100,7 +100,7 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
 
 export async function detail(env: Env, e: EventRow): Promise<EventDetail> {
   const list = await roster(env, e.id);
-  return { ...toSummary(e, list.length), roster: list };
+  return { ...toSummary(e, list.length), roster: list, dunningStopped: e.dunning_stopped === 1 };
 }
 
 export async function friendCap(env: Env): Promise<number> {
