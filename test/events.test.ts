@@ -205,3 +205,13 @@ describe("emergency controls", () => {
     expect(locked.data.error.message).toBe("这个活动已收齐归档，不能再修改");
   });
 });
+
+describe("Owner joins own event", () => {
+  it("signs the Owner up when 我自己也报名 is ticked, and not otherwise", async () => {
+    const ctx = await setUpAdmin();
+    const withMe = await createTestEvent(ctx, { joinSelf: true });
+    expect(withMe.roster.map((r: { memberName: string; addedByOwner: boolean }) => [r.memberName, r.addedByOwner])).toEqual([["Jay", false]]);
+    const without = await createTestEvent(ctx, { joinSelf: false, startTime: "09:00", endTime: "11:00" });
+    expect(without.roster).toEqual([]);
+  });
+});

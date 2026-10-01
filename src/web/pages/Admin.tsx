@@ -265,7 +265,53 @@ function Settings(props: { base: string }) {
       <button class="button secondary block" onClick={logout}>
         退出登录
       </button>
+      <ResetAll base={props.base} />
     </>
+  );
+}
+
+const RESET_PHRASE = "清空所有数据";
+
+/** Wipes the site back to first-time setup; asks twice, then for the phrase and the password. */
+function ResetAll(props: { base: string }) {
+  const [open, setOpen] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [password, setPassword] = useState("");
+  const { busy, error, run } = useAction();
+
+  function start() {
+    if (confirm("清空后，所有成员、活动、报名、付款记录和设置都会被删除，网站回到初次设置状态。确定要继续吗？")) setOpen(true);
+  }
+  async function submit(e: Event) {
+    e.preventDefault();
+    if (!confirm("最后确认：真的清空所有数据？")) return;
+    if (await run(() => api(`${props.base}/settings/reset`, { confirm: phrase, password }))) location.href = "/admin";
+  }
+
+  return (
+    <Card title="危险操作">
+      {!open ? (
+        <>
+          <p class="muted small">把网站重置成全新状态。只保留管理密码，清空后用它在 /admin 重新做初次设置。</p>
+          <button class="button danger block" onClick={start}>
+            清空所有数据
+          </button>
+        </>
+      ) : (
+        <form onSubmit={submit}>
+          <p class="error">所有成员、活动、报名、付款记录、设置都会被删除，管理链接和所有成员链接都会失效。</p>
+          <Field label={`请输入「${RESET_PHRASE}」`} value={phrase} onInput={setPhrase} />
+          <Field label="管理密码" type="password" value={password} onInput={setPassword} autocomplete="current-password" />
+          {error && <p class="error">{error}</p>}
+          <button class="button danger block" disabled={busy || phrase !== RESET_PHRASE || !password}>
+            确认清空
+          </button>
+          <button class="button secondary block" type="button" onClick={() => setOpen(false)}>
+            取消
+          </button>
+        </form>
+      )}
+    </Card>
   );
 }
 
