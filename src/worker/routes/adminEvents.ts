@@ -25,6 +25,8 @@ import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
 import { inboundRows, openPayments, refundRows } from "../inbound";
 import { message, notifySettings } from "../notify";
+import { TABLES, isTable, toCsv } from "../export";
+import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { disconnect, sendToOwner, startBinding, telegramStatus } from "../telegram";
 
 /** Mounted under /api/admin/:token after the admin auth middleware. */
@@ -450,4 +452,29 @@ adminEventRoutes.post("/events/:id/dunning", async (c) => {
   const stop = (await readJson(c.req.raw)).stop === true;
   await c.env.DB.prepare("UPDATE events SET dunning_stopped = ? WHERE id = ?").bind(stop ? 1 : 0, e.id).run();
   return c.json({ ok: true, dunningStopped: stop });
+});
+
+// ---- Export ----
+
+adminEventRoutes.get("/export/:file", async (c) => {
+  const m = /^([a-z]+)\.csv$/.exec(c.req.param("file"));
+  if (!m || !isTable(m[1]!)) throw badRequest("没有这个表");
+  const t = await TABLES[m[1]!].build(c.env);
+  const name = `${t.title}-${new Date().toISOString().slice(0, 10)}.csv`;
+  return new Response(toCsv(t), {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${m[1]}.csv"; filename*=UTF-8''${encodeURIComponent(name)}`,
+    },
+  });
+});
+
+adminEventRoutes.get("/sheets", async (c) => c.json({ ...(await sheetsStatus(c.env)), script: await currentScript(c.env) }));
+
+/** 开启同步 / 重新生成密钥: either way a fresh key, so a leaked script stops working. */
+adminEventRoutes.post("/sheets/enable", async (c) => c.json({ script: await rotateExportKey(c.env) }));
+
+adminEventRoutes.post("/sheets/disable", async (c) => {
+  await disableExport(c.env);
+  return c.json({ ok: true });
 });

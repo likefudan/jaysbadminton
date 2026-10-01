@@ -7,6 +7,7 @@ import { EventInfo } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { useApi } from "../hooks";
+import { MyStatsCard } from "../Stats";
 
 export function Member(props: { token?: string }) {
   const base = `/api/m/${props.token}`;
@@ -19,6 +20,7 @@ export function Member(props: { token?: string }) {
             成员编号 {m.id}。这是你的专属页面，请不要把链接转发给别人。
           </p>
           <MyEvents base={base} />
+          <MyStatsCard base={base} />
           <Rename base={base} current={m.username} onDone={reload} />
         </Page>
       )}

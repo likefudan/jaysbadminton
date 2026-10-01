@@ -1,0 +1,125 @@
+import { env, exports } from "cloudflare:workers";
+import { describe, expect, it } from "vitest";
+import { toPacific } from "../src/shared/time";
+import { toCsv } from "../src/worker/export";
+import { Client, ORIGIN, approveMember, createTestEvent, futureDate, setUpAdmin } from "./helpers";
+
+const anon = new Client();
+const today = toPacific(new Date()).date;
+const lastYear = String(Number(today.slice(0, 4)) - 1);
+
+async function history() {
+  const ctx = await setUpAdmin();
+  const alice = await approveMember(ctx, "Alice");
+  const bob = await approveMember(ctx, "Bob");
+  const events = [];
+  for (const [i, t] of ["09:00", "10:00", "11:00", "12:00"].entries()) {
+    events.push(await createTestEvent(ctx, { date: futureDate(7 + i), startTime: t, endTime: "13:00" }));
+  }
+  const [e1, e2, e3, e4] = events;
+  await anon.call(`${alice.base}/events/${e1.id}/signup`, { friends: [] });
+  await anon.call(`${alice.base}/events/${e2.id}/signup`, { friends: ["Tom"] });
+  await anon.call(`${alice.base}/events/${e3.id}/signup`, { friends: [] });
+  await anon.call(`${bob.base}/events/${e1.id}/signup`, { friends: [] });
+  await anon.call(`${bob.base}/events/${e3.id}/signup`, { friends: [] });
+  await anon.call(`${bob.base}/events/${e4.id}/signup`, { friends: [] });
+  // e1–e3 settled this year (dates moved to today, order kept by start time); e4 cancelled.
+  await env.DB.prepare("UPDATE events SET status = 'settled', date = ? WHERE id IN (?, ?, ?)").bind(today, e1.id, e2.id, e3.id).run();
+  await env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e4.id).run();
+  await env.DB.prepare("UPDATE registrations SET attended = 0 WHERE event_id = ? AND member_id = ?").bind(e3.id, bob.id).run();
+  const bill = (eventId: number, cents: number) =>
+    env.DB.prepare(
+      "INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, amount_paid_cents) VALUES (?, ?, ?, 'x', 'paid', ?)",
+    )
+      .bind(eventId, alice.id, cents, cents)
+      .run();
+  await bill(e1.id, 2000);
+  await bill(e2.id, 4000);
+  return { ctx, alice, bob, events };
+}
+
+describe("leaderboard", () => {
+  it("ranks attendance, streaks and friends from settled events only", async () => {
+    await history();
+    const { leaderboard } = (await anon.call("/api/public/home")).data;
+    expect(leaderboard.year).toBe(Number(today.slice(0, 4)));
+    expect(leaderboard.attendance).toEqual([
+      { name: "Alice", value: 3 },
+      { name: "Bob", value: 1 },
+    ]);
+    expect(leaderboard.streak).toEqual([
+      { name: "Alice", value: 3 },
+      { name: "Bob", value: 1 },
+    ]);
+    expect(leaderboard.friends).toEqual([{ name: "Alice", value: 1 }]);
+  });
+});
+
+describe("personal stats", () => {
+  it("counts visits and spending, and compares with the same period last year", async () => {
+    const { ctx, alice } = await history();
+    const old = await createTestEvent(ctx, { date: futureDate(20), startTime: "08:00", endTime: "09:00" });
+    await anon.call(`${alice.base}/events/${old.id}/signup`, { friends: [] });
+    await env.DB.prepare("UPDATE events SET status = 'settled', date = ? WHERE id = ?").bind(`${lastYear}-01-01`, old.id).run();
+    await env.DB.prepare(
+      "INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, amount_paid_cents) VALUES (?, ?, 1500, 'x', 'paid', 1500)",
+    )
+      .bind(old.id, alice.id)
+      .run();
+
+    expect((await anon.call(`${alice.base}/stats`)).data).toEqual({
+      year: Number(today.slice(0, 4)),
+      yearCount: 3,
+      totalCount: 4,
+      yearSpendCents: 6000,
+      avgSpendCents: 2000,
+      lastYearCount: 1,
+      lastYearSpendCents: 1500,
+    });
+  });
+});
+
+describe("export", () => {
+  it("serves the sheet only with the current key, without any secrets", async () => {
+    const { ctx } = await history();
+    const pull = (key: string) => exports.default.fetch(`${ORIGIN}/export/${key}/all.json`);
+    expect((await pull("nope")).status).toBe(403);
+
+    const { script } = (await ctx.admin.call(`${ctx.base}/sheets/enable`, {})).data;
+    const key = /const KEY = "([^"]+)"/.exec(script)![1]!;
+    expect(script).toContain('const SITE = "https://jaysbadminton.llmat.dev"');
+    const res = await pull(key);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as any;
+    expect(Object.keys(data.tables)).toEqual(["members", "events", "registrations", "settlements", "payments", "receipts", "inbound", "locations"]);
+    expect(data.tables.members.columns).toEqual(["成员编号", "用户名", "微信昵称", "状态", "Owner", "申请时间", "通过时间"]);
+    expect(JSON.stringify(data)).not.toMatch(/token|hash/i);
+    expect(data.tables.events.rows[0][0]).toMatch(/^jbm\d{8}$/);
+    expect((await ctx.admin.call(`${ctx.base}/sheets`)).data).toMatchObject({ enabled: true, script });
+    expect((await ctx.admin.call(`${ctx.base}/sheets`)).data.lastSyncAt).not.toBeNull();
+
+    await ctx.admin.call(`${ctx.base}/sheets/enable`, {});
+    expect((await pull(key)).status).toBe(403);
+    await ctx.admin.call(`${ctx.base}/sheets/disable`, {});
+    expect((await ctx.admin.call(`${ctx.base}/sheets`)).data).toEqual({ enabled: false, lastSyncAt: null, script: null });
+  });
+
+  it("downloads CSV for the admin only", async () => {
+    const { ctx } = await history();
+    const get = (cookie: string) =>
+      exports.default.fetch(`${ORIGIN}${ctx.base}/export/payments.csv`, { headers: cookie ? { Cookie: cookie } : {} });
+    expect((await get("")).status).toBe(401);
+    const res = await get(ctx.admin.cookie);
+    expect(res.headers.get("Content-Type")).toContain("text/csv");
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]); // BOM, so Excel reads UTF-8
+    const text = new TextDecoder().decode(bytes);
+    expect(text.startsWith("活动编号,日期,成员编号,成员,付款编号,应付,已收,已退,状态,付清时间")).toBe(true);
+    expect(text).toContain(",Alice,x,20,20,0,已付,");
+  });
+
+  it("quotes commas and neutralises spreadsheet formulas", () => {
+    const csv = toCsv({ title: "t", columns: ["a", "b"], rows: [["x,y", "=HYPERLINK(1)"], [-5, '"q"']] });
+    expect(csv).toBe('\uFEFFa,b\r\n"x,y",\'=HYPERLINK(1)\r\n-5,"""q"""\r\n');
+  });
+});

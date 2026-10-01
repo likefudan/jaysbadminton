@@ -7,6 +7,7 @@ import { useApi } from "../hooks";
 import { EventsTab } from "./AdminEvents";
 import { InboundTab } from "./AdminInbound";
 import { RemindersCard, TelegramCard } from "./AdminTelegram";
+import { ExportCard, SheetsCard } from "./AdminExport";
 import { applyTheme, setSiteTitle } from "../site";
 import { DEFAULT_THEME, THEMES } from "../../shared/themes";
 
@@ -237,6 +238,8 @@ function Settings(props: { base: string }) {
       <FriendCap base={props.base} />
       <TelegramCard base={props.base} />
       <RemindersCard base={props.base} />
+      <ExportCard base={props.base} />
+      <SheetsCard base={props.base} />
       <Card title="修改管理密码">
         <form onSubmit={changePassword}>
           <Field label="当前密码" type="password" value={current} onInput={setCurrent} autocomplete="current-password" />

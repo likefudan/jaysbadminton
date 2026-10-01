@@ -165,16 +165,18 @@ One Cron Trigger runs every 10 minutes (`*/10 * * * *`, UTC); the handler conver
 
 ## Google Sheets daily mirror
 
-A \~100-line Apps Script bound to the Owner's Google Sheet pulls `GET /export/{key}/all.json` once a day and rewrites one tab per table. It is read-only towards Cloudflare: edits in the sheet never flow back.
+The site never logs into Google. 设置 → Google 表格同步 → 开启同步 creates an export key (stored hashed to check requests, and AES-GCM encrypted under `TOKEN_KEY` so the page can show the script again) and shows a ready-to-paste Apps Script with the site address and key filled in (`src/worker/sheets.ts`). The Owner pastes it into the sheet's Apps Script editor and runs `install` once.
 
-- **Trigger**: a time-driven trigger, daily between 03:00 and 04:00 Pacific (configurable in the script).
-- **Tabs**: Members, Events, Registrations, Settlements, Payments, Inbound, Locations; header row frozen, money formatted as USD, times in Pacific.
-- **Snapshots**: each run also writes a dated copy (`Snapshot 2026-10-01`) and deletes snapshots older than 30 days, so the Owner has a month of daily backups outside Cloudflare.
-- **Secret**: the export key is stored in Script Properties, not in a cell. Rotating it in the admin page means pasting the new key into the script once.
-- **Permissions**: only "see and edit this spreadsheet" and "connect to an external service"; no Gmail scope. The Owner sees Google's unverified-app warning once and continues via Advanced.
-- **Excluded columns**: token hashes and encrypted tokens are never in the export.
+- **Pull**: `sync()` fetches `GET /export/{key}/all.json` and rewrites one tab per table (成员, 活动, 报名, 结算, 应付款, 付款明细, 待确认收款, 场馆), header row frozen and bold, plus a 同步记录 tab with one line per run. Edits in the sheet never flow back.
+- **Trigger**: `install()` replaces any previous trigger with one daily run at 03:00 America/Los_Angeles, then syncs once.
+- **History**: Google Sheets keeps version history (文件 → 版本记录), so each day's sync can be looked up there; D1 Time Travel covers the last 7 days on the Cloudflare side.
+- **Key**: 重新生成密钥 replaces the key immediately (the old script gets 403 and says so); 关闭同步 deletes it. The admin page shows the last time the sheet pulled.
+- **Permissions**: the script asks for "see and edit this spreadsheet", "connect to an external service" and "run when you are not present"; no Gmail or Drive scope. The Owner sees Google's unverified-app warning once and continues via 高级.
+- **Content**: the same people-friendly tables as the CSV downloads (`src/worker/export.ts`): Chinese headers, dollars, Pacific times, event numbers like `jbm20261007b`. Tokens, hashes and settings are never exported.
 
-The script lives in `sheets-mirror/Code.gs` in this repository and is pasted into the sheet's Apps Script editor.
+**CSV downloads**: 设置 → 导出数据 offers each table as a UTF-8 CSV with a BOM (so Excel shows Chinese correctly); cells starting with `= + - @` are prefixed so spreadsheets do not run them as formulas.
+
+**Statistics** (`src/worker/stats.ts`): attendance follows the Owner's 到场 marks on finalized or archived events. The public leaderboard (members only, no money) ranks this year's attendance, the longest run of consecutive events attended, and friends brought this year. The member page shows this year's and all-time visits, this year's spending (their bills, friends included), the average per visit, and the same period last year.
 
 ## Repository, tooling and deployment
 
@@ -196,7 +198,6 @@ docs/            requirements (Chinese) and this design
 migrations/      D1 schema, numbered SQL files
 src/worker/      Hono API, cron handler, email handler, settlement, Telegram
 src/web/         Preact pages: home, join, event, member, admin
-sheets-mirror/   Apps Script for the daily Google Sheets mirror
 test/            unit + integration tests, Venmo email fixtures
 wrangler.toml    bindings: DB, ASSETS, cron, secrets
 ```
@@ -236,5 +237,5 @@ The Owner does these once, in this order; steps marked *after deploy* wait until
 - [ ] *After deploy*: in the admin settings, enter the Venmo username, Venmo email and Zelle account; press 连接 Telegram, tap Start in the bot, then 发送测试消息
 - [ ] *After deploy*: switch the `venmo@` route from "Send to an email" to "Send to a Worker"
 - [ ] *After deploy*: create the Gmail filter `from:venmo@venmo.com` → forward to `venmo@jaysbadminton.llmat.dev`
-- [ ] *After deploy*: create the Google Sheet, paste `sheets-mirror/Code.gs`, store the export key, add the daily trigger
+- [ ] *After deploy*: 设置 → Google 表格同步 → 开启同步; create a Google Sheet, paste the shown script into Apps Script, run `install` once
 - [ ] Test end to end: a test event where one member pays the exact amount with the payment code shows as paid within a minute

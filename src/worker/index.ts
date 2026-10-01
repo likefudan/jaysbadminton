@@ -3,7 +3,9 @@ import type { Env } from "./env";
 import { closeExpired } from "./events";
 import { HttpError } from "./http";
 import { MAX_EMAIL_BYTES, handleEmail } from "./inbound";
+import { exportAll } from "./export";
 import { runScheduled } from "./notify";
+import { checkExportKey } from "./sheets";
 import { handleUpdate, webhookSecret } from "./telegram";
 import { adminRoutes } from "./routes/admin";
 import { memberRoutes } from "./routes/member";
@@ -32,6 +34,12 @@ app.post("/api/telegram/webhook", async (c) => {
     console.error("telegram update failed:", err);
   }
   return c.json({ ok: true });
+});
+
+// Pulled once a day by the Apps Script in the Owner's Google Sheet; the key is the only credential.
+app.get("/export/:key/all.json", async (c) => {
+  if (!(await checkExportKey(c.env, c.req.param("key")))) return c.json({ error: { code: "invalid_key", message: "同步密钥无效" } }, 403);
+  return c.json(await exportAll(c.env));
 });
 
 app.route("/api/public", publicRoutes);

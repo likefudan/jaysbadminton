@@ -963,3 +963,122 @@ main > div > .button.block:first-child {
     background: rgba(36, 40, 48, 0.96);
   }
 }
+
+/* ---- Leaderboard and stats ---- */
+.tabs.mini {
+  box-shadow: none;
+  margin-bottom: 10px;
+}
+.tabs.mini button {
+  min-height: 34px;
+  font-size: 14px;
+}
+.ranks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ranks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 2px;
+  border-top: 1px solid var(--border);
+}
+.ranks li:first-child {
+  border-top: 0;
+}
+.ranks .who {
+  flex: 1;
+  min-width: 0;
+}
+.ranks .value {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.place {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--field);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.place.p1 {
+  background: linear-gradient(135deg, #e9cf86, #c9a54a);
+  color: #4a3a10;
+  border-color: transparent;
+}
+.place.p2 {
+  background: linear-gradient(135deg, #e3e6ea, #b9bfc7);
+  color: #3a3f46;
+  border-color: transparent;
+}
+.place.p3 {
+  background: linear-gradient(135deg, #e6c2a4, #b98a64);
+  color: #4a2f19;
+  border-color: transparent;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.stats div {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  border: 1px solid var(--border);
+}
+.stats strong {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stats small {
+  color: var(--muted);
+}
+pre.script {
+  max-height: 180px;
+  overflow: auto;
+  margin: 8px 0;
+  padding: 10px;
+  font-size: 11px;
+  white-space: pre;
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  border: 1px solid var(--border);
+}
+.downloads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.downloads .button {
+  min-height: 42px;
+  margin: 0;
+  font-size: 14px;
+}
+ol.steps {
+  margin: 8px 0;
+  padding-left: 20px;
+  font-size: 14px;
+}
+ol.steps li {
+  margin-bottom: 4px;
+}
+.copy-block > * {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  justify-content: center;
+  align-items: center;
+}

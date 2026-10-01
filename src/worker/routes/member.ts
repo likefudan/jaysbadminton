@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { settle } from "../../shared/settle";
 import type { MeResponse, MyEvent, MyPayment, PaymentStatus } from "../../shared/types";
 import { refundOf, savedInput, settleRows } from "../billing";
+import { myStats } from "../stats";
 import { getSettings } from "../db";
 import { closeExpired, friendCap, getEvent, removeSignup, setSignup, summaries, type EventRow, validateFriends } from "../events";
 import type { Env } from "../env";
@@ -22,6 +23,8 @@ memberRoutes.get("/:token/me", (c) => {
   const m = c.get("member");
   return c.json<MeResponse>({ id: m.id, username: m.username, wechatNickname: m.wechat_nickname, isOwner: m.is_owner === 1 });
 });
+
+memberRoutes.get("/:token/stats", async (c) => c.json(await myStats(c.env, c.get("member").id)));
 
 memberRoutes.post("/:token/rename", async (c) => {
   const body = await readJson(c.req.raw);
