@@ -187,18 +187,45 @@ export async function notifyFinalized(env: Env, e: EventRow): Promise<void> {
   });
 }
 
-/** 收齐通知: once, when the event is archived. */
+/** 收齐通知: once, when the event is archived; a full record of the event for the Owner's archive. */
 export async function notifyCollected(env: Env, eventId: number): Promise<void> {
   const e = await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(eventId).first<EventRow>();
   if (!e) return;
   await once(env, e.id, "collected", "once", async () => {
-    const refunds = await env.DB.prepare(
-      "SELECT COUNT(*) AS n FROM payments WHERE event_id = ? AND amount_paid_cents > amount_due_cents + refunded_cents",
+    const st = await env.DB.prepare(
+      "SELECT court_total_cents, shuttle_count, shuttle_price_cents, registered_count, attended_count FROM settlements WHERE event_id = ?",
     )
       .bind(e.id)
-      .first<{ n: number }>();
-    const extra = refunds?.n ? `\n还有 ${refunds.n} 笔多付的钱需要退，见管理页「收款」。` : "";
-    return sendToOwner(env, message(`🎉 ${day(e)} 的费用已全部收齐，活动已归档。${extra}`));
+      .first<{ court_total_cents: number; shuttle_count: number; shuttle_price_cents: number; registered_count: number; attended_count: number }>();
+    const pay = await env.DB.prepare(
+      `SELECT COUNT(*) AS n, SUM(amount_due_cents) AS due, SUM(amount_paid_cents) AS paid,
+         SUM(MAX(amount_paid_cents - amount_due_cents - refunded_cents, 0)) AS refund
+       FROM payments WHERE event_id = ?`,
+    )
+      .bind(e.id)
+      .first<{ n: number; due: number; paid: number; refund: number }>();
+    const lines = [
+      "🎉 费用已全部收齐，活动已归档",
+      "",
+      `日期：${e.date.slice(0, 4)}年${day(e)} ${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`,
+      `活动编号：jbm${e.date.replace(/-/g, "")}${e.code.slice(4).toLowerCase()}`,
+      `场馆：${e.location}`,
+      ...(e.address ? [`地址：${e.address}`] : []),
+    ];
+    if (st) {
+      const shuttle = st.shuttle_count * st.shuttle_price_cents;
+      lines.push(
+        `人数：报名 ${st.registered_count} 人，到场 ${st.attended_count} 人（${pay?.n ?? 0} 人付款）`,
+        `费用：$${dollars(st.court_total_cents + shuttle)}`,
+        `　场地费 $${dollars(st.court_total_cents)}`,
+        `　球费 $${dollars(shuttle)}（${st.shuttle_count} 个 × $${dollars(st.shuttle_price_cents)}）`,
+      );
+    }
+    if (pay) {
+      lines.push(`应收 $${dollars(pay.due ?? 0)}，实收 $${dollars(pay.paid ?? 0)}`);
+      if (pay.refund) lines.push(`还有多付的 $${dollars(pay.refund)} 需要退，见管理页「收款」。`);
+    }
+    return sendToOwner(env, message(lines.join("\n")));
   });
 }
 

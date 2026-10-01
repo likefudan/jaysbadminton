@@ -1,60 +1,60 @@
 /* ---- Palette: one block per theme (picked by the Owner), each with a dark variant ---- */
 :root,
 [data-theme="lagoon"] {
-  --accent: #0d9488;
-  --accent-2: #0891b2;
-  --b1: #5eead4;
-  --b2: #7dd3fc;
-  --b3: #bbf7d0;
-  --page: #e8f6f4;
+  --accent-base: #3d7c76;
+  --accent-2-base: #4e7d8f;
+  --b1: #c3dcd8;
+  --b2: #cbd9e2;
+  --b3: #d9e6dd;
+  --page: #eef3f2;
 }
 [data-theme="ocean"] {
-  --accent: #2563eb;
-  --accent-2: #7c3aed;
-  --b1: #93c5fd;
-  --b2: #c4b5fd;
-  --b3: #a5f3fc;
-  --page: #eaf0fb;
+  --accent-base: #4a6290;
+  --accent-2-base: #6a6491;
+  --b1: #ccd5e8;
+  --b2: #d8d3e6;
+  --b3: #d0dfe5;
+  --page: #eff1f6;
 }
 [data-theme="grape"] {
-  --accent: #9333ea;
-  --accent-2: #db2777;
-  --b1: #d8b4fe;
-  --b2: #f9a8d4;
-  --b3: #c7d2fe;
-  --page: #f3ecfb;
+  --accent-base: #77608c;
+  --accent-2-base: #956a80;
+  --b1: #ddd1e6;
+  --b2: #ead6df;
+  --b3: #d8d8ea;
+  --page: #f3f0f5;
 }
 [data-theme="sunset"] {
-  --accent: #ea580c;
-  --accent-2: #e11d48;
-  --b1: #fdba74;
-  --b2: #fda4af;
-  --b3: #fde68a;
-  --page: #fbf0ea;
+  --accent-base: #a8684f;
+  --accent-2-base: #a35e66;
+  --b1: #ecd9cd;
+  --b2: #ead3d5;
+  --b3: #eee5cf;
+  --page: #f7f2ee;
 }
 [data-theme="sakura"] {
-  --accent: #db2777;
-  --accent-2: #c026d3;
-  --b1: #fbcfe8;
-  --b2: #f5d0fe;
-  --b3: #fecdd3;
-  --page: #fbeff4;
+  --accent-base: #a4687f;
+  --accent-2-base: #8f6890;
+  --b1: #eedbe3;
+  --b2: #e6d8e9;
+  --b3: #efdedd;
+  --page: #f8f2f4;
 }
 [data-theme="forest"] {
-  --accent: #15803d;
-  --accent-2: #4d7c0f;
-  --b1: #86efac;
-  --b2: #d9f99d;
-  --b3: #99f6e4;
-  --page: #ecf6ee;
+  --accent-base: #4d775a;
+  --accent-2-base: #6b7752;
+  --b1: #d0e1d4;
+  --b2: #e0e5cf;
+  --b3: #cfe1dc;
+  --page: #f0f4f1;
 }
 [data-theme="graphite"] {
-  --accent: #334155;
-  --accent-2: #0f172a;
-  --b1: #cbd5e1;
-  --b2: #e2e8f0;
-  --b3: #bae6fd;
-  --page: #eef1f4;
+  --accent-base: #3e4550;
+  --accent-2-base: #5d6571;
+  --b1: #dadee3;
+  --b2: #e6e8eb;
+  --b3: #d6dee5;
+  --page: #f1f2f4;
 }
 
 /* ---- Liquid glass: translucent layers over soft colour, light by default ---- */
@@ -68,6 +68,11 @@
   --border: rgba(16, 24, 27, 0.09);
   --field: rgba(255, 255, 255, 0.62);
   --shadow: 0 10px 30px rgba(20, 40, 60, 0.1), 0 1px 3px rgba(20, 40, 60, 0.06);
+  --accent: var(--accent-base);
+  --accent-2: var(--accent-2-base);
+  /* Filled surfaces (buttons, selected chips, switches) */
+  --fill-1: var(--accent-base);
+  --fill-2: var(--accent-2-base);
   --accent-text: #ffffff;
   --danger: #dc2626;
   --ok: #16a34a;
@@ -92,12 +97,17 @@
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     --danger: #f87171;
     --ok: #4ade80;
+    /* Muted accents are dark; lift them so links and labels stay readable on dark glass. */
+    --accent: color-mix(in srgb, var(--accent-base) 62%, white);
+    --accent-2: color-mix(in srgb, var(--accent-2-base) 62%, white);
+    --fill-1: color-mix(in srgb, var(--accent-base) 88%, white);
+    --fill-2: color-mix(in srgb, var(--accent-2-base) 88%, white);
   }
   body {
     background-color: #0b0f12 !important;
   }
   body::before {
-    opacity: 0.38;
+    opacity: 0.3;
   }
 }
 * {
@@ -197,13 +207,13 @@ a {
   padding: 0 22px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background: linear-gradient(135deg, var(--fill-1), var(--fill-2));
   color: var(--accent-text);
   font: inherit;
   font-weight: 650;
   text-decoration: none;
   cursor: pointer;
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 30%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.28);
   transition: transform 0.12s ease, filter 0.12s ease;
 }
 .button:active {
@@ -735,7 +745,7 @@ pre.raw {
   border-radius: var(--radius-sm);
 }
 .collected {
-  background: linear-gradient(135deg, #16a34a, #0d9488);
+  background: linear-gradient(135deg, #4d8a62, #3d7c76);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
@@ -744,8 +754,8 @@ pre.raw {
   box-shadow: none;
 }
 .button.venmo {
-  background: linear-gradient(135deg, #008cff, #3d5afe);
-  box-shadow: 0 8px 20px rgba(0, 140, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: linear-gradient(135deg, #1f7fd6, #3f63c9);
+  box-shadow: 0 6px 16px rgba(31, 127, 214, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 .stepper button {
   background: var(--glass-strong);
@@ -816,7 +826,7 @@ input[role="switch"]::after {
   transition: transform 0.2s;
 }
 input[role="switch"]:checked {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background: linear-gradient(135deg, var(--fill-1), var(--fill-2));
 }
 input[role="switch"]:checked::after {
   transform: translateX(20px);
@@ -847,7 +857,7 @@ input[role="switch"]:checked::after {
   box-shadow: 0 1px 4px rgba(20, 40, 60, 0.06);
 }
 .chip.on {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  background: linear-gradient(135deg, var(--fill-1), var(--fill-2));
   color: var(--accent-text);
   border-color: transparent;
 }

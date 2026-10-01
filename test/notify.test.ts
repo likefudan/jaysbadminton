@@ -171,7 +171,16 @@ describe("payment notifications", () => {
     await s.admin.call(`${s.eb}/finalize`, s.fees);
     const pays = (await s.admin.call(`${s.eb}/settlement`)).data.payments;
     for (const p of pays) if (p.status !== "paid") await s.admin.call(`${s.base}/payments/${p.id}/mark-paid`, {});
-    expect(sent().filter((t) => t.includes("已全部收齐"))).toHaveLength(1);
+    const done = sent().filter((t) => t.includes("已全部收齐"));
+    expect(done).toHaveLength(1);
+    expect(done[0]).toContain(`日期：${s.e.date.slice(0, 4)}年`);
+    expect(done[0]).toContain(`活动编号：jbm${s.e.date.replace(/-/g, "")}`);
+    expect(done[0]).toContain("场馆：Bay Badminton Center");
+    expect(done[0]).toContain("人数：报名 4 人，到场 3 人（3 人付款）");
+    expect(done[0]).toContain("费用：$118.00");
+    expect(done[0]).toContain("场地费 $100.00");
+    expect(done[0]).toContain("球费 $18.00（6 个 × $3.00）");
+    expect(done[0]).toContain("应收 $118.00，实收 $118.00");
   });
 
   it("stays silent without a connected chat", async () => {

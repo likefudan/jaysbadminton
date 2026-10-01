@@ -1,12 +1,12 @@
 /** Colour themes the Owner can pick in settings. The palettes themselves live in styles.css. */
 export const THEMES = [
-  { id: "lagoon", name: "湖水青", swatch: ["#0d9488", "#06b6d4"] },
-  { id: "ocean", name: "海洋蓝", swatch: ["#2563eb", "#7c3aed"] },
-  { id: "grape", name: "葡萄紫", swatch: ["#9333ea", "#ec4899"] },
-  { id: "sunset", name: "日落橙", swatch: ["#ea580c", "#e11d48"] },
-  { id: "sakura", name: "樱花粉", swatch: ["#db2777", "#f472b6"] },
-  { id: "forest", name: "森林绿", swatch: ["#15803d", "#65a30d"] },
-  { id: "graphite", name: "石墨灰", swatch: ["#334155", "#64748b"] },
+  { id: "lagoon", name: "湖水青", swatch: ["#3d7c76", "#4e7d8f"] },
+  { id: "ocean", name: "海洋蓝", swatch: ["#4a6290", "#6a6491"] },
+  { id: "grape", name: "葡萄紫", swatch: ["#77608c", "#956a80"] },
+  { id: "sunset", name: "日落橙", swatch: ["#a8684f", "#a35e66"] },
+  { id: "sakura", name: "樱花粉", swatch: ["#a4687f", "#8f6890"] },
+  { id: "forest", name: "森林绿", swatch: ["#4d775a", "#6b7752"] },
+  { id: "graphite", name: "石墨灰", swatch: ["#3e4550", "#5d6571"] },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]["id"];
