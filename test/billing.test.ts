@@ -23,10 +23,10 @@ describe("settlement", () => {
     const mine = (await anon.call(`${s.alice.base}/events`)).data.events[0];
     expect(mine.payment).toMatchObject({ amountCents: 5600, status: "unpaid", venmoUsername: "KeLi8916", zelleAccount: "jay@example.com" });
     expect(mine.payment.shares.map((x: { name: string; shuttleCents: number }) => [x.name, x.shuttleCents])).toEqual([["Alice", 600], ["Tom", 0]]);
-    // The public page shows attendance but never money.
+    // The public page shows neither names nor money.
     const pub = (await anon.call(`/api/public/events/${s.e.code}`)).data;
-    expect(pub.showAttendance).toBe(true);
-    expect(JSON.stringify(pub)).not.toContain("5600");
+    expect(pub.headcount).toBe(4);
+    expect(JSON.stringify(pub)).not.toMatch(/5600|Alice|Bob|Tom/);
   });
 
   it("refuses to settle before the deadline", async () => {

@@ -21,7 +21,7 @@ memberRoutes.use("/:token/*", async (c, next) => {
 
 memberRoutes.get("/:token/me", (c) => {
   const m = c.get("member");
-  return c.json<MeResponse>({ id: m.id, username: m.username, wechatNickname: m.wechat_nickname, isOwner: m.is_owner === 1 });
+  return c.json<MeResponse>({ id: m.id, username: m.username, wechatNickname: m.wechat_nickname, isOwner: m.is_owner === 1, active: m.status === "active" });
 });
 
 memberRoutes.get("/:token/stats", async (c) => c.json(await myStats(c.env, c.get("member").id)));
@@ -57,8 +57,8 @@ memberRoutes.get("/:token/events", async (c) => {
     const rows = mine.results.filter((r) => r.event_id === e.id);
     const friends = rows.filter((r) => r.friend_index > 0).sort((a, b) => a.friend_index - b.friend_index);
     const pay = pays.results.find((p) => p.event_id === e.id);
-    // Settled events only matter to members who were billed.
-    if (e.status === "settled" && !pay) continue;
+    // Settled events only matter to members who were billed; a disabled member only sees bills.
+    if ((e.status === "settled" || m.status !== "active") && !pay) continue;
     let payment: MyPayment | null = null;
     if (pay && (e.status === "finalized" || e.status === "settled")) {
       const input = await savedInput(c.env, e.id);
@@ -77,14 +77,15 @@ memberRoutes.get("/:token/events", async (c) => {
     events.push({
       ...e,
       myFriends: rows.length === 0 ? null : friends.map((f) => f.friend_name ?? ""),
-      canEdit: e.status === "open",
+      canEdit: e.status === "open" && m.status === "active",
       payment,
     });
   }
   return c.json({ events, friendCap: await friendCap(c.env) });
 });
 
-async function openEventFor(c: { env: import("../env").Env }, id: string) {
+async function openEventFor(c: { env: import("../env").Env; get: (k: "member") => MemberRow }, id: string) {
+  if (c.get("member").status !== "active") throw badRequest("你的账号已停用，不能报名。有疑问请联系管理员。");
   await closeExpired(c.env);
   const e = await getEvent(c.env, Number(id));
   if (e.status !== "open") throw badRequest("报名已截止，不能再修改");

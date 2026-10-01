@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { HomeResponse, PublicEvent } from "../../shared/types";
-import { closeExpired, detail, summaries, type EventRow } from "../events";
+import { closeExpired, summaries, type EventRow } from "../events";
+import { getSettings } from "../db";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
@@ -23,7 +24,7 @@ publicRoutes.get("/home", async (c) => {
   return c.json<HomeResponse>({
     currentEvents: await summaries(c.env, current.results),
     pastEvents: await summaries(c.env, past.results),
-    leaderboard: await leaderboard(c.env),
+    leaderboard: (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard === "0" ? null : await leaderboard(c.env),
   });
 });
 
@@ -33,13 +34,9 @@ publicRoutes.get("/events/:code", async (c) => {
     .bind(c.req.param("code").toUpperCase())
     .first<EventRow>();
   if (!e) throw new HttpError(404, "event_not_found", "找不到这个活动");
-  const d = await detail(c.env, e);
-  const showAttendance = e.status === "finalized" || e.status === "settled";
-  return c.json<PublicEvent>({
-    ...d,
-    roster: d.roster.map((r) => ({ name: r.name, isFriend: r.friendIndex > 0, attended: r.attended })),
-    showAttendance,
-  });
+  // Public: the head count only, never who signed up.
+  const [summary] = await summaries(c.env, [e]);
+  return c.json<PublicEvent>(summary!);
 });
 
 publicRoutes.post("/join", async (c) => {

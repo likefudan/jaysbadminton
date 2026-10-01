@@ -12,6 +12,7 @@ import {
   detail,
   friendCap,
   checkVenue,
+  cleanTitle,
   getEvent,
   saveVenue,
   setSignup,
@@ -19,7 +20,8 @@ import {
   validateFriends,
   type EventRow,
 } from "../events";
-import { badRequest, readJson, str } from "../http";
+import { HttpError, badRequest, readJson, str } from "../http";
+import { checkPassword } from "../auth";
 import { SITE_TITLE_MAX, siteTheme, siteTitle } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
@@ -73,6 +75,7 @@ adminEventRoutes.post("/events", async (c) => {
     endTime: str(b.endTime),
     location: str(b.location),
     address: str(b.address),
+    title: str(b.title),
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
@@ -138,8 +141,8 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   const ts = now();
   await c.env.DB.batch([
     c.env.DB.prepare(
-      "UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, deadline_at = ?, status = ? WHERE id = ?",
-    ).bind(date, startAt, endAt, location, address, deadline, status, e.id),
+      "UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, deadline_at = ?, status = ? WHERE id = ?",
+    ).bind(date, startAt, endAt, location, address, b.title === undefined ? e.title : cleanTitle(str(b.title)), deadline, status, e.id),
     saveVenue(c.env, location, address, ts),
   ]);
   return c.json(await detail(c.env, await getEvent(c.env, e.id)));
@@ -225,6 +228,7 @@ adminEventRoutes.get("/settings", async (c) => {
     zelleAccount: s.zelle_account ?? "",
     siteTitle: await siteTitle(c.env),
     theme: await siteTheme(c.env),
+    showLeaderboard: (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard !== "0",
     ...(await notifySettings(c.env)),
   });
 });
@@ -237,21 +241,13 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!Number.isInteger(cap) || cap < 0 || cap > 10) throw badRequest("带朋友上限请填 0–10");
     writes.push(setSetting(c.env.DB, "friend_cap", String(cap)));
   }
-  if (b.venmoUsername !== undefined) {
-    const v = str(b.venmoUsername).trim().replace(/^@/, "");
-    if (v && !/^[A-Za-z0-9_-]{2,30}$/.test(v)) throw badRequest("Venmo 用户名格式不对（不用加 @）");
-    // Receipts are only trusted when addressed to this email (the signed To header), so it comes with the username.
-    const mail = str(b.venmoEmail).trim().toLowerCase();
-    if (v && !mail) throw badRequest("请填写 Venmo 通知邮箱（Venmo 账户里登记的邮箱）");
-    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw badRequest("Venmo 通知邮箱格式不对");
-    writes.push(setSetting(c.env.DB, "venmo_username", v), setSetting(c.env.DB, "venmo_email", mail));
-  }
   if (b.siteTitle !== undefined) {
     const t = str(b.siteTitle).trim();
     if (!t) throw badRequest("请填写网站标题");
     if ([...t].length > SITE_TITLE_MAX) throw badRequest(`网站标题最多 ${SITE_TITLE_MAX} 个字`);
     writes.push(setSetting(c.env.DB, "site_title", t));
   }
+  if (b.showLeaderboard !== undefined) writes.push(setSetting(c.env.DB, "show_leaderboard", b.showLeaderboard === false ? "0" : "1"));
   if (b.theme !== undefined) {
     if (!isTheme(b.theme)) throw badRequest("没有这个配色");
     writes.push(setSetting(c.env.DB, "theme", b.theme));
@@ -264,11 +260,43 @@ adminEventRoutes.post("/settings", async (c) => {
   }
   if (b.dunningHour !== undefined) {
     const h = num(b.dunningHour);
-    if (!Number.isInteger(h) || h < 0 || h > 23) throw badRequest("催款时间请选 0–23 点");
+    if (!Number.isInteger(h) || h < 0 || h > 23) throw badRequest("账单提醒时间请选 0–23 点");
     writes.push(setSetting(c.env.DB, "dunning_hour", String(h)));
   }
-  if (b.zelleAccount !== undefined) writes.push(setSetting(c.env.DB, "zelle_account", str(b.zelleAccount).trim().slice(0, 60)));
   if (writes.length) await c.env.DB.batch(writes);
+  return c.json({ ok: true });
+});
+
+/**
+ * 收款设置: where members' money goes. Changed rarely, so it needs the admin password, and every
+ * change is reported to the Owner's Telegram in case it was not them.
+ */
+adminEventRoutes.post("/settings/payment", async (c) => {
+  const b = await readJson(c.req.raw);
+  if (!(await checkPassword(c.env, str(b.password)))) throw new HttpError(401, "wrong_password", "管理密码不正确");
+  const venmo = str(b.venmoUsername).trim().replace(/^@/, "");
+  if (venmo && !/^[A-Za-z0-9_-]{2,30}$/.test(venmo)) throw badRequest("Venmo 用户名格式不对（不用加 @）");
+  // Receipts are only trusted when addressed to this email (the signed To header), so it comes with the username.
+  const mail = str(b.venmoEmail).trim().toLowerCase();
+  if (venmo && !mail) throw badRequest("请填写 Venmo 通知邮箱（Venmo 账户里登记的邮箱）");
+  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw badRequest("Venmo 通知邮箱格式不对");
+  const zelle = str(b.zelleAccount).trim().slice(0, 60);
+
+  const before = await getSettings(c.env.DB, ["venmo_username", "venmo_email", "zelle_account"]);
+  await c.env.DB.batch([
+    setSetting(c.env.DB, "venmo_username", venmo),
+    setSetting(c.env.DB, "venmo_email", mail),
+    setSetting(c.env.DB, "zelle_account", zelle),
+  ]);
+  const changes = [
+    ["Venmo", before.venmo_username ? `@${before.venmo_username}` : "", venmo ? `@${venmo}` : ""],
+    ["Venmo 通知邮箱", before.venmo_email ?? "", mail],
+    ["Zelle", before.zelle_account ?? "", zelle],
+  ].filter(([, a, z]) => a !== z);
+  if (changes.length) {
+    const lines = changes.map(([k, a, z]) => `${k}：${a || "（空）"} → ${z || "（空）"}`).join("\n");
+    await sendToOwner(c.env, message(`🔐 收款设置已修改\n${lines}\n\n如果不是你本人操作，请立刻修改管理密码。`));
+  }
   return c.json({ ok: true });
 });
 
@@ -446,10 +474,10 @@ adminEventRoutes.post("/telegram/disconnect", async (c) => {
   return c.json({ ok: true });
 });
 
-/** 停止催款 / 恢复催款: the event stays unarchived and its unpaid bills stay. */
+/** 停止 / 恢复账单提醒: the event stays unarchived and its unpaid bills stay. */
 adminEventRoutes.post("/events/:id/dunning", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
-  if (e.status !== "finalized") throw badRequest("只有已结算、还没收齐的活动才能停止催款");
+  if (e.status !== "finalized") throw badRequest("只有已结算、还没收齐的活动才能停止账单提醒");
   const stop = (await readJson(c.req.raw)).stop === true;
   await c.env.DB.prepare("UPDATE events SET dunning_stopped = ? WHERE id = ?").bind(stop ? 1 : 0, e.id).run();
   return c.json({ ok: true, dunningStopped: stop });

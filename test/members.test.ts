@@ -107,7 +107,7 @@ describe("member links", () => {
   it("approval issues a link the member can use; pending members have none", async () => {
     const { token, id, admin, base } = await approvedMember();
     const me = await anon.call(`/api/m/${token}/me`);
-    expect(me.data).toEqual({ id, username: "Dan", wechatNickname: "阿丹", isOwner: false });
+    expect(me.data).toEqual({ id, username: "Dan", wechatNickname: "阿丹", isOwner: false, active: true });
     const shown = await admin.call(`${base}/members/${id}/link`);
     expect(tokenOf(shown.data.link)).toBe(token);
   });
@@ -126,12 +126,48 @@ describe("member links", () => {
     expect((await anon.call(`/api/m/${tokenOf(data.link)}/me`)).status).toBe(200);
   });
 
-  it("deactivating kills the link but keeps the member", async () => {
+  it("a disabled member keeps their link to pay but cannot sign up, and can be restored", async () => {
     const { token, id, admin, base } = await approvedMember();
+    const e = await createTestEvent({ admin, base });
     await admin.call(`${base}/members/${id}/deactivate`, {});
+    const me = await anon.call(`/api/m/${token}/me`);
+    expect(me.data.active).toBe(false);
+    expect((await anon.call(`/api/m/${token}/events/${e.id}/signup`, { friends: [] })).data.error.message).toContain("已停用");
+    expect((await anon.call(`/api/m/${token}/events`)).data.events).toEqual([]); // only bills are shown
+    expect((await admin.call(`${base}/members`)).data.inactive.map((m: { id: string }) => m.id)).toEqual([id]);
+
+    expect((await admin.call(`${base}/members/${id}/reactivate`, {})).data).toEqual({ ok: true, link: null });
+    expect((await anon.call(`/api/m/${token}/events/${e.id}/signup`, { friends: [] })).status).toBe(200);
+  });
+
+  it("restoring a member disabled under the old rules gives them a new link", async () => {
+    const { id, admin, base } = await approvedMember();
+    await admin.call(`${base}/members/${id}/deactivate`, {});
+    await env.DB.prepare("UPDATE members SET token_hash = NULL, token_enc = NULL WHERE id = ?").bind(id).run();
+    const { link } = (await admin.call(`${base}/members/${id}/reactivate`, {})).data;
+    expect((await anon.call(`/api/m/${tokenOf(link)}/me`)).data.active).toBe(true);
+  });
+
+  it("deletes only disabled members who owe nothing, keeping them under 已删除", async () => {
+    const { token, id, admin, base } = await approvedMember();
+    expect((await admin.call(`${base}/members/${id}/delete`, {})).status).toBe(400); // still active
+    await admin.call(`${base}/members/${id}/deactivate`, {});
+    const e = await createTestEvent({ admin, base });
+    await env.DB.prepare(
+      "INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, amount_paid_cents) VALUES (?, ?, 1250, 'x', 'partial', 250)",
+    )
+      .bind(e.id, id)
+      .run();
+    expect((await admin.call(`${base}/members`)).data.inactive[0].owingCents).toBe(1000);
+    expect((await admin.call(`${base}/members/${id}/delete`, {})).data.error.message).toContain("$10.00 没付清");
+
+    await env.DB.prepare("UPDATE payments SET status = 'paid', amount_paid_cents = 1250").run();
+    expect((await admin.call(`${base}/members/${id}/delete`, {})).status).toBe(200);
     expect((await anon.call(`/api/m/${token}/me`)).status).toBe(404);
-    const list = await admin.call(`${base}/members`);
-    expect(list.data.inactive.map((m: { id: string }) => m.id)).toEqual([id]);
+    const list = (await admin.call(`${base}/members`)).data;
+    expect(list.inactive).toEqual([]);
+    expect(list.deleted.map((m: { id: string }) => m.id)).toEqual([id]);
+    expect((await admin.call(`${base}/members/${id}/reactivate`, {})).status).toBe(400);
   });
 
   it("members can rename themselves, keeping names unique", async () => {

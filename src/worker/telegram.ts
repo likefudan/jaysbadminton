@@ -125,7 +125,7 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
     setSetting(env.DB, "telegram_chat_name", name.slice(0, 60)),
     env.DB.prepare("DELETE FROM settings WHERE key IN ('telegram_bind_hash', 'telegram_bind_expires')"),
   ]);
-  await sendToOwner(env, "✅ 已连接。羽毛球群的提醒、结算和催款消息都会发到这里。\n忘记管理页面地址时，在这里发送「管理页面」即可找回。");
+  await sendToOwner(env, "✅ 已连接。羽毛球群的提醒、结算和账单提醒都会发到这里。\n忘记管理页面地址时，在这里发送「管理页面」即可找回。");
 }
 
 async function sendAdminLink(env: Env, chatId: string): Promise<void> {

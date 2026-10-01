@@ -224,12 +224,17 @@ describe("DNS trouble", () => {
   });
 });
 
-describe("Venmo settings", () => {
-  it("requires the Venmo notification email together with the username", async () => {
+describe("收款设置", () => {
+  it("needs the admin password and a valid Venmo notification email", async () => {
     const s = await billingScenario();
-    expect((await s.admin.call(`${s.base}/settings`, { venmoUsername: "KeLi8916" })).status).toBe(400);
-    expect((await s.admin.call(`${s.base}/settings`, { venmoUsername: "KeLi8916", venmoEmail: "not-an-email" })).status).toBe(400);
-    expect((await s.admin.call(`${s.base}/settings`, { venmoUsername: "KeLi8916", venmoEmail: " Me@Example.com " })).status).toBe(200);
-    expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({ venmoUsername: "KeLi8916", venmoEmail: "me@example.com" });
+    const save = (body: Record<string, unknown>) => s.admin.call(`${s.base}/settings/payment`, { password: "initial-password", ...body });
+    expect((await s.admin.call(`${s.base}/settings/payment`, { password: "wrong", venmoUsername: "KeLi8916", venmoEmail: "me@example.com" })).status).toBe(401);
+    expect((await save({ venmoUsername: "KeLi8916" })).status).toBe(400);
+    expect((await save({ venmoUsername: "KeLi8916", venmoEmail: "not-an-email" })).status).toBe(400);
+    expect((await save({ venmoUsername: "KeLi8916", venmoEmail: " Me@Example.com ", zelleAccount: "z@example.com" })).status).toBe(200);
+    expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({ venmoUsername: "KeLi8916", venmoEmail: "me@example.com", zelleAccount: "z@example.com" });
+    // The ordinary settings form can no longer change where money goes.
+    await s.admin.call(`${s.base}/settings`, { venmoUsername: "evil", zelleAccount: "evil" });
+    expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({ venmoUsername: "KeLi8916", zelleAccount: "z@example.com" });
   });
 });

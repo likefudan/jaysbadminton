@@ -15,6 +15,7 @@ export interface MemberRow {
   is_owner: number;
   requested_at: string;
   approved_at: string | null;
+  deleted_at: string | null;
 }
 
 export const toSummary = (m: MemberRow): MemberSummary => ({
@@ -25,6 +26,8 @@ export const toSummary = (m: MemberRow): MemberSummary => ({
   isOwner: m.is_owner === 1,
   requestedAt: m.requested_at,
   approvedAt: m.approved_at,
+  deletedAt: m.deleted_at,
+  owingCents: 0,
 });
 
 export const memberLink = (origin: string, token: string) => `${origin}/m/${token}`;
@@ -90,12 +93,13 @@ export async function issueMemberToken(env: Env, id: string): Promise<string> {
 }
 
 export async function revealMemberToken(env: Env, m: MemberRow): Promise<string> {
-  if (m.status !== "active" || !m.token_enc) throw new HttpError(409, "no_link", "这个成员目前没有有效链接");
+  if (m.deleted_at || m.status === "pending" || !m.token_enc) throw new HttpError(409, "no_link", "这个成员目前没有有效链接");
   return decryptToken(m.token_enc, env.TOKEN_KEY);
 }
 
 export async function memberByToken(env: Env, token: string): Promise<MemberRow | null> {
-  return env.DB.prepare("SELECT * FROM members WHERE token_hash = ? AND status = 'active'")
+  // Disabled members keep their link so they can still pay what they owe; deleted ones do not.
+  return env.DB.prepare("SELECT * FROM members WHERE token_hash = ? AND status IN ('active', 'inactive') AND deleted_at IS NULL")
     .bind(await sha256(token))
     .first<MemberRow>();
 }

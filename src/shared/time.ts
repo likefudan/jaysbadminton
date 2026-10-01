@@ -48,15 +48,15 @@ export const isTime = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 
 const WEEKDAY_ZH = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
-/** "10月6日 周二" */
-export function formatDateZh(date: string): string {
+/** An event's date: "2026年10月6日 周二" (or "10月6日 周二" with withYear = false). */
+export function formatDateZh(date: string, withYear = true): string {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
   const weekday = new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
-  return `${m}月${d}日 ${WEEKDAY_ZH[weekday]}`;
+  return `${withYear ? `${y}年` : ""}${m}月${d}日 ${WEEKDAY_ZH[weekday]}`;
 }
 
-/** "10月5日 周一 20:00" for a UTC instant, shown in Pacific time. */
+/** "10月5日 周一 20:00" for a UTC instant (deadlines, receipts), shown in Pacific time. */
 export function formatInstantZh(iso: string): string {
   const p = toPacific(iso);
-  return `${formatDateZh(p.date)} ${p.time}`;
+  return `${formatDateZh(p.date, false)} ${p.time}`;
 }

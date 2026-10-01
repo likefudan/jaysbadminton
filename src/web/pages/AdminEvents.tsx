@@ -75,11 +75,12 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
   const [days, setDays] = useState(d.deadlineDays);
   const [hours, setHours] = useState(d.deadlineHours);
   const [joinSelf, setJoinSelf] = useState(true);
+  const [title, setTitle] = useState("");
   const { busy, error, run } = useAction();
 
   async function submit(ev: Event) {
     ev.preventDefault();
-    const body = { date, startTime, endTime, location, address, deadlineDays: days, deadlineHours: hours, joinSelf };
+    const body = { title, date, startTime, endTime, location, address, deadlineDays: days, deadlineHours: hours, joinSelf };
     const r = await run(() => api<EventDetail>(`${props.base}/events`, body));
     if (r) props.onDone(r.id);
   }
@@ -94,6 +95,7 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
           </span>
           <input type="checkbox" role="switch" checked={joinSelf} onChange={(e) => setJoinSelf((e.target as HTMLInputElement).checked)} />
         </label>
+        <Field label="标题（选填）" value={title} onInput={setTitle} hint="特别的活动可以起个名字，例如「HappyTuesday 比赛」；不填就只显示日期" />
         <Field label="日期" type="date" value={date} onInput={setDate} />
         <div class="inline">
           <Field label="开始" type="time" value={startTime} onInput={setStart} />
@@ -379,12 +381,13 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const [endTime, setEnd] = useState(props.e.endTime);
   const [location, setLocation] = useState(props.e.location);
   const [address, setAddress] = useState(props.e.address);
+  const [title, setTitle] = useState(props.e.title);
   const { busy, error, run } = useAction();
 
   if (!open) {
     return (
       <button class="link-button" onClick={() => setOpen(true)}>
-        修改活动时间或地点（仅限紧急情况）
+        修改活动标题、时间或地点（仅限紧急情况）
       </button>
     );
   }
@@ -392,7 +395,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
     const msg =
       "修改会立即显示在活动页和成员页，但不会自动通知任何人，请自己在群里说明。活动代号和已发出的链接不变。确定修改吗？";
     if (!confirm(msg)) return;
-    if (await run(() => api(`${props.eb}/edit`, { date, startTime, endTime, location, address }))) {
+    if (await run(() => api(`${props.eb}/edit`, { title, date, startTime, endTime, location, address }))) {
       setOpen(false);
       props.onDone();
     }
@@ -400,6 +403,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   return (
     <Card title="修改活动（紧急情况）">
       <p class="warn">只在场地变更、时间临时调整等紧急情况使用。修改后请在微信群里通知大家。</p>
+      <Field label="标题（选填）" value={title} onInput={setTitle} />
       <Field label="日期" type="date" value={date} onInput={setDate} />
       <div class="inline">
         <Field label="开始" type="time" value={startTime} onInput={setStart} />

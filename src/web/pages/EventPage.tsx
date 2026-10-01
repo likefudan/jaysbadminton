@@ -1,28 +1,18 @@
 import type { PublicEvent } from "../../shared/types";
 import { formatDateZh } from "../../shared/time";
-import { Card, Empty, Load, Page } from "../components";
+import { Card, Load, Page } from "../components";
 import { EventInfo } from "../events";
 import { useApi } from "../hooks";
 
+/** The page shared in the WeChat group: when, where and how many, never who. */
 export function EventPage(props: { code?: string }) {
   const [ev] = useApi<PublicEvent>(`/api/public/events/${props.code}`);
   return (
     <Load result={ev}>
       {(e) => (
-        <Page title={`${formatDateZh(e.date)} 羽毛球`}>
+        <Page title={e.title || `${formatDateZh(e.date)} 羽毛球`}>
           <Card>
-            <EventInfo e={e} />
-          </Card>
-          <Card title={`报名名单（${e.roster.length}）`}>
-            {e.roster.length === 0 && <Empty>还没有人报名</Empty>}
-            <ul class="names">
-              {e.roster.map((r, i) => (
-                <li key={i} class={(r.isFriend ? "friend " : "") + (e.showAttendance && !r.attended ? "absent" : "")}>
-                  {r.name}
-                </li>
-              ))}
-            </ul>
-            {e.showAttendance && <p class="muted small">划线的是报名了但没到场的。</p>}
+            <EventInfo e={e} publicView />
           </Card>
           <p class="muted small">报名请用你自己的专属链接。还没有链接？</p>
           <a class="button secondary block" href="/join">

@@ -92,7 +92,7 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
 
   async function toggleDunning() {
     const stop = !props.e.dunningStopped;
-    if (stop && !confirm("停止后不再发送这个活动的每日收款汇总和催款消息，但未付记录保留、活动不归档。继续吗？")) return;
+    if (stop && !confirm("停止后不再发送这个活动的每日收款汇总和账单提醒，但未付记录保留、活动不归档。继续吗？")) return;
     if (await run(() => api(`${props.base}/events/${props.e.id}/dunning`, { stop }))) props.onDone();
   }
 
@@ -144,7 +144,7 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
         ))}
         {!settled && v.totals.unpaidCount > 0 && (
           <button class="link-button" disabled={busy} onClick={toggleDunning}>
-            {props.e.dunningStopped ? "已停止催款 · 点此恢复每日催款" : "停止催款"}
+            {props.e.dunningStopped ? "已停止账单提醒 · 点此恢复" : "停止账单提醒"}
           </button>
         )}
       </Card>

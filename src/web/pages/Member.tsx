@@ -19,6 +19,7 @@ export function Member(props: { token?: string }) {
           <p class="muted">
             成员编号 {m.id}。这是你的专属页面，请不要把链接转发给别人。
           </p>
+          {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
           <MyEvents base={base} />
           <MyStatsCard base={base} />
           <Rename base={base} current={m.username} onDone={reload} />

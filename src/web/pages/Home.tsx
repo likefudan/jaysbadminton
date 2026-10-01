@@ -15,14 +15,14 @@ export function Home() {
             <Card title="近期活动">
               {data.currentEvents.length === 0 && <Empty>暂时没有活动</Empty>}
               {data.currentEvents.map((e) => (
-                <EventLink key={e.id} e={e} href={`/e/${e.code}`} />
+                <EventLink key={e.id} e={e} href={`/e/${e.code}`} publicView />
               ))}
             </Card>
-            <LeaderboardCard board={data.leaderboard} />
+            {data.leaderboard && <LeaderboardCard board={data.leaderboard} />}
             <Card title="历史活动">
               {data.pastEvents.length === 0 && <Empty>还没有历史活动</Empty>}
               {data.pastEvents.map((e) => (
-                <EventLink key={e.id} e={e} href={`/e/${e.code}`} />
+                <EventLink key={e.id} e={e} href={`/e/${e.code}`} publicView />
               ))}
             </Card>
           </>
