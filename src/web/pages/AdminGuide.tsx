@@ -61,19 +61,19 @@ export function AdminGuide(props: { base: string }) {
             <b>收藏管理链接</b>。打开管理页需要「管理链接 + 管理密码」两样。如果是用初始密码登录的，请在上面「修改管理密码」里改成你自己的。
           </Step>
           <Step done={s?.telegram}>
-            <b>连接 Telegram</b>（上面「Telegram 通知」→ 连接，然后发送测试消息）。所有提醒、催款、收款异常都发到这里；以后忘了管理链接也能在这里找回。
+            <b>连接 Telegram</b>（上面「Telegram 通知」→ 连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里；以后忘了管理链接也能在这里找回。
           </Step>
           <Step done={s?.venmo}>
-            <b>填写收款信息</b>（上面「网站与报名设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。
+            <b>填写收款设置</b>（上面「收款设置」，保存时要输入管理密码）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。
           </Step>
           <Step done={!!s?.email.lastAt}>
             <b>设置 Venmo 邮件转发</b>，让系统自动对账，见下面第二部分。
           </Step>
           <Step>
-            <b>检查提醒与催款</b>：截止前几小时提醒、每天几点发催款。
+            <b>检查提醒设置</b>：截止前几小时提醒、每天几点发账单提醒。
           </Step>
           <Step done={s?.sheets} optional>
-            <b>Google 表格同步</b>：每天把数据备份到你自己的 Google 表格。
+            <b>Google 表格同步</b>（上面「Google 表格同步 ›」）：每天把数据备份到你自己的 Google 表格。
           </Step>
           <Step optional>
             <b>外观</b>：网站标题和配色。

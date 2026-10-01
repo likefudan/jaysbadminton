@@ -1176,3 +1176,84 @@ ol.steps li {
   border: 1px solid var(--border);
   font-size: 14px;
 }
+
+/* ---- Settings: compact theme row, read-only payment info, sub-menu rows, folds ---- */
+.theme-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.theme-label {
+  font-size: 15px;
+  font-weight: 650;
+  margin-right: auto;
+}
+.swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 2px 6px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+.swatch.on {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+dl.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+dl.kv dt {
+  color: var(--muted);
+}
+dl.kv dd {
+  margin: 0;
+  word-break: break-all;
+}
+.menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+details.fold summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 650;
+  font-size: 17px;
+  display: flex;
+  justify-content: space-between;
+}
+details.fold summary::-webkit-details-marker {
+  display: none;
+}
+details.fold summary::after {
+  content: "›";
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+details.fold[open] summary::after {
+  transform: rotate(90deg);
+}
+details.fold[open] summary {
+  margin-bottom: 8px;
+}

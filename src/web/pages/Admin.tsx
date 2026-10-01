@@ -156,8 +156,19 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     if (r) setShown({ name: m.username, link: r.link, fresh: true });
   }
   async function deactivate(m: MemberSummary) {
-    if (!confirm(`停用后 ${m.username} 的链接失效，正在报名中的活动会被取消报名。继续吗？`)) return;
+    if (!confirm(`停用后 ${m.username} 不能再报名，正在报名中的活动会被取消报名；他的链接还能用来付清欠款。继续吗？`)) return;
     if (await run(() => api(`${props.base}/members/${m.id}/deactivate`, {}))) props.onChange();
+  }
+  async function reactivate(m: MemberSummary) {
+    if (!confirm(`恢复 ${m.username} 为正常成员？`)) return;
+    const r = await run(() => api<{ link: string | null }>(`${props.base}/members/${m.id}/reactivate`, {}));
+    if (!r) return;
+    if (r.link) setShown({ name: m.username, link: r.link, fresh: true });
+    props.onChange();
+  }
+  async function remove(m: MemberSummary) {
+    if (!confirm(`删除 ${m.username}？删除后他的专属链接永久失效，不能恢复；以前的记录会保留。`)) return;
+    if (await run(() => api(`${props.base}/members/${m.id}/delete`, {}))) props.onChange();
   }
 
   return (
@@ -197,12 +208,46 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
         ))}
       </Card>
       {props.data.inactive.length > 0 && (
-        <Card title={`已停用（${props.data.inactive.length}）`}>
-          {props.data.inactive.map((m) => (
-            <div class="row" key={m.id}>
-              {who(m)}
-            </div>
-          ))}
+        <Card>
+          <details class="fold">
+            <summary>已停用（{props.data.inactive.length}）</summary>
+            <p class="muted small">已停用的成员不能报名，但还能打开专属链接付清欠款。</p>
+            {props.data.inactive.map((m) => (
+              <div class="row" key={m.id}>
+                <div class="who">
+                  {m.username}
+                  <small>
+                    {m.id} · {m.wechatNickname}
+                    {m.owingCents > 0 && <span class="error"> · 欠 ${(m.owingCents / 100).toFixed(2)}</span>}
+                  </small>
+                </div>
+                <div class="actions">
+                  <button class="button secondary" disabled={busy} onClick={() => view(m)}>
+                    链接
+                  </button>
+                  <button class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
+                    恢复
+                  </button>
+                  <button class="button danger" disabled={busy || m.owingCents > 0} onClick={() => remove(m)}>
+                    删除
+                  </button>
+                </div>
+              </div>
+            ))}
+          </details>
+        </Card>
+      )}
+      {props.data.deleted.length > 0 && (
+        <Card>
+          <details class="fold">
+            <summary>已删除（{props.data.deleted.length}）</summary>
+            <p class="muted small">专属链接已失效；以前的报名和付款记录仍然保留在统计和导出里。</p>
+            {props.data.deleted.map((m) => (
+              <div class="row" key={m.id}>
+                {who(m)}
+              </div>
+            ))}
+          </details>
         </Card>
       )}
     </>
@@ -214,6 +259,7 @@ function Settings(props: { base: string }) {
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
   const [newAdmin, setNewAdmin] = useState("");
+  const [sub, setSub] = useState<"sheets" | null>(null);
   const pw = useAction();
   const link = useAction();
 
@@ -233,14 +279,34 @@ function Settings(props: { base: string }) {
     location.reload();
   }
 
+  if (sub === "sheets") {
+    return (
+      <>
+        <button class="back" onClick={() => setSub(null)}>
+          ‹ 设置
+        </button>
+        <SheetsCard base={props.base} />
+      </>
+    );
+  }
+
   return (
     <>
       <ThemeCard base={props.base} />
+      <PaymentCard base={props.base} />
       <FriendCap base={props.base} />
       <TelegramCard base={props.base} />
       <RemindersCard base={props.base} />
       <ExportCard base={props.base} />
-      <SheetsCard base={props.base} />
+      <Card>
+        <button class="menu-row" onClick={() => setSub("sheets")}>
+          <span>
+            <strong>Google 表格同步</strong>
+            <small>每天把数据备份到你自己的 Google 表格</small>
+          </span>
+          <span class="chevron">›</span>
+        </button>
+      </Card>
       <Card title="修改管理密码">
         <form onSubmit={changePassword}>
           <Field label="当前密码" type="password" value={current} onInput={setCurrent} autocomplete="current-password" />
@@ -341,9 +407,6 @@ function FriendCap(props: { base: string }) {
 function GeneralForm(props: { base: string; initial: GeneralSettings }) {
   const [title, setTitle] = useState(props.initial.siteTitle);
   const [cap, setCap] = useState(String(props.initial.friendCap));
-  const [venmo, setVenmo] = useState(props.initial.venmoUsername);
-  const [venmoEmail, setVenmoEmail] = useState(props.initial.venmoEmail);
-  const [zelle, setZelle] = useState(props.initial.zelleAccount);
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useAction();
   const edit = (f: (v: string) => void) => (v: string) => {
@@ -354,22 +417,12 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
     <Card title="网站与报名设置">
       <Field label="网站标题" value={title} onInput={edit(setTitle)} hint="显示在每个页面顶部和浏览器标签上" />
       <Field label="每人最多带几个朋友" type="number" value={cap} onInput={edit(setCap)} />
-      <Field label="你的 Venmo 用户名" value={venmo} onInput={edit(setVenmo)} hint="不用加 @，例如 KeLi8916" />
-      <Field
-        label="Venmo 通知邮箱"
-        type="email"
-        value={venmoEmail}
-        onInput={edit(setVenmoEmail)}
-        hint="Venmo 账户里登记的、接收收款通知的邮箱。只有发到这个邮箱的 Venmo 收款邮件才会自动对账"
-      />
-      <Field label="你的 Zelle 账号（选填）" value={zelle} onInput={edit(setZelle)} hint="手机号或邮箱，显示在付款页作为备选" />
       {error && <p class="error">{error}</p>}
       <button
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
-          const body = { siteTitle: title, friendCap: Number(cap), venmoUsername: venmo, venmoEmail, zelleAccount: zelle };
-          if (await run(() => api(`${props.base}/settings`, body))) {
+          if (await run(() => api(`${props.base}/settings`, { siteTitle: title, friendCap: Number(cap) }))) {
             setSaved(true);
             setSiteTitle(title.trim());
           }
@@ -377,6 +430,91 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
       >
         {saved ? "已保存" : "保存"}
       </button>
+    </Card>
+  );
+}
+
+/**
+ * 收款设置: where members' money goes. Shown read-only; changing it needs the admin password,
+ * and every change is reported to the Owner's Telegram.
+ */
+function PaymentCard(props: { base: string }) {
+  const [s, reload] = useApi<GeneralSettings>(`${props.base}/settings`);
+  const [editing, setEditing] = useState(false);
+  return (
+    <Load result={s}>
+      {(v) => {
+        const empty = !v.venmoUsername;
+        if (editing || empty) {
+          return (
+            <PaymentForm
+              base={props.base}
+              initial={v}
+              first={empty}
+              onDone={() => {
+                setEditing(false);
+                reload();
+              }}
+              onCancel={empty ? undefined : () => setEditing(false)}
+            />
+          );
+        }
+        return (
+          <Card title="收款设置">
+            <dl class="kv">
+              <dt>Venmo</dt>
+              <dd>@{v.venmoUsername}</dd>
+              <dt>通知邮箱</dt>
+              <dd>{v.venmoEmail}</dd>
+              <dt>Zelle</dt>
+              <dd>{v.zelleAccount || "（未填）"}</dd>
+            </dl>
+            <button class="link-button" onClick={() => setEditing(true)}>
+              🔒 修改收款设置（需要管理密码）
+            </button>
+          </Card>
+        );
+      }}
+    </Load>
+  );
+}
+
+function PaymentForm(props: { base: string; initial: GeneralSettings; first: boolean; onDone: () => void; onCancel?: () => void }) {
+  const [venmo, setVenmo] = useState(props.initial.venmoUsername);
+  const [venmoEmail, setVenmoEmail] = useState(props.initial.venmoEmail);
+  const [zelle, setZelle] = useState(props.initial.zelleAccount);
+  const [password, setPassword] = useState("");
+  const { busy, error, run } = useAction();
+  async function save(e: Event) {
+    e.preventDefault();
+    if (!props.first && !confirm("修改后，成员付款页上的收款账号会立即改变。确定修改吗？")) return;
+    const body = { venmoUsername: venmo, venmoEmail, zelleAccount: zelle, password };
+    if (await run(() => api(`${props.base}/settings/payment`, body))) props.onDone();
+  }
+  return (
+    <Card title="收款设置">
+      <form onSubmit={save}>
+        {props.first && <p class="muted small">成员付款时用的账号，一般只需要设置一次。</p>}
+        <Field label="你的 Venmo 用户名" value={venmo} onInput={setVenmo} hint="不用加 @，例如 KeLi8916" />
+        <Field
+          label="Venmo 通知邮箱"
+          type="email"
+          value={venmoEmail}
+          onInput={setVenmoEmail}
+          hint="Venmo 账户里登记的、接收收款通知的邮箱。只有发到这个邮箱的 Venmo 收款邮件才会自动对账"
+        />
+        <Field label="你的 Zelle 账号（选填）" value={zelle} onInput={setZelle} hint="手机号或邮箱，显示在付款页作为备选" />
+        <Field label="管理密码" type="password" value={password} onInput={setPassword} autocomplete="current-password" hint="为防止误改，保存收款设置需要输入管理密码" />
+        {error && <p class="error">{error}</p>}
+        <button class="button block" disabled={busy || !password}>
+          保存收款设置
+        </button>
+        {props.onCancel && (
+          <button class="button secondary block" type="button" onClick={props.onCancel}>
+            取消
+          </button>
+        )}
+      </form>
     </Card>
   );
 }
@@ -395,14 +533,19 @@ function ThemeCard(props: { base: string }) {
     }
   }
   return (
-    <Card title="外观配色">
-      <p class="muted small">所有人看到的网站都会换成这个配色。</p>
-      <div class="themes">
+    <Card>
+      <div class="theme-row">
+        <span class="theme-label">配色</span>
         {THEMES.map((t) => (
-          <button key={t.id} type="button" class={t.id === current ? "theme on" : "theme"} onClick={() => choose(t.id)}>
-            <i style={{ background: `linear-gradient(135deg, ${t.swatch[0]}, ${t.swatch[1]})` }} />
-            <span>{t.name}</span>
-          </button>
+          <button
+            key={t.id}
+            type="button"
+            title={t.name}
+            aria-label={t.name}
+            class={t.id === current ? "swatch on" : "swatch"}
+            style={{ background: `linear-gradient(135deg, ${t.swatch[0]}, ${t.swatch[1]})` }}
+            onClick={() => choose(t.id)}
+          />
         ))}
       </div>
       {error && <p class="error">{error}</p>}

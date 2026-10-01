@@ -125,7 +125,7 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
 }
 
 /**
- * 每日收款汇总 + 催款: from 24 h after Finalize, once a day at the configured hour, until
+ * 每日收款汇总 + 账单提醒: from 24 h after Finalize, once a day at the configured hour, until
  * collected or stopped. One summary, then one message per person who still owes money.
  */
 async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings): Promise<void> {
@@ -148,7 +148,7 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
     const ok = await sendToOwner(
       env,
       message(
-        `📋 ${day(e)} 收款汇总：应收 $${dollars(due)}，已收 $${dollars(paid)}；已付清 ${pays.length - owing.length} 人，未付清 ${owing.length} 人：\n${lines}\n\n下面是每个人的催款消息，可以分别复制到微信私聊。`,
+        `📋 ${day(e)} 收款汇总：应收 $${dollars(due)}，已收 $${dollars(paid)}；已付清 ${pays.length - owing.length} 人，未付清 ${owing.length} 人：\n${lines}\n\n下面是每个人的账单提醒，可以分别复制到微信私聊。`,
       ),
     );
     if (!ok) return false;
@@ -158,7 +158,7 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
         x.status === "partial"
           ? `${x.username}，${day(e)}羽毛球的费用还差 $${owed} 没付哦，麻烦通过你的专属链接补一下，谢谢！`
           : `${x.username}，${day(e)}羽毛球的费用 $${owed} 还没付哦，麻烦通过你的专属链接付一下，谢谢！`;
-      await sendToOwner(env, message(`催款：${x.username}（微信：${x.wechat_nickname}）`, text));
+      await sendToOwner(env, message(`账单提醒：${x.username}（微信：${x.wechat_nickname}）`, text));
     }
     return true;
   });

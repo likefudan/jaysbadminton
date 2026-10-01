@@ -8,12 +8,16 @@ export interface MemberSummary {
   isOwner: boolean;
   requestedAt: string;
   approvedAt: string | null;
+  deletedAt: string | null;
+  /** Still owed across all bills (only filled in for the admin's member list). */
+  owingCents: number;
 }
 
 export interface MembersResponse {
   pending: MemberSummary[];
   active: MemberSummary[];
-  inactive: MemberSummary[];
+  inactive: MemberSummary[]; // 已停用: can pay, cannot sign up
+  deleted: MemberSummary[]; // 已删除: link gone, history kept
 }
 
 export interface LinkResponse {
@@ -25,6 +29,8 @@ export interface MeResponse {
   username: string;
   wechatNickname: string;
   isOwner: boolean;
+  /** False for a disabled member: the page only shows bills. */
+  active: boolean;
 }
 
 export type EventStatus = "open" | "closed" | "finalized" | "settled" | "cancelled";

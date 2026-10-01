@@ -60,7 +60,7 @@ export function TelegramCard(props: { base: string }) {
                   {s.botUsername && <span class="muted small">（机器人 @{s.botUsername}）</span>}
                 </p>
               ) : (
-                <p class="muted">还没有连接。点下面的按钮会打开 Telegram，在机器人对话里点「Start / 开始」即可。所有提醒和催款只发给连接的这一个账号。</p>
+                <p class="muted">还没有连接。点下面的按钮会打开 Telegram，在机器人对话里点「Start / 开始」即可。所有提醒和账单通知只发给连接的这一个账号。</p>
               )}
               {waiting && <p class="hint">等待你在 Telegram 里点 Start…（3 分钟内有效）</p>}
               {error && <p class="error">{error}</p>}
@@ -110,7 +110,7 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
   }
 
   return (
-    <Card title="提醒与催款">
+    <Card title="提醒设置">
       <label class="check">
         <input
           type="checkbox"
@@ -134,7 +134,7 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
         />
       )}
       <label class="field">
-        <span>每日催款发送时间（太平洋时间）</span>
+        <span>账单提醒时间（太平洋时间）</span>
         <select
           value={dunning}
           onChange={(e) => {
@@ -148,7 +148,7 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
             </option>
           ))}
         </select>
-        <small class="muted">Finalize 满 24 小时后，每天这个时间发一次收款汇总和每个人的催款消息，直到收齐。</small>
+        <small class="muted">Finalize 满 24 小时后，每天这个时间发一次收款汇总和每个人的账单提醒，直到收齐。</small>
       </label>
       {error && <p class="error">{error}</p>}
       <button class="button secondary block" disabled={busy} onClick={save}>

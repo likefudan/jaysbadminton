@@ -32,11 +32,13 @@ adminRoutes.post("/:token/logout", async (c) => {
 
 adminRoutes.get("/:token/members", async (c) => {
   const { results } = await c.env.DB.prepare("SELECT * FROM members ORDER BY id").all<MemberRow>();
-  const all = results.map(toSummary);
+  const owing = await owingByMember(c.env);
+  const all = results.map((m) => ({ ...toSummary(m), owingCents: owing.get(m.id) ?? 0 }));
   return c.json<MembersResponse>({
     pending: all.filter((m) => m.status === "pending"),
     active: all.filter((m) => m.status === "active"),
-    inactive: all.filter((m) => m.status === "inactive"),
+    inactive: all.filter((m) => m.status === "inactive" && !m.deletedAt),
+    deleted: all.filter((m) => !!m.deletedAt),
   });
 });
 
@@ -74,7 +76,8 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   if (m.is_owner) throw badRequest("不能停用管理员自己");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
   await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE members SET status = 'inactive', token_hash = NULL, token_enc = NULL WHERE id = ?").bind(m.id),
+    // The link keeps working so they can still pay what they owe; sign-up is refused.
+    c.env.DB.prepare("UPDATE members SET status = 'inactive' WHERE id = ?").bind(m.id),
     // Requirements: deactivating cancels sign-ups for events still open; closed events keep theirs.
     c.env.DB.prepare(
       "DELETE FROM registrations WHERE member_id = ? AND event_id IN (SELECT id FROM events WHERE status = 'open')",
@@ -92,6 +95,33 @@ adminRoutes.post("/:token/settings/password", async (c) => {
   await setPassword(c.env, next);
   return c.json({ ok: true });
 });
+
+/** 恢复: back to a normal member. Members disabled before links were kept get a fresh link. */
+adminRoutes.post("/:token/members/:id/reactivate", async (c) => {
+  const m = await requireMember(c.env, c.req.param("id"));
+  if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能恢复已停用的成员");
+  await c.env.DB.prepare("UPDATE members SET status = 'active' WHERE id = ?").bind(m.id).run();
+  const link = m.token_enc ? null : memberLink(origin(c.req.url), await issueMemberToken(c.env, m.id));
+  return c.json({ ok: true, link });
+});
+
+/** 删除: only disabled members with nothing left to pay; their history stays in the records. */
+adminRoutes.post("/:token/members/:id/delete", async (c) => {
+  const m = await requireMember(c.env, c.req.param("id"));
+  if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能删除已停用的成员");
+  const owing = (await owingByMember(c.env)).get(m.id) ?? 0;
+  if (owing > 0) throw badRequest(`${m.username} 还有 $${(owing / 100).toFixed(2)} 没付清，付清或标记已付后才能删除`);
+  await c.env.DB.prepare("UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL WHERE id = ?").bind(now(), m.id).run();
+  return c.json({ ok: true });
+});
+
+async function owingByMember(env: Env): Promise<Map<string, number>> {
+  const { results } = await env.DB.prepare(
+    `SELECT member_id, SUM(amount_due_cents - amount_paid_cents) AS owing FROM payments
+     WHERE status != 'paid' GROUP BY member_id`,
+  ).all<{ member_id: string; owing: number }>();
+  return new Map(results.map((r) => [r.member_id, r.owing]));
+}
 
 adminRoutes.post("/:token/settings/rotate-admin", async (c) => {
   const token = await issueAdminToken(c.env);
