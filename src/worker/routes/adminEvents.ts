@@ -17,6 +17,7 @@ import {
   type EventRow,
 } from "../events";
 import { badRequest, readJson, str } from "../http";
+import { SITE_TITLE_MAX, siteTitle } from "../site";
 import { requireMember } from "../members";
 
 /** Mounted under /api/admin/:token after the admin auth middleware. */
@@ -148,7 +149,12 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
 
 adminEventRoutes.get("/settings", async (c) => {
   const s = await getSettings(c.env.DB, ["venmo_username", "zelle_account"]);
-  return c.json({ friendCap: await friendCap(c.env), venmoUsername: s.venmo_username ?? "", zelleAccount: s.zelle_account ?? "" });
+  return c.json({
+    friendCap: await friendCap(c.env),
+    venmoUsername: s.venmo_username ?? "",
+    zelleAccount: s.zelle_account ?? "",
+    siteTitle: await siteTitle(c.env),
+  });
 });
 
 adminEventRoutes.post("/settings", async (c) => {
@@ -163,6 +169,12 @@ adminEventRoutes.post("/settings", async (c) => {
     const v = str(b.venmoUsername).trim().replace(/^@/, "");
     if (v && !/^[A-Za-z0-9_-]{2,30}$/.test(v)) throw badRequest("Venmo 用户名格式不对（不用加 @）");
     writes.push(setSetting(c.env.DB, "venmo_username", v));
+  }
+  if (b.siteTitle !== undefined) {
+    const t = str(b.siteTitle).trim();
+    if (!t) throw badRequest("请填写网站标题");
+    if ([...t].length > SITE_TITLE_MAX) throw badRequest(`网站标题最多 ${SITE_TITLE_MAX} 个字`);
+    writes.push(setSetting(c.env.DB, "site_title", t));
   }
   if (b.zelleAccount !== undefined) writes.push(setSetting(c.env.DB, "zelle_account", str(b.zelleAccount).trim().slice(0, 60)));
   if (writes.length) await c.env.DB.batch(writes);

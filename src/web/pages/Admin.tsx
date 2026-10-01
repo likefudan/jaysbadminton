@@ -5,6 +5,7 @@ import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
 import { EventsTab } from "./AdminEvents";
+import { setSiteTitle } from "../site";
 
 type Tab = "events" | "pending" | "members" | "settings";
 
@@ -264,6 +265,7 @@ function Settings(props: { base: string }) {
 }
 
 interface GeneralSettings {
+  siteTitle: string;
   friendCap: number;
   venmoUsername: string;
   zelleAccount: string;
@@ -275,6 +277,7 @@ function FriendCap(props: { base: string }) {
 }
 
 function GeneralForm(props: { base: string; initial: GeneralSettings }) {
+  const [title, setTitle] = useState(props.initial.siteTitle);
   const [cap, setCap] = useState(String(props.initial.friendCap));
   const [venmo, setVenmo] = useState(props.initial.venmoUsername);
   const [zelle, setZelle] = useState(props.initial.zelleAccount);
@@ -285,7 +288,8 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
     setSaved(false);
   };
   return (
-    <Card title="报名与收款设置">
+    <Card title="网站与报名设置">
+      <Field label="网站标题" value={title} onInput={edit(setTitle)} hint="显示在每个页面顶部和浏览器标签上" />
       <Field label="每人最多带几个朋友" type="number" value={cap} onInput={edit(setCap)} />
       <Field label="你的 Venmo 用户名" value={venmo} onInput={edit(setVenmo)} hint="不用加 @，例如 KeLi8916" />
       <Field label="你的 Zelle 账号（选填）" value={zelle} onInput={edit(setZelle)} hint="手机号或邮箱，显示在付款页作为备选" />
@@ -294,7 +298,11 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
-          if (await run(() => api(`${props.base}/settings`, { friendCap: Number(cap), venmoUsername: venmo, zelleAccount: zelle }))) setSaved(true);
+          const body = { siteTitle: title, friendCap: Number(cap), venmoUsername: venmo, zelleAccount: zelle };
+          if (await run(() => api(`${props.base}/settings`, body))) {
+            setSaved(true);
+            setSiteTitle(title.trim());
+          }
         }}
       >
         {saved ? "已保存" : "保存"}

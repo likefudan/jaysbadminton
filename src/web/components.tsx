@@ -1,13 +1,18 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import type { Loaded } from "./hooks";
+import { useSiteTitle } from "./site";
 
 export function Page(props: { title: string; children: ComponentChildren }) {
+  const site = useSiteTitle();
+  useEffect(() => {
+    document.title = props.title === site ? site : `${props.title} · ${site}`;
+  }, [props.title, site]);
   return (
     <div class="page">
       <header class="topbar">
         <a href="/" class="brand">
-          🏸 Jay's 羽毛球
+          🏸 {site}
         </a>
       </header>
       <main>

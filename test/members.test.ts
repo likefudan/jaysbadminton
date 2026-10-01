@@ -141,3 +141,15 @@ describe("member links", () => {
     expect((await anon.call(`/api/m/${token}/me`)).data.username).toBe("Danny");
   });
 });
+
+describe("site title", () => {
+  it("defaults to Jay's 羽毛球 and can be changed by the Owner", async () => {
+    expect((await anon.call("/api/public/site")).data.title).toBe("Jay's 羽毛球");
+    const { admin, base } = await setUpAdmin();
+    const empty = await admin.call(`${base}/settings`, { siteTitle: "  " });
+    expect(empty.data.error.message).toBe("请填写网站标题");
+    await admin.call(`${base}/settings`, { siteTitle: "周二羽毛球" });
+    expect((await anon.call("/api/public/site")).data.title).toBe("周二羽毛球");
+    expect((await admin.call(`${base}/settings`)).data.siteTitle).toBe("周二羽毛球");
+  });
+});

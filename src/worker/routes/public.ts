@@ -4,9 +4,12 @@ import { closeExpired, detail, summaries, type EventRow } from "../events";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
+import { siteTitle } from "../site";
 import { createMember, issueMemberToken, memberLink } from "../members";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
+
+publicRoutes.get("/site", async (c) => c.json({ title: await siteTitle(c.env) }));
 
 publicRoutes.get("/home", async (c) => {
   await closeExpired(c.env);
