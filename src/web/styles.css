@@ -353,3 +353,113 @@ select,
   font: inherit;
   padding: 4px 0;
 }
+.paybox {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.pay-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.amount {
+  font-size: 28px;
+}
+.breakdown {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 12px;
+  font-size: 14px;
+}
+.breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+.button.venmo {
+  background: #008cff;
+  color: #fff;
+}
+.hint {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.manual dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 6px 0;
+  align-items: center;
+}
+.manual dt {
+  color: var(--muted);
+}
+.manual dd {
+  margin: 0;
+}
+.manual dd .button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+.paid-banner {
+  color: var(--ok);
+  font-weight: 600;
+}
+.collected {
+  background: var(--ok);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.totals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.totals div {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 8px 4px;
+}
+.totals strong {
+  display: block;
+  font-size: 18px;
+}
+.toggle {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+}
+.toggle.off {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+table.bills {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+table.bills td {
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+table.bills td:last-child {
+  text-align: right;
+  font-weight: 600;
+}

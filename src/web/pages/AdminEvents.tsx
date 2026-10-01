@@ -6,6 +6,7 @@ import { Card, CopyButton, Empty, Field, Load, useAction } from "../components";
 import { EventInfo } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { useApi } from "../hooks";
+import { Billing } from "./AdminSettle";
 
 export function EventsTab(props: { base: string; members: MemberSummary[] }) {
   const [list, reload] = useApi<{ current: EventSummary[]; past: EventSummary[] }>(`${props.base}/events`);
@@ -162,6 +163,9 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
     if (!confirm(`从名单中删除「${r.name}」？`)) return;
     if (await run(() => api(`${eb}/roster/${r.id}/remove`, {}))) props.onChange();
   }
+  async function toggleAttendance(r: RosterEntry) {
+    if (await run(() => api(`${eb}/attendance`, { registrationId: r.id, attended: !r.attended }))) props.onChange();
+  }
   async function rename(r: RosterEntry) {
     const name = prompt("朋友的名字（留空则显示为默认名字）", r.name);
     if (name === null) return;
@@ -192,6 +196,11 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
             </div>
             {editable && (
               <div class="actions">
+                {e.status !== "open" && (
+                  <button class={`toggle ${r.attended ? "" : "off"}`} disabled={busy} onClick={() => toggleAttendance(r)}>
+                    {r.attended ? "到场" : "未出席"}
+                  </button>
+                )}
                 {r.friendIndex > 0 && (
                   <button class="button secondary" disabled={busy} onClick={() => rename(r)}>
                     改名
@@ -205,6 +214,8 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
           </div>
         ))}
       </Card>
+
+      <Billing base={props.base} e={e} onChange={props.onChange} />
 
       {editable && <AddPeople eb={eb} members={props.members} roster={e.roster} onDone={props.onChange} />}
 

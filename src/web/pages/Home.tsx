@@ -2,11 +2,12 @@ import type { HomeResponse } from "../../shared/types";
 import { Card, Empty, Load, Page } from "../components";
 import { EventLink } from "../events";
 import { useApi } from "../hooks";
+import { useSiteTitle } from "../site";
 
 export function Home() {
   const [home] = useApi<HomeResponse>("/api/public/home");
   return (
-    <Page title="每周羽毛球">
+    <Page title={useSiteTitle()}>
       <Load result={home}>
         {(data) => (
           <>
