@@ -173,6 +173,14 @@ The venue form's 地址 field asks our own endpoint (`GET /api/admin/{token}/pla
 
 Two styles (`minimal`, `aurora`) × four accents each, light and dark. `src/shared/themes.ts` lists them as `style-accent` ids (`minimal-coral` is the default); `styles.css` keys every colour off `data-style`, `data-accent` and `data-mode` on `<html>`. The Owner's choice is the `theme` setting (old palette names map to the nearest new id). A visitor's own choice and their light/dark/auto mode live only in `localStorage` (`my-theme`, `my-mode`); `index.html` applies them before first paint. Colours are plain values or `rgba(var(--triplet), a)` — no `color-mix()` — so older WeChat WebViews render them. Fonts: Geist and Geist Mono (Latin only, bundled); Chinese uses the system font.
 
+## Health alerts and weekly digest
+
+`src/worker/health.ts`. Every Venmo email outcome is logged in `email_log` (outcome and time only; pruned after 120 days). A parse failure, a bad signature or a wrong recipient alerts the Owner at once (once a day per kind). At the bill-reminder hour the cron checks for a quiet spell: bills out ≥ 3 days, no Venmo email for ≥ 3 days → one alert per spell (keyed by the last email time). On Mondays at that hour it sends the weekly digest (switchable, setting `weekly_digest`). A scheduled run that throws records `cron_last_error[_at]` for the digest. Site-wide notices use `event_id = 0` in `notification_log`, since NULL would not de-duplicate.
+
+## Link previews, calendar and icon
+
+The Worker runs first for `/` and `/e/*` (`run_worker_first`), fetches the app shell from `ASSETS` and rewrites `<title>`, `description` and `og:*` with HTMLRewriter (`src/worker/share.ts`): event title, date, time, venue, headcount, deadline — never names. `GET /api/public/events/{code}/calendar.ics` serves an RFC 5545 file (UTC times, folded lines, 2-hour alarm); the page also links a prefilled Google Calendar URL (`src/shared/calendar.ts`). Icons, `manifest.webmanifest` (no `start_url`, so a member's home-screen shortcut opens their own page) and the share image live in `src/web/public`.
+
 ## Google Sheets daily mirror
 
 The site never logs into Google. 设置 → Google 表格同步 → 开启同步 creates an export key (stored hashed to check requests, and AES-GCM encrypted under `TOKEN_KEY` so the page can show the script again) and shows a ready-to-paste Apps Script with the site address and key filled in (`src/worker/sheets.ts`). The Owner pastes it into the sheet's Apps Script editor and runs `install` once.
@@ -200,8 +208,8 @@ One TypeScript repository (`likefudan/jaysbadminton`) builds one Worker that ser
 | Front end | Preact + Vite, Chinese UI, no CSS framework, self-hosted Geist fonts | Small bundle for slow WeChat in-app browsers |
 | QR codes | `qrcode` npm package, rendered in the browser | Owner long-presses to save, as required |
 | Email parsing | `postal-mime` | Standard MIME parser for Email Workers |
-| Tests | Vitest + `@cloudflare/vitest-pool-workers` | Runs handlers against a real local D1 |
-| CI/CD | GitHub Actions: typecheck, test, `wrangler d1 migrations apply`, `wrangler deploy` | Uses a `CLOUDFLARE_API_TOKEN` repository secret |
+| Tests | Vitest + `@cloudflare/vitest-pool-workers`; Playwright browser tests (`e2e/`) | Unit/integration against a real local D1; browser tests drive the main flows on a local Worker with a fresh database (`scripts/e2e-server.sh`) |
+| CI/CD | GitHub Actions: typecheck, test, build, browser tests, then `wrangler d1 migrations apply`, `wrangler deploy`, smoke test; Dependabot opens monthly grouped update PRs | Uses a `CLOUDFLARE_API_TOKEN` repository secret |
 
 ```text
 docs/            requirements (Chinese) and this design

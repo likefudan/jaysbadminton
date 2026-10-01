@@ -14,7 +14,9 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
     <div class="page">
       <header class="topbar">
         <a href="/" class="brand">
-          <span class="logo">🏸</span>
+          <span class="logo">
+            <RacketMark />
+          </span>
           <span class="brand-name">{site}</span>
         </a>
         <AppearanceButton onClick={() => setLooks(true)} />
@@ -29,6 +31,24 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
         {props.children}
       </main>
     </div>
+  );
+}
+
+/** The app icon's racket and swing, in the current accent colour. */
+function RacketMark() {
+  return (
+    <svg viewBox="0 0 512 512" width="22" height="22" aria-hidden="true">
+      <g fill="none" stroke="currentColor" stroke-linecap="round">
+        <path d="M84 300 A220 220 0 0 1 160 92" stroke-width="26" opacity=".4" />
+      </g>
+      <g transform="translate(262 262) scale(1.28) rotate(38)" fill="none" stroke="currentColor">
+        <ellipse rx="62" ry="84" stroke-width="28" />
+        <path d="M-40 -60V60M0 -80V80M40 -60V60M-56 -30H56M-60 10H60M-50 50H50" stroke-width="7" opacity=".7" />
+        <path d="M-16 80 L0 112 L16 80" stroke-width="12" stroke-linejoin="round" />
+        <path d="M0 112V166" stroke-width="20" stroke-linecap="round" />
+        <path d="M0 176V220" stroke-width="36" stroke-linecap="round" />
+      </g>
+    </svg>
   );
 }
 

@@ -4,7 +4,9 @@ import { closeExpired } from "./events";
 import { HttpError } from "./http";
 import { MAX_EMAIL_BYTES, handleEmail, recordEmailOutcome } from "./inbound";
 import { exportAll } from "./export";
+import { emailProblemAlert, recordCronError } from "./health";
 import { runScheduled } from "./notify";
+import { eventMeta, homeMeta, sharePage } from "./share";
 import { checkExportKey } from "./sheets";
 import { handleUpdate, webhookSecret } from "./telegram";
 import { adminRoutes } from "./routes/admin";
@@ -20,6 +22,8 @@ app.use("*", async (c, next) => {
   c.header("Referrer-Policy", "no-referrer");
   c.header("X-Content-Type-Options", "nosniff");
   c.header("X-Frame-Options", "DENY");
+  // Same as public/_headers, now that the Worker also serves the home and event pages.
+  c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
 });
 
 app.get("/api/health", async (c) => {
@@ -44,6 +48,10 @@ app.get("/export/:key/all.json", async (c) => {
   return c.json(await exportAll(c.env));
 });
 
+// Link previews for WeChat and friends: the app shell with this page's title and summary.
+app.get("/", async (c) => sharePage(c.env, c.req.raw, await homeMeta(c.env)));
+app.get("/e/:code", async (c) => sharePage(c.env, c.req.raw, await eventMeta(c.env, c.req.param("code"))));
+
 app.route("/api/public", publicRoutes);
 app.route("/api/m", memberRoutes);
 app.route("/api/admin", adminRoutes);
@@ -59,8 +67,13 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
   async scheduled(_controller, env, _ctx) {
-    await closeExpired(env);
-    await runScheduled(env);
+    try {
+      await closeExpired(env);
+      await runScheduled(env);
+    } catch (err) {
+      console.error("scheduled run failed:", err);
+      await recordCronError(env, err);
+    }
   },
   async email(message, env, _ctx) {
     // Never bounce or throw: a bounce would land in the Owner's Gmail for every non-receipt.
@@ -73,6 +86,7 @@ export default {
       const outcome = await handleEmail(env, raw);
       console.log("email:", outcome);
       await recordEmailOutcome(env, outcome);
+      await emailProblemAlert(env, outcome);
     } catch (err) {
       console.error("email handler failed:", err);
     }

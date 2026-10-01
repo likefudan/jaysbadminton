@@ -4,6 +4,8 @@ const site = process.env.SITE_ORIGIN ?? "https://jaysbadminton.llmat.dev";
 
 const checks = [
   ["home page", "/", (r, body) => r.status === 200 && body.includes('<div id="app">') && r.headers.get("x-frame-options") === "DENY"],
+  ["home page has its link preview", "/", (r, body) => body.includes('property="og:url"')],
+  ["icon manifest", "/manifest.webmanifest", (r, body) => r.status === 200 && body.includes("icon-512.png")],
   ["health", "/api/health", (r, body) => r.status === 200 && JSON.parse(body).ok === true],
   ["public home", "/api/public/home", (r, body) => r.status === 200 && Array.isArray(JSON.parse(body).currentEvents)],
   ["admin needs a valid link", "/api/admin/not-a-real-link/members", (r) => r.status === 404],

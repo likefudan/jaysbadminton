@@ -28,6 +28,20 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Browser tests (main flows on a local Worker)
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+        env:
+          WRANGLER_SEND_METRICS: "false"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
   deploy:
     needs: check

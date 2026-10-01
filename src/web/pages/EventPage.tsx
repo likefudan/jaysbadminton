@@ -1,6 +1,7 @@
 import type { PublicEvent } from "../../shared/types";
 import { formatDateZh } from "../../shared/time";
 import { Card, Load, Page } from "../components";
+import { CalendarLinks } from "../Calendar";
 import { EventInfo } from "../events";
 import { useApi } from "../hooks";
 
@@ -13,6 +14,7 @@ export function EventPage(props: { code?: string }) {
         <Page title={e.title || formatDateZh(e.date, false)} eyebrow={`${e.date.slice(0, 4)} · 羽毛球活动`}>
           <Card>
             <EventInfo e={e} publicView />
+            <CalendarLinks e={e} />
           </Card>
           <p class="muted small">报名请用你自己的专属链接。还没有链接？</p>
           <a class="button secondary block" href="/join">
