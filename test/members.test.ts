@@ -229,3 +229,16 @@ describe("links for disabled members", () => {
     expect((await ctx.admin.call(`${ctx.base}/members/${id}/regenerate`, {})).status).toBe(400);
   });
 });
+
+describe("join form flood guard", () => {
+  it("stops taking applications once 30 are waiting", async () => {
+    await env.DB.batch(
+      Array.from({ length: 30 }, (_, i) =>
+        env.DB.prepare("INSERT INTO members (id, username, wechat_nickname, status, requested_at) VALUES (?, ?, 'x', 'pending', 'x')").bind(`P${i}`, `bot${i}`),
+      ),
+    );
+    const res = await anon.call("/api/public/join", { username: "Real", wechatNickname: "Real" });
+    expect(res.status).toBe(429);
+    expect(res.data.error.message).toContain("待审核的申请太多");
+  });
+});

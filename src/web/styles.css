@@ -97,11 +97,6 @@
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     --danger: #f87171;
     --ok: #4ade80;
-    /* Muted accents are dark; lift them so links and labels stay readable on dark glass. */
-    --accent: color-mix(in srgb, var(--accent-base) 62%, white);
-    --accent-2: color-mix(in srgb, var(--accent-2-base) 62%, white);
-    --fill-1: color-mix(in srgb, var(--accent-base) 88%, white);
-    --fill-2: color-mix(in srgb, var(--accent-2-base) 88%, white);
   }
   body {
     background-color: #0b0f12 !important;
@@ -150,7 +145,7 @@ body::before {
   z-index: 10;
   margin: 0 -16px 4px;
   padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
-  background: color-mix(in srgb, var(--page) 45%, transparent);
+  background: rgba(255, 255, 255, 0.55);
   -webkit-backdrop-filter: var(--blur);
   backdrop-filter: var(--blur);
   border-bottom: 1px solid var(--border);
@@ -213,7 +208,7 @@ a {
   font-weight: 650;
   text-decoration: none;
   cursor: pointer;
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  box-shadow: 0 6px 16px rgba(20, 40, 60, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.28);
   transition: transform 0.12s ease, filter 0.12s ease;
 }
 .button:active {
@@ -270,7 +265,7 @@ select,
 .field input:focus,
 select:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: 0 0 0 4px rgba(20, 40, 60, 0.1);
 }
 /* iOS gives date/time inputs an intrinsic width that overflows narrow columns; reset it. */
 .field input[type="date"],
@@ -788,8 +783,8 @@ table.bills td {
   transition: background 0.2s, border-color 0.2s;
 }
 .switch-card.on {
-  background: color-mix(in srgb, var(--accent) 12%, var(--field));
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--field);
+  border-color: var(--accent);
 }
 .switch-card strong {
   display: block;
@@ -956,7 +951,7 @@ main > div > .button.block:first-child {
   margin-bottom: 14px;
 }
 .suggestions {
-  background: color-mix(in srgb, var(--page) 70%, white);
+  background: #fff;
 }
 @media (prefers-color-scheme: dark) {
   .suggestions {
@@ -1269,4 +1264,47 @@ details.fold[open] summary {
 .status-closed,
 .status-cancelled {
   color: var(--muted);
+}
+
+/* ---- color-mix() only where supported ----
+ * Older WeChat browsers lack color-mix(); a declaration that uses it together with var() is then
+ * dropped instead of falling back, so every use lives behind @supports with a plain value first.
+ */
+@media (prefers-color-scheme: dark) {
+  @supports (color: color-mix(in srgb, red 50%, blue)) {
+    :root {
+      /* Muted accents are dark; lift them so links and labels stay readable on dark glass. */
+      --accent: color-mix(in srgb, var(--accent-base) 62%, white);
+      --accent-2: color-mix(in srgb, var(--accent-2-base) 62%, white);
+      --fill-1: color-mix(in srgb, var(--accent-base) 88%, white);
+      --fill-2: color-mix(in srgb, var(--accent-2-base) 88%, white);
+    }
+  }
+}
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .topbar {
+    background: color-mix(in srgb, var(--page) 45%, transparent);
+  }
+  .button {
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  }
+  .field input:focus,
+  select:focus {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .switch-card.on {
+    background: color-mix(in srgb, var(--accent) 12%, var(--field));
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .suggestions {
+    background: color-mix(in srgb, var(--page) 70%, white);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .suggestions {
+    background: rgba(36, 40, 48, 0.96) !important;
+  }
+  .topbar {
+    background: rgba(16, 20, 24, 0.6);
+  }
 }

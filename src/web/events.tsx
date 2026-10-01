@@ -43,7 +43,7 @@ export function EventInfo(props: { e: EventSummary; showStatus?: boolean; inLink
           </a>
         ))}
       {e.status === "open" && <div class="muted small">报名截止：{formatInstantZh(e.deadlineAt)}</div>}
-      <div class="small">已报名 {e.headcount} 人（含朋友）</div>
+      <div class="small">已报名 {e.headcount} 人</div>
     </div>
   );
 }

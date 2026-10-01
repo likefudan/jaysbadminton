@@ -7,6 +7,8 @@ describe("skeleton", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, members: 0 });
     expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
   });
 
   it("returns an empty home page payload", async () => {

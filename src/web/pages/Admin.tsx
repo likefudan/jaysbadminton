@@ -40,10 +40,10 @@ export function Admin(props: { token?: string }) {
               <button class={tab === "inbound" ? "active" : ""} onClick={() => setTab("inbound")}>
                 收款
               </button>
-              <button class={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>
+              <button class={tab === "pending" ? "active" : ""} onClick={() => { setTab("pending"); reload(); }}>
                 待审核{m.pending.length > 0 && ` (${m.pending.length})`}
               </button>
-              <button class={tab === "members" ? "active" : ""} onClick={() => setTab("members")}>
+              <button class={tab === "members" ? "active" : ""} onClick={() => { setTab("members"); reload(); }}>
                 成员
               </button>
               <button class={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>
