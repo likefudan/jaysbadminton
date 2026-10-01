@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      reset_admin_link:
+        description: "Invalidate the admin link so /admin offers first-time setup again (needs ADMIN_PASSWORD)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +31,7 @@ jobs:
 
   deploy:
     needs: check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency: deploy-production
     env:
@@ -42,3 +48,8 @@ jobs:
       - run: node scripts/resolve-d1.mjs
       - run: npx wrangler d1 migrations apply DB --remote
       - run: npx wrangler deploy
+      - run: node scripts/sync-secrets.mjs
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      - if: inputs.reset_admin_link
+        run: npx wrangler d1 execute DB --remote --command "DELETE FROM settings WHERE key = 'admin_token_hash'"
