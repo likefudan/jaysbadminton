@@ -169,6 +169,10 @@ One Cron Trigger runs every 10 minutes (`*/10 * * * *`, UTC); the handler conver
 
 The venue form's 地址 field asks our own endpoint (`GET /api/admin/{token}/places?q=`), so no key reaches the browser. With the `GOOGLE_MAPS_API_KEY` secret set it uses Google Places (New) Autocomplete, restricted to the US and biased to Northern California (36°–42°N, 124.5°–119°W); picking a suggestion fetches only `formattedAddress` with the same session token, so a whole search is billed as one session and stays within Google's free monthly calls. Without the key, or if Google refuses (quota, key problem), it falls back to Photon (OpenStreetMap): Northern California first, then the rest of the US. The page waits 250 ms after typing, shows 搜索中…, and caches repeated queries.
 
+## Appearance
+
+Two styles (`minimal`, `aurora`) × four accents each, light and dark. `src/shared/themes.ts` lists them as `style-accent` ids (`minimal-coral` is the default); `styles.css` keys every colour off `data-style`, `data-accent` and `data-mode` on `<html>`. The Owner's choice is the `theme` setting (old palette names map to the nearest new id). A visitor's own choice and their light/dark/auto mode live only in `localStorage` (`my-theme`, `my-mode`); `index.html` applies them before first paint. Colours are plain values or `rgba(var(--triplet), a)` — no `color-mix()` — so older WeChat WebViews render them. Fonts: Geist and Geist Mono (Latin only, bundled); Chinese uses the system font.
+
 ## Google Sheets daily mirror
 
 The site never logs into Google. 设置 → Google 表格同步 → 开启同步 creates an export key (stored hashed to check requests, and AES-GCM encrypted under `TOKEN_KEY` so the page can show the script again) and shows a ready-to-paste Apps Script with the site address and key filled in (`src/worker/sheets.ts`). The Owner pastes it into the sheet's Apps Script editor and runs `install` once.
@@ -193,7 +197,7 @@ One TypeScript repository (`likefudan/jaysbadminton`) builds one Worker that ser
 | Runtime | Cloudflare Workers with static assets | Pages, API, cron and email in one deployable |
 | Router | Hono | Small, typed, built for Workers |
 | Database | D1 + SQL migrations via Wrangler | Free, SQLite, versioned schema |
-| Front end | Preact + Vite, Chinese UI, no CSS framework | Small bundle for slow WeChat in-app browsers |
+| Front end | Preact + Vite, Chinese UI, no CSS framework, self-hosted Geist fonts | Small bundle for slow WeChat in-app browsers |
 | QR codes | `qrcode` npm package, rendered in the browser | Owner long-presses to save, as required |
 | Email parsing | `postal-mime` | Standard MIME parser for Email Workers |
 | Tests | Vitest + `@cloudflare/vitest-pool-workers` | Runs handlers against a real local D1 |

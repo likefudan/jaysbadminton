@@ -1,13 +1,20 @@
 import { useState } from "preact/hooks";
 import { checkUsername } from "../../shared/rules";
-import type { MeResponse, MyEvent } from "../../shared/types";
+import type { MeResponse, MyEvent, PaymentStatus } from "../../shared/types";
 import { api } from "../api";
-import { Card, Empty, Field, Load, Page, useAction } from "../components";
+import { Card, Empty, Field, Load, Page, SectionTitle, useAction } from "../components";
 import { EventInfo } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { useApi } from "../hooks";
 import { MyStatsCard } from "../Stats";
+
+/** On your own page a settled event shows where your bill stands, not the group's. */
+const BILL_STATUS: Record<PaymentStatus, { cls: string; label: string }> = {
+  unpaid: { cls: "finalized", label: "待付款" },
+  partial: { cls: "finalized", label: "部分付款" },
+  paid: { cls: "settled", label: "已付清" },
+};
 
 export function Member(props: { token?: string }) {
   const base = `/api/m/${props.token}`;
@@ -15,10 +22,7 @@ export function Member(props: { token?: string }) {
   return (
     <Load result={me}>
       {(m) => (
-        <Page title={`你好，${m.username}`}>
-          <p class="muted">
-            成员编号 {m.id}。这是你的专属页面，请不要把链接转发给别人。
-          </p>
+        <Page title={`你好，${m.username}`} eyebrow={`${m.id} · 专属页面`} subtitle="请不要把这个链接转发给别人。">
           {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
           <MyEvents base={base} />
           <MyStatsCard base={base} />
@@ -71,8 +75,9 @@ function MyEvents(props: { base: string }) {
     <Load result={res}>
       {(r) => (
         <>
+          <SectionTitle>我的活动</SectionTitle>
           {r.events.length === 0 && (
-            <Card title="活动">
+            <Card>
               <Empty>暂时没有活动</Empty>
             </Card>
           )}
@@ -105,7 +110,7 @@ function SignupCard(props: { base: string; e: MyEvent; cap: number; onChange: ()
 
   return (
     <Card>
-      <EventInfo e={e} />
+      <EventInfo e={e} status={e.payment ? BILL_STATUS[e.payment.status] : undefined} />
       {signedUp && !editing && !e.payment && (
         <p class="ok">
           ✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}
