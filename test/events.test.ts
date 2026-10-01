@@ -19,12 +19,20 @@ describe("creating events", () => {
     expect(second.code).toBe(e.code + "B");
   });
 
-  it("remembers the last times, location and deadline offset as defaults", async () => {
+  it("remembers the last times, venue with its address, and deadline offset as defaults", async () => {
     const ctx = await setUpAdmin();
-    await createTestEvent(ctx, { startTime: "20:00", endTime: "22:30", location: "Wellness Gym", deadlineDays: 2, deadlineHours: 6 });
+    const address = "1 Wellness Way, San Jose, CA 95131";
+    const e = await createTestEvent(ctx, { startTime: "20:00", endTime: "22:30", location: "Wellness Gym", address, deadlineDays: 2, deadlineHours: 6 });
+    expect(e).toMatchObject({ location: "Wellness Gym", address });
+    await createTestEvent(ctx, { location: "Bay Center", address: "2 Bay St, Fremont, CA 94538" });
+    // Using a venue again without an address keeps the one it already had.
+    await createTestEvent(ctx, { location: "Wellness Gym", address: "", startTime: "20:00", endTime: "22:30", deadlineDays: 2, deadlineHours: 6, date: futureDate(8) });
     const { data } = await ctx.admin.call(`${ctx.base}/events/defaults`);
-    expect(data).toMatchObject({ startTime: "20:00", endTime: "22:30", location: "Wellness Gym", deadlineDays: 2, deadlineHours: 6 });
-    expect(data.locations).toEqual(["Wellness Gym"]);
+    expect(data).toMatchObject({ startTime: "20:00", endTime: "22:30", location: "Wellness Gym", address, deadlineDays: 2, deadlineHours: 6 });
+    expect(data.locations).toEqual([
+      { name: "Wellness Gym", address },
+      { name: "Bay Center", address: "2 Bay St, Fremont, CA 94538" },
+    ]);
   });
 
   it("refuses a deadline that is already in the past", async () => {

@@ -7,7 +7,8 @@ import { useApi } from "../hooks";
 import { EventsTab } from "./AdminEvents";
 import { InboundTab } from "./AdminInbound";
 import { RemindersCard, TelegramCard } from "./AdminTelegram";
-import { setSiteTitle } from "../site";
+import { applyTheme, setSiteTitle } from "../site";
+import { DEFAULT_THEME, THEMES } from "../../shared/themes";
 
 type Tab = "events" | "inbound" | "pending" | "members" | "settings";
 
@@ -232,6 +233,7 @@ function Settings(props: { base: string }) {
 
   return (
     <>
+      <ThemeCard base={props.base} />
       <FriendCap base={props.base} />
       <TelegramCard base={props.base} />
       <RemindersCard base={props.base} />
@@ -370,6 +372,35 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
       >
         {saved ? "已保存" : "保存"}
       </button>
+    </Card>
+  );
+}
+
+/** 外观配色: tapping a swatch previews it at once and saves it for everyone. */
+function ThemeCard(props: { base: string }) {
+  const [current, setCurrent] = useState(document.documentElement.dataset.theme ?? DEFAULT_THEME);
+  const { error, run } = useAction();
+  async function choose(id: string) {
+    const before = current;
+    setCurrent(id);
+    applyTheme(id);
+    if (!(await run(() => api(`${props.base}/settings`, { theme: id })))) {
+      setCurrent(before);
+      applyTheme(before);
+    }
+  }
+  return (
+    <Card title="外观配色">
+      <p class="muted small">所有人看到的网站都会换成这个配色。</p>
+      <div class="themes">
+        {THEMES.map((t) => (
+          <button key={t.id} type="button" class={t.id === current ? "theme on" : "theme"} onClick={() => choose(t.id)}>
+            <i style={{ background: `linear-gradient(135deg, ${t.swatch[0]}, ${t.swatch[1]})` }} />
+            <span>{t.name}</span>
+          </button>
+        ))}
+      </div>
+      {error && <p class="error">{error}</p>}
     </Card>
   );
 }

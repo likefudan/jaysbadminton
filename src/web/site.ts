@@ -1,37 +1,54 @@
 import { useEffect, useState } from "preact/hooks";
+import { DEFAULT_THEME, THEMES } from "../shared/themes";
 import { api } from "./api";
 
-// The site title is an admin setting. It is fetched once per page load and shared by every
-// page; the last value is cached so repeat visits show it immediately.
-const CACHE_KEY = "site-title";
+// The site title and colour theme are admin settings. They are fetched once per page load and
+// shared by every page; the last values are cached so repeat visits show them immediately
+// (index.html applies the cached theme before anything renders).
+const TITLE_KEY = "site-title";
+const THEME_KEY = "site-theme";
 const DEFAULT = "Jay's 羽毛球";
 
-function cached(): string {
+function read(key: string, fallback: string): string {
   try {
-    return localStorage.getItem(CACHE_KEY) || DEFAULT;
+    return localStorage.getItem(key) || fallback;
   } catch {
-    return DEFAULT;
+    return fallback;
+  }
+}
+function write(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Private mode or blocked storage: the value still applies for this visit.
   }
 }
 
-let current = cached();
+let current = read(TITLE_KEY, DEFAULT);
 const listeners = new Set<(t: string) => void>();
 let loading: Promise<void> | null = null;
 
 function load() {
-  loading ??= api<{ title: string }>("/api/public/site")
-    .then((r) => setSiteTitle(r.title))
+  loading ??= api<{ title: string; theme: string }>("/api/public/site")
+    .then((r) => {
+      setSiteTitle(r.title);
+      applyTheme(r.theme);
+    })
     .catch(() => undefined);
 }
 
 export function setSiteTitle(title: string) {
   current = title;
-  try {
-    localStorage.setItem(CACHE_KEY, title);
-  } catch {
-    // Private mode or blocked storage: the title still updates for this visit.
-  }
+  write(TITLE_KEY, title);
   listeners.forEach((l) => l(title));
+}
+
+/** Switches the palette now and remembers it; also tints the iOS status bar to match. */
+export function applyTheme(theme: string) {
+  const t = THEMES.find((x) => x.id === theme) ?? THEMES.find((x) => x.id === DEFAULT_THEME)!;
+  document.documentElement.dataset.theme = t.id;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t.swatch[0]);
+  write(THEME_KEY, t.id);
 }
 
 export function useSiteTitle(): string {

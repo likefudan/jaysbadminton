@@ -35,7 +35,8 @@ export interface EventSummary {
   date: string; // Pacific YYYY-MM-DD
   startTime: string; // Pacific HH:MM
   endTime: string;
-  location: string;
+  location: string; // venue name
+  address: string; // street address, may be empty for older events
   deadlineAt: string; // UTC ISO
   status: EventStatus;
   headcount: number; // members + friends
@@ -70,7 +71,8 @@ export interface EventDefaults {
   location: string;
   deadlineDays: number;
   deadlineHours: number;
-  locations: string[];
+  address: string; // of the last venue
+  locations: { name: string; address: string }[]; // recent venues, newest first
   friendCap: number;
 }
 
