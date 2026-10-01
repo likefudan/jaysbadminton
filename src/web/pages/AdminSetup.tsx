@@ -58,7 +58,7 @@ function SetupForm() {
     <Page title="首次设置">
       <Card>
         <form onSubmit={submit}>
-          <Field label="管理密码" type="password" value={password} onInput={setPassword} hint="即 GitHub 里设置的 ADMIN_PASSWORD" autocomplete="current-password" />
+          <Field label="管理密码" type="password" value={password} onInput={setPassword} hint="当前的管理密码（第一次部署时就是 GitHub 里的 ADMIN_PASSWORD；在管理页改过的话用改后的）" autocomplete="current-password" />
           <Field label="你的用户名" value={username} onInput={setUsername} hint="你作为成员报名时显示的名字" />
           <Field label="你的微信昵称" value={nickname} onInput={setNickname} />
           {error && <p class="error">{error}</p>}

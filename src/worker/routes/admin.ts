@@ -99,3 +99,35 @@ adminRoutes.post("/:token/settings/rotate-admin", async (c) => {
 });
 
 adminRoutes.route("/:token", adminEventRoutes);
+
+/**
+ * 清空所有数据: back to a brand-new site. Only the admin password survives, so the Owner can run
+ * first-time setup again at /admin with it (and becomes the Owner member). Needs the password and
+ * the typed confirmation; D1 Time Travel can still restore the last 7 days if it was a mistake.
+ */
+adminRoutes.post("/:token/settings/reset", async (c) => {
+  const body = await readJson(c.req.raw);
+  if (str(body.confirm) !== RESET_PHRASE) throw badRequest(`请输入「${RESET_PHRASE}」确认`);
+  if (!(await checkPassword(c.env, str(body.password)))) throw new HttpError(401, "wrong_password", "密码不正确");
+  await c.env.DB.batch([
+    ...RESET_TABLES.map((t) => c.env.DB.prepare(`DELETE FROM ${t}`)),
+    c.env.DB.prepare(`DELETE FROM settings WHERE key NOT IN ('admin_password_hash', 'admin_password_env_fp')`),
+    c.env.DB.prepare("INSERT INTO settings (key, value) VALUES ('next_member_seq', '0')"),
+  ]);
+  return c.json({ ok: true });
+});
+
+const RESET_PHRASE = "清空所有数据";
+// Children first, so no foreign key is ever left dangling.
+const RESET_TABLES = [
+  "notification_log",
+  "inbound_payments",
+  "payment_receipts",
+  "payments",
+  "settlements",
+  "registrations",
+  "events",
+  "locations",
+  "admin_sessions",
+  "members",
+];

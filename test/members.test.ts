@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { Client, setUpAdmin, tokenOf } from "./helpers";
+import { Client, approveMember, createTestEvent, setUpAdmin, tokenOf } from "./helpers";
 
 const anon = new Client();
 
@@ -151,5 +151,28 @@ describe("site title", () => {
     await admin.call(`${base}/settings`, { siteTitle: "周二羽毛球" });
     expect((await anon.call("/api/public/site")).data.title).toBe("周二羽毛球");
     expect((await admin.call(`${base}/settings`)).data.siteTitle).toBe("周二羽毛球");
+  });
+});
+
+describe("reset all data", () => {
+  it("needs the phrase and the password, then returns the site to first-time setup", async () => {
+    const ctx = await setUpAdmin();
+    await approveMember(ctx, "Alice");
+    await createTestEvent(ctx, { joinSelf: true });
+    expect((await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空", password: "initial-password" })).status).toBe(400);
+    expect((await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空所有数据", password: "wrong" })).status).toBe(401);
+    expect((await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空所有数据", password: "initial-password" })).status).toBe(200);
+
+    expect((await ctx.admin.call(`${ctx.base}/members`)).status).toBe(404);
+    expect((await new Client().call("/api/public/admin-setup")).data).toEqual({ needed: true });
+    expect((await new Client().call("/api/public/home")).data.currentEvents).toEqual([]);
+
+    // The new Owner sets the site up again with the same password and starts at M001.
+    const again = await new Client().call("/api/public/admin-setup", { password: "initial-password", username: "Ming", wechatNickname: "Ming" });
+    expect(again.status).toBe(200);
+    const members = (await new Client().call("/api/public/home")).status;
+    expect(members).toBe(200);
+    const { results } = await env.DB.prepare("SELECT id, username, is_owner FROM members").all();
+    expect(results).toEqual([{ id: "M001", username: "Ming", is_owner: 1 }]);
   });
 });

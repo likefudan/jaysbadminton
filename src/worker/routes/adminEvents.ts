@@ -12,6 +12,7 @@ import {
   detail,
   friendCap,
   getEvent,
+  setSignup,
   summaries,
   validateFriends,
   type EventRow,
@@ -62,6 +63,11 @@ adminEventRoutes.post("/events", async (c) => {
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
+  // "我自己也报名": the Owner signs up as a normal player (ticked by default in the form).
+  if (b.joinSelf === true) {
+    const owner = await c.env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{ id: string }>();
+    if (owner) await setSignup(c.env, e.id, owner.id, [], false);
+  }
   return c.json(await detail(c.env, e));
 });
 

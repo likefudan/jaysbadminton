@@ -72,12 +72,13 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
   const [location, setLocation] = useState(d.location);
   const [days, setDays] = useState(d.deadlineDays);
   const [hours, setHours] = useState(d.deadlineHours);
+  const [joinSelf, setJoinSelf] = useState(true);
   const { busy, error, run } = useAction();
 
   async function submit(ev: Event) {
     ev.preventDefault();
     const r = await run(() =>
-      api<EventDetail>(`${props.base}/events`, { date, startTime, endTime, location, deadlineDays: days, deadlineHours: hours }),
+      api<EventDetail>(`${props.base}/events`, { date, startTime, endTime, location, deadlineDays: days, deadlineHours: hours, joinSelf }),
     );
     if (r) props.onDone(r.id);
   }
@@ -122,6 +123,10 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
             </select>
           </label>
         </div>
+        <label class="check">
+          <input type="checkbox" checked={joinSelf} onChange={(e) => setJoinSelf((e.target as HTMLInputElement).checked)} />
+          我自己也报名
+        </label>
         {error && <p class="error">{error}</p>}
         <button class="button block" disabled={busy || !date}>
           创建活动
