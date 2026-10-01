@@ -181,6 +181,7 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
         <CopyButton text={publicLink} label="复制活动链接" />
       </Card>
 
+      {e.status === "open" && <CloseNow eb={eb} onDone={props.onChange} />}
       {e.status === "closed" && <Reopen eb={eb} e={e} onDone={props.onChange} />}
 
       <Card title={`名单（${e.roster.length}）`}>
@@ -218,6 +219,8 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
       <Billing base={props.base} e={e} onChange={props.onChange} />
 
       {editable && <AddPeople eb={eb} members={props.members} roster={e.roster} onDone={props.onChange} />}
+
+      {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
 
       {(e.status === "open" || e.status === "closed") && (
         <button class="button danger block" disabled={busy} onClick={cancelEvent}>
@@ -298,6 +301,68 @@ function AddPeople(props: { eb: string; members: MemberSummary[]; roster: Roster
       {error && <p class="error">{error}</p>}
       <button class="button block" disabled={busy || !memberId || (!(includeSelf && selfAvailable) && friends.length === 0)} onClick={add}>
         添加
+      </button>
+    </Card>
+  );
+}
+
+function CloseNow(props: { eb: string; onDone: () => void }) {
+  const { busy, error, run } = useAction();
+  async function close() {
+    if (!confirm("立即截止后，成员不能再报名或修改。之后如有需要可以重新开放。确定吗？")) return;
+    if (await run(() => api(`${props.eb}/close-now`, {}))) props.onDone();
+  }
+  return (
+    <div class="spaced">
+      {error && <p class="error">{error}</p>}
+      <button class="button secondary block" disabled={busy} onClick={close}>
+        立即截止报名
+      </button>
+    </div>
+  );
+}
+
+/** Emergency-only edit of date, times and location, folded away by default. */
+function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(props.e.date);
+  const [startTime, setStart] = useState(props.e.startTime);
+  const [endTime, setEnd] = useState(props.e.endTime);
+  const [location, setLocation] = useState(props.e.location);
+  const { busy, error, run } = useAction();
+
+  if (!open) {
+    return (
+      <button class="link-button" onClick={() => setOpen(true)}>
+        修改活动时间或地点（仅限紧急情况）
+      </button>
+    );
+  }
+  async function save() {
+    const msg =
+      "修改会立即显示在活动页和成员页，但不会自动通知任何人，请自己在群里说明。活动代号和已发出的链接不变。确定修改吗？";
+    if (!confirm(msg)) return;
+    if (await run(() => api(`${props.eb}/edit`, { date, startTime, endTime, location }))) {
+      setOpen(false);
+      props.onDone();
+    }
+  }
+  return (
+    <Card title="修改活动（紧急情况）">
+      <p class="warn">只在场地变更、时间临时调整等紧急情况使用。修改后请在微信群里通知大家。</p>
+      <Field label="日期" type="date" value={date} onInput={setDate} />
+      <div class="inline">
+        <Field label="开始" type="time" value={startTime} onInput={setStart} />
+        <Field label="结束" type="time" value={endTime} onInput={setEnd} />
+      </div>
+      <Field label="地点" value={location} onInput={setLocation} />
+      {props.e.status === "open" && <p class="muted small">报名截止时间会按原来的提前量重新计算；如果已经过了，报名会立即截止。</p>}
+      {error && <p class="error">{error}</p>}
+      <button class="button block" disabled={busy} onClick={save}>
+        保存修改
+      </button>
+      <button class="button secondary block" disabled={busy} onClick={() => setOpen(false)}>
+        取消
       </button>
     </Card>
   );

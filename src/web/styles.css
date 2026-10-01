@@ -463,3 +463,25 @@ table.bills td:last-child {
   text-align: right;
   font-weight: 600;
 }
+.warn {
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.link-button {
+  display: block;
+  width: 100%;
+  margin: 8px 0 12px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: underline;
+  min-height: 44px;
+}
+.spaced {
+  margin-bottom: 12px;
+}
