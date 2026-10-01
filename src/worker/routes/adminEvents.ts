@@ -201,10 +201,11 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
 });
 
 adminEventRoutes.get("/settings", async (c) => {
-  const s = await getSettings(c.env.DB, ["venmo_username", "zelle_account"]);
+  const s = await getSettings(c.env.DB, ["venmo_username", "venmo_email", "zelle_account"]);
   return c.json({
     friendCap: await friendCap(c.env),
     venmoUsername: s.venmo_username ?? "",
+    venmoEmail: s.venmo_email ?? "",
     zelleAccount: s.zelle_account ?? "",
     siteTitle: await siteTitle(c.env),
   });
@@ -221,7 +222,11 @@ adminEventRoutes.post("/settings", async (c) => {
   if (b.venmoUsername !== undefined) {
     const v = str(b.venmoUsername).trim().replace(/^@/, "");
     if (v && !/^[A-Za-z0-9_-]{2,30}$/.test(v)) throw badRequest("Venmo 用户名格式不对（不用加 @）");
-    writes.push(setSetting(c.env.DB, "venmo_username", v));
+    // Receipts are only trusted when addressed to this email (the signed To header), so it comes with the username.
+    const mail = str(b.venmoEmail).trim().toLowerCase();
+    if (v && !mail) throw badRequest("请填写 Venmo 通知邮箱（Venmo 账户里登记的邮箱）");
+    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw badRequest("Venmo 通知邮箱格式不对");
+    writes.push(setSetting(c.env.DB, "venmo_username", v), setSetting(c.env.DB, "venmo_email", mail));
   }
   if (b.siteTitle !== undefined) {
     const t = str(b.siteTitle).trim();

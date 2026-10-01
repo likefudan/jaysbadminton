@@ -55,8 +55,10 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
     return "parse_failed";
   }
 
-  const { venmo_username: owner = "" } = await getSettings(env.DB, ["venmo_username"]);
-  if (r.sentTo.toLowerCase() !== owner.toLowerCase()) return "wrong_recipient";
+  // Both must match: the username printed in the body and the email Venmo addressed it to.
+  const { venmo_username: owner = "", venmo_email: ownerEmail = "" } = await getSettings(env.DB, ["venmo_username", "venmo_email"]);
+  if (!owner || r.sentTo.toLowerCase() !== owner.toLowerCase()) return "wrong_recipient";
+  if (!ownerEmail || mail.toAddresses.length !== 1 || mail.toAddresses[0] !== ownerEmail) return "wrong_recipient";
 
   const seen = await env.DB.prepare(
     "SELECT 1 FROM inbound_payments WHERE venmo_txn_id = ?1 UNION ALL SELECT 1 FROM payments WHERE venmo_txn_id = ?1",

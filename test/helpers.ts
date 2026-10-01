@@ -67,7 +67,7 @@ export const expire = (id: number) =>
 /** Owner Jay plays; Alice brings Tom (absent); Bob comes alone. 4 registered, 3 attended. */
 export async function billingScenario() {
   const ctx = await setUpAdmin();
-  await ctx.admin.call(`${ctx.base}/settings`, { venmoUsername: "@KeLi8916", zelleAccount: "jay@example.com" });
+  await ctx.admin.call(`${ctx.base}/settings`, { venmoUsername: "@KeLi8916", venmoEmail: "Owner@Example.com", zelleAccount: "jay@example.com" });
   const e = await createTestEvent(ctx);
   const alice = await approveMember(ctx, "Alice");
   const bob = await approveMember(ctx, "Bob");

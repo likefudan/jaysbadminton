@@ -273,6 +273,7 @@ interface GeneralSettings {
   siteTitle: string;
   friendCap: number;
   venmoUsername: string;
+  venmoEmail: string;
   zelleAccount: string;
 }
 
@@ -285,6 +286,7 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
   const [title, setTitle] = useState(props.initial.siteTitle);
   const [cap, setCap] = useState(String(props.initial.friendCap));
   const [venmo, setVenmo] = useState(props.initial.venmoUsername);
+  const [venmoEmail, setVenmoEmail] = useState(props.initial.venmoEmail);
   const [zelle, setZelle] = useState(props.initial.zelleAccount);
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useAction();
@@ -297,13 +299,20 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
       <Field label="网站标题" value={title} onInput={edit(setTitle)} hint="显示在每个页面顶部和浏览器标签上" />
       <Field label="每人最多带几个朋友" type="number" value={cap} onInput={edit(setCap)} />
       <Field label="你的 Venmo 用户名" value={venmo} onInput={edit(setVenmo)} hint="不用加 @，例如 KeLi8916" />
+      <Field
+        label="Venmo 通知邮箱"
+        type="email"
+        value={venmoEmail}
+        onInput={edit(setVenmoEmail)}
+        hint="Venmo 账户里登记的、接收收款通知的邮箱。只有发到这个邮箱的 Venmo 收款邮件才会自动对账"
+      />
       <Field label="你的 Zelle 账号（选填）" value={zelle} onInput={edit(setZelle)} hint="手机号或邮箱，显示在付款页作为备选" />
       {error && <p class="error">{error}</p>}
       <button
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
-          const body = { siteTitle: title, friendCap: Number(cap), venmoUsername: venmo, zelleAccount: zelle };
+          const body = { siteTitle: title, friendCap: Number(cap), venmoUsername: venmo, venmoEmail, zelleAccount: zelle };
           if (await run(() => api(`${props.base}/settings`, body))) {
             setSaved(true);
             setSiteTitle(title.trim());

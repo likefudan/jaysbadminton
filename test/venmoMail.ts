@@ -11,6 +11,7 @@ export interface ReceiptFields {
   txnId?: string;
   sentTo?: string;
   from?: string;
+  to?: string;
 }
 
 const CRLF = "\r\n";
@@ -59,6 +60,7 @@ export async function venmoEmail(fields: ReceiptFields = {}, opts: { sign?: bool
     txnId: "TXN" + Math.random().toString(36).slice(2, 12).toUpperCase(),
     sentTo: "KeLi8916",
     from: "Venmo <venmo@venmo.com>",
+    to: "owner@example.com",
     ...fields,
   };
   const body =
@@ -68,7 +70,7 @@ export async function venmoEmail(fields: ReceiptFields = {}, opts: { sign?: bool
     `${CRLF}------=_Part_1--${CRLF}`;
   const signedHeaders = [
     `From: ${f.from}`,
-    `To: owner@example.com`,
+    `To: ${f.to}`,
     `Subject: ${f.payer} paid $${f.amount} to your Venmo account. Leave it in Venmo or${CRLF} transfer it to your bank account.`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/alternative;${CRLF}\tboundary="----=_Part_1"`,

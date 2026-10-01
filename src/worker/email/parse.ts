@@ -15,6 +15,8 @@ export interface VenmoReceipt {
 export interface ParsedEmail {
   fromAddress: string;
   subject: string;
+  /** Lowercased To addresses; Venmo addresses receipts to the account's registered email. */
+  toAddresses: string[];
   messageId: string;
   /** Visible text of the message, one line per block element; kept for parse_failed rows. */
   text: string;
@@ -98,6 +100,7 @@ export async function parseEmail(raw: ArrayBuffer | Uint8Array): Promise<ParsedE
   return {
     fromAddress: (mail.from?.address ?? "").toLowerCase(),
     subject,
+    toAddresses: (mail.to ?? []).flatMap((a) => (a.address ? [a.address.toLowerCase()] : (a.group ?? []).map((g) => g.address.toLowerCase()))),
     messageId: (mail.messageId ?? "").slice(0, 200),
     text: lines.join("\n"),
     receipt: parseReceipt(lines, subject),

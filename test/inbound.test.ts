@@ -39,7 +39,7 @@ describe("receipt parsing", () => {
   });
 
   it("decodes entities and returns null when a field is missing", () => {
-    const html = receiptHtml({ payer: "A", amount: "7.00", note: "Tom &amp; Jerry&#39;s", txnId: "X1", sentTo: "me", from: "" });
+    const html = receiptHtml({ payer: "A", amount: "7.00", note: "Tom &amp; Jerry&#39;s", txnId: "X1", sentTo: "me", from: "", to: "" });
     expect(htmlLines(html)).toContain("Tom & Jerry's");
     const noTxn = html.replace("<h3>Transaction ID</h3>", "");
     expect(htmlLines(noTxn)).not.toContain("Transaction ID");
@@ -57,6 +57,7 @@ describe("DKIM", () => {
       { tamper: (r: string) => r.replace("paid $56.00", "paid $5.00") },
       { sign: false },
       { tamper: (r: string) => `From: Venmo <venmo@venmo.com>\r\n${r}` },
+      { tamper: (r: string) => `To: owner@example.com\r\n${r}` },
     ];
     for (const opts of cases) expect((await verifyDkim((await venmoEmail({}, opts)).raw, "venmo.com", resolveKey)).ok).toBe(false);
   });
@@ -95,6 +96,9 @@ describe("matching", () => {
     expect(await deliver({ amount: "31.00", note: "x-jbm20991231-m999", txnId: "T6" })).toBe("unmatched");
     expect(await deliver({ amount: "12.00", note: "Milktea9/27", txnId: "T7" })).toBe("other");
     expect(await deliver({ amount: "12.00", note: "Milktea", txnId: "T8", sentTo: "someone_else" })).toBe("wrong_recipient");
+    // Right username, but Venmo addressed the receipt to someone else's email.
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T8b", to: "carol@example.com" })).toBe("wrong_recipient");
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T8c", to: "Owner@Example.com, carol@example.com" })).toBe("wrong_recipient");
 
     const inbound = (await s.admin.call(`${s.base}/inbound`)).data;
     expect(inbound.open.map((i: { kind: string }) => i.kind).sort()).toEqual(["anomaly", "other", "unmatched"]);
@@ -144,5 +148,15 @@ describe("DNS trouble", () => {
     expect(await s.by("Alice")).toMatchObject({ status: "unpaid" });
     const row = await env.DB.prepare("SELECT raw_text FROM inbound_payments").first<{ raw_text: string }>();
     expect(row!.raw_text).toMatch(/^\[无法校验 Venmo 签名/);
+  });
+});
+
+describe("Venmo settings", () => {
+  it("requires the Venmo notification email together with the username", async () => {
+    const s = await billingScenario();
+    expect((await s.admin.call(`${s.base}/settings`, { venmoUsername: "KeLi8916" })).status).toBe(400);
+    expect((await s.admin.call(`${s.base}/settings`, { venmoUsername: "KeLi8916", venmoEmail: "not-an-email" })).status).toBe(400);
+    expect((await s.admin.call(`${s.base}/settings`, { venmoUsername: "KeLi8916", venmoEmail: " Me@Example.com " })).status).toBe(200);
+    expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({ venmoUsername: "KeLi8916", venmoEmail: "me@example.com" });
   });
 });

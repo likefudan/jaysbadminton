@@ -125,7 +125,7 @@ const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const b64of = (b: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(b)));
 
 /**
- * Verifies a DKIM signature by `domain` that covers From and Subject. Any other signatures
+ * Verifies a DKIM signature by `domain` that covers From, To and Subject. Any other signatures
  * (amazonses.com, forwarding hops) are ignored.
  */
 export async function verifyDkim(raw: Uint8Array, domain: string, resolveKey: KeyResolver = dohKey): Promise<DkimResult> {
@@ -160,9 +160,9 @@ async function verifyOne(
   const [hMode = "simple", bMode = "simple"] = (tags.get("c") ?? "simple/simple").split("/");
   if (!isMode(hMode) || !isMode(bMode)) return { ok: false, reason: "bad c=" };
   const signed = (tags.get("h") ?? "").split(":").map((s) => s.trim().toLowerCase());
-  if (!signed.includes("from") || !signed.includes("subject")) return { ok: false, reason: "From/Subject not signed" };
-  // A second From or Subject added above the signed one could fool the parser; refuse that.
-  for (const name of ["from", "subject"]) {
+  for (const name of SIGNED) if (!signed.includes(name)) return { ok: false, reason: `${name} not signed` };
+  // A second From, To or Subject added above the signed one could fool the parser; refuse that.
+  for (const name of SIGNED) {
     if (headers.filter((h) => h.name === name).length !== 1) return { ok: false, reason: `multiple ${name} headers` };
   }
   const x = tags.get("x");
@@ -185,6 +185,9 @@ async function verifyOne(
   const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, b64(tags.get("b") ?? ""), enc.encode(data));
   return ok ? { ok: true } : { ok: false, reason: "signature mismatch" };
 }
+
+/** Headers the receipt checks rely on; each must be signed and appear exactly once. */
+const SIGNED = ["from", "to", "subject"];
 
 const isMode = (m: string): m is "simple" | "relaxed" => m === "simple" || m === "relaxed";
 
