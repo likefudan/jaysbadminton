@@ -66,7 +66,8 @@ adminRoutes.get("/:token/members/:id/link", async (c) => {
 
 adminRoutes.post("/:token/members/:id/regenerate", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
-  if (m.status !== "active") throw badRequest("只能给正常状态的成员重新生成链接");
+  // Disabled members may need a (new) link to pay what they owe; deleted ones never get one.
+  if (m.status === "pending" || m.deleted_at) throw badRequest("只能给正常或已停用的成员生成链接");
   const token = await issueMemberToken(c.env, m.id);
   return c.json<LinkResponse>({ link: memberLink(origin(c.req.url), token) });
 });

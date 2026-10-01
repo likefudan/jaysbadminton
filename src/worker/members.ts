@@ -27,6 +27,7 @@ export const toSummary = (m: MemberRow): MemberSummary => ({
   requestedAt: m.requested_at,
   approvedAt: m.approved_at,
   deletedAt: m.deleted_at,
+  hasLink: !!m.token_enc,
   owingCents: 0,
 });
 

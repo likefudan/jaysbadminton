@@ -9,6 +9,8 @@ export interface MemberSummary {
   requestedAt: string;
   approvedAt: string | null;
   deletedAt: string | null;
+  /** False for members disabled before links were kept; the admin can generate a new one. */
+  hasLink: boolean;
   /** Still owed across all bills (only filled in for the admin's member list). */
   owingCents: number;
 }
