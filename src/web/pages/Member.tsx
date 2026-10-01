@@ -1,8 +1,10 @@
 import { useState } from "preact/hooks";
 import { checkUsername } from "../../shared/rules";
-import type { MeResponse } from "../../shared/types";
+import type { MeResponse, MyEvent } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, Load, Page, useAction } from "../components";
+import { EventInfo } from "../events";
+import { FriendsEditor } from "../FriendsEditor";
 import { useApi } from "../hooks";
 
 export function Member(props: { token?: string }) {
@@ -15,9 +17,7 @@ export function Member(props: { token?: string }) {
           <p class="muted">
             成员编号 {m.id}。这是你的专属页面，请不要把链接转发给别人。
           </p>
-          <Card title="本周活动">
-            <Empty>报名功能即将开放</Empty>
-          </Card>
+          <MyEvents base={base} />
           <Rename base={base} current={m.username} onDone={reload} />
         </Page>
       )}
@@ -57,6 +57,89 @@ function Rename(props: { base: string; current: string; onDone: () => void }) {
           取消
         </button>
       </form>
+    </Card>
+  );
+}
+
+function MyEvents(props: { base: string }) {
+  const [res, reload] = useApi<{ events: MyEvent[]; friendCap: number }>(`${props.base}/events`);
+  return (
+    <Load result={res}>
+      {(r) => (
+        <>
+          {r.events.length === 0 && (
+            <Card title="活动">
+              <Empty>暂时没有活动</Empty>
+            </Card>
+          )}
+          {r.events.map((e) => (
+            <SignupCard key={e.id} base={props.base} e={e} cap={r.friendCap} onChange={reload} />
+          ))}
+        </>
+      )}
+    </Load>
+  );
+}
+
+function SignupCard(props: { base: string; e: MyEvent; cap: number; onChange: () => void }) {
+  const e = props.e;
+  const [editing, setEditing] = useState(false);
+  const [friends, setFriends] = useState<string[]>(e.myFriends ?? []);
+  const { busy, error, run } = useAction();
+  const signedUp = e.myFriends !== null;
+
+  async function save() {
+    if (await run(() => api(`${props.base}/events/${e.id}/signup`, { friends }))) {
+      setEditing(false);
+      props.onChange();
+    }
+  }
+  async function cancel() {
+    if (!confirm("确定取消报名吗？")) return;
+    if (await run(() => api(`${props.base}/events/${e.id}/cancel`, {}))) props.onChange();
+  }
+
+  return (
+    <Card>
+      <EventInfo e={e} />
+      {signedUp && !editing && (
+        <p class="ok">
+          ✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}
+        </p>
+      )}
+      {!signedUp && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
+      {e.canEdit && editing && (
+        <>
+          <FriendsEditor friends={friends} max={props.cap} onChange={setFriends} />
+          {error && <p class="error">{error}</p>}
+          <button class="button block" disabled={busy} onClick={save}>
+            {signedUp ? "保存修改" : "确认报名"}
+          </button>
+          <button class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
+            返回
+          </button>
+        </>
+      )}
+      {e.canEdit && !editing && (
+        <>
+          {error && <p class="error">{error}</p>}
+          {signedUp ? (
+            <div class="inline">
+              <button class="button secondary" onClick={() => { setFriends(e.myFriends ?? []); setEditing(true); }}>
+                修改
+              </button>
+              <button class="button danger" disabled={busy} onClick={cancel}>
+                取消报名
+              </button>
+            </div>
+          ) : (
+            <button class="button block" onClick={() => { setFriends([]); setEditing(true); }}>
+              报名
+            </button>
+          )}
+        </>
+      )}
+      {!e.canEdit && e.status !== "open" && signedUp && <p class="muted small">报名已截止，需要修改请联系管理员。</p>}
     </Card>
   );
 }

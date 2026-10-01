@@ -4,13 +4,14 @@ import type { LinkResponse, MemberSummary, MembersResponse } from "../../shared/
 import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
+import { EventsTab } from "./AdminEvents";
 
-type Tab = "pending" | "members" | "settings";
+type Tab = "events" | "pending" | "members" | "settings";
 
 export function Admin(props: { token?: string }) {
   const base = `/api/admin/${props.token}`;
   const [members, reload] = useApi<MembersResponse>(`${base}/members`);
-  const [tab, setTab] = useState<Tab>("pending");
+  const [tab, setTab] = useState<Tab>("events");
 
   if (members.state === "error" && members.code === "login_required") return <Login base={base} onDone={reload} />;
   if (members.state === "error" && members.code === "invalid_link") {
@@ -27,6 +28,9 @@ export function Admin(props: { token?: string }) {
         {(m) => (
           <>
             <div class="tabs">
+              <button class={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>
+                活动
+              </button>
               <button class={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>
                 待审核{m.pending.length > 0 && ` (${m.pending.length})`}
               </button>
@@ -37,6 +41,7 @@ export function Admin(props: { token?: string }) {
                 设置
               </button>
             </div>
+            {tab === "events" && <EventsTab base={base} members={m.active} />}
             {tab === "pending" && <Pending base={base} list={m.pending} onChange={reload} />}
             {tab === "members" && <Members base={base} data={m} onChange={reload} />}
             {tab === "settings" && <Settings base={base} />}
@@ -220,6 +225,7 @@ function Settings(props: { base: string }) {
 
   return (
     <>
+      <FriendCap base={props.base} />
       <Card title="修改管理密码">
         <form onSubmit={changePassword}>
           <Field label="当前密码" type="password" value={current} onInput={setCurrent} autocomplete="current-password" />
@@ -254,5 +260,31 @@ function Settings(props: { base: string }) {
         退出登录
       </button>
     </>
+  );
+}
+
+function FriendCap(props: { base: string }) {
+  const [s] = useApi<{ friendCap: number }>(`${props.base}/settings`);
+  return <Load result={s}>{(v) => <FriendCapForm base={props.base} initial={v.friendCap} />}</Load>;
+}
+
+function FriendCapForm(props: { base: string; initial: number }) {
+  const [cap, setCap] = useState(String(props.initial));
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  return (
+    <Card title="报名设置">
+      <Field label="每人最多带几个朋友" type="number" value={cap} onInput={(v) => { setCap(v); setSaved(false); }} />
+      {error && <p class="error">{error}</p>}
+      <button
+        class="button secondary block"
+        disabled={busy}
+        onClick={async () => {
+          if (await run(() => api(`${props.base}/settings`, { friendCap: Number(cap) }))) setSaved(true);
+        }}
+      >
+        {saved ? "已保存" : "保存"}
+      </button>
+    </Card>
   );
 }

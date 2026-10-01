@@ -11,7 +11,7 @@ describe("skeleton", () => {
 
   it("returns an empty home page payload", async () => {
     const res = await exports.default.fetch("https://example.com/api/public/home");
-    expect(await res.json()).toEqual({ openEvents: [], pastEvents: [], leaderboard: [] });
+    expect(await res.json()).toEqual({ currentEvents: [], pastEvents: [], leaderboard: [] });
   });
 
   it("answers unknown API paths with a Chinese error", async () => {

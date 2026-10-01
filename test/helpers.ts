@@ -35,3 +35,28 @@ export async function setUpAdmin() {
   const adminToken = tokenOf(data.adminLink);
   return { admin, adminToken, ownerLink: data.ownerLink as string, base: `/api/admin/${adminToken}` };
 }
+
+/** A Pacific calendar date `days` from today, YYYY-MM-DD. */
+export function futureDate(days: number): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(Date.now() + days * 86400_000));
+}
+
+export async function approveMember(ctx: { admin: Client; base: string }, username: string) {
+  const { data: joined } = await new Client().call("/api/public/join", { username, wechatNickname: username });
+  const { data } = await ctx.admin.call(`${ctx.base}/members/${joined.id}/approve`, {});
+  return { id: joined.id as string, base: `/api/m/${tokenOf(data.link)}` };
+}
+
+export async function createTestEvent(ctx: { admin: Client; base: string }, overrides: Record<string, unknown> = {}) {
+  const { status, data } = await ctx.admin.call(`${ctx.base}/events`, {
+    date: futureDate(7),
+    startTime: "19:00",
+    endTime: "21:00",
+    location: "Bay Badminton Center",
+    deadlineDays: 1,
+    deadlineHours: 0,
+    ...overrides,
+  });
+  if (status !== 200) throw new Error(`create event failed: ${JSON.stringify(data)}`);
+  return data;
+}
