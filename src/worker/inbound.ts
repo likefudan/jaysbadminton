@@ -1,17 +1,35 @@
 import { formatDateZh } from "../shared/time";
 import type { InboundKind, InboundRow, OpenPayment } from "../shared/types";
 import { addReceipt, checkCollected, receiptsFor, refundOf } from "./billing";
-import { getSettings, now } from "./db";
+import { getSettings, now, setSetting } from "./db";
 import { type KeyResolver, verifyDkim } from "./email/dkim";
 import { parseEmail, type VenmoReceipt } from "./email/parse";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
-import { notifyPayment } from "./notify";
+import { message, notifyPayment } from "./notify";
+import { sendToOwner } from "./telegram";
 import { codeName, noteName, parsePaymentCode } from "./paymentCode";
 import type { RefundRow } from "../shared/types";
 
 export const MAX_EMAIL_BYTES = 512 * 1024;
 const VENMO = "venmo@venmo.com";
+const GMAIL_FORWARDING = "forwarding-noreply@google.com";
+
+/**
+ * When the Owner adds this address as a Gmail forwarding address, Gmail mails a confirmation
+ * code here. Pass it to the Owner's Telegram so they can finish the setup on their own; only
+ * genuine (DKIM-signed by google.com) messages are passed on.
+ */
+async function gmailConfirmation(env: Env, raw: Uint8Array, subject: string, text: string, opts: EmailOptions): Promise<EmailOutcome> {
+  const dkim = await verifyDkim(raw, "google.com", opts.resolveKey);
+  if (!dkim.ok) {
+    console.warn("gmail confirmation not verified:", dkim.reason);
+    return "gmail_unverified";
+  }
+  const body = text.split("\n").slice(0, 25).join("\n").slice(0, 1500);
+  await sendToOwner(env, message(`📮 Gmail 转发确认邮件\n${subject}\n\n${body}\n\n把上面的确认码填到 Gmail 设置里，或打开里面的确认链接。`));
+  return "gmail_confirm";
+}
 
 /** What happened to one email; returned for tests and logged by the email handler. */
 export type EmailOutcome =
@@ -26,7 +44,9 @@ export type EmailOutcome =
   | "paid"
   | "partial"
   | "overpaid"
-  | "review";
+  | "review"
+  | "gmail_confirm" // Gmail's forwarding confirmation, passed on to the Owner's Telegram
+  | "gmail_unverified";
 
 export interface EmailOptions {
   resolveKey?: KeyResolver;
@@ -43,6 +63,7 @@ export interface EmailOptions {
 export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions = {}): Promise<EmailOutcome> {
   if (raw.byteLength > MAX_EMAIL_BYTES) return "too_large";
   const mail = await parseEmail(raw);
+  if (mail.fromAddress === GMAIL_FORWARDING) return gmailConfirmation(env, raw, mail.subject, mail.text, opts);
   if (mail.fromAddress !== VENMO) return "not_venmo";
   if (!/ paid \$[\d,]+\.\d{2} to your Venmo account/.test(mail.subject.replace(/\s+/g, " "))) return "not_receipt";
   const dkim = await verifyDkim(raw, "venmo.com", opts.resolveKey);
@@ -194,4 +215,32 @@ export async function refundRows(env: Env): Promise<RefundRow[]> {
     refundCents: refundOf(p as never),
     receipts: receipts.get(p.id) ?? [],
   }));
+}
+
+const OUTCOME_ZH: Record<EmailOutcome, string> = {
+  too_large: "邮件太大，已忽略",
+  not_venmo: "不是 Venmo 的邮件，已忽略",
+  not_receipt: "是 Venmo 的其他通知（不是收款），已忽略",
+  bad_signature: "Venmo 签名校验失败，已拒绝（可能是伪造的邮件）",
+  parse_failed: "Venmo 邮件格式无法识别，已忽略",
+  wrong_recipient: "收款账号或收件邮箱和设置里的不一致，已忽略。请检查设置里的 Venmo 用户名和 Venmo 通知邮箱",
+  duplicate: "重复的邮件，已忽略",
+  ignored: "收到并验证通过；备注里没有本群付款编号，当作无关收款忽略。转发工作正常",
+  paid: "收到并验证通过，已自动记账（付清）",
+  partial: "收到并验证通过，已记账（部分付款）",
+  overpaid: "收到并验证通过，已记账（多付，需要退款）",
+  review: "收到并验证通过，已放入「待确认」",
+  gmail_confirm: "收到 Gmail 转发确认邮件，已发到你的 Telegram",
+  gmail_unverified: "收到自称 Gmail 转发确认的邮件，但签名校验失败，已忽略",
+};
+
+/** Remembers the last email that got past the From check, for the 转发状态 line in the guide. */
+export async function recordEmailOutcome(env: Env, outcome: EmailOutcome): Promise<void> {
+  if (outcome === "not_venmo" || outcome === "too_large") return; // spam and noise
+  await env.DB.batch([setSetting(env.DB, "email_last_at", now()), setSetting(env.DB, "email_last_outcome", outcome)]);
+}
+
+export async function emailStatus(env: Env): Promise<{ lastAt: string | null; outcome: string | null }> {
+  const s = await getSettings(env.DB, ["email_last_at", "email_last_outcome"]);
+  return { lastAt: s.email_last_at ?? null, outcome: s.email_last_outcome ? (OUTCOME_ZH[s.email_last_outcome as EmailOutcome] ?? null) : null };
 }

@@ -2,7 +2,7 @@ import { exports } from "cloudflare:workers";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pacificToUtc } from "../src/shared/time";
-import { handleEmail } from "../src/worker/inbound";
+import { handleEmail, recordEmailOutcome } from "../src/worker/inbound";
 import { runScheduled } from "../src/worker/notify";
 import { webhookSecret } from "../src/worker/telegram";
 import { ORIGIN, billingScenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
@@ -212,5 +212,79 @@ describe("Venmo payment notifications", () => {
     expect(texts[1]).toContain("Bob 多付了 $9.00");
     expect(texts[2]).toContain("需要确认");
     expect(texts[2]).toContain("编号里的成员没有这次活动的应付款");
+  });
+});
+
+describe("admin link from Telegram", () => {
+  it("answers 管理页面 from the bound chat only, with the working link", async () => {
+    const ctx = await setUpAdmin();
+    await connectChat();
+    await webhook("管理页面", 99); // someone else
+    expect(sent()).toEqual([]);
+
+    await webhook("管理页面", 42);
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toContain(`https://jaysbadminton.llmat.dev/admin/${ctx.adminToken}`);
+    await webhook("/admin", 42);
+    expect(sent()[1]).toContain(ctx.adminToken);
+  });
+
+  it("issues a new link when the stored one cannot be recovered", async () => {
+    const ctx = await setUpAdmin();
+    await connectChat();
+    await env.DB.prepare("DELETE FROM settings WHERE key = 'admin_token_enc'").run();
+    await webhook("管理页面", 42);
+    const link = /admin\/([A-Za-z0-9_-]+)/.exec(sent()[0]!)![1]!;
+    expect(link).not.toBe(ctx.adminToken);
+    expect(sent()[0]).toContain("旧链接已失效");
+    expect((await ctx.admin.call(`${ctx.base}/members`)).status).toBe(404);
+    expect((await ctx.admin.call(`/api/admin/${link}/members`)).status).toBe(200);
+  });
+});
+
+describe("Gmail forwarding confirmation", () => {
+  const confirmation = (sign = true) =>
+    venmoEmail(
+      { from: "Gmail Team <forwarding-noreply@google.com>", txnId: "G1" },
+      {
+        sign,
+        domain: "google.com",
+        subject: "(#123456789) Gmail Forwarding Confirmation - Receive Mail from owner@example.com",
+        body: "<p>owner@example.com has requested to automatically forward mail.</p><p>Confirmation code: 123456789</p><p>https://mail-settings.google.com/mail/vf-abc</p>",
+      },
+    );
+
+  it("passes a genuine confirmation to the Owner's Telegram and records it", async () => {
+    const ctx = await setUpAdmin();
+    await connectChat();
+    const { resolveKey } = await testKey();
+    const outcome = await handleEmail(env, (await confirmation()).raw, { resolveKey });
+    expect(outcome).toBe("gmail_confirm");
+    expect(sent()[0]).toContain("Confirmation code: 123456789");
+    expect(sent()[0]).toContain("https://mail-settings.google.com/mail/vf-abc");
+
+    await recordEmailOutcome(env, outcome);
+    expect((await ctx.admin.call(`${ctx.base}/email-status`)).data).toMatchObject({ outcome: "收到 Gmail 转发确认邮件，已发到你的 Telegram" });
+  });
+
+  it("ignores an unsigned one", async () => {
+    await setUpAdmin();
+    await connectChat();
+    const { resolveKey } = await testKey();
+    expect(await handleEmail(env, (await confirmation(false)).raw, { resolveKey })).toBe("gmail_unverified");
+    expect(sent()).toEqual([]);
+  });
+});
+
+describe("forwarding status", () => {
+  it("shows the last Venmo email's outcome and skips non-Venmo noise", async () => {
+    const ctx = await setUpAdmin();
+    expect((await ctx.admin.call(`${ctx.base}/email-status`)).data).toEqual({ lastAt: null, outcome: null });
+    await recordEmailOutcome(env, "not_venmo");
+    expect((await ctx.admin.call(`${ctx.base}/email-status`)).data.lastAt).toBeNull();
+    await recordEmailOutcome(env, "ignored");
+    const s = (await ctx.admin.call(`${ctx.base}/email-status`)).data;
+    expect(s.lastAt).not.toBeNull();
+    expect(s.outcome).toContain("转发工作正常");
   });
 });

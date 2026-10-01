@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "./env";
 import { closeExpired } from "./events";
 import { HttpError } from "./http";
-import { MAX_EMAIL_BYTES, handleEmail } from "./inbound";
+import { MAX_EMAIL_BYTES, handleEmail, recordEmailOutcome } from "./inbound";
 import { exportAll } from "./export";
 import { runScheduled } from "./notify";
 import { checkExportKey } from "./sheets";
@@ -68,7 +68,9 @@ export default {
         return;
       }
       const raw = new Uint8Array(await new Response(message.raw).arrayBuffer());
-      console.log("email:", await handleEmail(env, raw));
+      const outcome = await handleEmail(env, raw);
+      console.log("email:", outcome);
+      await recordEmailOutcome(env, outcome);
     } catch (err) {
       console.error("email handler failed:", err);
     }

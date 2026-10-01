@@ -2,6 +2,7 @@ import { getSettings, now, setSetting } from "./db";
 import type { Env } from "./env";
 import { HttpError } from "./http";
 import { hmac, randomToken, sha256 } from "./lib/crypto";
+import { currentAdminToken } from "./auth";
 
 /**
  * One bot (created by whoever hosts the site) talks to exactly one chat: the Owner's. The chat is
@@ -78,6 +79,8 @@ export async function startBinding(env: Env): Promise<string> {
     allowed_updates: ["message"],
   });
   if (!hook.ok) throw new HttpError(502, "telegram", `设置 Telegram 回调失败：${hook.description ?? "未知错误"}`);
+  // Shows /admin in the bot's menu; best effort.
+  await call(env, "setMyCommands", { commands: [{ command: "admin", description: "获取管理页面链接" }] });
   const code = randomToken();
   await env.DB.batch([
     setSetting(env.DB, "telegram_bot_username", me.result.username),
@@ -98,11 +101,19 @@ interface Update {
   };
 }
 
-/** Handles a webhook update: only "/start <valid code>" from a private chat does anything. */
+const ADMIN_LINK_WORDS = new Set(["管理页面", "管理页", "管理链接", "/admin", "/start admin"]);
+
+/**
+ * Handles a webhook update. Two things do anything: "/start <valid code>" binds a private chat,
+ * and 「管理页面」 from the bound chat gets the current admin link. Everything else is ignored.
+ */
 export async function handleUpdate(env: Env, update: Update): Promise<void> {
   const msg = update.message;
-  const m = /^\/start\s+([A-Za-z0-9_-]{20,64})$/.exec(msg?.text?.trim() ?? "");
-  if (!m || !msg?.chat || msg.chat.type !== "private") return;
+  const text = msg?.text?.trim() ?? "";
+  if (!msg?.chat || msg.chat.type !== "private") return;
+  if (ADMIN_LINK_WORDS.has(text)) return sendAdminLink(env, String(msg.chat.id));
+  const m = /^\/start\s+([A-Za-z0-9_-]{20,64})$/.exec(text);
+  if (!m) return;
   const s = await getSettings(env.DB, ["telegram_bind_hash", "telegram_bind_expires"]);
   if (!s.telegram_bind_hash || !s.telegram_bind_expires || s.telegram_bind_expires < now()) return;
   if ((await sha256(m[1]!)) !== s.telegram_bind_hash) return;
@@ -114,5 +125,14 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
     setSetting(env.DB, "telegram_chat_name", name.slice(0, 60)),
     env.DB.prepare("DELETE FROM settings WHERE key IN ('telegram_bind_hash', 'telegram_bind_expires')"),
   ]);
-  await sendToOwner(env, "✅ 已连接。羽毛球群的提醒、结算和催款消息都会发到这里。");
+  await sendToOwner(env, "✅ 已连接。羽毛球群的提醒、结算和催款消息都会发到这里。\n忘记管理页面地址时，在这里发送「管理页面」即可找回。");
+}
+
+async function sendAdminLink(env: Env, chatId: string): Promise<void> {
+  const { telegram_chat_id: bound } = await getSettings(env.DB, ["telegram_chat_id"]);
+  if (!bound || bound !== chatId) return; // only the Owner's own chat
+  const { token, renewed } = await currentAdminToken(env);
+  const link = `${env.SITE_ORIGIN}/admin/${token}`;
+  const note = renewed ? "\n（之前的管理链接无法找回，已为你生成新的，旧链接已失效。）" : "";
+  await sendToOwner(env, `🔑 管理页面：\n${escapeHtml(link)}\n打开后还需要输入管理密码。请不要转发这个链接。${note}`);
 }

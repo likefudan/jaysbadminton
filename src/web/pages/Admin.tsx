@@ -8,6 +8,7 @@ import { EventsTab } from "./AdminEvents";
 import { InboundTab } from "./AdminInbound";
 import { RemindersCard, TelegramCard } from "./AdminTelegram";
 import { ExportCard, SheetsCard } from "./AdminExport";
+import { AdminGuide } from "./AdminGuide";
 import { applyTheme, setSiteTitle } from "../site";
 import { DEFAULT_THEME, THEMES } from "../../shared/themes";
 
@@ -273,6 +274,7 @@ function Settings(props: { base: string }) {
       <button class="button secondary block" onClick={logout}>
         退出登录
       </button>
+      <AdminGuide base={props.base} />
       <ResetAll base={props.base} />
     </>
   );
