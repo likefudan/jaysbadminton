@@ -4,7 +4,7 @@
 
 A sign-up and fee-collection site for a casual weekly badminton group (~50 members, 20–30 per session). Members sign up through a private link, the Owner enters court and shuttlecock costs, the system splits the bill, members pay through a pre-filled Venmo link, and forwarded Venmo receipt emails mark payments as paid automatically. Notifications go to the Owner on Telegram, ready to paste into WeChat.
 
-- **Site**: https://jaysbadminton.llmat.dev (not deployed yet)
+- **Site**: https://jaysbadminton.llmat.dev
 - **Stack**: Cloudflare Workers + D1 + Cron Triggers + Email Routing (free tier), with a daily Google Sheets mirror via Apps Script
 
 ## Docs
@@ -13,6 +13,7 @@ A sign-up and fee-collection site for a casual weekly badminton group (~50 membe
 | --- | --- | --- |
 | [docs/requirements.zh.md](docs/requirements.zh.md) | 中文 | 需求文档：业务规则、页面、费用计算、对账、通知 |
 | [docs/technical-design.md](docs/technical-design.md) | English | Architecture, data model, API, email ingestion, jobs, deployment, setup checklist |
+| [docs/launch-checklist.md](docs/launch-checklist.md) | 中文 | 上线检查清单：交接、管理员首次设置、真实环境验证、日常维护 |
 
 ## Development
 
@@ -36,7 +37,7 @@ npm run typecheck
 
 ## Deployment
 
-Every push to `main` runs typecheck, tests and build, then deploys with GitHub Actions (`.github/workflows/ci.yml`): it finds or creates the `jaysbadminton` D1 database, applies migrations and runs `wrangler deploy`, which also attaches the `jaysbadminton.llmat.dev` custom domain.
+Every push to `main` runs typecheck, tests and build, then deploys with GitHub Actions (`.github/workflows/ci.yml`): it finds or creates the `jaysbadminton` D1 database, applies migrations, runs `wrangler deploy` (which also attaches the `jaysbadminton.llmat.dev` custom domain), and finally smoke-tests the live site from the outside (`scripts/smoke.mjs`).
 
 Repository secrets required:
 

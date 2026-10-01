@@ -1,0 +1,6 @@
+# Applied by Cloudflare to the static pages (the Worker adds the same to API responses).
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()

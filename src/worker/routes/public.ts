@@ -39,10 +39,17 @@ publicRoutes.get("/events/:code", async (c) => {
   return c.json<PublicEvent>(summary!);
 });
 
+const MAX_PENDING = 30;
+
 publicRoutes.post("/join", async (c) => {
   const body = await readJson(c.req.raw);
   // Honeypot: real people never see this field, bots fill it in.
   if (str(body.website)) return c.json({ ok: true });
+  // A bot that gets past the honeypot can still only fill the queue up to this many.
+  const pending = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE status = 'pending'").first<{ n: number }>();
+  if ((pending?.n ?? 0) >= MAX_PENDING) {
+    throw new HttpError(429, "too_many_pending", "现在待审核的申请太多了，请先联系管理员处理后再提交");
+  }
   const m = await createMember(c.env, {
     username: str(body.username),
     wechatNickname: str(body.wechatNickname),

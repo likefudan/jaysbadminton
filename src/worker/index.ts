@@ -18,6 +18,8 @@ app.use("*", async (c, next) => {
   // Member and admin links carry secret tokens in the path; keep them out of caches and referrers.
   c.header("Cache-Control", "no-store");
   c.header("Referrer-Policy", "no-referrer");
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
 });
 
 app.get("/api/health", async (c) => {
