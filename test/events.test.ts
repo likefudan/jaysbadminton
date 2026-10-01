@@ -157,3 +157,51 @@ describe("Owner roster edits", () => {
     expect((await ctx.admin.call(`${ctx.base}/events/${closed.id}`)).data.headcount).toBe(1);
   });
 });
+
+describe("emergency controls", () => {
+  it("closes sign-up early so the event can be settled", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    const gus = await approveMember(ctx, "Gus");
+    await anon.call(`${gus.base}/events/${e.id}/signup`, { friends: [] });
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/close-now`, {})).status).toBe(200);
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.status).toBe("closed");
+    expect((await anon.call(`${gus.base}/events/${e.id}/cancel`, {})).data.error.message).toBe("报名已截止，不能再修改");
+    const again = await ctx.admin.call(`${ctx.base}/events/${e.id}/close-now`, {});
+    expect(again.data.error.message).toBe("只有报名中的活动可以提前截止");
+    const fin = await ctx.admin.call(`${ctx.base}/events/${e.id}/finalize`, { courtTotal: "20", shuttleCount: 1, shuttlePrice: "3" });
+    expect(fin.status).toBe(200);
+  });
+
+  it("edits date, time and location but keeps the event code", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx, { deadlineDays: 1, deadlineHours: 0 });
+    const newDate = futureDate(9);
+    const res = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+      date: newDate, startTime: "20:00", endTime: "22:00", location: "New Gym",
+    });
+    expect(res.data).toMatchObject({ code: e.code, date: newDate, startTime: "20:00", endTime: "22:00", location: "New Gym", status: "open" });
+    // An open event keeps its "1 day before start" deadline.
+    expect(Date.parse(res.data.deadlineAt)).toBe(Date.parse((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.deadlineAt));
+    const start = await env.DB.prepare("SELECT start_at FROM events WHERE id = ?").bind(e.id).first<string>("start_at");
+    expect(Date.parse(start!) - Date.parse(res.data.deadlineAt)).toBe(86400_000);
+    expect((await anon.call(`/api/public/events/${e.code}`)).data.location).toBe("New Gym");
+  });
+
+  it("closes sign-up when an edit moves the deadline into the past, and works after Finalize", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx, { deadlineDays: 3, deadlineHours: 0 });
+    const soon = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+      date: futureDate(1), startTime: "19:00", endTime: "21:00", location: "Gym",
+    });
+    expect(soon.data.status).toBe("closed");
+    const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active[0].id;
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: owner, includeSelf: true, friends: ["x"] });
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/finalize`, { courtTotal: "20", shuttleCount: 1, shuttlePrice: "3" });
+    // Settled (Owner-only bill is auto-paid) → read-only.
+    const locked = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+      date: futureDate(1), startTime: "19:00", endTime: "21:00", location: "Elsewhere",
+    });
+    expect(locked.data.error.message).toBe("这个活动已收齐归档，不能再修改");
+  });
+});

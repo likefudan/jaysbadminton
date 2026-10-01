@@ -76,6 +76,58 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
   return c.json({ ok: true });
 });
 
+/** Closes sign-up right away, e.g. when there are already enough people. */
+adminEventRoutes.post("/events/:id/close-now", async (c) => {
+  await closeExpired(c.env);
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  if (e.status !== "open") throw badRequest("只有报名中的活动可以提前截止");
+  await c.env.DB.prepare("UPDATE events SET status = 'closed', deadline_at = ? WHERE id = ? AND status = 'open'")
+    .bind(now(), e.id)
+    .run();
+  return c.json({ ok: true });
+});
+
+/**
+ * Emergency edit of date, times and location. The event code stays the same so links and
+ * payment codes already sent out keep working. An open event keeps its deadline offset; if the
+ * new deadline has already passed, sign-up closes. Closed events stay closed.
+ */
+adminEventRoutes.post("/events/:id/edit", async (c) => {
+  await closeExpired(c.env);
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  if (e.status === "settled") throw badRequest("这个活动已收齐归档，不能再修改");
+  if (e.status === "cancelled") throw badRequest("这个活动已取消");
+  const b = await readJson(c.req.raw);
+  const date = str(b.date);
+  const startTime = str(b.startTime);
+  const endTime = str(b.endTime);
+  const location = str(b.location).trim();
+  if (!isDate(date)) throw badRequest("请选择日期");
+  if (!isTime(startTime) || !isTime(endTime)) throw badRequest("请填写开始和结束时间");
+  if (!location) throw badRequest("请填写地点");
+  if ([...location].length > 60) throw badRequest("地点最多 60 个字");
+  const startAt = pacificToUtc(date, startTime);
+  let endAt = pacificToUtc(date, endTime);
+  if (endAt <= startAt) endAt = new Date(Date.parse(endAt) + 86400_000).toISOString();
+  let deadline = e.deadline_at;
+  let status = e.status;
+  if (e.status === "open") {
+    deadline = new Date(Date.parse(startAt) - e.deadline_offset_min * 60_000).toISOString();
+    if (deadline <= now()) status = "closed";
+  }
+  const ts = now();
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, deadline_at = ?, status = ? WHERE id = ?",
+    ).bind(date, startAt, endAt, location, deadline, status, e.id),
+    c.env.DB.prepare(
+      `INSERT INTO locations (name, last_used_at, use_count) VALUES (?, ?, 1)
+       ON CONFLICT (name) DO UPDATE SET last_used_at = excluded.last_used_at, use_count = use_count + 1`,
+    ).bind(location, ts),
+  ]);
+  return c.json(await detail(c.env, await getEvent(c.env, e.id)));
+});
+
 /** Reopens sign-up with a new deadline, which may be as late as the event's end. */
 adminEventRoutes.post("/events/:id/reopen", async (c) => {
   await closeExpired(c.env);
