@@ -79,7 +79,32 @@ export interface EventDefaults {
 export interface HomeResponse {
   currentEvents: EventSummary[];
   pastEvents: EventSummary[];
-  leaderboard: unknown[];
+  leaderboard: Leaderboard;
+}
+
+export interface RankEntry {
+  name: string;
+  value: number;
+}
+
+/** 公开排行榜 (members only, no money). */
+export interface Leaderboard {
+  year: number;
+  attendance: RankEntry[]; // this year
+  streak: RankEntry[]; // longest consecutive run, all time
+  friends: RankEntry[]; // friends brought this year
+}
+
+/** 个人统计, shown only on the member's own page. */
+export interface MyStats {
+  year: number;
+  yearCount: number;
+  totalCount: number;
+  yearSpendCents: number;
+  avgSpendCents: number;
+  /** Same period last year: Jan 1 up to today's month-day. */
+  lastYearCount: number;
+  lastYearSpendCents: number;
 }
 
 export interface PublicEvent extends EventSummary {

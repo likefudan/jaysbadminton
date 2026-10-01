@@ -5,6 +5,7 @@ import { adminLinkExists, checkPassword, issueAdminToken, startSession } from ".
 import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
 import { siteTheme, siteTitle } from "../site";
+import { leaderboard } from "../stats";
 import { createMember, issueMemberToken, memberLink } from "../members";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
@@ -22,7 +23,7 @@ publicRoutes.get("/home", async (c) => {
   return c.json<HomeResponse>({
     currentEvents: await summaries(c.env, current.results),
     pastEvents: await summaries(c.env, past.results),
-    leaderboard: [],
+    leaderboard: await leaderboard(c.env),
   });
 });
 
