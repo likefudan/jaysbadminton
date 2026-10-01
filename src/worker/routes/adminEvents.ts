@@ -25,6 +25,7 @@ import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
 import { inboundRows, openPayments, refundRows } from "../inbound";
 import { message, notifySettings } from "../notify";
+import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { disconnect, sendToOwner, startBinding, telegramStatus } from "../telegram";
@@ -478,3 +479,15 @@ adminEventRoutes.post("/sheets/disable", async (c) => {
   await disableExport(c.env);
   return c.json({ ok: true });
 });
+
+// ---- Address suggestions for the venue form ----
+
+adminEventRoutes.get("/places", async (c) => {
+  const q = (c.req.query("q") ?? "").trim().slice(0, 120);
+  if (q.length < 3) return c.json({ suggestions: [] });
+  return c.json({ suggestions: await suggestAddresses(c.env, q, (c.req.query("s") ?? "").slice(0, 64)) });
+});
+
+adminEventRoutes.get("/places/:id", async (c) =>
+  c.json({ address: await resolveAddress(c.env, c.req.param("id"), (c.req.query("s") ?? "").slice(0, 64)) }),
+);

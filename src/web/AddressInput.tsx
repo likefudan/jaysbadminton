@@ -1,89 +1,84 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import type { AddressSuggestion } from "../shared/types";
+import { api } from "./api";
 
-interface Suggestion {
-  label: string; // "1234 Main St, San Jose, CA 95131"
-  place: string; // POI name when the result is a place, e.g. "Bay Badminton Center"
-}
-
-interface PhotonFeature {
-  properties: {
-    name?: string;
-    housenumber?: string;
-    street?: string;
-    city?: string;
-    town?: string;
-    district?: string;
-    state?: string;
-    postcode?: string;
-    countrycode?: string;
-  };
-}
-
-const STATES: Record<string, string> = {
-  Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR", California: "CA", Colorado: "CO", Connecticut: "CT",
-  Delaware: "DE", "District of Columbia": "DC", Florida: "FL", Georgia: "GA", Hawaii: "HI", Idaho: "ID", Illinois: "IL",
-  Indiana: "IN", Iowa: "IA", Kansas: "KS", Kentucky: "KY", Louisiana: "LA", Maine: "ME", Maryland: "MD",
-  Massachusetts: "MA", Michigan: "MI", Minnesota: "MN", Mississippi: "MS", Missouri: "MO", Montana: "MT",
-  Nebraska: "NE", Nevada: "NV", "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
-  "North Carolina": "NC", "North Dakota": "ND", Ohio: "OH", Oklahoma: "OK", Oregon: "OR", Pennsylvania: "PA",
-  "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD", Tennessee: "TN", Texas: "TX", Utah: "UT",
-  Vermont: "VT", Virginia: "VA", Washington: "WA", "West Virginia": "WV", Wisconsin: "WI", Wyoming: "WY",
-};
-
-function format(f: PhotonFeature): Suggestion | null {
-  const p = f.properties;
-  if (p.countrycode !== "US") return null;
-  const street = [p.housenumber, p.street].filter(Boolean).join(" ");
-  const city = p.city ?? p.town ?? p.district;
-  const state = p.state ? (STATES[p.state] ?? p.state) : "";
-  const tail = [state, p.postcode].filter(Boolean).join(" ");
-  const label = [street || (p.street ? "" : p.name), city, tail].filter(Boolean).join(", ");
-  if (!label) return null;
-  return { label, place: street && p.name && p.name !== p.street ? p.name : "" };
-}
+const newSession = () =>
+  typeof crypto.randomUUID === "function" ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now();
 
 /**
- * US address field with suggestions as you type (Photon / OpenStreetMap, no key needed).
- * Picking a place also offers its name, so a new venue can be filled from one search.
+ * US address field with suggestions as you type, Northern California first. Lookups go through
+ * our server (Google Places when configured, otherwise Photon). Picking a business also offers
+ * its name, so a new venue can be filled from one search.
  */
-export function AddressInput(props: { value: string; onInput: (v: string) => void; onPlace?: (name: string) => void }) {
-  const [list, setList] = useState<Suggestion[]>([]);
+export function AddressInput(props: {
+  base: string; // /api/admin/<token>
+  value: string;
+  onInput: (v: string) => void;
+  onPlace?: (name: string) => void;
+}) {
+  const [list, setList] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
   const typed = useRef(false);
+  // One Google billing session per address picked: keystrokes plus the final lookup.
+  const session = useRef(newSession());
+  const cache = useRef(new Map<string, AddressSuggestion[]>());
 
   useEffect(() => {
     const q = props.value.trim();
-    if (!typed.current || q.length < 4) {
+    if (!typed.current || q.length < 3) {
       setList([]);
+      setSearching(false);
       return;
     }
-    const ctrl = new AbortController();
+    const hit = cache.current.get(q.toLowerCase());
+    if (hit) {
+      setList(hit);
+      setOpen(hit.length > 0);
+      return;
+    }
+    let live = true;
     const t = setTimeout(async () => {
+      setSearching(true);
       try {
-        // The group plays on Pacific time, so nearby (West Coast) results come first.
-        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=en&lat=37.4&lon=-121.9&zoom=7&location_bias_scale=0.5&bbox=-125,24,-66,50`;
-        const res = await fetch(url, { signal: ctrl.signal });
-        const json = (await res.json()) as { features: PhotonFeature[] };
-        const seen = new Set<string>();
-        const items = json.features
-          .map(format)
-          .filter((s): s is Suggestion => !!s && !seen.has(s.label) && !!seen.add(s.label))
-          .slice(0, 5);
-        setList(items);
-        setOpen(items.length > 0);
+        const r = await api<{ suggestions: AddressSuggestion[] }>(
+          `${props.base}/places?q=${encodeURIComponent(q)}&s=${session.current}`,
+        );
+        cache.current.set(q.toLowerCase(), r.suggestions);
+        if (!live) return;
+        setList(r.suggestions);
+        setOpen(r.suggestions.length > 0);
       } catch {
-        // Offline or blocked: the field still works as plain text.
+        // Offline or the lookup failed: the field still works as plain text.
+      } finally {
+        if (live) setSearching(false);
       }
-    }, 350);
+    }, 250);
     return () => {
+      live = false;
       clearTimeout(t);
-      ctrl.abort();
     };
   }, [props.value]);
 
+  async function pick(s: AddressSuggestion) {
+    typed.current = false;
+    setOpen(false);
+    if (s.place) props.onPlace?.(s.place);
+    props.onInput(s.label);
+    if (s.id) {
+      const r = await api<{ address: string | null }>(`${props.base}/places/${encodeURIComponent(s.id)}?s=${session.current}`).catch(
+        () => null,
+      );
+      if (r?.address) props.onInput(r.address);
+    }
+    session.current = newSession();
+  }
+
   return (
     <label class="field suggest">
-      <span>地址</span>
+      <span>
+        地址{searching && <em class="searching">搜索中…</em>}
+      </span>
       <input
         value={props.value}
         placeholder="输入地址或球馆名，会自动联想"
@@ -98,17 +93,8 @@ export function AddressInput(props: { value: string; onInput: (v: string) => voi
       {open && (
         <ul class="suggestions">
           {list.map((s) => (
-            <li key={s.label}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  typed.current = false;
-                  props.onInput(s.label);
-                  if (s.place) props.onPlace?.(s.place);
-                  setOpen(false);
-                }}
-              >
+            <li key={s.id ?? s.label}>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(s)}>
                 {s.place && <strong>{s.place}</strong>}
                 <span>{s.label}</span>
               </button>

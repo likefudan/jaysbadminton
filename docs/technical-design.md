@@ -163,6 +163,10 @@ One Cron Trigger runs every 10 minutes (`*/10 * * * *`, UTC); the handler conver
 
 **Binding the Owner's chat**: 设置 → 连接 Telegram calls `getMe` and `setWebhook` (`/api/telegram/webhook`, with a `secret_token` derived from `TOKEN_KEY` that Telegram echoes in `X-Telegram-Bot-Api-Secret-Token`), then returns `t.me/<bot>?start=<code>`. The code is random, stored hashed, single-use and valid for 10 minutes. The webhook acts only on `/start <valid code>` from a private chat, which stores that chat as the only recipient; everything else is ignored. Settle reminders are quiet from 22:00 to 08:00 Pacific.
 
+## Address suggestions
+
+The venue form's 地址 field asks our own endpoint (`GET /api/admin/{token}/places?q=`), so no key reaches the browser. With the `GOOGLE_MAPS_API_KEY` secret set it uses Google Places (New) Autocomplete, restricted to the US and biased to Northern California (36°–42°N, 124.5°–119°W); picking a suggestion fetches only `formattedAddress` with the same session token, so a whole search is billed as one session and stays within Google's free monthly calls. Without the key, or if Google refuses (quota, key problem), it falls back to Photon (OpenStreetMap): Northern California first, then the rest of the US. The page waits 250 ms after typing, shows 搜索中…, and caches repeated queries.
+
 ## Google Sheets daily mirror
 
 The site never logs into Google. 设置 → Google 表格同步 → 开启同步 creates an export key (stored hashed to check requests, and AES-GCM encrypted under `TOKEN_KEY` so the page can show the script again) and shows a ready-to-paste Apps Script with the site address and key filled in (`src/worker/sheets.ts`). The Owner pastes it into the sheet's Apps Script editor and runs `install` once.

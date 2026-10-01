@@ -45,6 +45,7 @@ Repository secrets required:
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → any domain's Overview page, right column |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template, add **Account · D1 · Edit**, limit to this account and the `llmat.dev` zone |
 | `TELEGRAM_BOT_TOKEN` | Telegram → @BotFather → `/newbot`. Optional; notifications stay off without it. The Owner connects their own Telegram from the admin settings |
+| `GOOGLE_MAPS_API_KEY` | Optional. Google Cloud → enable **Places API (New)** → API key restricted to that API. Makes address suggestions fast; without it the free (slower) Photon service is used. Usage stays inside Google's free monthly calls |
 | `ADMIN_PASSWORD` | Your choice. Initial admin password, and the recovery path: change it and redeploy to reset a forgotten password |
 
 CI also generates the `TOKEN_KEY` Worker secret on the first deploy and never replaces it.

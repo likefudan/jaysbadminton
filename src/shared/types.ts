@@ -214,3 +214,10 @@ export interface InboundResponse {
   payments: OpenPayment[];
   refunds: RefundRow[];
 }
+
+/** One address suggestion; Google ones carry an id resolved to the full address when picked. */
+export interface AddressSuggestion {
+  id: string | null;
+  place: string; // business name, e.g. "Bay Badminton Center", or "" for plain addresses
+  label: string; // address text shown (and used directly when there is no id)
+}

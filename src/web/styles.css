@@ -1082,3 +1082,9 @@ ol.steps li {
   justify-content: center;
   align-items: center;
 }
+.searching {
+  font-style: normal;
+  font-weight: 400;
+  margin-left: 8px;
+  color: var(--accent);
+}
