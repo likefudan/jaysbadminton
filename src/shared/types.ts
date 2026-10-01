@@ -128,3 +128,35 @@ export interface MyPayment {
   venmoUsername: string;
   zelleAccount: string;
 }
+
+export type InboundKind = "unmatched" | "anomaly" | "other" | "parse_failed";
+
+/** A forwarded Venmo email that did not mark a payment by itself. */
+export interface InboundRow {
+  id: number;
+  kind: InboundKind;
+  state: "open" | "linked" | "ignored";
+  payerName: string | null;
+  amountCents: number | null;
+  note: string | null;
+  receivedAt: string;
+  txnId: string | null;
+  rawText: string | null; // parse_failed only
+  linked: { paymentId: number; memberName: string; eventLabel: string } | null;
+}
+
+/** A payment still waiting for money, offered as a link target for an inbound row. */
+export interface OpenPayment {
+  id: number;
+  eventLabel: string; // "10月6日 周二"
+  memberName: string;
+  amountDueCents: number;
+  status: PaymentStatus;
+  paymentCode: string;
+}
+
+export interface InboundResponse {
+  open: InboundRow[];
+  done: InboundRow[];
+  payments: OpenPayment[];
+}

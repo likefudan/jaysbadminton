@@ -5,9 +5,10 @@ import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
 import { EventsTab } from "./AdminEvents";
+import { InboundTab } from "./AdminInbound";
 import { setSiteTitle } from "../site";
 
-type Tab = "events" | "pending" | "members" | "settings";
+type Tab = "events" | "inbound" | "pending" | "members" | "settings";
 
 export function Admin(props: { token?: string }) {
   const base = `/api/admin/${props.token}`;
@@ -32,6 +33,9 @@ export function Admin(props: { token?: string }) {
               <button class={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>
                 活动
               </button>
+              <button class={tab === "inbound" ? "active" : ""} onClick={() => setTab("inbound")}>
+                收款
+              </button>
               <button class={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>
                 待审核{m.pending.length > 0 && ` (${m.pending.length})`}
               </button>
@@ -43,6 +47,7 @@ export function Admin(props: { token?: string }) {
               </button>
             </div>
             {tab === "events" && <EventsTab base={base} members={m.active} />}
+            {tab === "inbound" && <InboundTab base={base} />}
             {tab === "pending" && <Pending base={base} list={m.pending} onChange={reload} />}
             {tab === "members" && <Members base={base} data={m} onChange={reload} />}
             {tab === "settings" && <Settings base={base} />}

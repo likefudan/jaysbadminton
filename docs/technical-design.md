@@ -132,16 +132,19 @@ Settlement is one pure function, `settle(roster, inputs)`, shared by preview and
 
 A Gmail filter forwards only mail from `venmo@venmo.com` to `venmo@jaysbadminton.llmat.dev`; Cloudflare Email Routing hands each message to the Worker's `email()` handler, which matches it within seconds. The Worker never has access to the Owner's mailbox.
 
-1. **Accept or drop**: the original sender (from the forwarded headers) must be `venmo@venmo.com` and the subject must contain `paid` and `to your Venmo account`; anything else is dropped. The envelope sender must also be the Owner's Gmail (Gmail forwarding keeps it as the envelope sender), and the message must carry a passing DKIM signature for venmo.com in its Authentication-Results/ARC headers, so a forged "Venmo" email sent straight to the address cannot mark anyone as paid.
-2. **Parse** the text body (HTML stripped with `postal-mime` when no text part exists) using the field rules in the requirements: payer before `paid you`, first `$` amount, note between the amount and `Money credited to your Venmo account.`, date, `Transaction ID`, and `Sent to` (must equal the configured Venmo username).
+1. **Accept or drop**: the From address must be `venmo@venmo.com` and the subject must read `… paid $X.XX to your Venmo account`; anything else is dropped silently (never bounced). The Worker then verifies Venmo's own DKIM signature itself (`d=venmo.com`, rsa-sha256, From and Subject signed, exactly one From/Subject header, no `l=`), fetching the public key over DNS-over-HTTPS (Cloudflare, falling back to Google). Gmail forwarding and Email Routing only add headers on top, so the signature survives; this was checked against a real forwarded receipt. A forged "Venmo" email sent straight to the address fails here and is dropped. If DNS is unreachable the email is not dropped but parked as `parse_failed` for the Owner, never auto-marked.
+2. **Parse** the HTML body (Venmo receipts carry an empty text part): HTML is flattened to lines, then the field rules in the requirements apply: payer before `paid you`, the amount after it (Venmo splits `$7.00` across several elements, so the pieces are joined and cross-checked against the subject), note up to `Money credited to your Venmo account.`, then the `Date`, `Transaction ID` and `Sent to` values. `Sent to` must equal the configured Venmo username, otherwise the email is ignored.
 3. **De-duplicate** on the Venmo transaction ID; a second copy is ignored.
 4. **Match** the note against `/jbm\s*(\d{8})([a-z]?)\s*-\s*m(\d+)/i` among events that are not archived:
    - match and amount equal → mark the payment `paid` (`venmo_auto`), store amount, time and transaction ID, then run the "all collected?" check;
-   - match but amount differs, or the payment is already paid → record it, set `anomaly`, notify the Owner;
+   - match but amount differs → store the amount on the payment and set it to `anomaly` (shown on the event's payment board);
+   - match but the payment is already paid or flagged → `inbound_payments` kind `anomaly` linked to that payment (a second payment), notify the Owner;
    - a code that matches nothing → `inbound_payments` kind `unmatched`, notify the Owner;
    - no code at all → kind `other`, no notification (unrelated personal payments land here);
    - parse failure → kind `parse_failed` with the raw text, notify the Owner.
-5. Keep the first 50 KB of raw text for every inbound row so parsing bugs can be replayed in tests.
+5. Keep the first 50 KB of the flattened text for `parse_failed` rows so parsing bugs can be replayed in tests.
+
+The admin page's 收款 tab lists open inbound rows (待确认 and 其他收款); the Owner links one to an open bill (marks it paid with that amount) or ignores it.
 
 **Gmail forwarding confirmation**: while the Owner adds the forwarding address, Email Routing temporarily forwards that address to the Owner's Gmail so Google's confirmation link arrives; the route is switched to the Worker before the Gmail filter is created, avoiding a forwarding loop. The sample email from the requirements becomes the first parser test fixture.
 

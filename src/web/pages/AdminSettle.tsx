@@ -113,7 +113,7 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
               <small>
                 ${dollars(p.amountDueCents)} · {p.paymentCode}
                 {p.status === "paid" && ` · 已付${p.method === "venmo_auto" ? "（Venmo 自动）" : ""}`}
-                {p.status === "anomaly" && " · 金额异常"}
+                {p.status === "anomaly" && ` · 金额异常（Venmo 实付 $${dollars(p.amountPaidCents ?? 0)}）`}
               </small>
             </div>
             {!settled && !p.isOwner && (

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
-import type { EventDefaults, SettlementView } from "../../shared/types";
+import type { EventDefaults, InboundResponse, SettlementView } from "../../shared/types";
 import { checkCollected, finalize, paymentRows, recomputeIfFinalized, savedInput, settleRows } from "../billing";
 import { isDate, isTime, pacificToUtc } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
@@ -19,6 +19,7 @@ import {
 import { badRequest, readJson, str } from "../http";
 import { SITE_TITLE_MAX, siteTitle } from "../site";
 import { requireMember } from "../members";
+import { inboundRows, openPayments } from "../inbound";
 
 /** Mounted under /api/admin/:token after the admin auth middleware. */
 export const adminEventRoutes = new Hono<{ Bindings: Env }>();
@@ -330,5 +331,45 @@ adminEventRoutes.post("/payments/:pid/unmark", async (c) => {
   )
     .bind(id)
     .run();
+  return c.json({ ok: true });
+});
+
+adminEventRoutes.get("/inbound", async (c) =>
+  c.json<InboundResponse>({
+    open: await inboundRows(c.env, "open"),
+    done: await inboundRows(c.env, "done"),
+    payments: await openPayments(c.env),
+  }),
+);
+
+async function openInbound(env: Env, id: number) {
+  const i = await env.DB.prepare("SELECT id, state, amount_cents, venmo_txn_id, linked_payment_id FROM inbound_payments WHERE id = ?")
+    .bind(id)
+    .first<{ id: number; state: string; amount_cents: number | null; venmo_txn_id: string | null; linked_payment_id: number | null }>();
+  if (!i) throw badRequest("找不到这笔收款");
+  if (i.state !== "open") throw badRequest("这笔收款已经处理过了");
+  return i;
+}
+
+/** The Owner says this Venmo payment is someone's bill: mark that bill paid with this money. */
+adminEventRoutes.post("/inbound/:iid/link", async (c) => {
+  const i = await openInbound(c.env, Number(c.req.param("iid")));
+  const paymentId = num((await readJson(c.req.raw)).paymentId);
+  const { p, e } = await paymentEvent(c.env, paymentId);
+  if (p.status === "paid") throw badRequest("这笔应付款已经付清了");
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `UPDATE payments SET status = 'paid', method = 'manual', amount_paid_cents = ?, paid_at = ?,
+         venmo_txn_id = COALESCE(venmo_txn_id, ?) WHERE id = ?`,
+    ).bind(i.amount_cents ?? p.amount_due_cents, now(), i.venmo_txn_id, paymentId),
+    c.env.DB.prepare("UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ?").bind(paymentId, i.id),
+  ]);
+  const settled = await checkCollected(c.env, e.id);
+  return c.json({ ok: true, settled });
+});
+
+adminEventRoutes.post("/inbound/:iid/ignore", async (c) => {
+  const i = await openInbound(c.env, Number(c.req.param("iid")));
+  await c.env.DB.prepare("UPDATE inbound_payments SET state = 'ignored' WHERE id = ?").bind(i.id).run();
   return c.json({ ok: true });
 });
