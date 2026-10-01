@@ -10,6 +10,7 @@ export default defineConfig({
           TEST_MIGRATIONS: await readD1Migrations("./migrations"),
           TOKEN_KEY: "test-token-key",
           ADMIN_PASSWORD: "initial-password",
+          TELEGRAM_BOT_TOKEN: "test-bot-token",
         },
       },
     })),

@@ -6,6 +6,7 @@ import { type KeyResolver, verifyDkim } from "./email/dkim";
 import { parseEmail, type VenmoReceipt } from "./email/parse";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
+import { notifyPayment } from "./notify";
 import { codeName, noteName, parsePaymentCode } from "./paymentCode";
 import type { RefundRow } from "../shared/types";
 
@@ -96,9 +97,17 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
   const after = (await env.DB.prepare("SELECT status, amount_due_cents, amount_paid_cents FROM payments WHERE id = ?")
     .bind(p.id)
     .first<{ status: string; amount_due_cents: number; amount_paid_cents: number }>())!;
-  if (after.status === "partial") return "partial"; // Card 6: tell the Owner
+  const info = { payer: r.payer, amountCents: r.amountCents, note: r.note, paymentId: p.id };
+  if (after.status === "partial") {
+    await notifyPayment(env, "partial", info);
+    return "partial";
+  }
   if (e.status === "finalized") await checkCollected(env, e.id);
-  return after.amount_paid_cents > after.amount_due_cents ? "overpaid" : "paid"; // Card 6: overpaid → refund notice
+  if (after.amount_paid_cents > after.amount_due_cents) {
+    await notifyPayment(env, "overpaid", info);
+    return "overpaid";
+  }
+  return "paid";
 }
 
 /** True when the note's name is someone's in the group, now or as printed on an earlier bill. */
@@ -116,8 +125,9 @@ async function record(env: Env, r: VenmoReceipt, emailId: string, reason: string
   )
     .bind(r.txnId, emailId, r.payer, r.amountCents, r.note, now(), reason)
     .run();
-  // Card 6: notify the Owner about a new 待确认 row.
-  return res.meta.changes > 0 ? "review" : "duplicate";
+  if (res.meta.changes === 0) return "duplicate";
+  await notifyPayment(env, "review", { payer: r.payer, amountCents: r.amountCents, note: r.note, reason });
+  return "review";
 }
 
 const eventLabel = (date: string, code: string) => formatDateZh(date) + (code.length > 4 ? ` 第${code.charCodeAt(4) - 64}场` : "");

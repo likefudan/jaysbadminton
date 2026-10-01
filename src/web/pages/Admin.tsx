@@ -6,6 +6,7 @@ import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../componen
 import { useApi } from "../hooks";
 import { EventsTab } from "./AdminEvents";
 import { InboundTab } from "./AdminInbound";
+import { RemindersCard, TelegramCard } from "./AdminTelegram";
 import { setSiteTitle } from "../site";
 
 type Tab = "events" | "inbound" | "pending" | "members" | "settings";
@@ -232,6 +233,8 @@ function Settings(props: { base: string }) {
   return (
     <>
       <FriendCap base={props.base} />
+      <TelegramCard base={props.base} />
+      <RemindersCard base={props.base} />
       <Card title="修改管理密码">
         <form onSubmit={changePassword}>
           <Field label="当前密码" type="password" value={current} onInput={setCurrent} autocomplete="current-password" />

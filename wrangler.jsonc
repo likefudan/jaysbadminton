@@ -19,6 +19,7 @@
       "migrations_dir": "migrations"
     }
   ],
+  "vars": { "SITE_ORIGIN": "https://jaysbadminton.llmat.dev" },
   "triggers": { "crons": ["*/10 * * * *"] },
   "routes": [{ "pattern": "jaysbadminton.llmat.dev", "custom_domain": true }],
   "observability": { "enabled": true }

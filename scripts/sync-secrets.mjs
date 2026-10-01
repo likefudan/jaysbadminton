@@ -1,6 +1,7 @@
 // CI helper: push Worker secrets after deploy.
 // - ADMIN_PASSWORD comes from the GitHub secret on every deploy; the Worker resets the stored
 //   password hash when it changes, which is how a forgotten password is recovered.
+// - TELEGRAM_BOT_TOKEN comes from the GitHub secret when it is set.
 // - TOKEN_KEY is generated once and never replaced: it decrypts member links and peppers the password hash.
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -15,6 +16,9 @@ const secrets = {};
 
 if (process.env.ADMIN_PASSWORD) secrets.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 else if (!existing.has("ADMIN_PASSWORD")) throw new Error("ADMIN_PASSWORD GitHub secret is not set");
+
+// Optional: notifications stay off until the bot exists.
+if (process.env.TELEGRAM_BOT_TOKEN) secrets.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 if (!existing.has("TOKEN_KEY")) {
   console.log("Generating TOKEN_KEY");

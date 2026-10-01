@@ -3,6 +3,8 @@ import type { Env } from "./env";
 import { closeExpired } from "./events";
 import { HttpError } from "./http";
 import { MAX_EMAIL_BYTES, handleEmail } from "./inbound";
+import { runScheduled } from "./notify";
+import { handleUpdate, webhookSecret } from "./telegram";
 import { adminRoutes } from "./routes/admin";
 import { memberRoutes } from "./routes/member";
 import { publicRoutes } from "./routes/public";
@@ -21,6 +23,17 @@ app.get("/api/health", async (c) => {
   return c.json({ ok: true, members: row?.n ?? 0 });
 });
 
+// Telegram delivers bot messages here; only the binding code in "/start <code>" is acted on.
+app.post("/api/telegram/webhook", async (c) => {
+  if (c.req.header("X-Telegram-Bot-Api-Secret-Token") !== (await webhookSecret(c.env))) return c.json({ ok: false }, 403);
+  try {
+    await handleUpdate(c.env, await c.req.json());
+  } catch (err) {
+    console.error("telegram update failed:", err);
+  }
+  return c.json({ ok: true });
+});
+
 app.route("/api/public", publicRoutes);
 app.route("/api/m", memberRoutes);
 app.route("/api/admin", adminRoutes);
@@ -37,7 +50,7 @@ export default {
   fetch: app.fetch,
   async scheduled(_controller, env, _ctx) {
     await closeExpired(env);
-    // Reminders and dunning land here in card 6.
+    await runScheduled(env);
   },
   async email(message, env, _ctx) {
     // Never bounce or throw: a bounce would land in the Owner's Gmail for every non-receipt.

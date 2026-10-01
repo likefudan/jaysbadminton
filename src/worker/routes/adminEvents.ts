@@ -21,6 +21,8 @@ import { badRequest, readJson, str } from "../http";
 import { SITE_TITLE_MAX, siteTitle } from "../site";
 import { requireMember } from "../members";
 import { inboundRows, openPayments, refundRows } from "../inbound";
+import { message, notifySettings } from "../notify";
+import { disconnect, sendToOwner, startBinding, telegramStatus } from "../telegram";
 
 /** Mounted under /api/admin/:token after the admin auth middleware. */
 export const adminEventRoutes = new Hono<{ Bindings: Env }>();
@@ -214,6 +216,7 @@ adminEventRoutes.get("/settings", async (c) => {
     venmoEmail: s.venmo_email ?? "",
     zelleAccount: s.zelle_account ?? "",
     siteTitle: await siteTitle(c.env),
+    ...(await notifySettings(c.env)),
   });
 });
 
@@ -239,6 +242,17 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!t) throw badRequest("请填写网站标题");
     if ([...t].length > SITE_TITLE_MAX) throw badRequest(`网站标题最多 ${SITE_TITLE_MAX} 个字`);
     writes.push(setSetting(c.env.DB, "site_title", t));
+  }
+  if (b.reminderEnabled !== undefined) writes.push(setSetting(c.env.DB, "reminder_enabled", b.reminderEnabled === false ? "0" : "1"));
+  if (b.reminderHours !== undefined) {
+    const h = num(b.reminderHours);
+    if (!Number.isInteger(h) || h < 1 || h > 72) throw badRequest("截止前提醒请填 1–72 小时");
+    writes.push(setSetting(c.env.DB, "reminder_hours", String(h)));
+  }
+  if (b.dunningHour !== undefined) {
+    const h = num(b.dunningHour);
+    if (!Number.isInteger(h) || h < 0 || h > 23) throw badRequest("催款时间请选 0–23 点");
+    writes.push(setSetting(c.env.DB, "dunning_hour", String(h)));
   }
   if (b.zelleAccount !== undefined) writes.push(setSetting(c.env.DB, "zelle_account", str(b.zelleAccount).trim().slice(0, 60)));
   if (writes.length) await c.env.DB.batch(writes);
@@ -399,4 +413,31 @@ adminEventRoutes.post("/inbound/:iid/ignore", async (c) => {
   const i = await openInbound(c.env, Number(c.req.param("iid")));
   await c.env.DB.prepare("UPDATE inbound_payments SET state = 'ignored' WHERE id = ?").bind(i.id).run();
   return c.json({ ok: true });
+});
+
+// ---- Telegram ----
+
+adminEventRoutes.get("/telegram", async (c) => c.json(await telegramStatus(c.env)));
+
+/** Returns the t.me link that binds the Owner's chat; tapping Start there completes it. */
+adminEventRoutes.post("/telegram/connect", async (c) => c.json({ link: await startBinding(c.env) }));
+
+adminEventRoutes.post("/telegram/test", async (c) => {
+  const ok = await sendToOwner(c.env, message("🏸 测试消息：通知工作正常。", "这一段是可以复制到微信的文字。"));
+  if (!ok) throw badRequest("发送失败：请先连接 Telegram，或检查机器人是否被停用");
+  return c.json({ ok: true });
+});
+
+adminEventRoutes.post("/telegram/disconnect", async (c) => {
+  await disconnect(c.env);
+  return c.json({ ok: true });
+});
+
+/** 停止催款 / 恢复催款: the event stays unarchived and its unpaid bills stay. */
+adminEventRoutes.post("/events/:id/dunning", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  if (e.status !== "finalized") throw badRequest("只有已结算、还没收齐的活动才能停止催款");
+  const stop = (await readJson(c.req.raw)).stop === true;
+  await c.env.DB.prepare("UPDATE events SET dunning_stopped = ? WHERE id = ?").bind(stop ? 1 : 0, e.id).run();
+  return c.json({ ok: true, dunningStopped: stop });
 });

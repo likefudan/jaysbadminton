@@ -11,6 +11,8 @@ declare global {
       TEST_MIGRATIONS: D1Migration[];
       TOKEN_KEY: string;
       ADMIN_PASSWORD: string;
+      TELEGRAM_BOT_TOKEN?: string;
+      SITE_ORIGIN: string;
     }
   }
 }

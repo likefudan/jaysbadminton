@@ -5,4 +5,8 @@ export interface Env {
   TOKEN_KEY: string;
   /** Initial / recovery admin password, pushed from the GitHub secret on every deploy. */
   ADMIN_PASSWORD: string;
+  /** From BotFather, pushed from the GitHub secret; notifications are skipped while it is missing. */
+  TELEGRAM_BOT_TOKEN?: string;
+  /** Public site address, for links in messages sent by the cron job (which has no request). */
+  SITE_ORIGIN: string;
 }

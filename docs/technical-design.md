@@ -89,7 +89,7 @@ JSON over HTTPS under `/api`, grouped by who may call it. Tokens travel in the p
 | --- | --- |
 | Public | `GET /api/public/home` (open events, past events, leaderboard) · `GET /api/public/events/{code}` · `POST /api/public/join` |
 | Member (`/api/m/{token}/…`) | `GET me` (profile, open events, my registrations, my payments, my stats) · `POST rename` · `POST events/{id}/register` (friend count + names) · `POST events/{id}/cancel` |
-| Owner (`/api/admin/{token}/…`) | Members: `GET members`, `POST members/{id}/approve`, `reject`, `regenerate`, `deactivate` · Events: `POST events`, `POST events/{id}/cancel`, `reopen`, roster `add` / `update` / `remove` · Settlement: `POST events/{id}/preview`, `finalize`, `attendance` · Payments: `POST payments/{id}/mark-paid`, `unmark`, `POST events/{id}/stop-dunning`, `GET inbound`, `POST inbound/{id}/link`, `ignore` · Settings: `GET/POST settings`, `POST settings/telegram-test`, `POST settings/rotate-admin`, `rotate-export` |
+| Owner (`/api/admin/{token}/…`) | Members: `GET members`, `POST members/{id}/approve`, `reject`, `regenerate`, `deactivate` · Events: `POST events`, `POST events/{id}/cancel`, `reopen`, roster `add` / `update` / `remove` · Settlement: `POST events/{id}/preview`, `finalize`, `attendance` · Payments: `POST payments/{id}/mark-paid`, `refunded`, `POST receipts/{id}/remove`, `POST events/{id}/dunning`, `GET inbound`, `POST inbound/{id}/link`, `ignore` · Telegram: `GET telegram`, `POST telegram/connect`, `test`, `disconnect` · Settings: `GET/POST settings`, `POST settings/password`, `rotate-admin`, `reset`, `rotate-export` |
 | Export (`/export/{key}/…`) | `GET all.json` (Sheets mirror) · `GET {table}.csv` |
 
 - Every Owner write on an event checks its status first: roster and settlement edits are refused once the event is `settled`, matching "archived means read-only".
@@ -159,7 +159,9 @@ One Cron Trigger runs every 10 minutes (`*/10 * * * *`, UTC); the handler conver
 | All collected | Triggered inline whenever a payment flips to paid (email or manual) and none remain | Once, then the event is archived |
 | Payment needs review | Inline from the email handler (待确认, partial payment, over-payment to refund) | Per email |
 
-**Telegram**: `POST https://api.telegram.org/bot{token}/sendMessage` to the Owner's chat ID with `parse_mode: HTML`. Each message has the Owner's details first, then a divider and the text to paste into WeChat inside a `<pre>` block so one tap copies it. Per-person dunning messages are separate Telegram messages so each can be forwarded to a private chat on its own. The bot token is a Worker secret; the chat ID is a setting. A failed send is logged and retried on the next run.
+**Telegram**: `POST https://api.telegram.org/bot{token}/sendMessage` to the Owner's chat ID with `parse_mode: HTML`. Each message has the Owner's details first, then a divider and the text to paste into WeChat inside a `<pre>` block so one tap copies it. Per-person dunning messages are separate Telegram messages so each can be forwarded to a private chat on its own. The bot token is a Worker secret (`TELEGRAM_BOT_TOKEN`, from the GitHub secret of the same name); the chat ID is a setting. A failed send removes its log row so the next run retries.
+
+**Binding the Owner's chat**: 设置 → 连接 Telegram calls `getMe` and `setWebhook` (`/api/telegram/webhook`, with a `secret_token` derived from `TOKEN_KEY` that Telegram echoes in `X-Telegram-Bot-Api-Secret-Token`), then returns `t.me/<bot>?start=<code>`. The code is random, stored hashed, single-use and valid for 10 minutes. The webhook acts only on `/start <valid code>` from a private chat, which stores that chat as the only recipient; everything else is ignored. Settle reminders are quiet from 22:00 to 08:00 Pacific.
 
 ## Google Sheets daily mirror
 
@@ -227,11 +229,11 @@ The Owner does these once, in this order; steps marked *after deploy* wait until
 - [x] Enable Email Routing for the `jaysbadminton.llmat.dev` subdomain and verify the Gmail destination
 - [x] Create `venmo@jaysbadminton.llmat.dev`, temporarily forwarding to Gmail
 - [ ] Add that address as a Gmail forwarding address, confirm it, and keep "Disable forwarding" selected
-- [ ] Create a Telegram bot with BotFather; send it one message to get the chat ID
+- [x] Create a Telegram bot with BotFather and add its token as the GitHub secret `TELEGRAM_BOT_TOKEN`
 - [ ] Create a Cloudflare API token (Workers, D1, DNS edit) and add it to the GitHub repository as `CLOUDFLARE_API_TOKEN`
 - [ ] *After deploy*: add the `jaysbadminton.llmat.dev` custom domain to the Worker
 - [ ] *After deploy*: open `https://jaysbadminton.llmat.dev/admin`, enter the `ADMIN_PASSWORD`, and save the admin link and own member link it shows; later, set the `TELEGRAM_BOT_TOKEN` Worker secret (card 6)
-- [ ] *After deploy*: in the admin settings, enter the Venmo username, Zelle account and Telegram chat ID, then press "send test message"
+- [ ] *After deploy*: in the admin settings, enter the Venmo username, Venmo email and Zelle account; press 连接 Telegram, tap Start in the bot, then 发送测试消息
 - [ ] *After deploy*: switch the `venmo@` route from "Send to an email" to "Send to a Worker"
 - [ ] *After deploy*: create the Gmail filter `from:venmo@venmo.com` → forward to `venmo@jaysbadminton.llmat.dev`
 - [ ] *After deploy*: create the Google Sheet, paste `sheets-mirror/Code.gs`, store the export key, add the daily trigger
