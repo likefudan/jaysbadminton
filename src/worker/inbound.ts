@@ -1,12 +1,13 @@
 import { formatDateZh } from "../shared/time";
 import type { InboundKind, InboundRow, OpenPayment } from "../shared/types";
-import { checkCollected } from "./billing";
+import { addReceipt, checkCollected, receiptsFor, refundOf } from "./billing";
 import { getSettings, now } from "./db";
 import { type KeyResolver, verifyDkim } from "./email/dkim";
 import { parseEmail, type VenmoReceipt } from "./email/parse";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
 import { codeName, noteName, parsePaymentCode } from "./paymentCode";
+import type { RefundRow } from "../shared/types";
 
 export const MAX_EMAIL_BYTES = 512 * 1024;
 const VENMO = "venmo@venmo.com";
@@ -22,7 +23,8 @@ export type EmailOutcome =
   | "duplicate"
   | "ignored" // no code of ours, or a name / event nobody in the group has
   | "paid"
-  | "anomaly"
+  | "partial"
+  | "overpaid"
   | "review";
 
 export interface EmailOptions {
@@ -32,8 +34,8 @@ export interface EmailOptions {
 /**
  * The Owner forwards every Venmo receipt, most of them unrelated to badminton, so only notes
  * carrying our code with a group member's name and an existing event are acted on:
- * - code, person and amount all match an unpaid bill → paid;
- * - wrong amount, or the bill is already paid → the bill is flagged 金额异常;
+ * - code and person match a bill → the payment is added to it: paid when the total reaches the
+ *   amount due, 部分付款 while short, and any excess is listed under 需要退款;
  * - the event exists but the bill cannot be pinned down → 待确认 for the Owner;
  * - everything else (no code, unknown name or event, unreadable email) is ignored and not stored.
  */
@@ -64,54 +66,39 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
   if (!e) return "ignored";
 
   const seen = await env.DB.prepare(
-    "SELECT 1 FROM inbound_payments WHERE venmo_txn_id = ?1 UNION ALL SELECT 1 FROM payments WHERE venmo_txn_id = ?1",
+    "SELECT 1 FROM inbound_payments WHERE venmo_txn_id = ?1 UNION ALL SELECT 1 FROM payment_receipts WHERE venmo_txn_id = ?1",
   )
     .bind(r.txnId)
     .first();
   if (seen) return "duplicate";
 
-  const p = await env.DB.prepare(
-    `SELECT p.id, p.status, p.amount_due_cents, p.payment_code, m.username FROM payments p
-     JOIN members m ON m.id = p.member_id WHERE p.event_id = ? AND p.member_id = ?`,
-  )
+  const p = await env.DB.prepare("SELECT id, payment_code FROM payments WHERE event_id = ? AND member_id = ?")
     .bind(e.id, code.memberId)
-    .first<{ id: number; status: string; amount_due_cents: number; payment_code: string; username: string }>();
-  const review = (reason: string) => record(env, r, mail.messageId, { kind: "unmatched", reason });
+    .first<{ id: number; payment_code: string }>();
+  const review = (reason: string) => record(env, r, mail.messageId, reason);
 
   if (!p) {
     if (e.status === "open" || e.status === "closed") return review("这次活动还没结算");
     if (e.status === "cancelled") return review("这次活动已取消");
     return review("编号里的成员没有这次活动的应付款");
   }
-  if (code.name !== codeName(p.payment_code) && code.name !== noteName(p.username)) {
+  // The code, name included, is fixed when the bill is created; a later rename does not change it.
+  if (code.name !== codeName(p.payment_code)) {
     return review(`备注里的名字和编号 ${code.memberId.toLowerCase()} 不是同一个人`);
   }
-  if (e.status === "settled") return review("这次活动已收齐归档，可能是重复付款");
   if (unverified) return review("暂时无法校验 Venmo 签名，请核对后手动关联");
 
-  if (p.status === "unpaid") {
-    const status = r.amountCents === p.amount_due_cents ? "paid" : "anomaly";
-    const res = await env.DB.prepare(
-      `UPDATE payments SET status = ?, method = 'venmo_auto', amount_paid_cents = ?, paid_at = ?, venmo_txn_id = ?, email_id = ?
-       WHERE id = ? AND status = 'unpaid'`,
-    )
-      .bind(status, r.amountCents, now(), r.txnId, mail.messageId, p.id)
-      .run();
-    if (res.meta.changes > 0) {
-      if (status === "paid") await checkCollected(env, e.id);
-      // Card 6: notify the Owner about an anomaly.
-      return status;
-    }
+  // Every payment counts toward the bill, however many there are; an archived (fully paid)
+  // event can only gain an over-payment, which shows up under 需要退款.
+  if (!(await addReceipt(env, p.id, { amountCents: r.amountCents, method: "venmo", txnId: r.txnId, payerName: r.payer }))) {
+    return "duplicate";
   }
-  // Paid already (or flagged): a second payment. Add it to what was received and flag the bill;
-  // the transaction is kept as a handled row so the same email is never counted twice.
-  await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE payments SET status = 'anomaly', amount_paid_cents = COALESCE(amount_paid_cents, 0) + ? WHERE id = ?`,
-    ).bind(r.amountCents, p.id),
-    insertStmt(env, r, mail.messageId, { kind: "anomaly", state: "linked", paymentId: p.id, reason: "重复付款" }),
-  ]);
-  return "anomaly";
+  const after = (await env.DB.prepare("SELECT status, amount_due_cents, amount_paid_cents FROM payments WHERE id = ?")
+    .bind(p.id)
+    .first<{ status: string; amount_due_cents: number; amount_paid_cents: number }>())!;
+  if (after.status === "partial") return "partial"; // Card 6: tell the Owner
+  if (e.status === "finalized") await checkCollected(env, e.id);
+  return after.amount_paid_cents > after.amount_due_cents ? "overpaid" : "paid"; // Card 6: overpaid → refund notice
 }
 
 /** True when the note's name is someone's in the group, now or as printed on an earlier bill. */
@@ -122,23 +109,13 @@ async function isGroupName(env: Env, name: string): Promise<boolean> {
   return codes.some((c) => codeName(c.payment_code) === name);
 }
 
-interface InboundInsert {
-  kind: InboundKind;
-  reason: string;
-  state?: "open" | "linked";
-  paymentId?: number;
-}
-
-function insertStmt(env: Env, r: VenmoReceipt, emailId: string, row: InboundInsert): D1PreparedStatement {
-  return env.DB.prepare(
-    `INSERT OR IGNORE INTO inbound_payments
-       (venmo_txn_id, email_id, payer_name, amount_cents, note, received_at, kind, state, linked_payment_id, reason)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(r.txnId, emailId, r.payer, r.amountCents, r.note, now(), row.kind, row.state ?? "open", row.paymentId ?? null, row.reason);
-}
-
-async function record(env: Env, r: VenmoReceipt, emailId: string, row: InboundInsert): Promise<EmailOutcome> {
-  const res = await insertStmt(env, r, emailId, row).run();
+async function record(env: Env, r: VenmoReceipt, emailId: string, reason: string): Promise<EmailOutcome> {
+  const res = await env.DB.prepare(
+    `INSERT OR IGNORE INTO inbound_payments (venmo_txn_id, email_id, payer_name, amount_cents, note, received_at, kind, reason)
+     VALUES (?, ?, ?, ?, ?, ?, 'unmatched', ?)`,
+  )
+    .bind(r.txnId, emailId, r.payer, r.amountCents, r.note, now(), reason)
+    .run();
   // Card 6: notify the Owner about a new 待确认 row.
   return res.meta.changes > 0 ? "review" : "duplicate";
 }
@@ -173,7 +150,7 @@ export async function inboundRows(env: Env, state: "open" | "done"): Promise<Inb
 /** Payments an inbound row can be linked to: not yet paid, on events still collecting. */
 export async function openPayments(env: Env): Promise<OpenPayment[]> {
   const { results } = await env.DB.prepare(
-    `SELECT p.id, p.amount_due_cents, p.status, p.payment_code, m.username, e.date, e.code
+    `SELECT p.id, p.amount_due_cents, p.amount_paid_cents, p.status, p.payment_code, m.username, e.date, e.code
      FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
      WHERE p.status != 'paid' AND e.status = 'finalized'
      ORDER BY e.start_at DESC, m.username`,
@@ -183,7 +160,28 @@ export async function openPayments(env: Env): Promise<OpenPayment[]> {
     eventLabel: eventLabel(p.date, p.code),
     memberName: p.username,
     amountDueCents: p.amount_due_cents,
+    amountPaidCents: p.amount_paid_cents,
     status: p.status,
     paymentCode: p.payment_code,
+  }));
+}
+
+/** Bills that received more than they were due, on any event, until the Owner marks them refunded. */
+export async function refundRows(env: Env): Promise<RefundRow[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT p.*, m.username, e.date, e.code FROM payments p
+     JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
+     WHERE p.amount_paid_cents > p.amount_due_cents + p.refunded_cents
+     ORDER BY e.start_at DESC, m.username`,
+  ).all<Record<string, any>>();
+  const receipts = await receiptsFor(env, results.map((p) => p.id));
+  return results.map((p) => ({
+    paymentId: p.id,
+    eventLabel: eventLabel(p.date, p.code),
+    memberName: p.username,
+    amountDueCents: p.amount_due_cents,
+    amountPaidCents: p.amount_paid_cents,
+    refundCents: refundOf(p as never),
+    receipts: receipts.get(p.id) ?? [],
   }));
 }

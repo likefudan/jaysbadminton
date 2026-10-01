@@ -1,5 +1,5 @@
 import { settle, type SettleInput, type Settlement, type SettleRow } from "../shared/settle";
-import type { PaymentRow } from "../shared/types";
+import type { PaymentRow, Receipt } from "../shared/types";
 import { now, setSetting } from "./db";
 import { paymentCode } from "./paymentCode";
 import type { Env } from "./env";
@@ -24,9 +24,9 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
 }
 
 /**
- * Writes the settlement and brings the payment rows in line with it. Unpaid rows follow the new
- * amounts; paid and anomaly rows are left alone (the Owner settles differences by hand). The
- * Owner's own bill is marked paid. A member who left the roster loses an unpaid row.
+ * Writes the settlement and brings the payment rows in line with it. Unpaid and partly paid rows
+ * follow the new amounts; paid rows are left alone. The Owner's own bill is paid with a manual
+ * receipt. A member who left the roster loses a row that has received nothing.
  */
 export async function applySettlement(env: Env, e: EventRow, input: SettleInput): Promise<Settlement> {
   const result = settle(await settleRows(env, e.id), input);
@@ -68,23 +68,20 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   for (const b of result.bills) {
     const status = prev.get(b.memberId);
     if (status === undefined) {
-      const owner = ownerIds.has(b.memberId);
       stmts.push(
         env.DB.prepare(
-          `INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, method, amount_paid_cents, paid_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(
-          e.id,
-          b.memberId,
-          b.totalCents,
-          paymentCode(usernames.get(b.memberId) ?? "", e.date, e.code, b.memberId),
-          owner ? "paid" : "unpaid",
-          owner ? "manual" : null,
-          owner ? b.totalCents : null,
-          owner ? ts : null,
-        ),
+          `INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status) VALUES (?, ?, ?, ?, 'unpaid')`,
+        ).bind(e.id, b.memberId, b.totalCents, paymentCode(usernames.get(b.memberId) ?? "", e.date, e.code, b.memberId)),
       );
-    } else if (status === "unpaid") {
+      if (ownerIds.has(b.memberId)) {
+        stmts.push(
+          env.DB.prepare(
+            `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
+             SELECT id, amount_due_cents, 'manual', ? FROM payments WHERE event_id = ? AND member_id = ?`,
+          ).bind(ts, e.id, b.memberId),
+        );
+      }
+    } else if (status !== "paid") {
       stmts.push(
         env.DB.prepare("UPDATE payments SET amount_due_cents = ? WHERE event_id = ? AND member_id = ?").bind(
           b.totalCents,
@@ -96,9 +93,11 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   }
   for (const [memberId, status] of prev) {
     if (!billed.has(memberId) && status === "unpaid") {
+      // Unpaid means no receipts, so nothing is lost.
       stmts.push(env.DB.prepare("DELETE FROM payments WHERE event_id = ? AND member_id = ?").bind(e.id, memberId));
     }
   }
+  stmts.push(...syncPayments(env.DB, "event_id = ?", e.id));
   await env.DB.batch(stmts);
   return result;
 }
@@ -142,8 +141,9 @@ export async function paymentRows(env: Env, eventId: number): Promise<PaymentRow
      WHERE p.event_id = ? ORDER BY CASE p.status WHEN 'paid' THEN 1 ELSE 0 END, m.username`,
   )
     .bind(eventId)
-    .all<Record<string, never>>();
-  return results.map((p: Record<string, any>) => ({
+    .all<Record<string, any>>();
+  const receipts = await receiptsFor(env, results.map((p) => p.id));
+  return results.map((p) => ({
     id: p.id,
     memberId: p.member_id,
     memberName: p.username,
@@ -151,8 +151,66 @@ export async function paymentRows(env: Env, eventId: number): Promise<PaymentRow
     amountDueCents: p.amount_due_cents,
     paymentCode: p.payment_code,
     status: p.status,
-    method: p.method,
     amountPaidCents: p.amount_paid_cents,
-    paidAt: p.paid_at,
+    refundCents: refundOf(p as never),
+    receipts: receipts.get(p.id) ?? [],
   }));
 }
+
+/**
+ * Recomputes the received total and status of the matching bills from their receipts:
+ * nothing → unpaid, less than due → partial, due or more → paid (any excess is a refund).
+ */
+export function syncPayments(db: D1Database, where: string, ...args: unknown[]): D1PreparedStatement[] {
+  return [
+    db
+      .prepare(
+        `UPDATE payments SET amount_paid_cents =
+           (SELECT COALESCE(SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id) WHERE ${where}`,
+      )
+      .bind(...args),
+    db
+      .prepare(
+        `UPDATE payments SET
+           status = CASE WHEN amount_paid_cents >= amount_due_cents THEN 'paid' WHEN amount_paid_cents > 0 THEN 'partial' ELSE 'unpaid' END,
+           paid_at = CASE WHEN amount_paid_cents >= amount_due_cents THEN COALESCE(paid_at, ?) END
+         WHERE ${where}`,
+      )
+      .bind(now(), ...args),
+  ];
+}
+
+/** Adds one payment toward a bill and refreshes it. Returns false for a Venmo transaction seen before. */
+export async function addReceipt(
+  env: Env,
+  paymentId: number,
+  r: { amountCents: number; method: "venmo" | "manual"; txnId?: string | null; payerName?: string | null },
+): Promise<boolean> {
+  const [ins] = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO payment_receipts (payment_id, amount_cents, method, venmo_txn_id, payer_name, received_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).bind(paymentId, r.amountCents, r.method, r.txnId ?? null, r.payerName ?? null, now()),
+    ...syncPayments(env.DB, "id = ?", paymentId),
+  ]);
+  return (ins?.meta.changes ?? 0) > 0;
+}
+
+export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<number, Receipt[]>> {
+  const out = new Map<number, Receipt[]>();
+  if (paymentIds.length === 0) return out;
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM payment_receipts WHERE payment_id IN (${paymentIds.map(() => "?").join(",")}) ORDER BY received_at, id`,
+  )
+    .bind(...paymentIds)
+    .all<Record<string, any>>();
+  for (const r of results) {
+    const list = out.get(r.payment_id) ?? [];
+    list.push({ id: r.id, amountCents: r.amount_cents, method: r.method, payerName: r.payer_name, receivedAt: r.received_at });
+    out.set(r.payment_id, list);
+  }
+  return out;
+}
+
+export const refundOf = (p: { amount_paid_cents: number; amount_due_cents: number; refunded_cents: number }) =>
+  Math.max(0, p.amount_paid_cents - p.amount_due_cents - p.refunded_cents);

@@ -72,8 +72,9 @@ D1 (SQLite) holds nine tables. Money is stored as integer cents, times as UTC IS
 | `events` | `id`, `code` (1006, 1006B), `date`, `start_at`, `end_at`, `location`, `deadline_at`, `deadline_offset_min`, `status` (open / closed / finalized / settled / cancelled), `finalized_at`, `settled_at`, `dunning_stopped`, `created_at` | `settled` = all paid and archived; read-only from then on |
 | `registrations` | `id`, `event_id`, `member_id`, `friend_index` (0 = the member), `friend_name`, `attended` (default 1), `added_by_owner`, `created_at`, `updated_at` | Friends hang off the member who pays for them; Owner-added walk-ins ignore the friend cap |
 | `settlements` | `event_id`, `court_total_cents`, `shuttle_count`, `shuttle_price_cents`, `registered_count`, `attended_count`, `court_share_cents`, `shuttle_share_cents`, `finalized_at` | One row per event; recomputed on every edit before archive |
-| `payments` | `event_id`, `member_id`, `amount_due_cents`, `payment_code` (xiaoming-jbm20261006-m007), `status` (unpaid / paid / anomaly), `method` (venmo\_auto / manual), `amount_paid_cents`, `paid_at`, `venmo_txn_id`, `email_id` | One row per paying member per event; friends roll up here |
-| `inbound_payments` | `venmo_txn_id` (unique), `email_id`, `payer_name`, `amount_cents`, `note`, `received_at`, `kind` (unmatched = 待确认, anomaly = a second payment already added to its bill), `state` (open / linked / ignored), `linked_payment_id`, `reason` | Venmo payments with our code that the Owner reviews; unrelated payments are not stored |
+| `payments` | `event_id`, `member_id`, `amount_due_cents`, `payment_code` (xiaoming-jbm20261006-m007), `status` (unpaid / partial / paid), `amount_paid_cents` (sum of receipts), `refunded_cents`, `paid_at` | One row per paying member per event; friends roll up here |
+| `payment_receipts` | `payment_id`, `amount_cents`, `method` (venmo / manual), `venmo_txn_id` (unique), `payer_name`, `received_at` | Every payment toward a bill; a bill can be paid in several pieces |
+| `inbound_payments` | `venmo_txn_id` (unique), `email_id`, `payer_name`, `amount_cents`, `note`, `received_at`, `kind` (unmatched = 待确认), `state` (open / linked / ignored), `linked_payment_id`, `reason` | Venmo payments with our code that the Owner reviews; unrelated payments are not stored |
 | `locations` | `name`, `last_used_at`, `use_count` | Feeds the location dropdown |
 | `settings` | `key`, `value` | Friend cap N, Venmo username, Zelle account, Telegram chat ID, reminder on/off + hours, dunning hour, last shuttle price, last event times, last deadline offset, admin/export token hashes |
 | `notification_log` | `event_id`, `type`, `sent_on` (Pacific date), `sent_at` | Unique on (event, type, sent\_on) so a retried cron run never double-sends |
@@ -122,7 +123,7 @@ Settlement is one pure function, `settle(roster, inputs)`, shared by preview and
 1. Count every roster row (members and friends) as registered; count rows with `attended = 1` as attended.
 2. Work in integer cents and round each share **up** with integer math (`Math.ceil(a / b)` on cents), so floating point never under-charges.
 3. Each row owes the court share, plus the shuttle share if attended. A member owes the sum of their own row and their friends' rows.
-4. On every change before archive, recompute `amount_due_cents` for rows still `unpaid`; leave `paid` and `anomaly` rows untouched.
+4. On every change before archive, recompute `amount_due_cents` for rows still `unpaid` or `partial` (then their status from the receipts); leave `paid` rows untouched.
 
 **Payment code**: `{name}-jbm{yyyymmdd}{suffix}-m{number}`, all lowercase, e.g. `xiaoming-jbm20261006-m007` (a second event that day gets `jbm20261006b`). The name is the username in toneless pinyin (pinyin-pro) or lowercase Latin with spaces as underscores. It is generated at Finalize and never changed by renames. Only the `jbm` and `m` parts are matched, so the name is cosmetic; the earlier `BM1006-M007` form is still recognised.
 
@@ -136,8 +137,7 @@ A Gmail filter forwards only mail from `venmo@venmo.com` to `venmo@jaysbadminton
 2. **Parse** the HTML body (Venmo receipts carry an empty text part): HTML is flattened to lines, then the field rules in the requirements apply: payer before `paid you`, the amount after it (Venmo splits `$7.00` across several elements, so the pieces are joined and cross-checked against the subject), note up to `Money credited to your Venmo account.`, then the `Date`, `Transaction ID` and `Sent to` values. `Sent to` must equal the configured Venmo username and the signed `To` header must be exactly the configured Venmo notification email (the address on the Venmo account; required together with the username in settings), otherwise the email is ignored. `Delivered-To` is not used: Gmail adds it and it is not signed.
 3. **De-duplicate** on the Venmo transaction ID; a second copy is ignored.
 4. **Match**: the Owner forwards every Venmo receipt, most unrelated to badminton, so only notes matching `/([a-z0-9_]+)\s*-\s*jbm\s*(\d{8})([a-z]?)\s*-\s*m(\d+)/i` whose name part belongs to a group member (current username in pinyin, or the name printed on any bill) and whose date + suffix is an existing event are acted on:
-   - the member has a bill on that finalized event, the name is that member's, and the amount equals what is due → mark the payment `paid` (`venmo_auto`), store amount, time and transaction ID, then run the "all collected?" check;
-   - amount differs, or the bill is already paid → set the bill to `anomaly` and add the amount to `amount_paid_cents` (a second payment is also kept as a handled `inbound_payments` row so its transaction ID is not counted twice), notify the Owner;
+   - the member has a bill on that event and the name is the one printed on the bill (fixed when the bill is created; renames do not change it) → add a `payment_receipts` row (amount, transaction ID, payer) and recompute the bill: total < due → `partial`, total ≥ due → `paid` (run the "all collected?" check), total > due → the excess is listed under 需要退款 until the Owner marks it refunded. This also applies to archived events, which can only gain an over-payment;
    - the event exists but the bill cannot be pinned down (no bill for that member number, name and number are different people, event not settled yet, cancelled, or already archived) → `inbound_payments` kind `unmatched` with a reason, shown under 待确认, notify the Owner;
    - anything else (no code, no name, unknown name or event, unparseable email) → ignored and not stored.
    - If DNS was down and the signature could not be checked, an email that would otherwise be acted on goes to 待确认 instead; it is never auto-marked.
@@ -157,7 +157,7 @@ One Cron Trigger runs every 10 minutes (`*/10 * * * *`, UTC); the handler conver
 | Settle reminder | `now ≥ end_at` and not finalized | Hourly (log key = Pacific date + hour) |
 | Daily dunning | `now ≥ finalized_at + 24 h`, local hour = dunning hour, someone unpaid, dunning not stopped | Daily: one summary + one message per unpaid member |
 | All collected | Triggered inline whenever a payment flips to paid (email or manual) and none remain | Once, then the event is archived |
-| Payment needs review | Inline from the email handler (unmatched, anomaly, parse failure) | Per email |
+| Payment needs review | Inline from the email handler (待确认, partial payment, over-payment to refund) | Per email |
 
 **Telegram**: `POST https://api.telegram.org/bot{token}/sendMessage` to the Owner's chat ID with `parse_mode: HTML`. Each message has the Owner's details first, then a divider and the text to paste into WeChat inside a `<pre>` block so one tap copies it. Per-person dunning messages are separate Telegram messages so each can be forwarded to a private chat on its own. The bot token is a Worker secret; the chat ID is a setting. A failed send is logged and retried on the next run.
 

@@ -7,6 +7,7 @@ await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 const TABLES = [
   "notification_log",
   "inbound_payments",
+  "payment_receipts",
   "payments",
   "settlements",
   "registrations",

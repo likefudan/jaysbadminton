@@ -76,7 +76,8 @@ describe("matching", () => {
   it("marks the exact amount paid, ignores the same transaction twice, and archives when collected", async () => {
     const s = await finalized();
     expect(await deliver({ amount: "56.00", note: `badminton ${s.aliceCode}`, txnId: "T1" })).toBe("paid");
-    expect(await s.by("Alice")).toMatchObject({ status: "paid", method: "venmo_auto", amountPaidCents: 5600 });
+    expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 5600, refundCents: 0 });
+    expect((await s.by("Alice")).receipts).toMatchObject([{ method: "venmo", amountCents: 5600, payerName: "Alice W" }]);
     expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T1" })).toBe("duplicate");
 
     // Case and stray spaces are tolerated.
@@ -85,17 +86,44 @@ describe("matching", () => {
     expect((await s.admin.call(s.eb)).data.status).toBe("settled");
   });
 
-  it("flags a wrong amount, and a second payment for a paid bill, as 金额异常", async () => {
+  it("adds up partial payments until the bill is paid", async () => {
     const s = await finalized();
-    expect(await deliver({ amount: "50.00", note: s.aliceCode, txnId: "T3" })).toBe("anomaly");
-    expect(await s.by("Alice")).toMatchObject({ status: "anomaly", amountPaidCents: 5000 });
+    expect(await deliver({ amount: "20.00", note: s.aliceCode, txnId: "P1" })).toBe("partial");
+    expect(await s.by("Alice")).toMatchObject({ status: "partial", amountPaidCents: 2000 });
+    const me = async () => (await new Client().call(`${s.alice.base}/events`)).data.events[0].payment;
+    expect(await me()).toMatchObject({ status: "partial", amountCents: 5600, paidCents: 2000 });
 
-    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "T4" })).toBe("paid");
-    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "T5" })).toBe("anomaly");
-    expect(await s.by("Bob")).toMatchObject({ status: "anomaly", amountPaidCents: 6200 });
-    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "T5" })).toBe("duplicate");
-    // Neither needs the 待确认 list; the board shows them.
-    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toEqual([]);
+    expect(await deliver({ amount: "30.00", note: s.aliceCode, txnId: "P2" })).toBe("partial");
+    expect(await deliver({ amount: "6.00", note: s.aliceCode, txnId: "P3" })).toBe("paid");
+    expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 5600, refundCents: 0 });
+    expect((await s.by("Alice")).receipts.map((r: { amountCents: number }) => r.amountCents)).toEqual([2000, 3000, 600]);
+  });
+
+  it("counts an over-payment, or paying twice, as paid and lists the refund", async () => {
+    const s = await finalized();
+    expect(await deliver({ amount: "60.00", note: s.aliceCode, txnId: "O1" })).toBe("overpaid");
+    expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 6000, refundCents: 400 });
+
+    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "O2" })).toBe("paid");
+    expect((await s.admin.call(s.eb)).data.status).toBe("settled");
+    // Paying again after the event is archived still lands on the bill, as a refund.
+    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "O3" })).toBe("overpaid");
+    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "O3" })).toBe("duplicate");
+
+    const { refunds, open } = (await s.admin.call(`${s.base}/inbound`)).data;
+    expect(open).toEqual([]);
+    expect(refunds.map((r: { memberName: string; refundCents: number }) => [r.memberName, r.refundCents]).sort()).toEqual([
+      ["Alice", 400],
+      ["Bob", 3100],
+    ]);
+    const bob = refunds.find((r: { memberName: string }) => r.memberName === "Bob");
+    expect(bob).toMatchObject({ amountDueCents: 3100, amountPaidCents: 6200 });
+    expect(bob.receipts).toHaveLength(2);
+    expect((await new Client().call(`${s.bob.base}/events`)).data.events[0].payment.refundCents).toBe(3100);
+
+    expect((await s.admin.call(`${s.base}/payments/${bob.paymentId}/refunded`, {})).status).toBe(200);
+    expect((await s.admin.call(`${s.base}/payments/${bob.paymentId}/refunded`, {})).status).toBe(400);
+    expect((await s.admin.call(`${s.base}/inbound`)).data.refunds.map((r: { memberName: string }) => r.memberName)).toEqual(["Alice"]);
   });
 
   it("asks the Owner when the event is ours but the bill cannot be pinned down", async () => {
@@ -151,7 +179,7 @@ describe("Owner review", () => {
 
     const linked = await s.admin.call(`${s.base}/inbound/${bobs.id}/link`, { paymentId: payments[0].id });
     expect(linked.data).toEqual({ ok: true, settled: true });
-    expect(await s.by("Bob")).toMatchObject({ status: "paid", method: "manual", amountPaidCents: 3100 });
+    expect(await s.by("Bob")).toMatchObject({ status: "paid", amountPaidCents: 3100 });
     expect((await s.admin.call(`${s.base}/inbound/${bobs.id}/link`, { paymentId: payments[0].id })).status).toBe(400);
 
     expect((await s.admin.call(`${s.base}/inbound/${other.id}/ignore`, {})).status).toBe(200);
@@ -160,12 +188,25 @@ describe("Owner review", () => {
     expect(after.done.map((i: { state: string }) => i.state).sort()).toEqual(["ignored", "linked"]);
   });
 
-  it("sends payments for an archived event to 待确认", async () => {
+  it("tops up a partly paid bill from a linked payment, and undoing it puts the payment back", async () => {
     const s = await finalized();
-    await deliver({ amount: "56.00", note: s.aliceCode, txnId: "A1" });
-    await deliver({ amount: "31.00", note: s.bobCode, txnId: "A2" });
-    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "A3" })).toBe("review");
-    expect((await s.admin.call(`${s.base}/inbound`)).data.open[0].reason).toBe("这次活动已收齐归档，可能是重复付款");
+    const day = s.aliceCode.split("-")[1];
+    await deliver({ amount: "20.00", note: s.aliceCode, txnId: "L1" });
+    await deliver({ amount: "36.00", note: `alice-${day}-m099`, txnId: "L2" });
+    const { open, payments } = (await s.admin.call(`${s.base}/inbound`)).data;
+    const alice = payments.find((p: { memberName: string }) => p.memberName === "Alice");
+    expect(alice).toMatchObject({ status: "partial", amountPaidCents: 2000 });
+    await s.admin.call(`${s.base}/inbound/${open[0].id}/link`, { paymentId: alice.id });
+    expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 5600 });
+
+    const linked = (await s.by("Alice")).receipts[1];
+    await s.admin.call(`${s.base}/receipts/${linked.id}/remove`, {});
+    expect(await s.by("Alice")).toMatchObject({ status: "partial", amountPaidCents: 2000 });
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toHaveLength(1);
+
+    // Cash for the rest.
+    await s.admin.call(`${s.base}/payments/${alice.id}/mark-paid`, {});
+    expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 5600 });
   });
 });
 

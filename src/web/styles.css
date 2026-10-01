@@ -522,3 +522,43 @@ table.bills td:last-child {
   margin: 6px 0 0;
   color: var(--danger);
 }
+.pay-row {
+  border-top: 1px solid var(--border);
+}
+.pay-row:first-of-type {
+  border-top: 0;
+}
+.pay-row .row {
+  border-top: 0;
+}
+.pay-status.unpaid {
+  color: var(--muted);
+}
+.pay-status.partial,
+.refund {
+  color: var(--danger);
+}
+.receipts {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+.receipts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+.undo {
+  margin-left: 8px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--danger);
+  font: inherit;
+  text-decoration: underline;
+  min-height: 28px;
+}

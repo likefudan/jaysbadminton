@@ -6,6 +6,7 @@ const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
 
 export function PaymentBox(props: { p: MyPayment }) {
   const p = props.p;
+  const owed = p.amountCents - p.paidCents; // what the Venmo button asks for after a partial payment
   return (
     <div class="paybox">
       <div class="pay-head">
@@ -27,12 +28,17 @@ export function PaymentBox(props: { p: MyPayment }) {
         ))}
       </ul>
       {p.status === "paid" && <p class="paid-banner">✓ 已付清，谢谢！</p>}
-      {p.status === "anomaly" && <p class="error">付款金额有异常，管理员会和你联系。</p>}
-      {p.status === "unpaid" && (
+      {p.refundCents > 0 && <p class="hint">你多付了 ${dollars(p.refundCents)}，管理员会退给你。</p>}
+      {p.status === "partial" && (
+        <p class="hint">
+          已收到 ${dollars(p.paidCents)}，还差 <strong>${dollars(owed)}</strong>。补付时备注用同一个编号即可。
+        </p>
+      )}
+      {p.status !== "paid" && (
         <>
           {p.venmoUsername ? (
-            <a class="button block venmo" href={venmoLink(p.venmoUsername, p.amountCents, p.code)}>
-              用 Venmo 付 ${dollars(p.amountCents)}
+            <a class="button block venmo" href={venmoLink(p.venmoUsername, owed, p.code)}>
+              用 Venmo 付 ${dollars(owed)}
             </a>
           ) : (
             <p class="muted">管理员还没设置 Venmo 账号。</p>
@@ -48,7 +54,7 @@ export function PaymentBox(props: { p: MyPayment }) {
                 </>
               )}
               <dt>金额</dt>
-              <dd>${dollars(p.amountCents)}</dd>
+              <dd>${dollars(owed)}</dd>
               <dt>备注</dt>
               <dd>
                 <code>{p.code}</code> <CopyButton text={p.code} label="复制备注" />

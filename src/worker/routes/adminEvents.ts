@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
 import type { EventDefaults, InboundResponse, SettlementView } from "../../shared/types";
-import { checkCollected, finalize, paymentRows, recomputeIfFinalized, savedInput, settleRows } from "../billing";
+import { addReceipt, checkCollected, finalize, paymentRows, recomputeIfFinalized, savedInput, settleRows, syncPayments } from "../billing";
 import { isDate, isTime, pacificToUtc } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
 import type { Env } from "../env";
@@ -19,7 +19,7 @@ import {
 import { badRequest, readJson, str } from "../http";
 import { SITE_TITLE_MAX, siteTitle } from "../site";
 import { requireMember } from "../members";
-import { inboundRows, openPayments } from "../inbound";
+import { inboundRows, openPayments, refundRows } from "../inbound";
 
 /** Mounted under /api/admin/:token after the admin auth middleware. */
 export const adminEventRoutes = new Hono<{ Bindings: Env }>();
@@ -283,7 +283,7 @@ adminEventRoutes.get("/events/:id/settlement", async (c) => {
     payments,
     totals: {
       dueCents: payments.reduce((t, p) => t + p.amountDueCents, 0),
-      paidCents: payments.reduce((t, p) => t + (p.status === "paid" ? (p.amountPaidCents ?? 0) : 0), 0),
+      paidCents: payments.reduce((t, p) => t + p.amountPaidCents, 0),
       unpaidCount: payments.filter((p) => p.status !== "paid").length,
     },
   });
@@ -307,35 +307,55 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
 });
 
 async function paymentEvent(env: Env, paymentId: number) {
-  const p = await env.DB.prepare("SELECT event_id, status, amount_due_cents FROM payments WHERE id = ?")
+  const p = await env.DB.prepare("SELECT * FROM payments WHERE id = ?")
     .bind(paymentId)
-    .first<{ event_id: number; status: string; amount_due_cents: number }>();
+    .first<{ event_id: number; status: string; amount_due_cents: number; amount_paid_cents: number; refunded_cents: number }>();
   if (!p) throw badRequest("找不到这笔应付款");
   const e = await getEvent(env, p.event_id);
   if (e.status !== "finalized") throw badRequest("这个活动已收齐归档，不能再修改");
   return { p, e };
 }
 
+/** Cash, Zelle or anything else: a manual receipt for whatever is still owed. */
 adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
   const id = Number(c.req.param("pid"));
   const { p, e } = await paymentEvent(c.env, id);
-  await c.env.DB.prepare(
-    "UPDATE payments SET status = 'paid', method = 'manual', amount_paid_cents = COALESCE(amount_paid_cents, ?), paid_at = ? WHERE id = ?",
-  )
-    .bind(p.amount_due_cents, now(), id)
-    .run();
+  const owed = p.amount_due_cents - p.amount_paid_cents;
+  if (owed <= 0) throw badRequest("这笔已经付清了");
+  await addReceipt(c.env, id, { amountCents: owed, method: "manual" });
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });
 });
 
-adminEventRoutes.post("/payments/:pid/unmark", async (c) => {
+/** Takes back one payment (a mistaken manual mark, or a Venmo payment linked to the wrong bill). */
+adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
+  const r = await c.env.DB.prepare("SELECT payment_id FROM payment_receipts WHERE id = ?")
+    .bind(Number(c.req.param("rid")))
+    .first<{ payment_id: number }>();
+  if (!r) throw badRequest("找不到这笔付款记录");
+  await paymentEvent(c.env, r.payment_id);
+  await c.env.DB.batch([
+    // A linked 待确认 row goes back to the list so the money is not forgotten.
+    c.env.DB.prepare(
+      `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL
+       WHERE state = 'linked' AND venmo_txn_id = (SELECT venmo_txn_id FROM payment_receipts WHERE id = ?)`,
+    ).bind(Number(c.req.param("rid"))),
+    c.env.DB.prepare("DELETE FROM payment_receipts WHERE id = ?").bind(Number(c.req.param("rid"))),
+    ...syncPayments(c.env.DB, "id = ?", r.payment_id),
+  ]);
+  return c.json({ ok: true });
+});
+
+/** The Owner sent the over-payment back. Allowed on archived events too: it changes no bill. */
+adminEventRoutes.post("/payments/:pid/refunded", async (c) => {
   const id = Number(c.req.param("pid"));
-  await paymentEvent(c.env, id);
-  await c.env.DB.prepare(
-    "UPDATE payments SET status = 'unpaid', method = NULL, amount_paid_cents = NULL, paid_at = NULL, venmo_txn_id = NULL WHERE id = ?",
+  const res = await c.env.DB.prepare(
+    `UPDATE payments SET refunded_cents = amount_paid_cents - amount_due_cents
+     WHERE id = ? AND amount_paid_cents > amount_due_cents + refunded_cents`,
   )
     .bind(id)
     .run();
+  if (res.meta.changes === 0) throw badRequest("这笔没有需要退的钱");
   return c.json({ ok: true });
 });
 
@@ -344,31 +364,27 @@ adminEventRoutes.get("/inbound", async (c) =>
     open: await inboundRows(c.env, "open"),
     done: await inboundRows(c.env, "done"),
     payments: await openPayments(c.env),
+    refunds: await refundRows(c.env),
   }),
 );
 
 async function openInbound(env: Env, id: number) {
-  const i = await env.DB.prepare("SELECT id, state, amount_cents, venmo_txn_id, linked_payment_id FROM inbound_payments WHERE id = ?")
+  const i = await env.DB.prepare("SELECT * FROM inbound_payments WHERE id = ?")
     .bind(id)
-    .first<{ id: number; state: string; amount_cents: number | null; venmo_txn_id: string | null; linked_payment_id: number | null }>();
+    .first<{ id: number; state: string; amount_cents: number | null; venmo_txn_id: string | null; payer_name: string | null }>();
   if (!i) throw badRequest("找不到这笔收款");
   if (i.state !== "open") throw badRequest("这笔收款已经处理过了");
   return i;
 }
 
-/** The Owner says this Venmo payment is someone's bill: mark that bill paid with this money. */
+/** The Owner says this Venmo payment belongs to someone's bill: add it there like any payment. */
 adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const i = await openInbound(c.env, Number(c.req.param("iid")));
   const paymentId = num((await readJson(c.req.raw)).paymentId);
-  const { p, e } = await paymentEvent(c.env, paymentId);
-  if (p.status === "paid") throw badRequest("这笔应付款已经付清了");
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      `UPDATE payments SET status = 'paid', method = 'manual', amount_paid_cents = ?, paid_at = ?,
-         venmo_txn_id = COALESCE(venmo_txn_id, ?) WHERE id = ?`,
-    ).bind(i.amount_cents ?? p.amount_due_cents, now(), i.venmo_txn_id, paymentId),
-    c.env.DB.prepare("UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ?").bind(paymentId, i.id),
-  ]);
+  const { e } = await paymentEvent(c.env, paymentId);
+  if (i.amount_cents === null) throw badRequest("这笔收款没有金额，请改用「标记已付」");
+  await c.env.DB.prepare("UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ?").bind(paymentId, i.id).run();
+  await addReceipt(c.env, paymentId, { amountCents: i.amount_cents, method: "venmo", txnId: i.venmo_txn_id, payerName: i.payer_name });
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });
 });

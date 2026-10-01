@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { dollars, type Settlement } from "../../shared/settle";
-import type { EventDetail, PaymentRow, SettlementView } from "../../shared/types";
+import type { EventDetail, PaymentRow, Receipt, SettlementView } from "../../shared/types";
+import { ReceiptList } from "./AdminInbound";
 import { api } from "../api";
 import { Card, Empty, Field, Load, useAction } from "../components";
 import { useApi } from "../hooks";
@@ -23,7 +24,7 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
   }
   async function doFinalize() {
     const msg = finalized
-      ? "保存后，未付款的人金额会按新数据重新计算；已付款的人不变。继续吗？"
+      ? "保存后，未付清的人金额会按新数据重新计算；已付清的人不变。继续吗？"
       : "Finalize 后，成员就能看到应付金额和付款链接。确定吗？";
     if (!confirm(msg)) return;
     if (await run(() => api(`${eb}/finalize`, body()))) {
@@ -79,10 +80,14 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
   const { busy, error, run } = useAction();
   const settled = props.e.status === "settled";
 
-  async function mark(p: PaymentRow, paid: boolean) {
-    const q = paid ? `确认 ${p.memberName} 已付清 $${dollars(p.amountDueCents)}？` : `撤销 ${p.memberName} 的已付标记？`;
-    if (!confirm(q)) return;
-    if (await run(() => api(`${props.base}/payments/${p.id}/${paid ? "mark-paid" : "unmark"}`, {}))) props.onDone();
+  async function mark(p: PaymentRow) {
+    const owed = p.amountDueCents - p.amountPaidCents;
+    if (!confirm(`确认收到 ${p.memberName} 的 $${dollars(owed)}（现金、Zelle 等），标记已付清？`)) return;
+    if (await run(() => api(`${props.base}/payments/${p.id}/mark-paid`, {}))) props.onDone();
+  }
+  async function remove(p: PaymentRow, r: Receipt) {
+    if (!confirm(`撤销 ${p.memberName} 的这笔 $${dollars(r.amountCents)}？`)) return;
+    if (await run(() => api(`${props.base}/receipts/${r.id}/remove`, {}))) props.onDone();
   }
 
   return (
@@ -106,29 +111,29 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
         {error && <p class="error">{error}</p>}
         {v.payments.length === 0 && <Empty>没有应付款</Empty>}
         {v.payments.map((p) => (
-          <div class="row" key={p.id}>
-            <div class="who">
-              {p.memberName}
-              {p.isOwner && <span class="badge">我</span>}
-              <small>
-                ${dollars(p.amountDueCents)} · {p.paymentCode}
-                {p.status === "paid" && ` · 已付${p.method === "venmo_auto" ? "（Venmo 自动）" : ""}`}
-                {p.status === "anomaly" && ` · 金额异常（Venmo 实付 $${dollars(p.amountPaidCents ?? 0)}）`}
-              </small>
-            </div>
-            {!settled && !p.isOwner && (
-              <div class="actions">
-                {p.status !== "paid" ? (
-                  <button class="button" disabled={busy} onClick={() => mark(p, true)}>
-                    标记已付
-                  </button>
-                ) : (
-                  <button class="button secondary" disabled={busy} onClick={() => mark(p, false)}>
-                    撤销
-                  </button>
-                )}
+          <div class="pay-row" key={p.id}>
+            <div class="row">
+              <div class="who">
+                {p.memberName}
+                {p.isOwner && <span class="badge">我</span>}
+                <small>
+                  应付 ${dollars(p.amountDueCents)} · {p.paymentCode}
+                </small>
+                <small class={`pay-status ${p.status}`}>
+                  {p.status === "unpaid" && "未付"}
+                  {p.status === "partial" && `部分付款 · 已收 $${dollars(p.amountPaidCents)}，还差 $${dollars(p.amountDueCents - p.amountPaidCents)}`}
+                  {p.status === "paid" && (p.refundCents > 0 ? `已付 · 多付 $${dollars(p.refundCents)}，需要退款` : "已付")}
+                </small>
               </div>
-            )}
+              {!settled && !p.isOwner && p.status !== "paid" && (
+                <div class="actions">
+                  <button class="button" disabled={busy} onClick={() => mark(p)}>
+                    {p.status === "partial" ? "补齐已付" : "标记已付"}
+                  </button>
+                </div>
+              )}
+            </div>
+            {!p.isOwner && <ReceiptList receipts={p.receipts} busy={busy} onRemove={settled ? undefined : (r) => remove(p, r)} />}
           </div>
         ))}
       </Card>

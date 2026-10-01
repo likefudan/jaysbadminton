@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { settle } from "../../shared/settle";
 import type { MeResponse, MyEvent, MyPayment, PaymentStatus } from "../../shared/types";
-import { savedInput, settleRows } from "../billing";
+import { refundOf, savedInput, settleRows } from "../billing";
 import { getSettings } from "../db";
 import { closeExpired, friendCap, getEvent, removeSignup, setSignup, summaries, type EventRow, validateFriends } from "../events";
 import type { Env } from "../env";
@@ -40,10 +40,10 @@ memberRoutes.get("/:token/events", async (c) => {
     .bind(new Date(Date.now() - 30 * 86400_000).toISOString())
     .all<EventRow>();
   const pays = await c.env.DB.prepare(
-    "SELECT event_id, amount_due_cents, payment_code, status FROM payments WHERE member_id = ?",
+    "SELECT * FROM payments WHERE member_id = ?",
   )
     .bind(m.id)
-    .all<{ event_id: number; amount_due_cents: number; payment_code: string; status: PaymentStatus }>();
+    .all<{ event_id: number; amount_due_cents: number; amount_paid_cents: number; refunded_cents: number; payment_code: string; status: PaymentStatus }>();
   const s = await getSettings(c.env.DB, ["venmo_username", "zelle_account"]);
   const mine = await c.env.DB.prepare("SELECT event_id, friend_index, friend_name FROM registrations WHERE member_id = ?")
     .bind(m.id)
@@ -62,6 +62,8 @@ memberRoutes.get("/:token/events", async (c) => {
       const bill = input ? settle(await settleRows(c.env, e.id), input).bills.find((b) => b.memberId === m.id) : undefined;
       payment = {
         amountCents: pay.amount_due_cents,
+        paidCents: pay.amount_paid_cents,
+        refundCents: refundOf(pay),
         status: pay.status,
         code: pay.payment_code,
         shares: bill?.shares ?? [],

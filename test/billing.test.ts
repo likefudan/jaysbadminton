@@ -17,7 +17,8 @@ describe("settlement", () => {
     expect((await s.admin.call(`${s.eb}/finalize`, s.fees)).status).toBe(200);
     expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 3100 + 2500, status: "unpaid", paymentCode: `alice-jbm${s.e.date.replace(/-/g, "")}-${s.alice.id.toLowerCase()}` });
     expect(await payment(s, "Bob")).toMatchObject({ amountDueCents: 3100, status: "unpaid" });
-    expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 3100, status: "paid", method: "manual" });
+    expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 3100, status: "paid", amountPaidCents: 3100 });
+    expect((await payment(s, "Jay")).receipts).toMatchObject([{ method: "manual", amountCents: 3100 }]);
 
     const mine = (await anon.call(`${s.alice.base}/events`)).data.events[0];
     expect(mine.payment).toMatchObject({ amountCents: 5600, status: "unpaid", venmoUsername: "KeLi8916", zelleAccount: "jay@example.com" });
@@ -69,8 +70,9 @@ describe("collection and archive", () => {
     const a = await payment(s, "Alice");
     const b = await payment(s, "Bob");
     expect((await s.admin.call(`${s.base}/payments/${a.id}/mark-paid`, {})).data.settled).toBe(false);
-    await s.admin.call(`${s.base}/payments/${a.id}/unmark`, {});
-    expect((await payment(s, "Alice")).status).toBe("unpaid");
+    const receipt = (await payment(s, "Alice")).receipts[0];
+    await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {});
+    expect(await payment(s, "Alice")).toMatchObject({ status: "unpaid", amountPaidCents: 0, receipts: [] });
     await s.admin.call(`${s.base}/payments/${a.id}/mark-paid`, {});
     expect((await s.admin.call(`${s.base}/payments/${b.id}/mark-paid`, {})).data.settled).toBe(true);
 
@@ -78,7 +80,8 @@ describe("collection and archive", () => {
     expect(ev.status).toBe("settled");
     const add = await s.admin.call(`${s.eb}/roster/add`, { memberId: s.bob.id, includeSelf: false, friends: ["x"] });
     expect(add.data.error.message).toBe("这个活动已收齐归档，不能再修改");
-    expect((await s.admin.call(`${s.base}/payments/${a.id}/unmark`, {})).data.error.message).toBe("这个活动已收齐归档，不能再修改");
+    const paid = (await payment(s, "Alice")).receipts[0];
+    expect((await s.admin.call(`${s.base}/receipts/${paid.id}/remove`, {})).data.error.message).toBe("这个活动已收齐归档，不能再修改");
     expect((await s.admin.call(`${s.eb}/finalize`, s.fees)).data.error.message).toBe("这个活动已收齐归档，不能再修改");
 
     const home = (await anon.call("/api/public/home")).data;
