@@ -21,6 +21,7 @@ Requires Node.js 22.
 ```sh
 npm install
 npm run db:migrate:local   # create the local D1 database
+printf 'TOKEN_KEY="dev"\nADMIN_PASSWORD="dev-password"\n' > .dev.vars
 npm run dev                # build the front end and serve everything on http://localhost:8787
 npm test                   # Vitest inside the Workers runtime, against a local D1
 npm run typecheck
@@ -43,3 +44,12 @@ Repository secrets required:
 | --- | --- |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → any domain's Overview page, right column |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template, add **Account · D1 · Edit**, limit to this account and the `llmat.dev` zone |
+| `ADMIN_PASSWORD` | Your choice. Initial admin password, and the recovery path: change it and redeploy to reset a forgotten password |
+
+CI also generates the `TOKEN_KEY` Worker secret on the first deploy and never replaces it.
+
+### First-time setup and recovery
+
+- Open `/admin`, enter `ADMIN_PASSWORD`, and save the admin link and your own member link it shows. The admin page then needs both the link and the password (remembered for 30 days per device).
+- **Forgot the password**: change the `ADMIN_PASSWORD` secret, then Actions → CI → Run workflow on `main`.
+- **Lost the admin link**: Actions → CI → Run workflow on `main` with `reset_admin_link` ticked, then open `/admin` again.

@@ -1,7 +1,10 @@
 import { render } from "preact";
 import { LocationProvider, Route, Router } from "preact-iso";
-import { ComingSoon } from "./pages/ComingSoon";
+import { Admin } from "./pages/Admin";
+import { AdminSetup } from "./pages/AdminSetup";
 import { Home } from "./pages/Home";
+import { Join } from "./pages/Join";
+import { Member } from "./pages/Member";
 import { NotFound } from "./pages/NotFound";
 import "./styles.css";
 
@@ -10,7 +13,10 @@ function App() {
     <LocationProvider>
       <Router>
         <Route path="/" component={Home} />
-        <Route path="/join" component={ComingSoon} />
+        <Route path="/join" component={Join} />
+        <Route path="/m/:token" component={Member} />
+        <Route path="/admin" component={AdminSetup} />
+        <Route path="/admin/:token" component={Admin} />
         <Route default component={NotFound} />
       </Router>
     </LocationProvider>

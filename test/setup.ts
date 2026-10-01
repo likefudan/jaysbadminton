@@ -1,4 +1,26 @@
 import { applyD1Migrations } from "cloudflare:test";
 import { env } from "cloudflare:workers";
+import { beforeEach } from "vitest";
 
 await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
+
+const TABLES = [
+  "notification_log",
+  "inbound_payments",
+  "payments",
+  "settlements",
+  "registrations",
+  "events",
+  "locations",
+  "admin_sessions",
+  "members",
+];
+
+// Start every test from the freshly migrated state.
+beforeEach(async () => {
+  await env.DB.batch([
+    ...TABLES.map((t) => env.DB.prepare(`DELETE FROM ${t}`)),
+    env.DB.prepare("DELETE FROM settings WHERE key != 'next_member_seq'"),
+    env.DB.prepare("UPDATE settings SET value = '0' WHERE key = 'next_member_seq'"),
+  ]);
+});

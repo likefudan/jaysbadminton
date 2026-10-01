@@ -9,6 +9,8 @@ declare global {
       DB: D1Database;
       ASSETS: Fetcher;
       TEST_MIGRATIONS: D1Migration[];
+      TOKEN_KEY: string;
+      ADMIN_PASSWORD: string;
     }
   }
 }
