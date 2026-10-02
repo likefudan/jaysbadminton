@@ -16,7 +16,7 @@ flowchart LR
     API["Pages + API<br/>Preact UI, Hono /api"]
     EM["Email handler<br/>match payment codes"]
     EX["Export feed<br/>JSON + CSV"]
-    CR["Cron trigger<br/>every 10 minutes"]
+    CR["Cron trigger<br/>every minute"]
     D1[("D1 database")]
     API --- D1
     EM --- D1
@@ -28,7 +28,7 @@ flowchart LR
   EM -- alerts --> T
 ```
 
-One Cloudflare Worker serves the pages and API, receives forwarded Venmo emails and runs the 10-minute cron; all of them share one D1 database. Telegram alerts come from both the cron job and the email handler. Google sees only the forwarded Venmo emails and the daily export the Sheet pulls.
+One Cloudflare Worker serves the pages and API, receives forwarded Venmo emails and runs the every-minute cron; all of them share one D1 database. Telegram alerts come from both the cron job and the email handler. Google sees only the forwarded Venmo emails and the daily export the Sheet pulls.
 
 ## URLs and routing
 
@@ -159,7 +159,7 @@ The admin page's 收款 tab lists the 待确认 rows with their reason; the Owne
 
 ## Scheduled jobs and Telegram notifications
 
-One Cron Trigger runs every 10 minutes (`*/10 * * * *`, UTC); the handler converts "now" to Pacific time and walks every non-archived event. Each notification is written to `notification_log` before sending, so a retry never sends twice.
+One Cron Trigger runs every minute (`* * * * *`, UTC), so 报名截止 goes out within seconds of a deadline (deadlines fall on whole minutes); the handler converts "now" to Pacific time and walks every non-archived event. Each notification is written to `notification_log` before sending, so a retry never sends twice.
 
 | Job | Fires when | Repeats |
 | --- | --- | --- |
@@ -244,7 +244,7 @@ Expected use is a few hundred requests a day, far inside Cloudflare's free plan.
 
 | Resource | Free limit | Expected use |
 | --- | --- | --- |
-| Worker requests | \~100,000 / day | A few hundred / day, plus 144 cron runs |
+| Worker requests | \~100,000 / day | A few hundred / day, plus 1,440 cron runs |
 | CPU per invocation | \~10 ms | Low single-digit ms for API calls, settlement and email parsing |
 | Cron Triggers | \~5 per account | 1 |
 | D1 storage | 5 GB total, 500 MB per database | Under 1 MB per year |

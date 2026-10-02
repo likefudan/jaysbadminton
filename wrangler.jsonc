@@ -20,7 +20,9 @@
     }
   ],
   "vars": { "SITE_ORIGIN": "https://jaysbadminton.llmat.dev", "ENVIRONMENT": "production" },
-  "triggers": { "crons": ["*/10 * * * *"] },
+  // Every minute: deadlines fall on whole minutes, so 报名截止 goes out within seconds of the deadline.
+  // Every job is logged in notification_log, so running often never sends anything twice.
+  "triggers": { "crons": ["* * * * *"] },
   "routes": [{ "pattern": "jaysbadminton.llmat.dev", "custom_domain": true }],
   "observability": { "enabled": true },
 
@@ -45,7 +47,7 @@
         }
       ],
       "vars": { "SITE_ORIGIN": "https://staging.jaysbadminton.llmat.dev", "ENVIRONMENT": "staging" },
-      "triggers": { "crons": ["*/10 * * * *"] },
+      "triggers": { "crons": ["* * * * *"] },
       "routes": [{ "pattern": "staging.jaysbadminton.llmat.dev", "custom_domain": true }],
       "observability": { "enabled": true }
     }
