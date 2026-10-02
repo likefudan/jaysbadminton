@@ -273,7 +273,7 @@ describe("Google login for the admin", () => {
   });
 
   it("returns to the page that asked for Google, and only to this site's pages", async () => {
-    for (const [next, landing] of [["/admin/google", "/admin/google"], ["//evil.example/x", "/me"], ["https://evil.example", "/me"]]) {
+    for (const [next, landing] of <[string, string][]>[["/admin/google", "/admin/google"], ["//evil.example/x", "/me"], ["https://evil.example", "/me"]]) {
       const res = await request(`/api/auth/google?next=${encodeURIComponent(next)}`);
       const cookies = res.headers.getSetCookie().map((c) => c.split(";")[0]!);
       const url = new URL(res.headers.get("Location")!);
