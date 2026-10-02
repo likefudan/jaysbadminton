@@ -70,7 +70,7 @@ jobs:
       - run: npx wrangler deploy --env staging
       - run: node scripts/sync-secrets.mjs staging
         env:
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD_STAGING || secrets.ADMIN_PASSWORD }}
+          ADMIN_PASSWORD: ${{ secrets.STAGING_ADMIN_PASSWORD || secrets.ADMIN_PASSWORD }}
           # Its own bot: a bot has one webhook, so sharing production's would steal its replies.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN_STAGING }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}

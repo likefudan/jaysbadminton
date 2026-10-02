@@ -97,7 +97,7 @@ Repository secrets required:
 | `GOOGLE_MAPS_API_KEY` | Optional. Google Cloud → enable **Places API (New)** → API key restricted to that API. Makes address suggestions fast; without it the free (slower) Photon service is used. Usage stays inside Google's free monthly calls |
 | `ADMIN_PASSWORD` | Your choice. Initial admin password, and the recovery path: change it and redeploy to reset a forgotten password |
 | `TELEGRAM_BOT_TOKEN_STAGING` | A second bot from @BotFather for the test site (a bot has one webhook, so the sites cannot share one). Optional |
-| `ADMIN_PASSWORD_STAGING` | Optional; the test site uses `ADMIN_PASSWORD` when this is not set |
+| `STAGING_ADMIN_PASSWORD` | Admin password for the test site (first-time setup at `staging…/admin`, and its recovery path); falls back to `ADMIN_PASSWORD` when not set |
 
 CI also generates each site's `TOKEN_KEY` Worker secret on its first deploy and never replaces it.
 
