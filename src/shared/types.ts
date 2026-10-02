@@ -72,6 +72,18 @@ export interface MyEvent extends EventSummary {
   canEdit: boolean;
   /** Present once the event is finalized and the member owes something. */
   payment: MyPayment | null;
+  /** Everyone signed up, friends right after the member who brought them; only for members who signed up themselves. */
+  roster: MyRosterEntry[] | null;
+}
+
+export interface MyRosterEntry {
+  name: string;
+  /** For a friend: the member who brought them. */
+  friendOf: string | null;
+  /** The viewing member or one of their own friends. */
+  mine: boolean;
+  /** Marked absent at settlement (only reported once the event is finalized). */
+  absent: boolean;
 }
 
 export interface EventDefaults {

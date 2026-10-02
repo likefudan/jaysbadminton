@@ -90,6 +90,11 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await card.getByRole("button", { name: "确认报名" }).click();
   await expect(card.getByText("✓ 已报名，带 1 个朋友")).toBeVisible();
 
+  // Signed up, so they see who else is coming, friends included.
+  const names = card.locator(".roster-fold");
+  await expect(names.locator("summary")).toHaveText("名单（3 人）");
+  await expect(names.locator(".names li")).toHaveText(["Jay", "小明（我）", "阿强（小明带）"]);
+
   const ics = await card.getByRole("link", { name: "iPhone / Outlook" }).getAttribute("href");
   const res = await page.request.get(ics!);
   expect(res.headers()["content-type"]).toContain("text/calendar");
