@@ -33,7 +33,12 @@ export function Join() {
 
   return (
     <Page title="申请加入">
+      <Card title="使用 Google 账号加入">
+        <p>登录并完善资料后即可报名，无需等待管理员发送链接。</p>
+        <a class="button block" href="/login">使用 Google 登录</a>
+      </Card>
       <Card>
+        <p class="muted small">也可以使用原有方式提交申请，由管理员审核后发送成员链接。</p>
         <form onSubmit={submit}>
           <Field label="用户名" value={username} onInput={setUsername} hint="会显示在报名名单上，不能和别人重复" autocomplete="nickname" />
           <Field label="微信昵称" value={nickname} onInput={setNickname} hint="方便管理员在群里找到你" />

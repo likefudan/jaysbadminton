@@ -9,6 +9,8 @@ export interface Env {
   TELEGRAM_BOT_TOKEN?: string;
   /** Google Places (New) key for address suggestions; Photon is used while it is missing. */
   GOOGLE_MAPS_API_KEY?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
   /** Public site address, for links in messages sent by the cron job (which has no request). */
   SITE_ORIGIN: string;
   /** "production" or "staging" (the test site); missing in tests, which count as production. */

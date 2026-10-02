@@ -151,6 +151,8 @@ adminRoutes.post("/:token/settings/reset", async (c) => {
 const RESET_PHRASE = "清空所有数据";
 // Children first, so no foreign key is ever left dangling.
 const RESET_TABLES = [
+  "member_sessions",
+  "oauth_states",
   "notification_log",
   "email_log",
   "inbound_payments",

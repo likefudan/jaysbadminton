@@ -13,6 +13,7 @@ import { handleUpdate, webhookSecret } from "./telegram";
 import { adminRoutes } from "./routes/admin";
 import { memberRoutes } from "./routes/member";
 import { publicRoutes } from "./routes/public";
+import { googleRoutes } from "./googleAuth";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -60,6 +61,7 @@ app.get("/", async (c) => sharePage(c.env, c.req.raw, await homeMeta(c.env)));
 app.get("/e/:code", async (c) => sharePage(c.env, c.req.raw, await eventMeta(c.env, c.req.param("code"))));
 
 app.route("/api/public", publicRoutes);
+app.route("/api/auth", googleRoutes);
 app.route("/api/m", memberRoutes);
 app.route("/api/admin", adminRoutes);
 

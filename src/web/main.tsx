@@ -6,6 +6,8 @@ import { AdminSetup } from "./pages/AdminSetup";
 import { Home } from "./pages/Home";
 import { Join } from "./pages/Join";
 import { Member } from "./pages/Member";
+import { Account } from "./pages/Account";
+import { Privacy, Terms } from "./pages/Legal";
 import { NotFound } from "./pages/NotFound";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
@@ -17,6 +19,10 @@ function App() {
       <Router>
         <Route path="/" component={Home} />
         <Route path="/join" component={Join} />
+        <Route path="/login" component={Account} />
+        <Route path="/me" component={Account} />
+        <Route path="/privacy" component={Privacy} />
+        <Route path="/terms" component={Terms} />
         <Route path="/e/:code" component={EventPage} />
         <Route path="/m/:token" component={Member} />
         <Route path="/admin" component={AdminSetup} />

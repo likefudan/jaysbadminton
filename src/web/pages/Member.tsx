@@ -10,6 +10,7 @@ import { PaymentBox } from "../PaymentBox";
 import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
 import { MyStatsCard } from "../Stats";
+import { GoogleLink, Logout } from "./Account";
 
 /** On your own page a settled event shows where your bill stands, not the group's. */
 const BILL_STATUS: Record<PaymentStatus, { cls: string; label: string }> = {
@@ -19,16 +20,18 @@ const BILL_STATUS: Record<PaymentStatus, { cls: string; label: string }> = {
 };
 
 export function Member(props: { token?: string }) {
-  const base = `/api/m/${props.token}`;
+  const base = `/api/m/${props.token ?? "session"}`;
   const [me, reload] = useApi<MeResponse>(`${base}/me`);
   return (
     <Load result={me}>
       {(m) => (
-        <Page title={`你好，${m.username}`} eyebrow={`${m.id} · 专属页面`} subtitle="请不要把这个链接转发给别人。">
+        <Page title={`你好，${m.username}`} eyebrow={`${m.id} · 我的活动`} subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}>
+          {props.token && <GoogleLink token={props.token} />}
           {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
           <MyEvents base={base} />
           <MyStatsCard base={base} />
           <Rename base={base} current={m.username} onDone={reload} />
+          {!props.token && <Logout />}
         </Page>
       )}
     </Load>

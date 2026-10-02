@@ -24,6 +24,8 @@ else if (!existing.has("ADMIN_PASSWORD")) throw new Error("ADMIN_PASSWORD GitHub
 // Optional: notifications stay off until the bot exists.
 if (process.env.TELEGRAM_BOT_TOKEN) secrets.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (process.env.GOOGLE_MAPS_API_KEY) secrets.GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+if (process.env.GOOGLE_CLIENT_ID) secrets.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+if (process.env.GOOGLE_CLIENT_SECRET) secrets.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 if (!existing.has("TOKEN_KEY")) {
   console.log("Generating TOKEN_KEY");

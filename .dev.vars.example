@@ -1,0 +1,6 @@
+TOKEN_KEY="dev"
+ADMIN_PASSWORD="local-password"
+# Optional until a Google OAuth Web Client is created:
+# GOOGLE_CLIENT_ID="...apps.googleusercontent.com"
+# GOOGLE_CLIENT_SECRET="..."
+# For local dev pass --var SITE_ORIGIN:http://localhost:8787 to wrangler dev.
