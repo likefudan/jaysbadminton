@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { Loaded } from "./hooks";
 import { AppearanceButton, AppearanceSheet } from "./Appearance";
 import { useSiteTitle } from "./site";
+import { GoogleAccount } from "./GoogleAccount";
 
 export function Page(props: { title: string; eyebrow?: string; subtitle?: string; children: ComponentChildren }) {
   const site = useSiteTitle();
@@ -19,7 +20,10 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
           </span>
           <span class="brand-name">{site}</span>
         </a>
-        <AppearanceButton onClick={() => setLooks(true)} />
+        <div class="topbar-actions">
+          <GoogleAccount />
+          <AppearanceButton onClick={() => setLooks(true)} />
+        </div>
       </header>
       {looks && <AppearanceSheet onClose={() => setLooks(false)} />}
       <main>

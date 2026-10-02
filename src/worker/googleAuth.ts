@@ -104,6 +104,7 @@ googleRoutes.post("/link", async (c) => {
   const body = await readJson(c.req.raw);
   const m = await memberByToken(c.env, str(body.token));
   if (!m) throw new HttpError(403, "invalid_link", "原成员链接无效，请联系管理员");
+  if (m.google_sub === session.google_sub) return c.json({ ok: true });
   try {
     const result = await c.env.DB.prepare("UPDATE members SET google_sub = ?, google_email = ? WHERE id = ? AND google_sub IS NULL AND deleted_at IS NULL")
       .bind(session.google_sub, session.email, m.id).run();
