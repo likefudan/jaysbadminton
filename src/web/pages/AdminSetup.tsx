@@ -20,7 +20,7 @@ export function AdminSetup() {
             <GoogleEntry />
             <Card>
               <p>也可以使用你的专属管理链接进入管理页。</p>
-              <p class="muted small">管理链接丢失时，可在 GitHub Actions 里手动运行部署并勾选「reset_admin_link」，然后回到这里重新设置。</p>
+              <p class="muted small">管理链接丢失时，可在 GitHub Actions 里手动运行部署并勾选「reset_admin_link」（正式环境选最新的版本标签，测试环境选 main），然后回到这里用管理密码重新设置。</p>
             </Card>
           </Page>
         )

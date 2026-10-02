@@ -39,7 +39,7 @@
 | 回滚 | GitHub → Actions → CI → Run workflow → Use workflow from 选上一个版本标签 → Run。约 1 分钟恢复到上个版本 |
 | 出问题看哪里 | GitHub → Actions 看部署记录；Cloudflare → Workers → jaysbadminton → Logs 看运行日志 |
 | 数据恢复 | Cloudflare D1 自带 7 天「时间回溯」；每次发布前的数据库备份在那次 Actions 运行的 Artifacts 里（保存 90 天）；开了 Google 表格同步的话，表格的「版本记录」里也有每天的数据 |
-| 忘记管理链接 | Telegram 给机器人发「管理页面」；或者 Actions → CI → Run workflow，Use workflow from 选**最新的版本标签**，勾选 `reset_admin_link` |
+| 忘记管理链接 | Telegram 给机器人发「管理页面」；或者 Actions → CI → Run workflow，Use workflow from 选**最新的版本标签**，勾选 `reset_admin_link`（正式环境，密码是 `ADMIN_PASSWORD`）；测试环境则选 **main**，密码是 `ADMIN_PASSWORD_STAGING` |
 | 忘记管理密码 | 改 GitHub 里的 `ADMIN_PASSWORD`，再在**最新的版本标签**上运行一次 CI |
 | 换管理员 | 设置 → 清空所有数据，新管理员重新做初次设置 |
 | 费用 | 全部在免费额度内：Cloudflare Workers/D1/邮件路由免费版、Telegram 免费、Google 地址联想在每月免费调用次数内 |
