@@ -30,6 +30,7 @@ export const toSummary = (m: MemberRow): MemberSummary => ({
   approvedAt: m.approved_at,
   deletedAt: m.deleted_at,
   hasLink: !!m.token_enc,
+  googleEmail: m.google_sub ? m.google_email : null,
   owingCents: 0,
 });
 
@@ -45,6 +46,16 @@ export async function usernameTaken(env: Env, username: string, exceptId?: strin
     .bind(username.trim(), exceptId ?? null)
     .first();
   return !!row;
+}
+
+/** A bot that gets past the honeypot can still only fill the 待审核 queue up to this many. */
+export const MAX_PENDING = 30;
+
+export async function assertPendingRoom(env: Env): Promise<void> {
+  const pending = await env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE status = 'pending'").first<{ n: number }>();
+  if ((pending?.n ?? 0) >= MAX_PENDING) {
+    throw new HttpError(429, "too_many_pending", "现在待审核的申请太多了，请先联系管理员处理后再提交");
+  }
 }
 
 const takenError = () => new HttpError(409, "username_taken", "这个用户名已被使用，请换一个");

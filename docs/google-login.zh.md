@@ -8,7 +8,7 @@ Google 登录成功后，各页面右上角显示 Google 账号头像和登录�
 
 旧成员先打开原成员链接，点击「绑定 Google 账号」，登录后确认绑定；也可以在首次登录页选择「已有成员链接？关联原账号」。这样成员编号、历史报名和账单都保留。不会按姓名或邮箱猜测并合并成员；同一个 Google 账号只关联一个成员。旧成员链接仍有效，管理员可重新生成备用链接。
 
-Google 登录只授予成员权限。管理页仍使用原有管理员链接和密码。停用成员只能查看活动账单，不能报名；删除成员不能通过 Google 登录重新恢复该成员。
+Google 登录只授予成员权限。管理页仍使用原有管理员链接和密码。用 Google 新注册的人和「申请加入」一样进入「待审核」，管理员通过后才能报名（待审核列表会显示申请人的 Google 邮箱）。停用成员只能查看活动账单，不能报名。删除成员后，他的历史记录保留，但 Google 账号会被释放：同一个邮箱可以重新申请，审核通过后得到一个新的成员编号（旧成员不会被恢复）。
 
 ## 1. 创建 Google OAuth Client
 
@@ -72,10 +72,10 @@ npm run dev -- --ip 127.0.0.1 --var SITE_ORIGIN:http://localhost:8787
 
 部署后访问 `https://jaysbadminton.llmat.dev/api/auth/session`，应返回 `enabled: true`。旧成员页面会直接跳转 Google 授权，返回后确认绑定；即使账号已登录，也会先确认原成员链接，避免误进入另一个成员账号。重复确认同一个绑定会成功，已绑定到其他成员的 Google 账号仍会被拒绝。
 
-- 使用测试 Gmail 登录，首次注册后能报名；退出后再次登录回到同一成员。
+- 使用测试 Gmail 登录并提交申请，页面显示「申请已提交」、不能报名；管理员在「待审核」通过后，刷新即可报名；退出后再次登录回到同一成员。
 - 使用原成员链接绑定另一个 Google 测试账号，确认历史记录保留。
 - 用户取消授权后可重试；不同浏览器登录也能找到相同成员。
-- 停用成员后不能报名，删除成员后拒绝访问；普通 Google 账号不能访问管理 API。
+- 停用成员后不能报名；删除成员后，同一 Google 账号登录会看到「申请加入」，可以重新申请并拿到新编号；普通 Google 账号不能访问管理 API。
 
 自动化测试使用临时 RSA 密钥签发测试 ID token，并模拟 Google token/JWKS 响应，不会访问真实 Google 账号。创建真实 Client 后仍需完成以上真实登录联调。
 
@@ -86,4 +86,4 @@ npm run dev -- --ip 127.0.0.1 --var SITE_ORIGIN:http://localhost:8787
 - 服务端保存随机 session 的 SHA-256 摘要，浏览器使用 HttpOnly、SameSite=Lax cookie；HTTPS 下启用 Secure，本地 HTTP 开发可用。有效期 30 天，退出立即删除当前 session。
 - 成员 cookie 写操作检查请求 Origin；Google 登录没有管理员权限，也不存储 Google access/refresh token。
 - `/api/m/session/*` 使用当前 cookie 身份，兼容原来的 `/api/m/:token/*`。`/api/auth/*` 位于现有 Worker API 路由范围内。
-- 成员删除保留 `google_sub`，避免同一身份重新注册绕过停用/删除；管理页的全站重置同时清空 Google 会话和 OAuth state。
+- 停用的成员保留 `google_sub`，同一账号登录仍是这个（停用的）成员，不能借新注册绕过停用；删除成员时清空 `google_sub`（保留 `google_email` 作记录），让这个人能重新申请。新申请一律是待审核，计入待审核上限。管理页的全站重置同时清空 Google 会话和 OAuth state。

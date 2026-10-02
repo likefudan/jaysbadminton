@@ -20,7 +20,7 @@ test("existing members stay on their page until Google is enabled, then authoriz
 
 test("a signed-in account confirms the original member link before showing its activities", async ({ page }) => {
   let linked = false;
-  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn: true, email: "alice@gmail.com", hasMember: true, unavailable: false } }));
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn: true, email: "alice@gmail.com", hasMember: true, pending: false } }));
   await page.route("**/api/m/*/me", (route) => route.fulfill({ json: { id: "M007", username: "Dafei", active: true, isOwner: false } }));
   await page.route("**/api/m/*/events", (route) => route.fulfill({ json: { events: [], friendCap: 3 } }));
   await page.route("**/api/m/*/stats", (route) => route.fulfill({ status: 503, json: { error: { message: "暂无统计" } } }));
@@ -56,22 +56,32 @@ test("Google login navigates to the server authorization endpoint", async ({ pag
   await expect(page.getByRole("heading", { name: "Authorization redirect" })).toBeVisible();
 });
 
-test("a Google user completes their profile and can sign out", async ({ page }) => {
-  let registered = false, signedIn = true;
-  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn, email: "alice@gmail.com", hasMember: registered, unavailable: false } }));
+test("a Google newcomer applies, waits for approval, then gets in and can sign out", async ({ page }) => {
+  let applied = false, approved = false, signedIn = true;
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { enabled: true, signedIn, email: "alice@gmail.com", hasMember: approved, pending: applied && !approved } }),
+  );
   await page.route("**/api/auth/register", async (route) => {
     expect(route.request().postDataJSON()).toEqual({ username: "Alice", wechatNickname: "Alice微信" });
-    registered = true;
-    await route.fulfill({ json: { id: "M999" } });
+    applied = true;
+    await route.fulfill({ json: { id: "M999", pending: true } });
   });
   await page.route("**/api/m/session/me", (route) => route.fulfill({ json: { id: "M999", username: "Alice", wechatNickname: "Alice微信", active: true, isOwner: false } }));
   await page.route("**/api/m/session/events", (route) => route.fulfill({ json: { events: [], friendCap: 3 } }));
   await page.route("**/api/m/session/stats", (route) => route.fulfill({ status: 503, json: { error: { message: "暂无统计" } } }));
   await page.route("**/api/auth/logout", async (route) => { signedIn = false; await route.fulfill({ json: { ok: true } }); });
   await page.goto("/me");
+  await expect(page.getByRole("heading", { name: "申请加入" })).toBeVisible();
   await page.getByLabel(/^用户名/).fill("Alice");
   await page.getByLabel(/^微信昵称/).fill("Alice微信");
-  await page.getByRole("button", { name: "完成注册，开始报名" }).click();
+  await page.getByRole("button", { name: "提交入群申请" }).click();
+
+  // Not in yet: the Owner has to approve first.
+  await expect(page.getByRole("heading", { name: "申请已提交" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "你好，Alice" })).toHaveCount(0);
+
+  approved = true;
+  await page.getByRole("button", { name: "刷新审核状态" }).click();
   await expect(page.getByRole("heading", { name: "你好，Alice" })).toBeVisible();
   await expect(page).toHaveURL(/\/me$/);
   await page.getByRole("button", { name: "退出 Google 登录" }).click();

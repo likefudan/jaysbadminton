@@ -106,18 +106,47 @@ describe("Google authorization flow", () => {
 });
 
 describe("Google member access", () => {
-  it("registers an active non-admin member without a link, then permits signup", async () => {
+  it("registers a newcomer as 待审核: no sign-up until the Owner approves", async () => {
     const ctx = await setUpAdmin();
     const event = await createTestEvent(ctx);
     const cookie = await session();
-    expect((await request("/api/auth/register", cookie, { username: "Alice", wechatNickname: "Alice微信" })).status).toBe(200);
-    const me = await (await request("/api/m/session/me", cookie)).json() as any;
-    expect(me).toMatchObject({ username: "Alice", active: true, isOwner: false });
+    const reg = await request("/api/auth/register", cookie, { username: "Alice", wechatNickname: "Alice微信" });
+    expect(reg.status).toBe(200);
+    const { id } = await reg.json() as { id: string };
+
+    // Waiting: the session says so, member pages and sign-up are closed, applying twice is refused.
+    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({ signedIn: true, hasMember: false, pending: true });
+    const me = await request("/api/m/session/me", cookie);
+    expect(me.status).toBe(403);
+    expect((await me.json() as any).error.code).toBe("pending_approval");
+    expect((await request(`/api/m/session/events/${event.id}/signup`, cookie, { friends: [] })).status).toBe(403);
+    expect((await request("/api/auth/register", cookie, { username: "Other", wechatNickname: "Other" })).status).toBe(409);
+
+    // The Owner sees who applied, Google email included, and approves.
+    const pending = (await ctx.admin.call(`${ctx.base}/members`)).data.pending;
+    expect(pending).toEqual([expect.objectContaining({ id, username: "Alice", googleEmail: "alice@gmail.com" })]);
+    expect((await ctx.admin.call(`${ctx.base}/members/${id}/approve`, {})).status).toBe(200);
+
+    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({ hasMember: true, pending: false });
+    expect(await (await request("/api/m/session/me", cookie)).json()).toMatchObject({ id, username: "Alice", active: true, isOwner: false });
     expect((await request(`/api/m/session/events/${event.id}/signup`, cookie, { friends: [] })).status).toBe(200);
     expect((await request(`${ctx.base}/members`, cookie)).status).toBe(401);
-    const m = await env.DB.prepare("SELECT token_hash FROM members WHERE id = ?").bind(me.id).first();
-    expect(m?.token_hash).toBeNull();
     expect((await request("/api/auth/register", cookie, { username: "Other", wechatNickname: "Other" })).status).toBe(409);
+  });
+  it("frees the Google account of a rejected applicant to apply again", async () => {
+    const ctx = await setUpAdmin();
+    const cookie = await session("google-bob");
+    const { id } = await (await request("/api/auth/register", cookie, { username: "Bob", wechatNickname: "Bob" })).json() as { id: string };
+    await ctx.admin.call(`${ctx.base}/members/${id}/reject`, {});
+    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({ hasMember: false, pending: false });
+    expect((await request("/api/auth/register", cookie, { username: "Bob", wechatNickname: "Bob" })).status).toBe(200);
+  });
+  it("counts Google applications toward the 待审核 cap", async () => {
+    await env.DB.prepare("DELETE FROM members WHERE status = 'pending'").run();
+    for (let i = 0; i < 30; i++) await createMember(env, { username: `Wait${i}`, wechatNickname: "w", status: "pending" });
+    const res = await request("/api/auth/register", await session("google-flood"), { username: "Flood", wechatNickname: "f" });
+    expect(res.status).toBe(429);
+    await env.DB.prepare("DELETE FROM members WHERE status = 'pending'").run();
   });
   it("requires login and rejects expired sessions and cross-origin writes", async () => {
     expect((await request("/api/m/session/me")).status).toBe(401);
@@ -149,9 +178,31 @@ describe("Google member access", () => {
     expect((await request("/api/m/session/me", cookie)).status).toBe(200);
     expect((await request(`/api/m/session/events/${event.id}/signup`, cookie, { friends: [] })).status).toBe(400);
     expect((await request("/api/auth/register", await session("other"), { username: "Alice", wechatNickname: "Alice" })).status).toBe(409);
+    // A member deleted before deletions released the account (still holding google_sub) no longer
+    // opens anything, and the person can apply again as someone new.
     await env.DB.prepare("UPDATE members SET deleted_at = ? WHERE id = ?").bind(new Date().toISOString(), m.id).run();
-    expect((await request("/api/m/session/me", cookie)).status).toBe(403);
-    expect((await request("/api/auth/register", cookie, { username: "Again", wechatNickname: "Again" })).status).toBe(409);
+    expect((await request("/api/m/session/me", cookie)).status).toBe(409);
+    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({ hasMember: false, pending: false });
+    const again = await request("/api/auth/register", cookie, { username: "Again", wechatNickname: "Again" });
+    expect(again.status).toBe(200);
+    expect((await again.json() as { id: string }).id).not.toBe(m.id);
+  });
+  it("lets a deleted member's Google account apply again for a new member number, keeping the old record", async () => {
+    const ctx = await setUpAdmin();
+    const old = await createMember(env, { username: "Carol", wechatNickname: "Carol", status: "active", googleSub: "google-carol", googleEmail: "carol@gmail.com" });
+    expect((await ctx.admin.call(`${ctx.base}/members/${old.id}/deactivate`, {})).status).toBe(200);
+    expect((await ctx.admin.call(`${ctx.base}/members/${old.id}/delete`, {})).status).toBe(200);
+    const row = await env.DB.prepare("SELECT google_sub, google_email, deleted_at FROM members WHERE id = ?").bind(old.id).first<Record<string, string | null>>();
+    expect(row).toMatchObject({ google_sub: null, google_email: "carol@gmail.com" });
+    expect(row!.deleted_at).not.toBeNull();
+
+    const cookie = await session("google-carol");
+    const res = await request("/api/auth/register", cookie, { username: "Carol2", wechatNickname: "Carol" });
+    expect(res.status).toBe(200);
+    const { id } = await res.json() as { id: string };
+    expect(id).not.toBe(old.id);
+    expect(Number(id.slice(1))).toBeGreaterThan(Number(old.id.slice(1)));
+    expect((await ctx.admin.call(`${ctx.base}/members`)).data.pending).toEqual([expect.objectContaining({ id, googleEmail: "alice@gmail.com" })]);
   });
   it("revokes a session on logout", async () => {
     const cookie = await session();

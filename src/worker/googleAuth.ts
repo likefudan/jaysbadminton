@@ -4,7 +4,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Env } from "./env";
 import { now } from "./db";
 import { randomToken, sha256, timingSafeEqual } from "./lib/crypto";
-import { createMember, memberByToken, type MemberRow } from "./members";
+import { assertPendingRoom, createMember, memberByToken, type MemberRow } from "./members";
 import { HttpError, readJson, str } from "./http";
 
 type Ctx = Context<{ Bindings: Env }>;
@@ -36,12 +36,16 @@ export async function googleSession<E extends { Bindings: Env }>(c: Context<E>) 
   return c.env.DB.prepare("SELECT google_sub, email, picture FROM member_sessions WHERE id_hash = ? AND expires_at > ?")
     .bind(await sha256(raw), now()).first<{ google_sub: string; email: string; picture: string | null }>();
 }
+/** The live member a Google account belongs to; deleted members no longer hold their account. */
+const memberByGoogle = (env: Env, sub: string) =>
+  env.DB.prepare("SELECT * FROM members WHERE google_sub = ? AND deleted_at IS NULL").bind(sub).first<MemberRow>();
+
 export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow> {
   const session = await googleSession(c);
   if (!session) throw loginRequired();
-  const m = await c.env.DB.prepare("SELECT * FROM members WHERE google_sub = ?").bind(session.google_sub).first<MemberRow>();
+  const m = await memberByGoogle(c.env, session.google_sub);
   if (!m) throw new HttpError(409, "profile_required", "请先完善成员资料");
-  if (m.deleted_at || m.status === "pending") throw new HttpError(403, "member_unavailable", "成员账号不可用，请联系管理员");
+  if (m.status === "pending") throw new HttpError(403, "pending_approval", "你的入群申请正在等待管理员审核，通过后才能报名活动");
   return m;
 }
 
@@ -52,8 +56,8 @@ googleRoutes.use("*", async (c, next) => {
 });
 googleRoutes.get("/session", async (c) => {
   const session = await googleSession(c);
-  const member = session ? await c.env.DB.prepare("SELECT id, deleted_at, status FROM members WHERE google_sub = ?").bind(session.google_sub).first<{ id: string; deleted_at: string | null; status: string }>() : null;
-  return c.json({ enabled: googleEnabled(c.env), signedIn: !!session, email: session?.email ?? null, picture: session?.picture ?? null, hasMember: !!member, unavailable: !!member && (!!member.deleted_at || member.status === "pending") });
+  const member = session ? await memberByGoogle(c.env, session.google_sub) : null;
+  return c.json({ enabled: googleEnabled(c.env), signedIn: !!session, email: session?.email ?? null, picture: session?.picture ?? null, hasMember: !!member && member.status !== "pending", pending: member?.status === "pending" });
 });
 googleRoutes.get("/google", async (c) => {
   if (!googleEnabled(c.env)) return c.redirect("/login?error=not_configured");
@@ -102,11 +106,16 @@ googleRoutes.get("/google/callback", async (c) => {
 googleRoutes.post("/register", async (c) => {
   const session = await googleSession(c);
   if (!session) throw loginRequired();
-  const existing = await c.env.DB.prepare("SELECT id FROM members WHERE google_sub = ?").bind(session.google_sub).first();
+  const existing = await memberByGoogle(c.env, session.google_sub);
+  if (existing?.status === "pending") throw new HttpError(409, "already_applied", "你的入群申请已经提交，请等待管理员审核");
   if (existing) throw new HttpError(409, "already_registered", "此 Google 账号已关联成员，请返回我的页面");
   const body = await readJson(c.req.raw);
-  const m = await createMember(c.env, { username: str(body.username), wechatNickname: str(body.wechatNickname), status: "active", googleSub: session.google_sub, googleEmail: session.email });
-  return c.json({ id: m.id });
+  await assertPendingRoom(c.env);
+  // A deleted member keeps their history but lets go of the Google account, so it can apply anew.
+  await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL").bind(session.google_sub).run();
+  // Like 申请加入: the Owner approves every newcomer before they can sign up for anything.
+  const m = await createMember(c.env, { username: str(body.username), wechatNickname: str(body.wechatNickname), status: "pending", googleSub: session.google_sub, googleEmail: session.email });
+  return c.json({ id: m.id, pending: true });
 });
 googleRoutes.post("/link", async (c) => {
   const session = await googleSession(c);
