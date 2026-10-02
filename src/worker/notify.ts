@@ -56,7 +56,7 @@ async function headcount(env: Env, eventId: number): Promise<number> {
   return r?.n ?? 0;
 }
 
-// ---- Scheduled jobs (cron, every 10 minutes) ----
+// ---- Scheduled jobs (cron, every minute; each notice is sent once via notification_log) ----
 
 export async function runScheduled(env: Env, at: Date = new Date()): Promise<void> {
   const cfg = await notifySettings(env);

@@ -1,9 +1,11 @@
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pacificToUtc } from "../src/shared/time";
 import { handleEmail, recordEmailOutcome } from "../src/worker/inbound";
 import { digestText, emailProblemAlert } from "../src/worker/health";
+import worker from "../src/worker/index";
 import { runScheduled } from "../src/worker/notify";
 import { webhookSecret } from "../src/worker/telegram";
 import { ORIGIN, billingScenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
@@ -91,6 +93,18 @@ describe("scheduled notifications", () => {
     expect(sent()).toHaveLength(2);
     expect(sent()[1]).toContain("报名已截止，共 1 人");
     expect(sent()[1]).toContain("1. Jay");
+  });
+
+  it("closes sign-up and posts the roster in the run right after the deadline (the cron runs every minute)", async () => {
+    const ctx = await setUpAdmin();
+    await connectChat();
+    const e = await createTestEvent(ctx, { joinSelf: true });
+    await env.DB.prepare("UPDATE events SET deadline_at = ? WHERE id = ?").bind(new Date(Date.now() - 20_000).toISOString(), e.id).run();
+    const c = createExecutionContext();
+    await worker.scheduled!({ scheduledTime: Date.now(), cron: "* * * * *", noRetry() {} } as ScheduledController, env, c);
+    await waitOnExecutionContext(c);
+    expect(sent()).toEqual([expect.stringContaining("报名已截止，共 1 人")]);
+    expect((await env.DB.prepare("SELECT status FROM events WHERE id = ?").bind(e.id).first<{ status: string }>())!.status).toBe("closed");
   });
 
   it("skips the reminder when the event was created inside the window, or reminders are off", async () => {
