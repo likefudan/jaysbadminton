@@ -123,3 +123,37 @@ test("the admin gets in with the bound Google account; another account is told s
   await page.reload();
   await expect(page.getByRole("link", { name: "进入管理页" })).toHaveAttribute("href", "/admin/google");
 });
+
+test("a signed-in member sees the roster and can sign up on the shared event page", async ({ page }) => {
+  const event = { id: 7, code: "AB12", date: "2030-10-15", startTime: "19:00", endTime: "21:00", location: "Synergy", address: "", title: "", deadlineAt: "2030-10-14T02:00:00.000Z", status: "open", headcount: 2 };
+  let signedUp = false;
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn: true, email: "alice@gmail.com", hasMember: true, pending: false } }));
+  await page.route("**/api/public/events/AB12", (route) => route.fulfill({ json: event }));
+  await page.route("**/api/m/session/events", (route) => route.fulfill({ json: {
+    friendCap: 3,
+    events: [{ ...event, headcount: signedUp ? 3 : 2, canEdit: true, payment: null, myFriends: signedUp ? [] : null,
+      roster: signedUp ? [{ name: "Jay", friendOf: null, mine: false, absent: false }, { name: "Bob", friendOf: null, mine: false, absent: false }, { name: "Alice", friendOf: null, mine: true, absent: false }] : null }],
+  } }));
+  await page.route("**/api/m/session/events/7/signup", async (route) => {
+    signedUp = true;
+    await route.fulfill({ json: { ok: true } });
+  });
+
+  await page.goto("/e/AB12");
+  await expect(page.getByText("使用 Google 账号登录后即可报名。")).toHaveCount(0);
+  await page.getByRole("button", { name: "报名", exact: true }).click();
+  await page.getByRole("button", { name: "确认报名" }).click();
+  await expect(page.getByText("✓ 已报名")).toBeVisible();
+  await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
+  await expect(page.getByRole("link", { name: "我的活动" })).toBeVisible();
+});
+
+test("a visitor still sees only the headcount on the shared event page", async ({ page }) => {
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn: false, hasMember: false } }));
+  await page.route("**/api/public/events/AB12", (route) => route.fulfill({ json: { id: 7, code: "AB12", date: "2030-10-15", startTime: "19:00", endTime: "21:00", location: "Synergy", address: "", title: "", deadlineAt: "2030-10-14T02:00:00.000Z", status: "open", headcount: 2 } }));
+  await page.goto("/e/AB12");
+  await expect(page.getByText("2 人已报名")).toBeVisible();
+  await expect(page.getByText("使用 Google 账号登录后即可报名。")).toBeVisible();
+  await expect(page.getByRole("link", { name: "登录 / 我的活动" })).toBeVisible();
+  await expect(page.locator(".roster-fold")).toHaveCount(0);
+});

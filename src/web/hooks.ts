@@ -20,3 +20,11 @@ export function useApi<T>(path: string): [Loaded<T>, () => void] {
   }, [path, tick]);
   return [result, () => setTick((t) => t + 1)];
 }
+
+/** Who this browser is, by its Google session: a member, an applicant waiting for approval, or nobody yet. */
+export function useMemberSession(): "loading" | "none" | "pending" | "member" {
+  const [session] = useApi<{ signedIn: boolean; hasMember: boolean; pending: boolean }>("/api/auth/session");
+  if (session.state === "loading") return "loading";
+  if (session.state === "error" || !session.data.signedIn) return "none";
+  return session.data.hasMember ? "member" : session.data.pending ? "pending" : "none";
+}

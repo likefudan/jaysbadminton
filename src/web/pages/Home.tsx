@@ -1,7 +1,7 @@
 import type { EventSummary, HomeResponse } from "../../shared/types";
 import { Empty, Load, Page, SectionTitle, Tiles } from "../components";
 import { EventLink } from "../events";
-import { useApi } from "../hooks";
+import { useApi, useMemberSession } from "../hooks";
 import { useSiteTitle } from "../site";
 import { LeaderboardCard } from "../Stats";
 
@@ -22,9 +22,10 @@ function overview(events: EventSummary[]) {
 
 export function Home() {
   const [home] = useApi<HomeResponse>("/api/public/home");
+  const member = useMemberSession();
   return (
     <Page title={useSiteTitle()} subtitle="登录后报名、查看活动和账单。">
-      <a class="button block" href="/me">登录 / 我的活动</a>
+      <a class="button block" href="/me">{member === "member" || member === "pending" ? "我的活动" : "登录 / 我的活动"}</a>
       <Load result={home}>
         {(data) => {
           const tiles = overview(data.currentEvents);
@@ -50,9 +51,11 @@ export function Home() {
           );
         }}
       </Load>
-      <a class="button secondary block" href="/join">
-        申请加入
-      </a>
+      {member !== "member" && member !== "pending" && (
+        <a class="button secondary block" href="/join">
+          申请加入
+        </a>
+      )}
     </Page>
   );
 }
