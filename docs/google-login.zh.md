@@ -61,6 +61,14 @@ npm run dev -- --ip 127.0.0.1 --var SITE_ORIGIN:http://localhost:8787
 
 ## 4. 联调清单
 
+### 正式站显示「尚未启用 Google 登录」
+
+这表示运行中的 Worker 缺少 `GOOGLE_CLIENT_ID` 或 `GOOGLE_CLIENT_SECRET`，不是成员权限或审批问题。本地 `.dev.vars` 不会随 Git 推送上线。网站维护者只需按第 3 节配置一次，之后所有已有成员可自行授权并确认绑定，无需管理员逐人处理。
+
+确认 Google Client 的 Authorized redirect URIs 包含 `https://jaysbadminton.llmat.dev/api/auth/google/callback`。在 Cloudflare 的 `jaysbadminton` Worker 配置两个 Secret，或将其保存到 GitHub Actions Secrets 后重新运行 main 分支部署。不要复制 `.dev.vars` 中的其他本地密钥覆盖生产密钥。
+
+部署后访问 `https://jaysbadminton.llmat.dev/api/auth/session`，应返回 `enabled: true`。旧成员页面会直接跳转 Google 授权，返回后确认绑定；即使账号已登录，也会先确认原成员链接，避免误进入另一个成员账号。重复确认同一个绑定会成功，已绑定到其他成员的 Google 账号仍会被拒绝。
+
 - 使用测试 Gmail 登录，首次注册后能报名；退出后再次登录回到同一成员。
 - 使用原成员链接绑定另一个 Google 测试账号，确认历史记录保留。
 - 用户取消授权后可重试；不同浏览器登录也能找到相同成员。

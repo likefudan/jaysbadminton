@@ -122,6 +122,10 @@ describe("Google member access", () => {
     expect((await request("/api/auth/link", cookie, { token })).status).toBe(200);
     expect((await (await request("/api/m/session/me", cookie)).json() as any).id).toBe(m.id);
     expect((await request(`/api/m/${token}/me`)).status).toBe(200);
+    expect((await request("/api/auth/link", cookie, { token })).status).toBe(200);
+    const other = await createMember(env, { username: "Other", wechatNickname: "Other", status: "active" });
+    const otherToken = await issueMemberToken(env, other.id);
+    expect((await request("/api/auth/link", cookie, { token: otherToken })).status).toBe(409);
     expect((await request("/api/auth/link", await session("other-google"), { token })).status).toBe(409);
     expect((await request("/api/auth/link", cookie, { token: "wrong" })).status).toBe(403);
   });
