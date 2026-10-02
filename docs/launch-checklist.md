@@ -5,7 +5,7 @@
 ## 一、交接前（网站维护者）
 
 - [ ] GitHub 仓库 Settings → Secrets 里有：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`ADMIN_PASSWORD`、`TELEGRAM_BOT_TOKEN`、`GOOGLE_MAPS_API_KEY`
-- [ ] 把 `ADMIN_PASSWORD` 改成一个给新管理员用的临时密码，然后 Actions → CI → Run workflow 运行一次
+- [ ] 把 `ADMIN_PASSWORD` 改成一个给新管理员用的临时密码，然后 Actions → CI → Run workflow（Use workflow from 选最新的版本标签）运行一次
 - [ ] 管理页 → 设置 → 危险操作 → **清空所有数据**，删掉测试数据
 - [ ] Cloudflare → Email Routing（jaysbadminton.llmat.dev）：`venmo@` 的规则是 **Send to a Worker → jaysbadminton**
 - [ ] 把网址 `https://jaysbadminton.llmat.dev/admin` 和临时密码交给新管理员
@@ -34,10 +34,12 @@
 
 | 事情 | 怎么做 |
 | --- | --- |
-| 发布新版本 | 合并到 `main` 后自动测试、部署，并自动检查线上网站（首页、健康检查、各个受保护接口） |
+| 试新功能 | 合并到 `main` 后自动部署到**测试环境** https://staging.jaysbadminton.llmat.dev （顶部有黄色「测试环境」横幅，数据和正式网站分开，可以随便试） |
+| 发布到正式网站 | 测试环境确认没问题后，打一个版本标签 `vYYYY.MM.DD`（GitHub → Releases → Draft a new release → 新建标签 → Generate release notes → Publish，或让 Claude「发布」）。会先备份正式数据库，再部署，并自动检查线上网站 |
+| 回滚 | GitHub → Actions → CI → Run workflow → Use workflow from 选上一个版本标签 → Run。约 1 分钟恢复到上个版本 |
 | 出问题看哪里 | GitHub → Actions 看部署记录；Cloudflare → Workers → jaysbadminton → Logs 看运行日志 |
-| 数据恢复 | Cloudflare D1 自带 7 天「时间回溯」，可以恢复到 7 天内任意时刻；开了 Google 表格同步的话，表格的「版本记录」里也有每天的数据 |
-| 忘记管理链接 | Telegram 给机器人发「管理页面」；或者 Actions → CI → Run workflow 勾选 `reset_admin_link` |
-| 忘记管理密码 | 改 GitHub 里的 `ADMIN_PASSWORD`，再运行一次 CI |
+| 数据恢复 | Cloudflare D1 自带 7 天「时间回溯」；每次发布前的数据库备份在那次 Actions 运行的 Artifacts 里（保存 90 天）；开了 Google 表格同步的话，表格的「版本记录」里也有每天的数据 |
+| 忘记管理链接 | Telegram 给机器人发「管理页面」；或者 Actions → CI → Run workflow，Use workflow from 选**最新的版本标签**，勾选 `reset_admin_link` |
+| 忘记管理密码 | 改 GitHub 里的 `ADMIN_PASSWORD`，再在**最新的版本标签**上运行一次 CI |
 | 换管理员 | 设置 → 清空所有数据，新管理员重新做初次设置 |
 | 费用 | 全部在免费额度内：Cloudflare Workers/D1/邮件路由免费版、Telegram 免费、Google 地址联想在每月免费调用次数内 |

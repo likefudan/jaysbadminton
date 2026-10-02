@@ -33,13 +33,29 @@ let current = read(TITLE_KEY, DEFAULT);
 const listeners = new Set<(t: string) => void>();
 let loading: Promise<void> | null = null;
 
+let staging = false;
+const stagingListeners = new Set<(s: boolean) => void>();
+
 function load() {
-  loading ??= api<{ title: string; theme: string }>("/api/public/site")
+  loading ??= api<{ title: string; theme: string; staging?: boolean }>("/api/public/site")
     .then((r) => {
       setSiteTitle(r.title);
       setSiteTheme(r.theme);
+      staging = !!r.staging;
+      stagingListeners.forEach((l) => l(staging));
     })
     .catch(() => undefined);
+}
+
+/** True on the test site (staging.…), which shows a banner so its links are never mistaken for real ones. */
+export function useStaging(): boolean {
+  const [s, setS] = useState(staging);
+  useEffect(() => {
+    stagingListeners.add(setS);
+    load();
+    return () => void stagingListeners.delete(setS);
+  }, []);
+  return s;
 }
 
 export function setSiteTitle(title: string) {

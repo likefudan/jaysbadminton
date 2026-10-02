@@ -2340,3 +2340,17 @@ a.ev-meta {
 .names li.absent {
   opacity: 0.55;
 }
+
+/* ---- Test site (staging) ---- */
+.env-banner {
+  margin: 0 -16px;
+  padding: calc(6px + env(safe-area-inset-top)) 16px 6px;
+  background: repeating-linear-gradient(135deg, #f3c44f 0 12px, #f0b93a 12px 24px);
+  color: #3a2a00;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+}
+.env-banner + .topbar {
+  padding-top: 10px;
+}

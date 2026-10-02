@@ -2,16 +2,18 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import type { Loaded } from "./hooks";
 import { AppearanceButton, AppearanceSheet } from "./Appearance";
-import { useSiteTitle } from "./site";
+import { useSiteTitle, useStaging } from "./site";
 
 export function Page(props: { title: string; eyebrow?: string; subtitle?: string; children: ComponentChildren }) {
   const site = useSiteTitle();
+  const staging = useStaging();
   const [looks, setLooks] = useState(false);
   useEffect(() => {
     document.title = props.title === site ? site : `${props.title} · ${site}`;
   }, [props.title, site]);
   return (
     <div class="page">
+      {staging && <div class="env-banner">测试环境 · 数据和正式网站分开，请不要转发这里的链接</div>}
       <header class="topbar">
         <a href="/" class="brand">
           <span class="logo">

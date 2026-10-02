@@ -14,3 +14,6 @@ export async function siteTheme(env: Env): Promise<ThemeId> {
   const s = await getSettings(env.DB, ["theme"]);
   return normalizeTheme(s.theme); // a pre-2026 palette name maps to its nearest new look
 }
+
+/** The test site (staging.…) shows a banner, is hidden from search engines and expects no real mail. */
+export const isStaging = (env: Env) => env.ENVIRONMENT === "staging";

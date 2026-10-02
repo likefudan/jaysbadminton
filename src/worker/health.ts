@@ -5,6 +5,7 @@ import type { Env } from "./env";
 import type { EmailOutcome } from "./inbound";
 import { message, once, type NotifySettings } from "./notify";
 import { sheetsStatus } from "./sheets";
+import { isStaging } from "./site";
 import { sendToOwner } from "./telegram";
 
 /**
@@ -39,6 +40,7 @@ export async function emailProblemAlert(env: Env, outcome: EmailOutcome, at: Dat
  * spell (keyed by the last email), so it does not nag; the weekly digest repeats the state.
  */
 export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): Promise<void> {
+  if (isStaging(env)) return; // the test site never receives forwarded Venmo mail
   if (Number(toPacific(at).time.slice(0, 2)) !== cfg.dunningHour) return;
   const s = await getSettings(env.DB, ["venmo_username", "email_last_at"]);
   if (!s.venmo_username) return;

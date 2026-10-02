@@ -1,7 +1,7 @@
 import { formatDateZh, formatInstantZh } from "../shared/time";
 import type { Env } from "./env";
 import { closeExpired, summaries, type EventRow } from "./events";
-import { siteTitle } from "./site";
+import { isStaging, siteTitle } from "./site";
 
 /**
  * Link previews. WeChat, iMessage and Telegram read the page's <title>, description and og:*
@@ -40,7 +40,8 @@ export async function eventMeta(env: Env, code: string): Promise<ShareMeta | nul
 }
 
 /** Rewrites the app's index.html with the given preview tags. */
-export function withShareMeta(page: Response, meta: ShareMeta, origin: string): Response {
+export function withShareMeta(page: Response, meta: ShareMeta, origin: string, staging = false): Response {
+  if (staging) meta = { ...meta, title: `【测试】${meta.title}` };
   const set = (value: string) => ({
     element(el: Element) {
       el.setAttribute("content", value);
@@ -73,5 +74,5 @@ export async function sharePage(env: Env, request: Request, meta: ShareMeta | nu
   // No conditional headers: a 304 would hand back a cached page without these tags.
   const page = await env.ASSETS.fetch(new Request(`${url.origin}/`));
   if (!meta || !page.ok || !(page.headers.get("content-type") ?? "").includes("text/html")) return page;
-  return withShareMeta(page, meta, env.SITE_ORIGIN);
+  return withShareMeta(page, meta, env.SITE_ORIGIN, isStaging(env));
 }

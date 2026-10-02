@@ -7,6 +7,7 @@ import { exportAll } from "./export";
 import { emailProblemAlert, recordCronError } from "./health";
 import { runScheduled } from "./notify";
 import { eventMeta, homeMeta, sharePage } from "./share";
+import { isStaging } from "./site";
 import { checkExportKey } from "./sheets";
 import { handleUpdate, webhookSecret } from "./telegram";
 import { adminRoutes } from "./routes/admin";
@@ -24,6 +25,7 @@ app.use("*", async (c, next) => {
   c.header("X-Frame-Options", "DENY");
   // Same as public/_headers, now that the Worker also serves the home and event pages.
   c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+  if (isStaging(c.env)) c.header("X-Robots-Tag", "noindex, nofollow");
 });
 
 app.get("/api/health", async (c) => {
@@ -47,6 +49,11 @@ app.get("/export/:key/all.json", async (c) => {
   if (!(await checkExportKey(c.env, c.req.param("key")))) return c.json({ error: { code: "invalid_key", message: "同步密钥无效" } }, 403);
   return c.json(await exportAll(c.env));
 });
+
+// Search engines may index the real site, never the test site.
+app.get("/robots.txt", (c) =>
+  c.text(isStaging(c.env) ? "User-agent: *\nDisallow: /\n" : "User-agent: *\nDisallow: /m/\nDisallow: /admin\nDisallow: /api/\n"),
+);
 
 // Link previews for WeChat and friends: the app shell with this page's title and summary.
 app.get("/", async (c) => sharePage(c.env, c.req.raw, await homeMeta(c.env)));

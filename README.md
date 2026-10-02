@@ -74,7 +74,18 @@ npm run typecheck
 
 ## Deployment
 
-Every push to `main` runs typecheck, tests, build and the browser tests (`npm run test:e2e`, Playwright on a local Worker), then deploys with GitHub Actions (`.github/workflows/ci.yml`): it finds or creates the `jaysbadminton` D1 database, applies migrations, runs `wrangler deploy` (which also attaches the `jaysbadminton.llmat.dev` custom domain), and finally smoke-tests the live site from the outside (`scripts/smoke.mjs`).
+Two sites, deployed by GitHub Actions (`.github/workflows/ci.yml`):
+
+| | Address | Deployed when | Database |
+| --- | --- | --- | --- |
+| **Test site** | https://staging.jaysbadminton.llmat.dev (yellow 测试环境 banner, not indexed) | every merge to `main` | `jaysbadminton-staging` |
+| **Production** | https://jaysbadminton.llmat.dev | a release tag `vYYYY.MM.DD` is pushed | `jaysbadminton` |
+
+Every pull request, merge and tag runs typecheck, tests, build and the browser tests (`npm run test:e2e`, Playwright on a local Worker). A deploy finds or creates its D1 database, applies migrations, runs `wrangler deploy` (attaching the custom domain), syncs secrets, and smoke-tests the site from the outside (`scripts/smoke.mjs`). A production deploy also refuses a tag that is not on `main`, and first exports the production database as a workflow artifact (kept 90 days).
+
+**Release**: try the change on the test site, then push a tag on `main` — e.g. `git tag v2026.10.05 && git push origin v2026.10.05` (a second release that day: `v2026.10.05.2`) — or GitHub → Releases → Draft a new release → new tag → Generate release notes → Publish.
+**Roll back**: Actions → CI → Run workflow → *Use workflow from* the previous tag. Migrations only ever add, so older code runs on the newer database.
+**Recommended rulesets**: `main` — require a pull request (and status check `check`); tags `v*` — only Repository admin may create, so only the Owner can release.
 
 Repository secrets required:
 
@@ -85,12 +96,14 @@ Repository secrets required:
 | `TELEGRAM_BOT_TOKEN` | Telegram → @BotFather → `/newbot`. Optional; notifications stay off without it. The Owner connects their own Telegram from the admin settings |
 | `GOOGLE_MAPS_API_KEY` | Optional. Google Cloud → enable **Places API (New)** → API key restricted to that API. Makes address suggestions fast; without it the free (slower) Photon service is used. Usage stays inside Google's free monthly calls |
 | `ADMIN_PASSWORD` | Your choice. Initial admin password, and the recovery path: change it and redeploy to reset a forgotten password |
+| `TELEGRAM_BOT_TOKEN_STAGING` | A second bot from @BotFather for the test site (a bot has one webhook, so the sites cannot share one). Optional |
+| `ADMIN_PASSWORD_STAGING` | Optional; the test site uses `ADMIN_PASSWORD` when this is not set |
 
-CI also generates the `TOKEN_KEY` Worker secret on the first deploy and never replaces it.
+CI also generates each site's `TOKEN_KEY` Worker secret on its first deploy and never replaces it.
 
 ### First-time setup and recovery
 
 - Open `/admin`, enter `ADMIN_PASSWORD`, and save the admin link and your own member link it shows. The admin page then needs both the link and the password (remembered for 30 days per device).
-- **Forgot the password**: change the `ADMIN_PASSWORD` secret, then Actions → CI → Run workflow on `main`.
-- **Lost the admin link**: Actions → CI → Run workflow on `main` with `reset_admin_link` ticked, then open `/admin` again.
-- **Hand over to a new Owner / start fresh**: admin page → 设置 → 清空所有数据 (phrase + password). Everything except the admin password is deleted; the new Owner then runs first-time setup at `/admin` with that password and changes it. D1 Time Travel can restore the previous 7 days if needed.
+- **Forgot the password**: change the `ADMIN_PASSWORD` secret, then Actions → CI → Run workflow on the **latest release tag** (production) or on `main` (test site).
+- **Lost the admin link**: Actions → CI → Run workflow on the latest release tag with `reset_admin_link` ticked, then open `/admin` again.
+- **Hand over to a new Owner / start fresh**: admin page → 设置 → 清空所有数据 (phrase + password). Everything except the admin password is deleted; the new Owner then runs first-time setup at `/admin` with that password and changes it. D1 Time Travel can restore the previous 7 days if needed, and every release keeps a database export.
