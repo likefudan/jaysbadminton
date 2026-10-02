@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-/** 我的统计 on the member page, with a fixed history so the numbers are known. */
+/** 我的统计 on the 个人信息 page, with a fixed history so the numbers are known. */
 test("the member picks a range and the spending chart and figures follow", async ({ page }) => {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date());
   const daysAgo = (n: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(Date.now() - n * 86400e3));
   const entry = (date: string, cents: number, attended = true) => ({ date, title: "", location: "Synergy", cents, attended });
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }));
   await page.route("**/api/m/tok/me", (route) => route.fulfill({ json: { id: "M007", username: "Dafei", wechatNickname: "dafei", active: true, isOwner: false } }));
-  await page.route("**/api/m/tok/events", (route) => route.fulfill({ json: { events: [], friendCap: 3 } }));
+  await page.route("**/api/m/tok/events", (route) => route.fulfill({ json: { events: [], history: [], friendCap: 3 } }));
   await page.route("**/api/m/tok/profile", (route) => route.fulfill({ status: 503, json: { error: { message: "x" } } }));
   await page.route("**/api/m/tok/stats", (route) =>
     route.fulfill({
@@ -17,7 +17,7 @@ test("the member picks a range and the spending chart and figures follow", async
       },
     }),
   );
-  await page.goto("/m/tok");
+  await page.goto("/m/tok/profile");
   const card = page.locator(".card.spend");
   const figures = card.locator(".spend-figures");
 

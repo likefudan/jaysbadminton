@@ -59,6 +59,7 @@ export function GoogleAccount() {
       <p class="google-account-email">{email}</p>
       {session.data.isAdmin && <a class="button secondary block" href="/admin/google" onClick={() => setOpen(false)}>管理页</a>}
       <a class="button secondary block" href="/me" onClick={() => setOpen(false)}>我的活动</a>
+      <a class="button secondary block" href="/me/profile" onClick={() => setOpen(false)}>个人信息</a>
       <button class="button secondary block" disabled={busy} onClick={logout}>{busy ? "正在退出…" : "退出登录"}</button>
       {error && <p class="error" role="alert">{error}</p>}
     </section>}

@@ -148,6 +148,10 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
 
 test("the member sees their 个人信息 and the Owner adds a 备注名", async ({ page }) => {
   await page.goto(memberPath);
+  await page.getByRole("link", { name: "个人信息 ›" }).click(); // its own page, one tap from 我的活动
+  await expect(page.getByRole("heading", { name: "个人信息" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "修改用户名" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /退出/ })).toHaveCount(0);
   const profile = page.locator(".card.profile");
   await expect(profile.locator(".profile-info")).toContainText("xiaoming");
   await expect(profile.locator(".profile-info")).toContainText(/入群时间\d{4}年\d{1,2}月\d{1,2}日 \d{2}:\d{2}/);
@@ -173,7 +177,7 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await page.getByRole("button", { name: "‹ 成员" }).click();
   await expect(page.locator(".who", { hasText: "小明" })).toContainText("备注：周六队长");
 
-  await page.goto(memberPath);
+  await page.goto(`${memberPath}/profile`);
   await expect(page.locator(".card.profile")).not.toContainText("周六队长");
 });
 
@@ -223,7 +227,7 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await page.goto("/admin/google");
   await expect(page.locator(".tabs")).toBeVisible();
   await page.goto("/me");
-  await expect(page.getByRole("link", { name: "进入管理页" })).toHaveAttribute("href", "/admin/google");
+  await expect(page.getByRole("link", { name: "管理页", exact: true })).toHaveAttribute("href", "/admin/google");
 });
 
 test("the Owner closes sign-up and settles; the member sees the bill and a Venmo link", async ({ page }) => {

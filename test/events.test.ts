@@ -89,8 +89,8 @@ describe("member sign-up", () => {
 
     const late = await anon.call(`${carol.base}/events/${e.id}/signup`, { friends: [] });
     expect(late.data.error.message).toBe("报名已截止，不能再修改");
-    const listed = (await anon.call(`${carol.base}/events`)).data.events[0];
-    expect(listed).toMatchObject({ status: "closed", canEdit: false });
+    // Closed and not on it: no longer offered on 我的活动.
+    expect((await anon.call(`${carol.base}/events`)).data.events).toEqual([]);
 
     const tooLate = await ctx.admin.call(`${ctx.base}/events/${e.id}/reopen`, { date: futureDate(30), time: "12:00" });
     expect(tooLate.data.error.message).toBe("截止时间最晚只能到活动结束");
@@ -333,5 +333,53 @@ describe("我的报名 (the Owner signs up from the admin page)", () => {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx);
     expect((await new Client().call(`${ctx.base}/events/${e.id}/self-signup`, { friends: [] })).status).toBe(401);
+  });
+});
+
+describe("我的活动 (the member's events)", () => {
+  it("lists their own events newest first, offers open ones, and folds paid-up past ones into history", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    const c = new Client();
+    const make = async (days: number) => createTestEvent(ctx, { date: futureDate(days), joinSelf: false });
+    const [old, unpaid, soon, later, notMine, cancelled] = [await make(7), await make(8), await make(9), await make(10), await make(11), await make(12)];
+    for (const e of [old, unpaid, soon, later, cancelled]) await c.call(`${alice.base}/events/${e.id}/signup`, { friends: e === old ? ["Tom"] : [] });
+    const past = (id: number, daysAgo: number, status: string) => {
+      const day = new Date(Date.now() - daysAgo * 86400_000).toISOString();
+      return env.DB.prepare("UPDATE events SET status = ?, date = ?, start_at = ?, end_at = ? WHERE id = ?").bind(status, day.slice(0, 10), day, day, id).run();
+    };
+    const bill = (id: number, status: string) =>
+      env.DB.prepare("INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, amount_paid_cents) VALUES (?, ?, 2500, 'x', ?, ?)")
+        .bind(id, alice.id, status, status === "paid" ? 2500 : 0)
+        .run();
+    await past(old.id, 30, "settled");
+    await bill(old.id, "paid");
+    await past(unpaid.id, 3, "finalized");
+    await bill(unpaid.id, "unpaid");
+    await env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(cancelled.id).run();
+
+    const r = (await c.call(`${alice.base}/events`)).data;
+    // Current: theirs plus the one still open to join, newest first; the cancelled one is gone.
+    expect(r.events.map((e: { id: number }) => e.id)).toEqual([notMine.id, later.id, soon.id, unpaid.id]);
+    expect(r.events.find((e: { id: number }) => e.id === notMine.id).myFriends).toBeNull();
+    expect(r.events.find((e: { id: number }) => e.id === unpaid.id).payment).toMatchObject({ status: "unpaid", amountCents: 2500 });
+    // Over and paid up: in history, briefly.
+    expect(r.history).toEqual([
+      { id: old.id, code: old.code, date: expect.any(String), title: "", location: "Bay Badminton Center", amountCents: 2500, attended: true, friends: 1 },
+    ]);
+
+    // Once paid, the finalized one moves to history too (newest first).
+    await env.DB.prepare("UPDATE payments SET status = 'paid', amount_paid_cents = 2500 WHERE event_id = ?").bind(unpaid.id).run();
+    const after = (await c.call(`${alice.base}/events`)).data;
+    expect(after.history.map((h: { id: number }) => h.id)).toEqual([unpaid.id, old.id]);
+    expect(after.events.map((e: { id: number }) => e.id)).toEqual([notMine.id, later.id, soon.id]);
+  });
+
+  it("a disabled member sees only their own events and bills, nothing to join", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    await createTestEvent(ctx, { joinSelf: false });
+    await ctx.admin.call(`${ctx.base}/members/${alice.id}/deactivate`, {});
+    expect((await new Client().call(`${alice.base}/events`)).data).toMatchObject({ events: [], history: [] });
   });
 });
