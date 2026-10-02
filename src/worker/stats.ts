@@ -1,5 +1,5 @@
 import { toPacific } from "../shared/time";
-import type { Leaderboard, MyStats, RankEntry } from "../shared/types";
+import type { Leaderboard, MyStats, RankEntry, SpendEntry } from "../shared/types";
 import type { Env } from "./env";
 
 /**
@@ -75,16 +75,30 @@ export async function myStats(env: Env, memberId: string): Promise<MyStats> {
   const sameDayLastYear = `${lastYear}${today.slice(4)}`;
 
   const { results: visits } = await env.DB.prepare(
-    `SELECT e.date FROM registrations r JOIN events e ON e.id = r.event_id
+    `SELECT e.id, e.date FROM registrations r JOIN events e ON e.id = r.event_id
      WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index = 0 AND r.attended = 1`,
   )
     .bind(memberId)
-    .all<{ date: string }>();
+    .all<{ id: number; date: string }>();
   const { results: bills } = await env.DB.prepare(
-    `SELECT e.date, p.amount_due_cents FROM payments p JOIN events e ON e.id = p.event_id WHERE ${COUNTED} AND p.member_id = ?`,
+    `SELECT e.id, e.date, e.title, e.location, p.amount_due_cents FROM payments p JOIN events e ON e.id = p.event_id
+     WHERE ${COUNTED} AND p.member_id = ?`,
   )
     .bind(memberId)
-    .all<{ date: string; amount_due_cents: number }>();
+    .all<{ id: number; date: string; title: string; location: string; amount_due_cents: number }>();
+
+  // One entry per counted event they came to or were billed for, oldest first: the page picks a range.
+  const came = new Set(visits.map((v) => v.id));
+  const history: SpendEntry[] = bills.map((b) => ({
+    date: b.date,
+    title: b.title,
+    location: b.location,
+    cents: b.amount_due_cents,
+    attended: came.has(b.id),
+  }));
+  const billed = new Set(bills.map((b) => b.id));
+  for (const v of visits) if (!billed.has(v.id)) history.push({ date: v.date, title: "", location: "", cents: 0, attended: true });
+  history.sort((a, b) => a.date.localeCompare(b.date));
 
   const inYear = (d: string, y: string, upTo?: string) => d.startsWith(y) && (!upTo || d <= upTo);
   const yearCount = visits.filter((v) => inYear(v.date, year)).length;
@@ -97,5 +111,7 @@ export async function myStats(env: Env, memberId: string): Promise<MyStats> {
     avgSpendCents: yearCount ? Math.round(yearSpend / yearCount) : 0,
     lastYearCount: visits.filter((v) => inYear(v.date, lastYear, sameDayLastYear)).length,
     lastYearSpendCents: bills.filter((b) => inYear(b.date, lastYear, sameDayLastYear)).reduce((t, b) => t + b.amount_due_cents, 0),
+    today,
+    history,
   };
 }
