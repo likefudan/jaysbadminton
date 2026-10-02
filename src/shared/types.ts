@@ -13,6 +13,8 @@ export interface MemberSummary {
   hasLink: boolean;
   /** The Google account a member signs in with, if any (shown so the admin knows who applied). */
   googleEmail: string | null;
+  /** The admin's own name for this person, to tell people apart (never shown to members). */
+  adminNote: string;
   /** Still owed across all bills (only filled in for the admin's member list). */
   owingCents: number;
 }
@@ -26,6 +28,30 @@ export interface MembersResponse {
 
 export interface LinkResponse {
   link: string;
+}
+
+/** One event on the 个人信息 activity map (the member's own sign-up, not friends). */
+export interface ActivityDay {
+  date: string; // Pacific YYYY-MM-DD
+  code: string;
+  title: string;
+  location: string;
+  /** done = came, absent = signed up but marked absent, upcoming = not happened yet. */
+  status: "done" | "absent" | "upcoming";
+}
+
+export interface MemberProfile {
+  id: string;
+  username: string;
+  wechatNickname: string;
+  /** The member's own contact email, else their Google account's; null when neither. */
+  email: string | null;
+  emailFromGoogle: boolean;
+  /** When they were let in (approval time; sign-up time for the Owner and older records). */
+  joinedAt: string;
+  activity: ActivityDay[];
+  /** Only in the admin's view. */
+  adminNote?: string;
 }
 
 export interface MeResponse {

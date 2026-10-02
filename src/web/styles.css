@@ -2387,3 +2387,176 @@ a.ev-meta {
 .legal-links a {
   color: inherit;
 }
+
+/* ---- 个人信息: basics + activity heatmap ---- */
+:root {
+  --heat-upcoming: #4f86c6;
+  --heat-empty: #ece6dd;
+}
+[data-mode="dark"] {
+  --heat-upcoming: #6fa3e0;
+  --heat-empty: #2e2a26;
+}
+.profile-info {
+  margin: 0 0 4px;
+}
+.profile-info > div {
+  display: flex;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.profile-info > div:last-child {
+  border-bottom: 0;
+}
+.profile-info dt {
+  flex: 0 0 72px;
+  color: var(--muted);
+}
+.profile-info dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.profile-edit {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.profile-action {
+  margin-left: 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--acc-ink);
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+.profile-sub {
+  margin: 18px 0 8px;
+  font-size: 0.95rem;
+}
+.heatmap-summary {
+  margin: 0 0 10px;
+  color: var(--text-2);
+  font-size: 0.9rem;
+}
+.heatmap-body {
+  display: flex;
+  gap: 4px;
+}
+.heatmap-days {
+  display: grid;
+  grid-template-rows: repeat(7, 11px);
+  gap: 3px;
+  margin-top: 17px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 11px;
+}
+.heatmap-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.heatmap-months,
+.heatmap-grid {
+  display: flex;
+  gap: 3px;
+  width: max-content;
+}
+.heatmap-months span {
+  width: 11px;
+  height: 14px;
+  margin-bottom: 3px;
+  overflow: visible;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 9px;
+}
+.heatmap-week {
+  display: grid;
+  grid-template-rows: repeat(7, 11px);
+  gap: 3px;
+}
+.heatmap-cell {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--heat-empty);
+}
+button.heatmap-cell:not(:disabled) {
+  cursor: pointer;
+}
+.heatmap-cell.future {
+  opacity: 0.45;
+}
+.heatmap-cell.done {
+  background: var(--ok-dot);
+}
+.heatmap-cell.absent {
+  background: var(--danger);
+}
+.heatmap-cell.upcoming {
+  background: var(--heat-upcoming);
+}
+.heatmap-cell.picked {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+.heatmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.heatmap-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.heatmap-detail {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.heatmap-detail p {
+  margin: 0;
+}
+.heatmap-detail p + p {
+  margin-top: 6px;
+}
+.heatmap-detail .heatmap-cell {
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.heatmap-detail small {
+  display: block;
+  margin-left: 17px;
+  color: var(--muted);
+}
+.who .note {
+  display: block;
+  color: var(--acc-ink);
+  font-size: 0.85em;
+}
+.who-link {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.who-link:hover .who-name {
+  text-decoration: underline;
+}

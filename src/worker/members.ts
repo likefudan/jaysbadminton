@@ -18,6 +18,8 @@ export interface MemberRow {
   deleted_at: string | null;
   google_sub: string | null;
   google_email: string | null;
+  email: string | null;
+  admin_note: string | null;
 }
 
 export const toSummary = (m: MemberRow): MemberSummary => ({
@@ -31,6 +33,7 @@ export const toSummary = (m: MemberRow): MemberSummary => ({
   deletedAt: m.deleted_at,
   hasLink: !!m.token_enc,
   googleEmail: m.google_sub ? m.google_email : null,
+  adminNote: m.admin_note ?? "",
   owingCents: 0,
 });
 

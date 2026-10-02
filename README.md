@@ -105,7 +105,7 @@ CI also generates each site's `TOKEN_KEY` Worker secret on its first deploy and 
 
 ### First-time setup and recovery
 
-- Open `/admin`, enter `ADMIN_PASSWORD`, and save the admin link and your own member link it shows. The admin page then needs both the link and the password (remembered for 30 days per device).
+- Open `/admin`, enter `ADMIN_PASSWORD`, and save the admin link it shows (the only link the Owner needs: they sign up for events from the admin page, under 我的报名). The admin page then needs both the link and the password (remembered for 30 days per device).
 - **Forgot the password**: change the `ADMIN_PASSWORD` secret, then Actions → CI → Run workflow on the **latest release tag** (production) or on `main` (test site).
 - **Lost the admin link**: Actions → CI → Run workflow on the latest release tag with `reset_admin_link` ticked, then open `/admin` again.
 - **Hand over to a new Owner / start fresh**: admin page → 设置 → 清空所有数据 (phrase + password). Everything except the admin password is deleted; the new Owner then runs first-time setup at `/admin` with that password and changes it. D1 Time Travel can restore the previous 7 days if needed, and every release keeps a database export.

@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 /**
  * The main path through the site in a phone-sized browser, one step per test and in order:
- * setup → join → approve → create → sign up → public pages → close & settle → pay → appearance.
+ * setup → join → approve → create → sign up → 个人信息 → public pages → close & settle → pay → appearance.
  * Each run starts from an empty database (scripts/e2e-server.sh).
  */
 test.describe.configure({ mode: "serial" });
@@ -40,6 +40,7 @@ test("the Owner sets up the site and the payment details", async ({ page }) => {
   await field(page, "你的微信昵称").fill("Jay");
   await page.getByRole("button", { name: "生成管理链接" }).click();
   await expect(page.getByText("你的管理链接")).toBeVisible();
+  await expect(page.getByText("你自己的成员链接")).toHaveCount(0); // the Owner signs up from the admin page
   adminPath = pathOf(await page.locator("code.link").first().innerText());
   expect(adminPath).toMatch(/^\/admin\/[\w-]{20,}$/);
 
@@ -78,6 +79,22 @@ test("the Owner creates an event and is signed up for it", async ({ page }) => {
   await expect(info).toContainText("1 人已报名");
   await expect(info).toContainText("报名中");
   await expect(page.getByRole("heading", { name: "名单（1）" })).toBeVisible();
+
+  // 我的报名: the Owner manages their own sign-up right here.
+  const mySignup = page.locator(".card", { has: page.getByRole("heading", { name: "我的报名" }) });
+  await expect(mySignup).toContainText("✓ 你已报名");
+  await mySignup.getByRole("button", { name: "修改" }).click();
+  await mySignup.locator(".stepper button").last().click();
+  await mySignup.getByRole("button", { name: "保存修改" }).click();
+  await expect(mySignup).toContainText("✓ 你已报名，带 1 个朋友（Jay的朋友1）");
+  await expect(page.getByRole("heading", { name: "名单（2）" })).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await mySignup.getByRole("button", { name: "取消报名" }).click();
+  await expect(mySignup).toContainText("你还没有报名");
+  await mySignup.getByRole("button", { name: "报名" }).click();
+  await mySignup.getByRole("button", { name: "确认报名" }).click();
+  await expect(mySignup).toContainText("✓ 你已报名");
+  await expect(page.getByRole("heading", { name: "名单（1）" })).toBeVisible();
 });
 
 test("the member signs up with a friend and can add it to a calendar", async ({ page }) => {
@@ -106,6 +123,37 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await expect(page.getByRole("heading", { name: "你好，小明" })).toBeVisible(); // still on the member page
   const google = new URL((await card.getByRole("link", { name: "Google 日历" }).getAttribute("href"))!);
   expect(google.searchParams.get("dates")).toMatch(/^\d{8}T\d{6}Z\/\d{8}T\d{6}Z$/);
+});
+
+test("the member sees their 个人信息 and the Owner adds a 备注名", async ({ page }) => {
+  await page.goto(memberPath);
+  const profile = page.locator(".card.profile");
+  await expect(profile.locator(".profile-info")).toContainText("xiaoming");
+  await expect(profile.locator(".profile-info")).toContainText(/入群时间\d{4}年\d{1,2}月\d{1,2}日 \d{2}:\d{2}/);
+  await expect(profile.locator(".heatmap-summary")).toHaveText("过去一年参加 0 次 · 缺席 0 次 · 即将参加 1 次");
+  await profile.locator(".heatmap-grid .upcoming").click();
+  await expect(profile.locator(".heatmap-detail")).toContainText(VENUE);
+
+  await profile.getByRole("button", { name: "填写" }).click();
+  await field(page, "邮箱").fill("xm@example.com");
+  await profile.getByRole("button", { name: "保存" }).click();
+  await expect(profile.locator(".profile-info")).toContainText("xm@example.com");
+
+  await openAdmin(page);
+  await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
+  await page.getByRole("button", { name: "小明", exact: true }).click();
+  const detail = page.locator(".card.profile");
+  await expect(detail.locator(".profile-info")).toContainText("xm@example.com");
+  await expect(detail.locator(".heatmap-grid .upcoming")).toHaveCount(1);
+  await detail.getByRole("button", { name: "添加" }).click();
+  await field(page, "备注名（只有管理员能看到）").fill("周六队长");
+  await detail.getByRole("button", { name: "保存" }).click();
+  await expect(detail.locator(".profile-info")).toContainText("周六队长");
+  await page.getByRole("button", { name: "‹ 成员" }).click();
+  await expect(page.locator(".who", { hasText: "小明" })).toContainText("备注：周六队长");
+
+  await page.goto(memberPath);
+  await expect(page.locator(".card.profile")).not.toContainText("周六队长");
 });
 
 test("public pages show the headcount and a link preview, never names", async ({ page }) => {
