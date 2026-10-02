@@ -4,7 +4,7 @@ import { Card, Field, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
 import { Member } from "./Member";
 
-type Session = { enabled: boolean; signedIn: boolean; email: string | null; hasMember: boolean; unavailable: boolean };
+type Session = { enabled: boolean; signedIn: boolean; email: string | null; hasMember: boolean; pending: boolean };
 const ERRORS: Record<string, string> = {
   not_configured: "网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。",
   invalid_state: "登录请求已过期，请重新登录。",
@@ -57,7 +57,14 @@ export function Account() {
         <p class="muted small">仅使用 Google 账号身份、邮箱和头像，不读取你的 Gmail 邮件。</p>
       </Card>
     </Page>;
-    if (s.unavailable) return <Page title="账号暂不可用"><Card><p>此账号对应的成员已删除或尚未获准使用，请联系管理员。</p><Logout /></Card></Page>;
+    if (s.pending) return <Page title="申请已提交" subtitle={`Google 账号：${s.email}`}>
+      <Card>
+        <p>管理员审核通过后，用这个 Google 账号登录就能报名活动、查看账单。</p>
+        <p class="muted small">审核前还不能报名。着急的话，可以在微信群里提醒一下管理员。</p>
+        <button class="button secondary block" onClick={reload}>刷新审核状态</button>
+      </Card>
+      <Logout />
+    </Page>;
     if (s.hasMember && !sessionStorage.getItem("google-link-member")) return <Member />;
     return <Profile email={s.email!} onDone={reload} />;
   }}</Load>;
@@ -88,7 +95,7 @@ function Profile(props: { email: string; onDone: () => void }) {
       props.onDone();
     }
   }
-  return <Page title={linkExisting ? "关联原有成员" : "完善成员资料"} subtitle={`已登录：${props.email}`}>
+  return <Page title={linkExisting ? "关联原有成员" : "申请加入"} subtitle={`已登录：${props.email}`}>
     <Card>
       <form onSubmit={submit}>
         {linkExisting ? <>
@@ -97,9 +104,10 @@ function Profile(props: { email: string; onDone: () => void }) {
         </> : <>
           <Field label="用户名" value={username} onInput={setUsername} hint="显示在报名名单上，不可重复" />
           <Field label="微信昵称" value={nickname} onInput={setNickname} hint="方便群友认出你" />
+          <p class="muted small">提交后需要管理员审核，通过后才能报名活动。</p>
         </>}
         {error && <p class="error" role="alert">{error}</p>}
-        <button class="button block" disabled={busy}>{busy ? "保存中…" : linkExisting ? "确认绑定，进入我的活动" : "完成注册，开始报名"}</button>
+        <button class="button block" disabled={busy}>{busy ? "保存中…" : linkExisting ? "确认绑定，进入我的活动" : "提交入群申请"}</button>
         <button class="button secondary block" type="button" disabled={busy} onClick={() => setLinkExisting(!linkExisting)}>{linkExisting ? "我是新成员，创建账号" : "已有成员链接？关联原账号"}</button>
       </form>
     </Card>

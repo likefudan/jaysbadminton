@@ -91,6 +91,7 @@ const who = (m: MemberSummary) => (
     {m.isOwner && <span class="badge">管理员</span>}
     <small>
       {m.id} · 微信：{m.wechatNickname}
+      {m.googleEmail && ` · Google：${m.googleEmail}`}
     </small>
   </div>
 );

@@ -112,7 +112,8 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能删除已停用的成员");
   const owing = (await owingByMember(c.env)).get(m.id) ?? 0;
   if (owing > 0) throw badRequest(`${m.username} 还有 $${(owing / 100).toFixed(2)} 没付清，付清或标记已付后才能删除`);
-  await c.env.DB.prepare("UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL WHERE id = ?").bind(now(), m.id).run();
+  // History stays; the link and the Google account are released, so the person can apply again.
+  await c.env.DB.prepare("UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL WHERE id = ?").bind(now(), m.id).run();
   return c.json({ ok: true });
 });
 

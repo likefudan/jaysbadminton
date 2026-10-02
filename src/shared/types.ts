@@ -11,6 +11,8 @@ export interface MemberSummary {
   deletedAt: string | null;
   /** False for members disabled before links were kept; the admin can generate a new one. */
   hasLink: boolean;
+  /** The Google account a member signs in with, if any (shown so the admin knows who applied). */
+  googleEmail: string | null;
   /** Still owed across all bills (only filled in for the admin's member list). */
   owingCents: number;
 }
