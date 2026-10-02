@@ -160,6 +160,19 @@ export interface MyStats {
   /** Same period last year: Jan 1 up to today's month-day. */
   lastYearCount: number;
   lastYearSpendCents: number;
+  /** Today in Pacific time, so the page's ranges line up with the server's. */
+  today: string;
+  /** Every counted event they came to or were billed for, oldest first. */
+  history: SpendEntry[];
+}
+
+/** One event in 我的统计: its date, the member's bill (friends included) and whether they came. */
+export interface SpendEntry {
+  date: string; // Pacific YYYY-MM-DD
+  title: string;
+  location: string;
+  cents: number;
+  attended: boolean;
 }
 
 /** What anyone can see about an event: no names, just the head count. */

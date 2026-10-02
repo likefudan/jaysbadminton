@@ -2560,3 +2560,133 @@ button.heatmap-cell:not(:disabled) {
 .who-link:hover .who-name {
   text-decoration: underline;
 }
+
+/* ---- 我的统计: range picker, three figures, spending columns ---- */
+.spend-ranges button {
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.spend-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+.spend-figures > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.spend-figures .tile-value {
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+.spend-readout {
+  min-height: 1.5em;
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.spend-chart {
+  display: flex;
+  gap: 6px;
+  height: 150px;
+}
+.spend-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 30px;
+  margin: -6px 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 12px;
+  text-align: right;
+}
+.spend-plot {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.spend-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--line);
+}
+.spend-cols {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+.spend-col {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 1px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.spend-bar {
+  display: block;
+  width: 100%;
+  max-width: 24px;
+  min-height: 3px;
+  border-radius: 4px 4px 0 0;
+  background: var(--acc);
+  transition: opacity 0.15s;
+}
+.spend-col.dim .spend-bar {
+  opacity: 0.35;
+}
+.spend-col.on .spend-bar {
+  background: var(--acc-ink);
+}
+.spend-col:focus-visible {
+  outline: 2px solid var(--acc-ink);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+.spend-labels {
+  display: flex;
+  margin: 5px 0 12px 36px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.spend-labels span {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  white-space: nowrap;
+  text-align: center;
+}
+.spend-detail table {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.spend-detail td {
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+}
+.spend-detail td + td {
+  padding-left: 10px;
+}
+.spend-detail .num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.spend-absent {
+  color: var(--danger);
+}

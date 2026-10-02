@@ -67,7 +67,8 @@ describe("personal stats", () => {
       .bind(old.id, alice.id)
       .run();
 
-    expect((await anon.call(`${alice.base}/stats`)).data).toEqual({
+    const stats = (await anon.call(`${alice.base}/stats`)).data;
+    expect(stats).toMatchObject({
       year: Number(today.slice(0, 4)),
       yearCount: 3,
       totalCount: 4,
@@ -75,7 +76,14 @@ describe("personal stats", () => {
       avgSpendCents: 2000,
       lastYearCount: 1,
       lastYearSpendCents: 1500,
+      today,
     });
+    // One entry per counted event, oldest first, for the page's range picker: 4 visits, the
+    // cancelled one left out; spending matches the bills.
+    expect(stats.history).toHaveLength(4);
+    expect(stats.history.map((h: { date: string }) => h.date)).toEqual([...stats.history.map((h: { date: string }) => h.date)].sort());
+    expect(stats.history.every((h: { attended: boolean }) => h.attended)).toBe(true);
+    expect(stats.history.reduce((t: number, h: { cents: number }) => t + h.cents, 0)).toBe(7500);
   });
 });
 
