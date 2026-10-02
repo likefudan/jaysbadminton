@@ -107,7 +107,7 @@ function MyEvents(props: { base: string }) {
   );
 }
 
-function SignupCard(props: { base: string; e: MyEvent; cap: number; onChange: () => void }) {
+export function SignupCard(props: { base: string; e: MyEvent; cap: number; onChange: () => void }) {
   const e = props.e;
   const [editing, setEditing] = useState(false);
   const [friends, setFriends] = useState<string[]>(e.myFriends ?? []);
