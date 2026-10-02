@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { checkPassword } from "../../shared/rules";
-import type { LinkResponse, MemberSummary, MembersResponse } from "../../shared/types";
+import type { LinkResponse, MemberProfile, MemberSummary, MembersResponse } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
@@ -9,6 +9,7 @@ import { InboundTab } from "./AdminInbound";
 import { RemindersCard, TelegramCard } from "./AdminTelegram";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide } from "./AdminGuide";
+import { ProfileCard } from "../Profile";
 import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { STYLES, type ThemeId } from "../../shared/themes";
 
@@ -85,16 +86,57 @@ function Login(props: { base: string; onDone: () => void }) {
   );
 }
 
-const who = (m: MemberSummary) => (
-  <div class="who">
-    {m.username}
-    {m.isOwner && <span class="badge">管理员</span>}
-    <small>
-      {m.id} · 微信：{m.wechatNickname}
-      {m.googleEmail && ` · Google：${m.googleEmail}`}
-    </small>
-  </div>
-);
+/** A member's name and details; with onOpen the name opens their 个人信息. */
+const who = (m: MemberSummary, onOpen?: (m: MemberSummary) => void) => {
+  const name = (
+    <>
+      <span class="who-name">{m.username}</span>
+      {m.adminNote && <span class="note">备注：{m.adminNote}</span>}
+    </>
+  );
+  return (
+    <div class="who">
+      {onOpen ? (
+        <button class="who-link" onClick={() => onOpen(m)}>
+          {name}
+        </button>
+      ) : (
+        name
+      )}
+      {m.isOwner && <span class="badge">管理员</span>}
+      <small>
+        {m.id} · 微信：{m.wechatNickname}
+        {m.googleEmail && ` · Google：${m.googleEmail}`}
+      </small>
+    </div>
+  );
+};
+
+/** 成员详情: the member's 个人信息 as they see it, plus the admin-only 备注名. */
+function MemberDetail(props: { base: string; id: string; onBack: () => void; onChange: () => void }) {
+  const base = `${props.base}/members/${props.id}`;
+  const [res, reload] = useApi<MemberProfile>(`${base}/profile`);
+  return (
+    <>
+      <button class="back" onClick={props.onBack}>
+        ‹ 成员
+      </button>
+      <Load result={res}>
+        {(p) => (
+          <ProfileCard
+            profile={p}
+            base={base}
+            mode="admin"
+            onChange={() => {
+              reload();
+              props.onChange();
+            }}
+          />
+        )}
+      </Load>
+    </>
+  );
+}
 
 function Pending(props: { base: string; list: MemberSummary[]; onChange: () => void }) {
   const [issued, setIssued] = useState<{ name: string; link: string } | null>(null);
@@ -145,7 +187,9 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
 
 function Members(props: { base: string; data: MembersResponse; onChange: () => void }) {
   const [shown, setShown] = useState<{ name: string; link: string; fresh: boolean } | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
   const { busy, error, run } = useAction();
+  const openMember = (m: MemberSummary) => setOpen(m.id);
 
   async function view(m: MemberSummary) {
     const r = await run(() => api<LinkResponse>(`${props.base}/members/${m.id}/link`));
@@ -179,6 +223,8 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     if (await run(() => api(`${props.base}/members/${m.id}/delete`, {}))) props.onChange();
   }
 
+  if (open) return <MemberDetail base={props.base} id={open} onBack={() => setOpen(null)} onChange={props.onChange} />;
+
   return (
     <>
       {shown && (
@@ -198,7 +244,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
         {props.data.active.length === 0 && <Empty>还没有成员</Empty>}
         {props.data.active.map((m) => (
           <div class="row" key={m.id}>
-            {who(m)}
+            {who(m, openMember)}
             <div class="actions">
               {m.hasLink && <button class="button secondary" disabled={busy} onClick={() => view(m)}>
                 链接
@@ -223,7 +269,10 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
             {props.data.inactive.map((m) => (
               <div class="row" key={m.id}>
                 <div class="who">
-                  {m.username}
+                  <button class="who-link" onClick={() => openMember(m)}>
+                    <span class="who-name">{m.username}</span>
+                    {m.adminNote && <span class="note">备注：{m.adminNote}</span>}
+                  </button>
                   <small>
                     {m.id} · {m.wechatNickname}
                     {m.owingCents > 0 && <span class="error"> · 欠 ${(m.owingCents / 100).toFixed(2)}</span>}
@@ -258,7 +307,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
             <p class="muted small">专属链接已失效；以前的报名和付款记录仍然保留在统计和导出里。</p>
             {props.data.deleted.map((m) => (
               <div class="row" key={m.id}>
-                {who(m)}
+                {who(m, openMember)}
               </div>
             ))}
           </details>

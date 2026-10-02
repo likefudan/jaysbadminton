@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
-import type { LinkResponse, MembersResponse } from "../../shared/types";
+import type { LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
 import { assertAdminToken, checkPassword, endSession, hasSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
 import type { Env } from "../env";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { adminEventRoutes } from "./adminEvents";
 import { type MemberRow, issueMemberToken, memberLink, requireMember, revealMemberToken, toSummary } from "../members";
+import { memberProfile, setAdminNote } from "../profile";
 
 export const adminRoutes = new Hono<{ Bindings: Env }>();
 
@@ -56,6 +57,17 @@ adminRoutes.post("/:token/members/:id/reject", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.status !== "pending") throw badRequest("只能拒绝待审核的申请");
   await c.env.DB.prepare("DELETE FROM members WHERE id = ?").bind(m.id).run();
+  return c.json({ ok: true });
+});
+
+adminRoutes.get("/:token/members/:id/profile", async (c) => {
+  const m = await requireMember(c.env, c.req.param("id"));
+  return c.json<MemberProfile>({ ...(await memberProfile(c.env, m)), adminNote: m.admin_note ?? "" });
+});
+
+adminRoutes.post("/:token/members/:id/note", async (c) => {
+  const m = await requireMember(c.env, c.req.param("id"));
+  await setAdminNote(c.env, m, str((await readJson(c.req.raw)).note));
   return c.json({ ok: true });
 });
 

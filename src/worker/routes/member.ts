@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { settle } from "../../shared/settle";
 import type { MeResponse, MyEvent, MyPayment, MyRosterEntry, PaymentStatus } from "../../shared/types";
 import { refundOf, savedInput, settleRows } from "../billing";
+import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
 import { getSettings } from "../db";
 import { closeExpired, friendCap, getEvent, removeSignup, roster, setSignup, summaries, type EventRow, validateFriends } from "../events";
@@ -28,6 +29,15 @@ memberRoutes.get("/:token/me", (c) => {
 });
 
 memberRoutes.get("/:token/stats", async (c) => c.json(await myStats(c.env, c.get("member").id)));
+
+// 个人信息: basics and the activity map; the admin's note never appears here.
+memberRoutes.get("/:token/profile", async (c) => c.json(await memberProfile(c.env, c.get("member"))));
+
+memberRoutes.post("/:token/email", async (c) => {
+  const body = await readJson(c.req.raw);
+  await setMemberEmail(c.env, c.get("member"), str(body.email));
+  return c.json({ ok: true });
+});
 
 memberRoutes.post("/:token/rename", async (c) => {
   const body = await readJson(c.req.raw);

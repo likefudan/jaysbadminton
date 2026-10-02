@@ -1,12 +1,13 @@
 import { useState } from "preact/hooks";
 import { checkUsername } from "../../shared/rules";
-import type { MeResponse, MyEvent, PaymentStatus } from "../../shared/types";
+import type { MeResponse, MemberProfile, MyEvent, PaymentStatus } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, Load, Page, SectionTitle, useAction } from "../components";
 import { CalendarLinks } from "../Calendar";
 import { EventInfo } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
+import { ProfileCard } from "../Profile";
 import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
 import { MyStatsCard } from "../Stats";
@@ -30,12 +31,18 @@ export function Member(props: { token?: string }) {
           {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
           <MyEvents base={base} />
           <MyStatsCard base={base} />
+          <MyProfile base={base} />
           <Rename base={base} current={m.username} onDone={reload} />
           {!props.token && <Logout />}
         </Page>
       )}
     </Load>
   );
+}
+
+function MyProfile(props: { base: string }) {
+  const [res, reload] = useApi<MemberProfile>(`${props.base}/profile`);
+  return <Load result={res}>{(p) => <ProfileCard profile={p} base={props.base} mode="member" onChange={reload} />}</Load>;
 }
 
 function Rename(props: { base: string; current: string; onDone: () => void }) {

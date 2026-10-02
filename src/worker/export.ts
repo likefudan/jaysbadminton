@@ -38,8 +38,18 @@ export const TABLES = {
       const rows = await all(env, "SELECT * FROM members ORDER BY id");
       return {
         title: this.title,
-        columns: ["成员编号", "用户名", "微信昵称", "状态", "Owner", "申请时间", "通过时间"],
-        rows: rows.map((m) => [m.id, m.username, m.wechat_nickname, MEMBER_STATUS[m.status] ?? m.status, yes(m.is_owner), at(m.requested_at), at(m.approved_at)]),
+        columns: ["成员编号", "用户名", "微信昵称", "邮箱", "管理员备注", "状态", "Owner", "申请时间", "通过时间"],
+        rows: rows.map((m) => [
+          m.id,
+          m.username,
+          m.wechat_nickname,
+          m.email || m.google_email || "",
+          m.admin_note ?? "",
+          m.deleted_at ? "已删除" : (MEMBER_STATUS[m.status] ?? m.status),
+          yes(m.is_owner),
+          at(m.requested_at),
+          at(m.approved_at),
+        ]),
       };
     },
   },
