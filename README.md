@@ -1,8 +1,8 @@
 # Jay's Badminton
 
-羽毛球群的报名与收费系统：成员通过专属链接报名，Owner 输入场地费和用球数后系统自动算出每人金额，成员点预填的 Venmo 链接付款，系统读取转发来的 Venmo 收款邮件自动标记已付，Owner 在管理页一眼看到钱是否收齐。
+羽毛球群的报名与收费系统：成员用 Google 账号登录（或专属链接）报名，Owner 输入场地费和用球数后系统自动算出每人金额，成员点预填的 Venmo 链接付款，系统读取转发来的 Venmo 收款邮件自动标记已付，Owner 在管理页一眼看到钱是否收齐。
 
-A sign-up and fee-collection site for a casual weekly badminton group (~50 members, 20–30 per session). Members sign up through a private link, the Owner enters court and shuttlecock costs, the system splits the bill, members pay through a pre-filled Venmo link, and forwarded Venmo receipt emails mark payments as paid automatically. Notifications go to the Owner on Telegram, ready to paste into WeChat.
+A sign-up and fee-collection site for a casual weekly badminton group (~50 members, 20–30 per session). Members sign in with Google (or a private link) and sign up, the Owner enters court and shuttlecock costs, the system splits the bill, members pay through a pre-filled Venmo link, and forwarded Venmo receipt emails mark payments as paid automatically. Notifications go to the Owner on Telegram, ready to paste into WeChat.
 
 - **Site**: https://jaysbadminton.llmat.dev
 - **Stack**: Preact + Vite front end; Hono API on Cloudflare Workers with D1 (SQLite), Cron Triggers and Email Routing, all on the free tier; Telegram for notifications; optional daily Google Sheets mirror via Apps Script
@@ -36,13 +36,14 @@ Phone-sized renders with demo data (names, venues and accounts are made up).
 
 ## Features
 
-- **报名**：成员用专属链接报名、带朋友；管理员可代加临时人员、立即截止、紧急修改时间地点
+- **登录与成员**：用 Google 账号自助申请（管理员审核后才能报名）或用专属链接；一个 Google 账号只对应一个人；已删除成员的名字会释放给新人，旧记录显示为「名字（编号）」
+- **报名**：报名、带朋友；登录后在活动页直接看到完整名单；管理员在管理页「我的报名」自己报名，也可代加临时人员、立即截止、紧急修改时间地点
 - **结算**：输入场地费、用球数和单价，按到场情况自动算出每人金额（含朋友份额）
 - **收款**：预填 Venmo 链接；Gmail 转发的 Venmo 收款邮件经签名校验后自动对账，支持部分付款、多付退款、待确认关联
 - **通知**：Telegram 截止前提醒、截止名单、结算提醒、每日账单提醒（可直接复制到微信）、收齐存档；Venmo 邮件异常和转发中断告警、每周健康简报
 - **分享与日历**：微信分享卡片显示活动时间地点和人数；一键加入 iPhone / Google 日历；挥拍图标，可添加到手机主屏幕
-- **统计与数据**：公开排行榜、个人统计、CSV 导出、每天同步到 Google 表格
-- **管理**：成员审核 / 停用 / 恢复 / 删除，收款设置加锁，两种外观风格 × 4 个强调色（每人可自选、支持深色），管理员指南，Telegram 找回管理链接
+- **统计与数据**：公开排行榜、个人统计、个人信息（邮箱、入群时间、GitHub 式活动热力图）、CSV 导出、每天同步到 Google 表格
+- **管理**：成员审核 / 停用 / 恢复 / 删除、管理员备注名，收款设置加锁，两种外观风格 × 4 个强调色（每人可自选、支持深色），管理员指南，Telegram 找回管理链接，管理员可绑定自己的 Google 账号直接进入管理页
 
 ## Docs
 
@@ -50,11 +51,12 @@ Phone-sized renders with demo data (names, venues and accounts are made up).
 | --- | --- | --- |
 | [docs/requirements.zh.md](docs/requirements.zh.md) | 中文 | 需求文档：业务规则、页面、费用计算、对账、通知 |
 | [docs/technical-design.md](docs/technical-design.md) | English | Architecture, data model, API, email ingestion, jobs, deployment, setup checklist |
+| [docs/google-login.zh.md](docs/google-login.zh.md) | 中文 | Google 登录：OAuth 配置、成员和管理员的使用方式、实现说明 |
 | [docs/launch-checklist.md](docs/launch-checklist.md) | 中文 | 上线检查清单：交接、管理员首次设置、真实环境验证、日常维护 |
 
 ## Development
 
-Google 登录支持成员自行注册、报名和查看账单，旧成员可绑定 Google 保留历史记录。配置 OAuth Client 和本地/正式回调地址请参见 [Google 登录配置](docs/google-login.zh.md)。没有配置 Google Client 时，原有成员链接仍可使用。
+Google 登录支持成员自行申请（需管理员审核）、报名和查看账单，旧成员可绑定 Google 保留历史记录，管理员也可以用自己的 Google 账号进入管理页。配置 OAuth Client 和正式 / 测试环境的回调地址请参见 [Google 登录配置](docs/google-login.zh.md)。没有配置 Google Client 时，原有成员链接仍可使用。
 
 Requires Node.js 22.
 
@@ -69,10 +71,12 @@ npm run typecheck
 
 | Path | Contents |
 | --- | --- |
-| `src/worker/` | Cloudflare Worker: Hono API, cron and email handlers |
+| `src/worker/` | Cloudflare Worker: Hono API, Google sign-in, cron and email handlers |
 | `src/web/` | Preact front end (built by Vite into `dist/web`, served as static assets) |
+| `src/shared/` | Types and logic used by both (settlement, times, themes, calendar) |
 | `migrations/` | D1 schema migrations |
 | `test/` | Vitest tests |
+| `e2e/` | Playwright browser tests (`npm run test:e2e`) |
 
 ## Deployment
 
@@ -99,13 +103,14 @@ Repository secrets required:
 | `GOOGLE_MAPS_API_KEY` | Optional. Google Cloud → enable **Places API (New)** → API key restricted to that API. Makes address suggestions fast; without it the free (slower) Photon service is used. Usage stays inside Google's free monthly calls |
 | `ADMIN_PASSWORD` | Your choice. Initial admin password, and the recovery path: change it and redeploy to reset a forgotten password |
 | `TELEGRAM_BOT_TOKEN_STAGING` | A second bot from @BotFather for the test site (a bot has one webhook, so the sites cannot share one). Optional |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional. Google Cloud → OAuth client (Web application) with both sites' callback URLs; see [docs/google-login.zh.md](docs/google-login.zh.md). Without them, Google sign-in is off and member links still work |
 | `ADMIN_PASSWORD_STAGING` | Admin password for the test site (first-time setup at `staging…/admin`, and its recovery path); falls back to `ADMIN_PASSWORD` when not set |
 
 CI also generates each site's `TOKEN_KEY` Worker secret on its first deploy and never replaces it.
 
 ### First-time setup and recovery
 
-- Open `/admin`, enter `ADMIN_PASSWORD`, and save the admin link it shows (the only link the Owner needs: they sign up for events from the admin page, under 我的报名). The admin page then needs both the link and the password (remembered for 30 days per device).
+- Open `/admin`, enter `ADMIN_PASSWORD`, and save the admin link it shows (the Owner signs up for events from the admin page, under 我的报名). The admin page then needs both the link and the password (remembered for 30 days per device). Then bind your Google account in 设置 → 用 Google 登录管理页: from then on signing in with it opens the admin page directly (`/admin/google`), and the link and password stay as a backup.
 - **Forgot the password**: change the `ADMIN_PASSWORD` secret, then Actions → CI → Run workflow on the **latest release tag** (production) or on `main` (test site).
 - **Lost the admin link**: Actions → CI → Run workflow with `reset_admin_link` ticked, then open `/admin` again and set up with the password. Run it on the latest release tag for production (`ADMIN_PASSWORD`), or on `main` for the test site (`ADMIN_PASSWORD_STAGING`). Data and the admin member are kept; only the link changes.
 - **Hand over to a new Owner / start fresh**: admin page → 设置 → 清空所有数据 (phrase + password). Everything except the admin password is deleted; the new Owner then runs first-time setup at `/admin` with that password and changes it. D1 Time Travel can restore the previous 7 days if needed, and every release keeps a database export.

@@ -101,26 +101,35 @@ memberRoutes.get("/:token/events", async (c) => {
     events.push({
       ...e,
       myFriends: rows.length === 0 ? null : friends.map((f) => f.friend_name ?? ""),
-      canEdit: e.status === "open" && m.status === "active",
+      canEdit: m.status === "active" && (e.status === "open" || (ownerRules(m) && e.status === "closed")),
       payment,
       roster: names,
     });
   }
-  return c.json({ events, friendCap: await friendCap(c.env) });
+  return c.json({ events, friendCap: ownerRules(m) ? OWNER_FRIEND_MAX : await friendCap(c.env) });
 });
 
+/**
+ * The Owner signing up from their own member page (via Google) follows the same rules as 我的报名
+ * on the admin page: no friend cap, and changes allowed after the deadline until Finalize.
+ */
+const ownerRules = (m: MemberRow) => m.is_owner === 1;
+const OWNER_FRIEND_MAX = 20;
+
 async function openEventFor(c: { env: import("../env").Env; get: (k: "member") => MemberRow }, id: string) {
-  if (c.get("member").status !== "active") throw badRequest("你的账号已停用，不能报名。有疑问请联系管理员。");
+  const m = c.get("member");
+  if (m.status !== "active") throw badRequest("你的账号已停用，不能报名。有疑问请联系管理员。");
   await closeExpired(c.env);
   const e = await getEvent(c.env, Number(id));
-  if (e.status !== "open") throw badRequest("报名已截止，不能再修改");
+  if (ownerRules(m) && e.status === "closed") return e;
+  if (e.status !== "open") throw badRequest(ownerRules(m) ? "已经结算，不能再改自己的报名；需要调整请在管理页直接改名单" : "报名已截止，不能再修改");
   return e;
 }
 
 memberRoutes.post("/:token/events/:id/signup", async (c) => {
   const e = await openEventFor(c, c.req.param("id"));
   const body = await readJson(c.req.raw);
-  const friends = validateFriends(body.friends ?? [], await friendCap(c.env));
+  const friends = validateFriends(body.friends ?? [], ownerRules(c.get("member")) ? null : await friendCap(c.env));
   await setSignup(c.env, e.id, c.get("member").id, friends, false);
   return c.json({ ok: true });
 });

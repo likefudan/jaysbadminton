@@ -1,8 +1,8 @@
 # Jay's Badminton — Technical Design
 
-> Living version: https://claude.ai/code/artifact/512d46a5-9d24-4344-a00b-7fb93107a631 — this file is an exported snapshot. Requirements (Chinese): [requirements.zh.md](requirements.zh.md).
+> Kept up to date with the code in this repository. Requirements (Chinese): [requirements.zh.md](requirements.zh.md). Google sign-in setup (Chinese): [google-login.zh.md](google-login.zh.md).
 
-Oct 1, 2026 · @Ke Li
+Oct 1, 2026 (updated Oct 2, 2026) · @Ke Li
 
 The whole system runs on Cloudflare's free tier at jaysbadminton.llmat.dev: Workers serves the pages and API, D1 stores the data, Cron Triggers run reminders, and Email Routing receives forwarded Venmo emails for instant payment matching. A small Google Apps Script mirrors the data into a Google Sheet once a day. This document implements the requirements document (Chinese) without changing its rules.
 
@@ -38,9 +38,11 @@ One Worker answers everything on `https://jaysbadminton.llmat.dev`: page paths r
 | --- | --- | --- |
 | `/` | Public | Open and recent events, past events, attendance leaderboard, link to join |
 | `/join` | Public | Join request form (username, WeChat nickname) |
-| `/e/{code}` | Public | One event: time, place, deadline, headcount, roster, attendance after Finalize |
-| `/m/{memberToken}` | Member | Sign-up with friends, rename, amounts owed + Venmo button, personal stats |
-| `/admin/{adminToken}` | Owner | Approvals, members, events, roster edits, settlement, payment board, 待确认 Venmo payments, settings, exports |
+| `/e/{code}` | Public | One event: time, place, deadline, headcount, calendar links; never names. A member signed in with Google sees their own card instead (roster, sign-up, bill) |
+| `/login`, `/me` | Member (Google) | Google sign-in; first time: apply (pending) or link an existing member; then the member's own page |
+| `/m/{memberToken}` | Member (link) | The member's own page: sign-up with friends, rename, amounts owed + Venmo button, personal stats, 个人信息 (email, join time, activity heatmap) |
+| `/admin` | Public | First-time setup while no admin link exists; afterwards a pointer to the link and the Google way in |
+| `/admin/{adminToken}`, `/admin/google` | Owner | Approvals, members (profiles, 备注名), events, roster edits, 我的报名, settlement, payment board, 待确认 Venmo payments, settings, exports |
 | `/api/...` | Mixed | JSON API (see API) |
 | `/export/...` | Owner (export key) | CSV downloads and the JSON feed for the Google Sheets mirror |
 
@@ -50,34 +52,42 @@ One Worker answers everything on `https://jaysbadminton.llmat.dev`: page paths r
 
 ## Identity and security
 
-Members have no passwords: their identity is the secret token in their link, delivered privately over WeChat. The Owner's admin page needs its own link plus a password.
+Nobody has a site password except the Owner. A member is identified either by the secret token in their link (delivered privately over WeChat) or by their Google account. The Owner is a member with the `is_owner` flag (exactly one, the person who ran first-time setup); the admin page takes the admin link plus a password, or the Owner's own Google account once bound.
+
+- **Google sign-in** (`src/worker/googleAuth.ts`, setup in [google-login.zh.md](google-login.zh.md)): Authorization Code + PKCE, state and nonce; the ID token is verified against Google's keys and the stable `sub` is the identity. A random session id is kept hashed in `member_sessions` behind an HttpOnly, SameSite=Lax cookie (30 days); cookie-authenticated writes check `Origin`. `/api/auth/google?next=` returns only to this site's `/me` or `/admin/...` pages.
+- **One Google account per person**: `members.google_sub` has a unique index, so an account belongs to at most one member and a member (the Owner included) holds at most one account. A newcomer who applies with Google is `pending` until approved (and counts toward the 30-pending cap); approving them issues no link, since they sign in. An existing member links Google by confirming their old link. Deleting a member releases the account.
+- **Admin by Google**: 设置 → 用 Google 登录管理页 binds the account signed in on that browser to the Owner's member record (refused when that account already belongs to someone else, or when the Owner already has one). `/api/admin/google/*` is then allowed for that session only, with an `Origin` check on writes; changing the password and resetting all data still ask for the password.
 
 - **Tokens**: 32 random bytes from `crypto.getRandomValues`, base64url (43 characters). D1 stores a SHA-256 hash for lookup plus the token encrypted with AES-GCM under a key held as a Worker secret (TOKEN\_KEY). Exports and the Sheets mirror never include either column.
 - **Showing a link again**: the admin page decrypts the stored token to show the member's link and QR code again, as the requirements ask. **Regenerate** issues a new token and the old one stops working at once.
 - **Admin token**: a separate token for `/admin/{token}`, plus a password. The first visit to `/admin` (while no admin link exists) asks for the password and creates the admin link and the Owner's member record. A lost link is reset by running the deploy workflow with `reset_admin_link` (on the latest release tag for production, on `main` for the test site, whose password is `ADMIN_PASSWORD_STAGING`), which reopens first-time setup. The admin API needs both the link and a session cookie (HttpOnly, Secure, SameSite=Strict, path `/api/admin`, 30 days) obtained with the password. The password hash is PBKDF2-SHA256 over an HMAC peppered with `TOKEN_KEY`, with few iterations to fit the 10 ms CPU limit. Changing it in settings signs every device out. The `ADMIN_PASSWORD` GitHub secret is pushed to the Worker on every deploy; when its value changes, the stored hash resets to it and all sessions end (the forgotten-password path). `TOKEN_KEY` is generated once by CI and never replaced
 - **Export key**: a third independent token for `/export/*`, used by the CSV links and the Apps Script mirror. Regenerable from settings.
 - **Member IDs**: `M001`, `M002`, … assigned on join request, never reused or changed. Used in payment codes and as the stable key everywhere.
-- **Authorization**: every API handler resolves the token first and only reads or writes rows for that member; the Owner token unlocks admin endpoints. Deactivated members' tokens are rejected.
-- **Abuse limits**: `/join` and token lookups are rate-limited per IP with Cloudflare's free rate-limiting rule; the join form has a hidden honeypot field. Usernames are unique case-insensitively and limited to 20 characters.
+- **Authorization**: every member handler resolves the token (or Google session) first and only reads or writes rows for that member; the admin link or bound Google session unlocks admin endpoints. A deactivated member's link (and Google) still opens their page so they can pay what they owe, but cannot sign up; a deleted member's link stops working.
+- **Abuse limits**: the join form has a hidden honeypot field, and at most 30 requests can wait for approval at once (more are refused until the Owner clears some), so a flood cannot grow without bound. There is no per-IP rate limit; if the site is ever flooded, add Cloudflare's free rate-limiting rule for `/api/public/join` and `/api/auth/register`. Usernames are unique case-insensitively and limited to 20 characters. Deleting a member frees their name: the old record keeps it with the member ID appended (`Alice（M004）`), so history and rankings never mix two people up.
 - **Secrets** (Telegram bot token, export key hash, etc.) live in D1 settings or Worker secrets (`wrangler secret put`), never in the repository.
 - **Known accepted risk**: anyone holding a member link can act as that member (as stated in the requirements).
 
 ## Data model
 
-D1 (SQLite) holds nine tables. Money is stored as integer cents, times as UTC ISO strings and shown in America/Los\_Angeles. Schema changes ship as numbered migrations in `migrations/`.
+D1 (SQLite) holds the tables below. Money is stored as integer cents, times as UTC ISO strings and shown in America/Los\_Angeles. Schema changes ship as numbered migrations in `migrations/`.
 
 | Table | Key columns | Notes |
 | --- | --- | --- |
-| `members` | `id` (M001), `username` (unique, NOCASE), `wechat_nickname`, `status` (pending / active / inactive), `token_hash`, `token_enc`, `is_owner`, `requested_at`, `approved_at` | Rejected requests are deleted; the next ID is never reused |
-| `events` | `id`, `code` (1006, 1006B), `date`, `start_at`, `end_at`, `location`, `deadline_at`, `deadline_offset_min`, `status` (open / closed / finalized / settled / cancelled), `finalized_at`, `settled_at`, `dunning_stopped`, `created_at` | `settled` = all paid and archived; read-only from then on |
+| `members` | `id` (M001), `username` (unique, NOCASE), `wechat_nickname`, `status` (pending / active / inactive), `token_hash`, `token_enc`, `is_owner`, `requested_at`, `approved_at`, `deleted_at`, `google_sub` (unique), `google_email`, `email` (their own contact email), `admin_note` (备注名, Owner only) | Rejected requests are deleted; the next ID is never reused; deleted members keep their history under `name（ID）` |
+| `events` | `id`, `code` (1006, 1006B), `title`, `date`, `start_at`, `end_at`, `location`, `address`, `deadline_at`, `deadline_offset_min`, `status` (open / closed / finalized / settled / cancelled), `finalized_at`, `settled_at`, `dunning_stopped`, `created_at` | `settled` = all paid and archived; read-only from then on |
 | `registrations` | `id`, `event_id`, `member_id`, `friend_index` (0 = the member), `friend_name`, `attended` (default 1), `added_by_owner`, `created_at`, `updated_at` | Friends hang off the member who pays for them; Owner-added walk-ins ignore the friend cap |
 | `settlements` | `event_id`, `court_total_cents`, `shuttle_count`, `shuttle_price_cents`, `registered_count`, `attended_count`, `court_share_cents`, `shuttle_share_cents`, `finalized_at` | One row per event; recomputed on every edit before archive |
 | `payments` | `event_id`, `member_id`, `amount_due_cents`, `payment_code` (xiaoming-jbm20261006-m007), `status` (unpaid / partial / paid), `amount_paid_cents` (sum of receipts), `refunded_cents`, `paid_at` | One row per paying member per event; friends roll up here |
 | `payment_receipts` | `payment_id`, `amount_cents`, `method` (venmo / manual), `venmo_txn_id` (unique), `payer_name`, `received_at` | Every payment toward a bill; a bill can be paid in several pieces |
 | `inbound_payments` | `venmo_txn_id` (unique), `email_id`, `payer_name`, `amount_cents`, `note`, `received_at`, `kind` (unmatched = 待确认), `state` (open / linked / ignored), `linked_payment_id`, `reason` | Venmo payments with our code that the Owner reviews; unrelated payments are not stored |
-| `locations` | `name`, `last_used_at`, `use_count` | Feeds the location dropdown |
+| `locations` | `name`, `address`, `last_used_at`, `use_count` | Feeds the venue picker |
 | `settings` | `key`, `value` | Friend cap N, Venmo username, Zelle account, Telegram chat ID, reminder on/off + hours, dunning hour, last shuttle price, last event times, last deadline offset, admin/export token hashes |
-| `notification_log` | `event_id`, `type`, `sent_on` (Pacific date), `sent_at` | Unique on (event, type, sent\_on) so a retried cron run never double-sends |
+| `notification_log` | `event_id`, `type`, `sent_on` (Pacific date), `sent_at` | Unique on (event, type, sent\_on) so a retried cron run never double-sends; site-wide notices use `event_id = 0` |
+| `email_log` | `received_at`, `outcome` | One row per Venmo email outcome, for health alerts and the weekly digest; pruned after 120 days |
+| `admin_sessions` | `id_hash`, `created_at`, `expires_at` | Password logins (30 days) |
+| `member_sessions` | `id_hash`, `google_sub`, `email`, `picture`, `expires_at` | Google sign-ins (30 days) |
+| `oauth_states` | `id_hash`, `nonce`, `verifier`, `expires_at` | One per Google sign-in in progress; consumed by the callback, 10 minutes |
 
 Payments for the Owner and the Owner's friends are created as `paid` with method `manual` at Finalize. The "collected" check counts rows that are not `paid`; it never compares totals.
 
@@ -87,9 +97,10 @@ JSON over HTTPS under `/api`, grouped by who may call it. Tokens travel in the p
 
 | Audience | Endpoints |
 | --- | --- |
-| Public | `GET /api/public/home` (open events, past events, leaderboard) · `GET /api/public/events/{code}` · `POST /api/public/join` |
-| Member (`/api/m/{token}/…`) | `GET me` (profile, open events, my registrations, my payments, my stats) · `POST rename` · `POST events/{id}/register` (friend count + names) · `POST events/{id}/cancel` |
-| Owner (`/api/admin/{token}/…`) | Members: `GET members`, `POST members/{id}/approve`, `reject`, `regenerate`, `deactivate` · Events: `POST events`, `POST events/{id}/cancel`, `reopen`, roster `add` / `update` / `remove` · Settlement: `POST events/{id}/preview`, `finalize`, `attendance` · Payments: `POST payments/{id}/mark-paid`, `refunded`, `POST receipts/{id}/remove`, `POST events/{id}/dunning`, `GET inbound`, `POST inbound/{id}/link`, `ignore` · Telegram: `GET telegram`, `POST telegram/connect`, `test`, `disconnect` · Settings: `GET/POST settings`, `POST settings/password`, `rotate-admin`, `reset`, `rotate-export` |
+| Public | `GET /api/public/site`, `home` (open events, past events, leaderboard), `events/{code}`, `events/{code}/calendar.ics` · `POST /api/public/join` · `GET/POST /api/public/admin-setup` |
+| Google (`/api/auth/…`) | `GET session`, `google` (start, optional `next`), `google/callback` · `POST register` (apply, pending), `link` (bind an existing member's link), `logout` |
+| Member (`/api/m/{token}/…`, or `/api/m/session/…` for Google) | `GET me`, `events` (my events with roster, bill and payment), `stats`, `profile` · `POST rename`, `email`, `events/{id}/signup` (friend names), `events/{id}/cancel` |
+| Owner (`/api/admin/{token}/…`, or `/api/admin/google/…`) | Members: `GET members`, `members/{id}/link`, `members/{id}/profile` · `POST members/{id}/approve`, `reject`, `regenerate`, `deactivate`, `reactivate`, `delete`, `note` · Events: `GET/POST events`, `GET events/{id}`, `POST events/{id}/edit`, `close-now`, `cancel`, `reopen`, `self-signup`, `self-cancel`, roster add / update / remove · Settlement: `POST events/{id}/preview`, `finalize`, attendance · Payments: mark paid, refunds, receipts, dunning, `GET inbound`, `POST inbound/{id}/link`, `ignore` · Telegram: `GET telegram`, `POST telegram/connect`, `test`, `disconnect` · Settings: `GET/POST settings`, `POST settings/password`, `rotate-admin`, `reset`, `rotate-export`, `GET settings/google`, `POST settings/google/bind`, `unbind` · `GET places?q=` |
 | Export (`/export/{key}/…`) | `GET all.json` (Sheets mirror) · `GET {table}.csv` |
 
 - Every Owner write on an event checks its status first: roster and settlement edits are refused once the event is `settled`, matching "archived means read-only".
@@ -110,7 +121,7 @@ stateDiagram-v2
   cancelled --> [*]
 ```
 
-Status changes happen in one module (`events/transition.ts`) that refuses illegal moves, so the archive lock cannot be bypassed by any endpoint. `closed` is set by the cron job at the deadline; `settled` is set the moment the last unpaid payment flips to paid. Once an event has ended without Finalize, the Owner gets an hourly reminder. Stopping dunning sets a flag on a `finalized` event and does not change its status.
+Each handler that moves an event checks its current status first (`src/worker/events.ts`, `routes/adminEvents.ts`, `billing.ts`), and every roster or settlement edit is refused once the event is `settled`, so the archive lock holds for every endpoint (covered by tests). `closed` is set by the cron job at the deadline; `settled` is set the moment the last unpaid payment flips to paid. Once an event has ended without Finalize, the Owner gets an hourly reminder. Stopping dunning sets a flag on a `finalized` event and does not change its status.
 
 ## Settlement and payment codes
 
@@ -212,17 +223,20 @@ One TypeScript repository (`likefudan/jaysbadminton`) builds one Worker that ser
 | CI/CD | GitHub Actions: typecheck, test, build, browser tests; `main` → staging, `v*` tag → production (tag-on-main check, D1 export artifact, migrations, deploy, secret sync, smoke test); re-running on an older tag rolls back; Dependabot opens monthly grouped update PRs | Uses a `CLOUDFLARE_API_TOKEN` repository secret |
 
 ```text
-docs/            requirements (Chinese) and this design
+docs/            requirements (Chinese), this design, Google sign-in setup, launch checklist
 migrations/      D1 schema, numbered SQL files
-src/worker/      Hono API, cron handler, email handler, settlement, Telegram
-src/web/         Preact pages: home, join, event, member, admin
+src/shared/      types, settlement, times, themes, calendar (used by both sides)
+src/worker/      Hono API, cron handler, email handler, Google sign-in, settlement, Telegram
+src/web/         Preact pages: home, join, event, login / me, member, admin
 test/            unit + integration tests, Venmo email fixtures
-wrangler.toml    bindings: DB, ASSETS, cron, secrets
+e2e/             Playwright browser tests
+scripts/         CI helpers (D1 lookup, secret sync, smoke test, e2e server)
+wrangler.jsonc   bindings: DB, ASSETS, cron, email; env.staging for the test site
 ```
 
 **Test focus**: settlement math and rounding, status transitions and the archive lock, deadline/reminder timing across daylight-saving changes, payment-code matching, and the Venmo parser against real (redacted) emails.
 
-**Environments**: local development with `wrangler dev` and a local D1; production only. A staging Worker can be added later if needed.
+**Environments**: local development with `wrangler dev` and a local D1; the test site (`staging.jaysbadminton.llmat.dev`, `env.staging`: its own Worker, D1, Telegram bot and admin password `ADMIN_PASSWORD_STAGING`, a yellow 测试环境 banner, `noindex`) deployed on every merge to `main`; production deployed from `v*` release tags.
 
 ## Free-tier budget
 
@@ -256,4 +270,5 @@ The Owner does these once, in this order; steps marked *after deploy* wait until
 - [ ] *After deploy*: switch the `venmo@` route from "Send to an email" to "Send to a Worker"
 - [ ] *After deploy*: create the Gmail filter `from:venmo@venmo.com` → forward to `venmo@jaysbadminton.llmat.dev`
 - [ ] *After deploy*: 设置 → Google 表格同步 → 开启同步; create a Google Sheet, paste the shown script into Apps Script, run `install` once
+- [ ] Optional: Google sign-in — create the OAuth client, add both sites' callback URLs, and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` ([google-login.zh.md](google-login.zh.md)); then 设置 → 用 Google 登录管理页 to bind the Owner's account
 - [ ] Test end to end: a test event where one member pays the exact amount with the payment code shows as paid within a minute

@@ -4,7 +4,7 @@
 
 ## 一、交接前（网站维护者）
 
-- [ ] GitHub 仓库 Settings → Secrets 里有：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`ADMIN_PASSWORD`、`TELEGRAM_BOT_TOKEN`、`GOOGLE_MAPS_API_KEY`
+- [ ] GitHub 仓库 Settings → Secrets 里有：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`ADMIN_PASSWORD`、`TELEGRAM_BOT_TOKEN`、`GOOGLE_MAPS_API_KEY`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`（测试环境另有 `ADMIN_PASSWORD_STAGING`、`TELEGRAM_BOT_TOKEN_STAGING`）
 - [ ] 把 `ADMIN_PASSWORD` 改成一个给新管理员用的临时密码，然后 Actions → CI → Run workflow（Use workflow from 选最新的版本标签）运行一次
 - [ ] 管理页 → 设置 → 危险操作 → **清空所有数据**，删掉测试数据
 - [ ] Cloudflare → Email Routing（jaysbadminton.llmat.dev）：`venmo@` 的规则是 **Send to a Worker → jaysbadminton**
@@ -18,12 +18,14 @@
 - [ ] 收款设置：Venmo 用户名、Venmo 通知邮箱、Zelle
 - [ ] 连接 Telegram，发送测试消息；再给机器人发「管理页面」，确认能找回链接
 - [ ] Gmail 转发：添加转发地址（确认码会出现在 Telegram）→ 创建 `from:venmo@venmo.com` 过滤器
+- [ ] 设置 → 用 Google 登录管理页：绑定自己的 Google 账号（并给它开启两步验证），退出后用 Google 登录，确认能直接进入管理页
 - [ ] 提醒设置（含每周健康简报）、默认外观、网站标题、排行榜开关
 - [ ] （可选）Google 表格同步：建表格 → 粘贴脚本 → 运行 `install`，表格里出现各个标签页
 
 ## 三、真实环境验证
 
 - [ ] **微信里打开**（iPhone 和 Android 各找一台，深色模式也看一眼）：首页、活动页、成员专属链接，按钮和文字都正常显示
+- [ ] **Google 申请**：请一位群友在首页用 Google 申请 → 待审核里通过 → 对方用 Google 登录后能报名、在活动页看到名单
 - [ ] **Venmo 按钮**：在微信里点「用 Venmo 付」→ 按提示「在浏览器中打开」→ 跳到 Venmo，收款人、金额、备注都已填好
 - [ ] **Venmo 自动对账**：建一个小的测试活动，用另一个 Venmo 账号按备注编号付款 → 几分钟内自动标记已付 → Telegram 收到消息；管理员指南里的「转发状态」显示验证通过
 - [ ] **无关收款被忽略**：请朋友付 $1、备注随便写 → 转发状态显示「当作无关收款忽略」，收款页里不出现

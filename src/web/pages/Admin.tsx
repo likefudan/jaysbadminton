@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { checkPassword } from "../../shared/rules";
-import type { LinkResponse, MemberProfile, MemberSummary, MembersResponse } from "../../shared/types";
+import type { ApproveResponse, LinkResponse, MemberProfile, MemberSummary, MembersResponse } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
@@ -160,13 +160,13 @@ function MemberDetail(props: { base: string; id: string; onBack: () => void; onC
 }
 
 function Pending(props: { base: string; list: MemberSummary[]; onChange: () => void }) {
-  const [issued, setIssued] = useState<{ name: string; link: string } | null>(null);
+  const [issued, setIssued] = useState<{ name: string; link: string | null; googleEmail: string | null } | null>(null);
   const { busy, error, run } = useAction();
 
   async function approve(m: MemberSummary) {
-    const r = await run(() => api<LinkResponse>(`${props.base}/members/${m.id}/approve`, {}));
+    const r = await run(() => api<ApproveResponse>(`${props.base}/members/${m.id}/approve`, {}));
     if (r) {
-      setIssued({ name: m.username, link: r.link });
+      setIssued({ name: m.username, ...r });
       props.onChange();
     }
   }
@@ -179,7 +179,17 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
     <>
       {issued && (
         <Card>
-          <LinkCard title={`${issued.name} 的专属链接`} link={issued.link} note="通过微信私聊发给对方（链接或二维码都可以）。" />
+          {issued.link ? (
+            <LinkCard title={`${issued.name} 的专属链接`} link={issued.link} note="通过微信私聊发给对方（链接或二维码都可以）。" />
+          ) : (
+            <>
+              <h2>已通过 {issued.name}</h2>
+              <p>
+                对方是用 Google（{issued.googleEmail}）申请的，不用发链接：用这个 Google 账号登录网站就能报名。可以在微信里告诉对方一声。
+              </p>
+              <p class="muted small">需要备用链接的话，可以在「成员」里生成。</p>
+            </>
+          )}
           <button class="button secondary block" onClick={() => setIssued(null)}>
             完成
           </button>

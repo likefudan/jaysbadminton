@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { Client, approveMember, createTestEvent, setUpAdmin, tokenOf } from "./helpers";
+import { Client, approveMember, createTestEvent, expire, setUpAdmin, tokenOf } from "./helpers";
 
 const anon = new Client();
 
@@ -171,6 +171,31 @@ describe("member links", () => {
     expect(list.inactive).toEqual([]);
     expect(list.deleted.map((m: { id: string }) => m.id)).toEqual([id]);
     expect((await admin.call(`${base}/members/${id}/reactivate`, {})).status).toBe(400);
+  });
+
+  it("frees a deleted member's name; the old record keeps it with its ID so history never mixes them up", async () => {
+    const ctx = await setUpAdmin();
+    const remove = async (id: string) => {
+      await ctx.admin.call(`${ctx.base}/members/${id}/deactivate`, {});
+      expect((await ctx.admin.call(`${ctx.base}/members/${id}/delete`, {})).status).toBe(200);
+    };
+    const first = await approveMember(ctx, "Alice");
+    const e = await createTestEvent(ctx);
+    await anon.call(`${first.base}/events/${e.id}/signup`, { friends: ["Tom"] });
+    await expire(e.id); // past the deadline, so disabling keeps the sign-up
+    await remove(first.id);
+    // Two Alices deleted in turn, a third one active: each stays distinct.
+    const second = await approveMember(ctx, "alice");
+    await remove(second.id);
+    const third = await approveMember(ctx, "Alice");
+    expect((await new Client().call("/api/public/join", { username: "ALICE", wechatNickname: "x" })).status).toBe(409);
+
+    const list = (await ctx.admin.call(`${ctx.base}/members`)).data;
+    expect(list.deleted.map((m: { username: string }) => m.username).sort()).toEqual([`Alice（${first.id}）`, `alice（${second.id}）`]);
+    expect(list.active.find((m: { id: string }) => m.id === third.id).username).toBe("Alice");
+    const roster = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.roster.map((r: { name: string }) => r.name);
+    expect(roster).toContain(`Alice（${first.id}）`);
+    expect(roster).toContain("Tom");
   });
 
   it("members can rename themselves, keeping names unique", async () => {
