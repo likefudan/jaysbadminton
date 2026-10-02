@@ -16,6 +16,7 @@ test("signed-in users can inspect their Google account from the header and sign 
   const panel = page.getByRole("region", { name: "Google 账号信息" });
   await expect(panel.getByText(email, { exact: true })).toBeVisible();
   await expect(panel.getByRole("link", { name: "我的活动" })).toHaveAttribute("href", "/me");
+  await expect(panel.getByRole("link", { name: "个人信息" })).toHaveAttribute("href", "/me/profile");
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
   await expect(trigger).toBeFocused();

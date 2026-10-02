@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { settle } from "../../shared/settle";
-import type { MeResponse, MyEvent, MyPayment, MyRosterEntry, PaymentStatus } from "../../shared/types";
+import type { MeResponse, MyEvent, MyEventsResponse, MyHistoryEvent, MyPayment, MyRosterEntry, PaymentStatus } from "../../shared/types";
 import { refundOf, savedInput, settleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
@@ -48,12 +48,15 @@ memberRoutes.post("/:token/rename", async (c) => {
 memberRoutes.get("/:token/events", async (c) => {
   const m = c.get("member");
   await closeExpired(c.env);
-  // Settled events stay on the member page for 30 days so people can see they are paid up.
+  // 我的活动: every event they signed up for or were billed for (cancelled ones left out), plus the
+  // open ones they can still join; newest first.
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized')
-       OR (status = 'settled' AND settled_at > ?) ORDER BY start_at`,
+    `SELECT * FROM events WHERE status != 'cancelled' AND (status = 'open'
+       OR id IN (SELECT event_id FROM registrations WHERE member_id = ?)
+       OR id IN (SELECT event_id FROM payments WHERE member_id = ?))
+     ORDER BY start_at DESC`,
   )
-    .bind(new Date(Date.now() - 30 * 86400_000).toISOString())
+    .bind(m.id, m.id)
     .all<EventRow>();
   const pays = await c.env.DB.prepare(
     "SELECT * FROM payments WHERE member_id = ?",
@@ -61,17 +64,38 @@ memberRoutes.get("/:token/events", async (c) => {
     .bind(m.id)
     .all<{ event_id: number; amount_due_cents: number; amount_paid_cents: number; refunded_cents: number; payment_code: string; status: PaymentStatus }>();
   const s = await getSettings(c.env.DB, ["venmo_username", "zelle_account"]);
-  const mine = await c.env.DB.prepare("SELECT event_id, friend_index, friend_name FROM registrations WHERE member_id = ?")
+  const mine = await c.env.DB.prepare("SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?")
     .bind(m.id)
-    .all<{ event_id: number; friend_index: number; friend_name: string | null }>();
-  const list = await summaries(c.env, results);
+    .all<{ event_id: number; friend_index: number; friend_name: string | null; attended: number }>();
+
+  // 历史活动: over and paid up. Kept light (no roster or bill breakdown) so years of history stay
+  // within the per-request query budget.
+  const ended = new Date().toISOString();
+  const payOf = (id: number) => pays.results.find((p) => p.event_id === id);
+  const isHistory = (e: EventRow) =>
+    (e.status === "finalized" || e.status === "settled") && e.end_at <= ended && (payOf(e.id)?.status ?? "paid") === "paid";
+  const history: MyHistoryEvent[] = results.filter(isHistory).map((e) => {
+    const rows = mine.results.filter((r) => r.event_id === e.id);
+    return {
+      id: e.id,
+      code: e.code,
+      date: e.date,
+      title: e.title,
+      location: e.location,
+      amountCents: payOf(e.id)?.amount_due_cents ?? null,
+      attended: rows.some((r) => r.friend_index === 0 && r.attended === 1),
+      friends: rows.filter((r) => r.friend_index > 0).length,
+    };
+  });
+
+  const list = await summaries(c.env, results.filter((e) => !isHistory(e)));
   const events: MyEvent[] = [];
   for (const e of list) {
     const rows = mine.results.filter((r) => r.event_id === e.id);
     const friends = rows.filter((r) => r.friend_index > 0).sort((a, b) => a.friend_index - b.friend_index);
-    const pay = pays.results.find((p) => p.event_id === e.id);
-    // Settled events only matter to members who were billed; a disabled member only sees bills.
-    if ((e.status === "settled" || m.status !== "active") && !pay) continue;
+    const pay = payOf(e.id);
+    // Events they are not on are only offered while open, and never to a disabled member.
+    if (rows.length === 0 && !pay && (e.status !== "open" || m.status !== "active")) continue;
     let payment: MyPayment | null = null;
     if (pay && (e.status === "finalized" || e.status === "settled")) {
       const input = await savedInput(c.env, e.id);
@@ -106,7 +130,7 @@ memberRoutes.get("/:token/events", async (c) => {
       roster: names,
     });
   }
-  return c.json({ events, friendCap: ownerRules(m) ? OWNER_FRIEND_MAX : await friendCap(c.env) });
+  return c.json<MyEventsResponse>({ events, history, friendCap: ownerRules(m) ? OWNER_FRIEND_MAX : await friendCap(c.env) });
 });
 
 /**

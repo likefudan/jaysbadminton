@@ -2690,3 +2690,57 @@ button.heatmap-cell:not(:disabled) {
 .spend-absent {
   color: var(--danger);
 }
+
+/* ---- 我的活动: links to 个人信息 / 管理页, and the folded 历史活动 ---- */
+.page-links {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: -4px 0 4px;
+}
+.page-links .button {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+a.back {
+  text-decoration: none;
+}
+.history-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.history-list li + li {
+  border-top: 1px solid var(--line);
+}
+.history-list a {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0;
+  color: inherit;
+  text-decoration: none;
+}
+.history-when {
+  flex: none;
+  color: var(--text-2);
+  font-size: 13.5px;
+}
+.history-what {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-what small {
+  color: var(--muted);
+}
+.history-what .history-absent {
+  color: var(--danger);
+}
+.history-amount {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}

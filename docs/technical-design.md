@@ -39,8 +39,8 @@ One Worker answers everything on `https://jaysbadminton.llmat.dev`: page paths r
 | `/` | Public | Open and recent events, past events, attendance leaderboard, link to join |
 | `/join` | Public | Join request form (username, WeChat nickname) |
 | `/e/{code}` | Public | One event: time, place, deadline, headcount, calendar links; never names. A member signed in with Google sees their own card instead (roster, sign-up, bill) |
-| `/login`, `/me` | Member (Google) | Google sign-in; first time: apply (pending) or link an existing member; then the member's own page |
-| `/m/{memberToken}` | Member (link) | The member's own page: sign-up with friends, rename, amounts owed + Venmo button, personal stats, 个人信息 (email, join time, activity heatmap) |
+| `/login`, `/me`, `/me/profile` | Member (Google) | Google sign-in; first time: apply (pending) or link an existing member; then 我的活动 and 个人信息, also reachable from the avatar menu |
+| `/m/{memberToken}`, `/m/{memberToken}/profile` | Member (link) | 我的活动: their own events newest first (sign-up with friends, roster, amounts owed + Venmo button), events open to join, and 历史活动 (over and paid up, folded). 个人信息: spending chart, profile (email, join time, activity heatmap), rename, link Google |
 | `/admin` | Public | First-time setup while no admin link exists; afterwards a pointer to the link and the Google way in |
 | `/admin/{adminToken}`, `/admin/google` | Owner | Approvals, members (profiles, 备注名), events, roster edits, 我的报名, settlement, payment board, 待确认 Venmo payments, settings, exports |
 | `/api/...` | Mixed | JSON API (see API) |

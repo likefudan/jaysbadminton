@@ -1,6 +1,8 @@
 import { useState } from "preact/hooks";
 import { checkUsername } from "../../shared/rules";
-import type { MeResponse, MemberProfile, MyEvent, PaymentStatus } from "../../shared/types";
+import { dollars } from "../../shared/settle";
+import { formatDateZh } from "../../shared/time";
+import type { MeResponse, MemberProfile, MyEvent, MyEventsResponse, MyHistoryEvent, PaymentStatus } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, Load, Page, SectionTitle, useAction } from "../components";
 import { CalendarLinks } from "../Calendar";
@@ -11,7 +13,7 @@ import { ProfileCard } from "../Profile";
 import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
 import { MyStatsCard } from "../Stats";
-import { GoogleLink, Logout } from "./Account";
+import { GoogleLink } from "./Account";
 
 /** On your own page a settled event shows where your bill stands, not the group's. */
 const BILL_STATUS: Record<PaymentStatus, { cls: string; label: string }> = {
@@ -20,25 +22,49 @@ const BILL_STATUS: Record<PaymentStatus, { cls: string; label: string }> = {
   paid: { cls: "settled", label: "已付清" },
 };
 
+/** 我的活动: the events they signed up for (newest first), the ones still open to join, and 历史活动. */
 export function Member(props: { token?: string }) {
+  const base = `/api/m/${props.token ?? "session"}`;
+  const [me] = useApi<MeResponse>(`${base}/me`);
+  return (
+    <Load result={me}>
+      {(m) => (
+        <Page title={`你好，${m.username}`} eyebrow={`${m.id} · 我的活动`} subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}>
+          <div class="page-links">
+            {!props.token && m.isOwner && (
+              <a class="button secondary" href="/admin/google">
+                管理页
+              </a>
+            )}
+            <a class="button secondary" href={profilePath(props.token)}>
+              个人信息 ›
+            </a>
+          </div>
+          {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
+          <MyEvents base={base} />
+        </Page>
+      )}
+    </Load>
+  );
+}
+
+const profilePath = (token?: string) => (token ? `/m/${token}/profile` : "/me/profile");
+
+/** 个人信息: statistics, profile and account settings, one tap from 我的活动 or the avatar menu. */
+export function MemberProfilePage(props: { token?: string }) {
   const base = `/api/m/${props.token ?? "session"}`;
   const [me, reload] = useApi<MeResponse>(`${base}/me`);
   return (
     <Load result={me}>
       {(m) => (
-        <Page title={`你好，${m.username}`} eyebrow={`${m.id} · 我的活动`} subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}>
-          {props.token && <GoogleLink token={props.token} />}
-          {!props.token && m.isOwner && (
-            <a class="button block" href="/admin/google">
-              进入管理页
-            </a>
-          )}
-          {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
-          <MyEvents base={base} />
+        <Page title="个人信息" eyebrow={`${m.id} · ${m.username}`}>
+          <a class="back" href={props.token ? `/m/${props.token}` : "/me"}>
+            ‹ 我的活动
+          </a>
           <MyStatsCard base={base} />
           <MyProfile base={base} />
           <Rename base={base} current={m.username} onDone={reload} />
-          {!props.token && <Logout />}
+          {props.token && <GoogleLink token={props.token} />}
         </Page>
       )}
     </Load>
@@ -87,23 +113,63 @@ function Rename(props: { base: string; current: string; onDone: () => void }) {
 }
 
 function MyEvents(props: { base: string }) {
-  const [res, reload] = useApi<{ events: MyEvent[]; friendCap: number }>(`${props.base}/events`);
+  const [res, reload] = useApi<MyEventsResponse>(`${props.base}/events`);
   return (
     <Load result={res}>
-      {(r) => (
-        <>
-          <SectionTitle>我的活动</SectionTitle>
-          {r.events.length === 0 && (
-            <Card>
-              <Empty>暂时没有活动</Empty>
-            </Card>
-          )}
-          {r.events.map((e) => (
-            <SignupCard key={e.id} base={props.base} e={e} cap={r.friendCap} onChange={reload} />
-          ))}
-        </>
-      )}
+      {(r) => {
+        const mine = r.events.filter((e) => e.myFriends !== null || e.payment);
+        const open = r.events.filter((e) => e.myFriends === null && !e.payment);
+        return (
+          <>
+            <SectionTitle>我报名的活动</SectionTitle>
+            {mine.length === 0 && (
+              <Card>
+                <Empty>{r.history.length > 0 ? "最近没有报名的活动" : "还没有报名过活动"}</Empty>
+              </Card>
+            )}
+            {mine.map((e) => (
+              <SignupCard key={e.id} base={props.base} e={e} cap={r.friendCap} onChange={reload} />
+            ))}
+            {open.length > 0 && (
+              <>
+                <SectionTitle>可以报名</SectionTitle>
+                {open.map((e) => (
+                  <SignupCard key={e.id} base={props.base} e={e} cap={r.friendCap} onChange={reload} />
+                ))}
+              </>
+            )}
+            {r.history.length > 0 && <History list={r.history} />}
+          </>
+        );
+      }}
     </Load>
+  );
+}
+
+/** 历史活动: over and paid up, folded away by default; newest first. */
+function History(props: { list: MyHistoryEvent[] }) {
+  const thisYear = new Date().getFullYear().toString();
+  return (
+    <Card>
+      <details class="fold history">
+        <summary>历史活动（{props.list.length}）</summary>
+        <ul class="history-list">
+          {props.list.map((h) => (
+            <li key={h.id}>
+              <a href={`/e/${h.code}`}>
+                <span class="history-when">{formatDateZh(h.date, !h.date.startsWith(thisYear))}</span>
+                <span class="history-what">
+                  {h.title || h.location}
+                  {h.friends > 0 && <small> · 带 {h.friends} 人</small>}
+                  {!h.attended && <small class="history-absent"> · 缺席</small>}
+                </span>
+                <span class="history-amount">{h.amountCents === null ? "—" : `$${dollars(h.amountCents)}`}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </Card>
   );
 }
 

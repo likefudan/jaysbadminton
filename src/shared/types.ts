@@ -110,6 +110,26 @@ export interface MyEvent extends EventSummary {
   roster: MyRosterEntry[] | null;
 }
 
+/** 我的活动: current and open events in full, newest first, and the paid-up past ones in brief. */
+export interface MyEventsResponse {
+  events: MyEvent[];
+  history: MyHistoryEvent[];
+  friendCap: number;
+}
+
+/** 历史活动: an event that is over and paid up. */
+export interface MyHistoryEvent {
+  id: number;
+  code: string;
+  date: string;
+  title: string;
+  location: string;
+  /** Their bill (friends included); null when they were not billed. */
+  amountCents: number | null;
+  attended: boolean;
+  friends: number;
+}
+
 export interface MyRosterEntry {
   name: string;
   /** For a friend: the member who brought them. */

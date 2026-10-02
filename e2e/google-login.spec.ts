@@ -4,12 +4,12 @@ test("existing members stay on their page until Google is enabled, then authoriz
   let enabled = false;
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled, signedIn: false, hasMember: false } }));
   await page.route("**/api/m/existing-token/me", (route) => route.fulfill({ json: { id: "M007", username: "Dafei", active: true, isOwner: false } }));
-  await page.route("**/api/m/existing-token/events", (route) => route.fulfill({ json: { events: [], friendCap: 3 } }));
+  await page.route("**/api/m/existing-token/events", (route) => route.fulfill({ json: { events: [], history: [], friendCap: 3 } }));
   await page.route("**/api/m/existing-token/stats", (route) => route.fulfill({ status: 503, json: { error: { message: "暂无统计" } } }));
   await page.route("**/api/auth/google", (route) => route.fulfill({ contentType: "text/html", body: "<h1>Authorization redirect</h1>" }));
-  await page.goto("/m/existing-token");
+  await page.goto("/m/existing-token/profile"); // binding Google lives on 个人信息
   await expect(page.getByText(/网站尚未启用 Google 绑定/)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "你好，Dafei" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "个人信息" })).toBeVisible();
   await expect(page.getByRole("button", { name: "绑定 Google 账号", exact: true })).toHaveCount(0);
   enabled = true;
   await page.getByRole("button", { name: "重新检查绑定是否可用" }).click();
@@ -22,14 +22,14 @@ test("a signed-in account confirms the original member link before showing its a
   let linked = false;
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn: true, email: "alice@gmail.com", hasMember: true, pending: false } }));
   await page.route("**/api/m/*/me", (route) => route.fulfill({ json: { id: "M007", username: "Dafei", active: true, isOwner: false } }));
-  await page.route("**/api/m/*/events", (route) => route.fulfill({ json: { events: [], friendCap: 3 } }));
+  await page.route("**/api/m/*/events", (route) => route.fulfill({ json: { events: [], history: [], friendCap: 3 } }));
   await page.route("**/api/m/*/stats", (route) => route.fulfill({ status: 503, json: { error: { message: "暂无统计" } } }));
   await page.route("**/api/auth/link", async (route) => {
     expect(route.request().postDataJSON()).toEqual({ token: "existing-token" });
     linked = true;
     await route.fulfill({ json: { ok: true } });
   });
-  await page.goto("/m/existing-token");
+  await page.goto("/m/existing-token/profile");
   await page.getByRole("button", { name: "绑定 Google 账号", exact: true }).click();
   await expect(page.getByRole("heading", { name: "关联原有成员" })).toBeVisible();
   expect(linked).toBe(false);
@@ -67,7 +67,7 @@ test("a Google newcomer applies, waits for approval, then gets in and can sign o
     await route.fulfill({ json: { id: "M999", pending: true } });
   });
   await page.route("**/api/m/session/me", (route) => route.fulfill({ json: { id: "M999", username: "Alice", wechatNickname: "Alice微信", active: true, isOwner: false } }));
-  await page.route("**/api/m/session/events", (route) => route.fulfill({ json: { events: [], friendCap: 3 } }));
+  await page.route("**/api/m/session/events", (route) => route.fulfill({ json: { events: [], history: [], friendCap: 3 } }));
   await page.route("**/api/m/session/stats", (route) => route.fulfill({ status: 503, json: { error: { message: "暂无统计" } } }));
   await page.route("**/api/auth/logout", async (route) => { signedIn = false; await route.fulfill({ json: { ok: true } }); });
   await page.goto("/me");
@@ -84,7 +84,9 @@ test("a Google newcomer applies, waits for approval, then gets in and can sign o
   await page.getByRole("button", { name: "刷新审核状态" }).click();
   await expect(page.getByRole("heading", { name: "你好，Alice" })).toBeVisible();
   await expect(page).toHaveURL(/\/me$/);
-  await page.getByRole("button", { name: "退出 Google 登录" }).click();
+  // Signing out lives in the avatar menu.
+  await page.getByRole("button", { name: "Google 账号：alice@gmail.com" }).click();
+  await page.getByRole("button", { name: "退出登录" }).click();
   await expect(page.getByRole("button", { name: "使用 Google 登录" })).toBeVisible();
 });
 

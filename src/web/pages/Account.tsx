@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import { api } from "../api";
 import { Card, Field, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
-import { Member } from "./Member";
+import { Member, MemberProfilePage } from "./Member";
 
 type Session = { enabled: boolean; signedIn: boolean; email: string | null; hasMember: boolean; pending: boolean };
 const ERRORS: Record<string, string> = {
@@ -47,7 +47,10 @@ export function GoogleLink(props: { token: string }) {
   </Card>;
 }
 
-export function Account() {
+/** /me/profile: 个人信息 for the Google-signed-in member (the sign-in steps otherwise, as on /me). */
+export const AccountProfile = () => <Account page="profile" />;
+
+export function Account(props: { page?: "profile" }) {
   const [session, reload] = useApi<Session>("/api/auth/session");
   return <Load result={session}>{(s) => {
     if (!s.signedIn) return <Page title="登录" subtitle="使用 Google 账号报名，随时查看自己的活动和账单。">
@@ -65,7 +68,7 @@ export function Account() {
       </Card>
       <Logout />
     </Page>;
-    if (s.hasMember && !sessionStorage.getItem("google-link-member")) return <Member />;
+    if (s.hasMember && !sessionStorage.getItem("google-link-member")) return props.page === "profile" ? <MemberProfilePage /> : <Member />;
     return <Profile email={s.email!} onDone={reload} />;
   }}</Load>;
 }
