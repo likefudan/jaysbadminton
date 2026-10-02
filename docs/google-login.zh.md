@@ -8,7 +8,11 @@ Google 登录成功后，各页面右上角显示 Google 账号头像和登录�
 
 旧成员先打开原成员链接，点击「绑定 Google 账号」，登录后确认绑定；也可以在首次登录页选择「已有成员链接？关联原账号」。这样成员编号、历史报名和账单都保留。不会按姓名或邮箱猜测并合并成员；同一个 Google 账号只关联一个成员。旧成员链接仍有效，管理员可重新生成备用链接。
 
-Google 登录只授予成员权限。管理页仍使用原有管理员链接和密码。用 Google 新注册的人和「申请加入」一样进入「待审核」，管理员通过后才能报名（待审核列表会显示申请人的 Google 邮箱）。停用成员只能查看活动账单，不能报名。删除成员后，他的历史记录保留，但 Google 账号会被释放：同一个邮箱可以重新申请，审核通过后得到一个新的成员编号（旧成员不会被恢复）。
+**一个 Google 账号只对应一个人**，成员和管理员都一样：每个账号最多绑定一个成员记录，每个成员（包括管理员）也最多绑定一个 Google 账号。
+
+**管理员用 Google 登录**：管理员（Owner）在管理页「设置 → 用 Google 登录管理页」里，把当前浏览器登录的 Google 账号绑定到自己（只能绑一个，换账号要先解除绑定）。已经属于某个成员的 Google 账号不能再绑给管理员。绑定后用这个账号登录 Google，在首页头像菜单、`/admin` 或「我的活动」里点「管理页」即可进入 `/admin/google`，不需要管理链接和密码；其他 Google 账号打不开。管理链接和密码照常可用，作为备用。请给绑定的 Google 账号开启两步验证。
+
+除此之外，Google 登录只授予成员权限。用 Google 新注册的人和「申请加入」一样进入「待审核」，管理员通过后才能报名（待审核列表会显示申请人的 Google 邮箱）。停用成员只能查看活动账单，不能报名。删除成员后，他的历史记录保留，但 Google 账号会被释放：同一个邮箱可以重新申请，审核通过后得到一个新的成员编号（旧成员不会被恢复）。
 
 ## 1. 创建 Google OAuth Client
 
@@ -84,6 +88,8 @@ npm run dev -- --ip 127.0.0.1 --var SITE_ORIGIN:http://localhost:8787
 - Authorization Code + PKCE（S256）、随机 state 和 nonce；登录请求有效期 10 分钟，回调消费 state 后不可重放。
 - jose 根据 Google JWKS 验证 RS256 签名、issuer、audience、exp、nonce、email_verified 和可选 azp；以 Google `sub` 作为稳定身份，不以可变化的邮箱作为主键。
 - 服务端保存随机 session 的 SHA-256 摘要，浏览器使用 HttpOnly、SameSite=Lax cookie；HTTPS 下启用 Secure，本地 HTTP 开发可用。有效期 30 天，退出立即删除当前 session。
-- 成员 cookie 写操作检查请求 Origin；Google 登录没有管理员权限，也不存储 Google access/refresh token。
+- 成员 cookie 写操作检查请求 Origin；不存储 Google access/refresh token。
+- 管理员的 Google 身份就是 Owner 成员记录上的 `google_sub`（同一个唯一索引保证一一对应）。`/api/admin/google/*` 只在当前 Google 会话属于 Owner 时放行，写操作同样检查 Origin（Google cookie 是 SameSite=Lax，管理员密码 cookie 是 Strict）。修改密码、清空数据仍要输入管理密码。
+- `/api/auth/google?next=` 只接受本站的 `/me` 和 `/admin/...` 路径，登录完成后回到原页面。
 - `/api/m/session/*` 使用当前 cookie 身份，兼容原来的 `/api/m/:token/*`。`/api/auth/*` 位于现有 Worker API 路由范围内。
 - 停用的成员保留 `google_sub`，同一账号登录仍是这个（停用的）成员，不能借新注册绕过停用；删除成员时清空 `google_sub`（保留 `google_email` 作记录），让这个人能重新申请。新申请一律是待审核，计入待审核上限。管理页的全站重置同时清空 Google 会话和 OAuth state。

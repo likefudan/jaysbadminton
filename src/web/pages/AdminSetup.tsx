@@ -17,14 +17,35 @@ export function AdminSetup() {
           <SetupForm />
         ) : (
           <Page title="管理页">
+            <GoogleEntry />
             <Card>
-              <p>请使用你的专属管理链接进入管理页。</p>
+              <p>也可以使用你的专属管理链接进入管理页。</p>
               <p class="muted small">管理链接丢失时，可在 GitHub Actions 里手动运行部署并勾选「reset_admin_link」，然后回到这里重新设置。</p>
             </Card>
           </Page>
         )
       }
     </Load>
+  );
+}
+
+/** The admin's Google way in: straight to the admin page when the bound account is signed in. */
+function GoogleEntry() {
+  const [session] = useApi<{ enabled: boolean; isAdmin?: boolean }>("/api/auth/session");
+  if (session.state !== "ok" || !session.data.enabled) return null;
+  return (
+    <Card>
+      {session.data.isAdmin ? (
+        <a class="button block" href="/admin/google">
+          进入管理页
+        </a>
+      ) : (
+        <button class="button block" onClick={() => location.assign("/api/auth/google?next=/admin/google")}>
+          用 Google 登录管理页
+        </button>
+      )}
+      <p class="muted small">需要先在管理页「设置」里绑定你的 Google 账号。</p>
+    </Card>
   );
 }
 

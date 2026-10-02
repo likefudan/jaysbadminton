@@ -104,3 +104,22 @@ test("an existing member confirms binding before the account is linked", async (
   await expect(page.getByRole("alert")).toContainText("此成员或 Google 账号已绑定");
   expect(linked).toBe(true);
 });
+
+test("the admin gets in with the bound Google account; another account is told so", async ({ page }) => {
+  let isAdmin = false;
+  await page.route("**/api/public/admin-setup", (route) => route.fulfill({ json: { needed: false } }));
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn: true, email: "someone@gmail.com", hasMember: false, pending: false, isAdmin } }));
+  await page.route("**/api/admin/google/members", (route) => route.fulfill({ status: 401, json: { error: { code: "google_admin_required", message: "请用管理员绑定的 Google 账号登录" } } }));
+  await page.route(/\/api\/auth\/google\?next=/, (route) => route.fulfill({ contentType: "text/html", body: "<h1>Authorization redirect</h1>" }));
+
+  await page.goto("/admin/google");
+  await expect(page.getByText("当前登录的 Google 账号 someone@gmail.com 不是管理员绑定的账号。")).toBeVisible();
+  await page.getByRole("button", { name: "换一个 Google 账号登录" }).click();
+  await expect(page).toHaveURL(/\/api\/auth\/google\?next=\/admin\/google$/);
+
+  await page.goto("/admin");
+  await expect(page.getByRole("button", { name: "用 Google 登录管理页" })).toBeVisible();
+  isAdmin = true;
+  await page.reload();
+  await expect(page.getByRole("link", { name: "进入管理页" })).toHaveAttribute("href", "/admin/google");
+});
