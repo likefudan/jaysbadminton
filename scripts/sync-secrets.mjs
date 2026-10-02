@@ -27,6 +27,9 @@ if (process.env.GOOGLE_MAPS_API_KEY) secrets.GOOGLE_MAPS_API_KEY = process.env.G
 if (process.env.GOOGLE_CLIENT_ID) secrets.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 if (process.env.GOOGLE_CLIENT_SECRET) secrets.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
+if (process.env.RESEND_API_KEY) secrets.RESEND_API_KEY = process.env.RESEND_API_KEY;
+if (process.env.EMAIL_FROM) secrets.EMAIL_FROM = process.env.EMAIL_FROM;
+
 if (!existing.has("TOKEN_KEY")) {
   console.log("Generating TOKEN_KEY");
   secrets.TOKEN_KEY = randomBytes(32).toString("base64url");

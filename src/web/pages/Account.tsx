@@ -4,7 +4,7 @@ import { Card, Field, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
 import { Member, MemberProfilePage } from "./Member";
 
-type Session = { enabled: boolean; signedIn: boolean; email: string | null; hasMember: boolean; pending: boolean };
+type Session = { enabled: boolean; signedIn: boolean; email: string | null; hasMember: boolean; pending: boolean; emailNotificationsEnabled?: boolean };
 const ERRORS: Record<string, string> = {
   not_configured: "网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。",
   invalid_state: "登录请求已过期，请重新登录。",
@@ -63,7 +63,8 @@ export function Account(props: { page?: "profile" }) {
     if (s.pending) return <Page title="申请已提交" subtitle={`Google 账号：${s.email}`}>
       <Card>
         <p>管理员审核通过后，用这个 Google 账号登录就能报名活动、查看账单。</p>
-        <p class="muted small">审核前还不能报名。着急的话，可以在微信群里提醒一下管理员。</p>
+        <p class="muted small">审核前还不能报名。你可以刷新查看审核状态。</p>
+        {s.emailNotificationsEnabled && <p class="muted small">审核通过后会向你的 Google 邮箱发送通知，请留意收件箱和垃圾邮件。</p>}
         <button class="button secondary block" onClick={reload}>刷新审核状态</button>
       </Card>
       <Logout />
@@ -75,7 +76,8 @@ export function Account(props: { page?: "profile" }) {
 
 function Profile(props: { email: string; onDone: () => void }) {
   const [username, setUsername] = useState("");
-  const [nickname, setNickname] = useState("");
+  const [applicantName, setApplicantName] = useState("");
+  const [wechatAccount, setWechatAccount] = useState("");
   const [oldLink, setOldLink] = useState(sessionStorage.getItem("google-link-member") ?? "");
   const [linkExisting, setLinkExisting] = useState(!!oldLink);
   const { busy, error, run } = useAction();
@@ -91,7 +93,7 @@ function Profile(props: { email: string; onDone: () => void }) {
         }
         return api("/api/auth/link", { token });
       }
-      return api("/api/auth/register", { username, wechatNickname: nickname });
+      return api("/api/auth/register", { username, applicantName, wechatAccount });
     });
     if (result) {
       sessionStorage.removeItem("google-link-member");
@@ -105,8 +107,9 @@ function Profile(props: { email: string; onDone: () => void }) {
           <p>确认将此 Google 账号绑定到原成员。历史报名和账单会继续保留。</p>
           <Field label="原成员专属链接" value={oldLink} onInput={setOldLink} hint="填写你原来使用的 /m/ 开头的成员页面链接。" />
         </> : <>
-          <Field label="用户名" value={username} onInput={setUsername} hint="显示在报名名单上，不可重复" />
-          <Field label="微信昵称" value={nickname} onInput={setNickname} hint="方便群友认出你" />
+          <Field label="你是谁" value={applicantName} onInput={setApplicantName} hint="填写姓名或群友能认出你的称呼，供管理员审核" />
+          <Field label="微信账号" value={wechatAccount} onInput={setWechatAccount} hint="填写微信号或微信昵称，方便管理员核实身份" />
+          <Field label="群内用户名" value={username} onInput={setUsername} hint="显示在群内和报名名单上，不可重复" />
           <p class="muted small">提交后需要管理员审核，通过后才能报名活动。</p>
         </>}
         {error && <p class="error" role="alert">{error}</p>}

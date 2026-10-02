@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { checkPassword } from "../../shared/rules";
-import type { ApproveResponse, LinkResponse, MemberProfile, MemberSummary, MembersResponse } from "../../shared/types";
+import type { ApprovalEmailStatus, ApproveResponse, LinkResponse, MemberProfile, MemberSummary, MembersResponse } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
@@ -20,7 +20,7 @@ export function Admin(props: { token?: string }) {
   const [members, reload] = useApi<MembersResponse>(`${base}/members`);
   const [tab, setTab] = useState<Tab>(() => {
     const t = new URLSearchParams(location.search).get("tab");
-    return t === "settings" || t === "members" ? t : "events";
+    return t === "settings" || t === "members" || t === "pending" ? t : "events";
   });
 
   if (members.state === "error" && members.code === "google_admin_required") return <GoogleAdminLogin />;
@@ -126,7 +126,8 @@ const who = (m: MemberSummary, onOpen?: (m: MemberSummary) => void) => {
       )}
       {m.isOwner && <span class="badge">管理员</span>}
       <small>
-        {m.id} · 微信：{m.wechatNickname}
+        {m.id} · 微信：{m.wechatAccount || m.wechatNickname}
+        {m.applicantName && ` · 身份：${m.applicantName}`}
         {m.googleEmail && ` · Google：${m.googleEmail}`}
       </small>
     </div>
@@ -159,8 +160,15 @@ function MemberDetail(props: { base: string; id: string; onBack: () => void; onC
   );
 }
 
+function approvalEmailMessage(status?: ApprovalEmailStatus): string {
+  if (status === "sent") return "审核通知已发送至对方的 Google 邮箱。";
+  if (status === "not_configured") return "成员已通过审核，但邮件服务尚未配置，通知未发送。配置后可在成员列表重试审核邮件。";
+  if (status === "failed") return "成员已通过审核，但邮件发送失败，可在成员列表重试审核邮件。";
+  return "成员已通过审核，可以使用 Google 账号登录。";
+}
+
 function Pending(props: { base: string; list: MemberSummary[]; onChange: () => void }) {
-  const [issued, setIssued] = useState<{ name: string; link: string | null; googleEmail: string | null } | null>(null);
+  const [issued, setIssued] = useState<{ name: string; link: string | null; googleEmail: string | null; emailStatus?: ApprovalEmailStatus } | null>(null);
   const { busy, error, run } = useAction();
 
   async function approve(m: MemberSummary) {
@@ -185,8 +193,9 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
             <>
               <h2>已通过 {issued.name}</h2>
               <p>
-                对方是用 Google（{issued.googleEmail}）申请的，不用发链接：用这个 Google 账号登录网站就能报名。可以在微信里告诉对方一声。
+                对方是用 Google（{issued.googleEmail}）申请的，不用发链接：用这个 Google 账号登录网站就能报名。
               </p>
+              <p role="status">{approvalEmailMessage(issued.emailStatus)}</p>
               <p class="muted small">需要备用链接的话，可以在「成员」里生成。</p>
             </>
           )}
@@ -220,6 +229,11 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
   const [shown, setShown] = useState<{ name: string; link: string; fresh: boolean } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const { busy, error, run } = useAction();
+  const [emailMessage, setEmailMessage] = useState("");
+  async function retryEmail(m: MemberSummary) {
+    const r = await run(() => api<{ emailStatus: ApprovalEmailStatus }>(`${props.base}/members/${m.id}/approval-email`, {}));
+    if (r) { setEmailMessage(approvalEmailMessage(r.emailStatus)); props.onChange(); }
+  }
   const openMember = (m: MemberSummary) => setOpen(m.id);
 
   async function view(m: MemberSummary) {
@@ -271,12 +285,14 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
         </Card>
       )}
       <Card title={`成员（${props.data.active.length}）`}>
+        {emailMessage && <p role="status">{emailMessage}</p>}
         {error && <p class="error">{error}</p>}
         {props.data.active.length === 0 && <Empty>还没有成员</Empty>}
         {props.data.active.map((m) => (
           <div class="row" key={m.id}>
             {who(m, openMember)}
             <div class="actions">
+              {m.googleEmail && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && <button class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>重试审核邮件</button>}
               {m.hasLink && <button class="button secondary" disabled={busy} onClick={() => view(m)}>
                 链接
               </button>}
