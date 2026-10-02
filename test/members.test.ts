@@ -43,8 +43,11 @@ describe("admin setup and login", () => {
     expect(wrong.status).toBe(401);
     expect((await anon.call("/api/public/admin-setup")).data.needed).toBe(true);
 
-    const { ownerLink } = await setUpAdmin();
-    expect(ownerLink).toMatch(/\/m\/[\w-]{43}$/);
+    const { ownerLink, admin, base } = await setUpAdmin();
+    // Only the admin link: the Owner signs up from the admin page, not through a member link.
+    expect(ownerLink).toBeUndefined();
+    const owner = (await admin.call(`${base}/members`)).data.active.find((m: { isOwner: boolean }) => m.isOwner);
+    expect(owner).toMatchObject({ username: "Jay", status: "active", hasLink: false });
     expect((await anon.call("/api/public/admin-setup")).data.needed).toBe(false);
     const again = await new Client().call("/api/public/admin-setup", { password: "initial-password", username: "X", wechatNickname: "X" });
     expect(again.status).toBe(409);

@@ -251,7 +251,7 @@ The Owner does these once, in this order; steps marked *after deploy* wait until
 - [x] Create a Telegram bot with BotFather and add its token as the GitHub secret `TELEGRAM_BOT_TOKEN`
 - [ ] Create a Cloudflare API token (Workers, D1, DNS edit) and add it to the GitHub repository as `CLOUDFLARE_API_TOKEN`
 - [ ] *After deploy*: add the `jaysbadminton.llmat.dev` custom domain to the Worker
-- [ ] *After deploy*: open `https://jaysbadminton.llmat.dev/admin`, enter the `ADMIN_PASSWORD`, and save the admin link and own member link it shows; later, set the `TELEGRAM_BOT_TOKEN` Worker secret (card 6)
+- [ ] *After deploy*: open `https://jaysbadminton.llmat.dev/admin`, enter the `ADMIN_PASSWORD`, and save the admin link it shows (the Owner signs up from the admin page); later, set the `TELEGRAM_BOT_TOKEN` Worker secret (card 6)
 - [ ] *After deploy*: in the admin settings, enter the Venmo username, Venmo email and Zelle account; press 连接 Telegram, tap Start in the bot, then 发送测试消息
 - [ ] *After deploy*: switch the `venmo@` route from "Send to an email" to "Send to a Worker"
 - [ ] *After deploy*: create the Gmail filter `from:venmo@venmo.com` → forward to `venmo@jaysbadminton.llmat.dev`

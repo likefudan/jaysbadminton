@@ -5,7 +5,6 @@ import { useApi } from "../hooks";
 
 interface SetupResult {
   adminLink: string;
-  ownerLink: string | null;
 }
 
 /** /admin: first-time setup, or a pointer to the private admin link once set up. */
@@ -40,7 +39,7 @@ function SetupForm() {
     return (
       <Page title="设置完成">
         <LinkCard title="你的管理链接" link={result.adminLink} note="请收藏这个链接，管理页只能从这里进入。" />
-        {result.ownerLink && <LinkCard title="你自己的成员链接" link={result.ownerLink} note="用来给自己报名、查看个人统计。" />}
+        <p class="muted small">你自己报名打球也在管理页里：打开某个活动，在「我的报名」里报名、带朋友。</p>
         <a class="button block" href={new URL(result.adminLink).pathname}>
           进入管理页
         </a>

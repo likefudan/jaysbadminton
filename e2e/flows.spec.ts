@@ -40,6 +40,7 @@ test("the Owner sets up the site and the payment details", async ({ page }) => {
   await field(page, "你的微信昵称").fill("Jay");
   await page.getByRole("button", { name: "生成管理链接" }).click();
   await expect(page.getByText("你的管理链接")).toBeVisible();
+  await expect(page.getByText("你自己的成员链接")).toHaveCount(0); // the Owner signs up from the admin page
   adminPath = pathOf(await page.locator("code.link").first().innerText());
   expect(adminPath).toMatch(/^\/admin\/[\w-]{20,}$/);
 
@@ -77,6 +78,22 @@ test("the Owner creates an event and is signed up for it", async ({ page }) => {
   const info = page.locator(".card", { hasText: VENUE }).first();
   await expect(info).toContainText("1 人已报名");
   await expect(info).toContainText("报名中");
+  await expect(page.getByRole("heading", { name: "名单（1）" })).toBeVisible();
+
+  // 我的报名: the Owner manages their own sign-up right here.
+  const mySignup = page.locator(".card", { has: page.getByRole("heading", { name: "我的报名" }) });
+  await expect(mySignup).toContainText("✓ 你已报名");
+  await mySignup.getByRole("button", { name: "修改" }).click();
+  await mySignup.locator(".stepper button").last().click();
+  await mySignup.getByRole("button", { name: "保存修改" }).click();
+  await expect(mySignup).toContainText("✓ 你已报名，带 1 个朋友（Jay的朋友1）");
+  await expect(page.getByRole("heading", { name: "名单（2）" })).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await mySignup.getByRole("button", { name: "取消报名" }).click();
+  await expect(mySignup).toContainText("你还没有报名");
+  await mySignup.getByRole("button", { name: "报名" }).click();
+  await mySignup.getByRole("button", { name: "确认报名" }).click();
+  await expect(mySignup).toContainText("✓ 你已报名");
   await expect(page.getByRole("heading", { name: "名单（1）" })).toBeVisible();
 });
 

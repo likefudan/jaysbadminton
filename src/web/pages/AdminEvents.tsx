@@ -232,6 +232,8 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
         <CopyButton text={publicLink} label="复制活动链接" />
       </Card>
 
+      <MySignup eb={eb} e={e} owner={props.members.find((m) => m.isOwner)} onDone={props.onChange} />
+
       {e.status === "open" && <CloseNow eb={eb} onDone={props.onChange} />}
       {e.status === "closed" && <Reopen eb={eb} e={e} onDone={props.onChange} />}
 
@@ -279,6 +281,79 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
         </button>
       )}
     </>
+  );
+}
+
+/**
+ * 我的报名: the Owner plays too, and signs up here rather than through a member link. Editable
+ * until Finalize (after the deadline as well, since the Owner can change the roster anyway).
+ */
+function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | undefined; onDone: () => void }) {
+  const { e, owner } = props;
+  const mine = owner ? e.roster.filter((r) => r.memberId === owner.id) : [];
+  const signedUp = mine.some((r) => r.friendIndex === 0);
+  const myFriends = mine.filter((r) => r.friendIndex > 0);
+  // Unnamed friends show as "<name>的朋友<n>"; edit them as blank again.
+  const current = () => myFriends.map((r) => (r.name === `${r.memberName}的朋友${r.friendIndex}` ? "" : r.name));
+  const [editing, setEditing] = useState(false);
+  const [friends, setFriends] = useState<string[]>(current);
+  const { busy, error, run } = useAction();
+  const canEdit = e.status === "open" || e.status === "closed";
+  if (!owner) return null;
+
+  async function save() {
+    if (await run(() => api(`${props.eb}/self-signup`, { friends }))) {
+      setEditing(false);
+      props.onDone();
+    }
+  }
+  async function cancel() {
+    if (!confirm(myFriends.length ? `取消你自己和带的 ${myFriends.length} 个朋友的报名？` : "取消你自己的报名？")) return;
+    if (await run(() => api(`${props.eb}/self-cancel`, {}))) props.onDone();
+  }
+
+  const status = signedUp
+    ? `✓ 你已报名${myFriends.length ? `，带 ${myFriends.length} 个朋友（${myFriends.map((r) => r.name).join("、")}）` : ""}`
+    : myFriends.length
+      ? `你没有报名，但名单上有你带的 ${myFriends.length} 个朋友`
+      : "你还没有报名";
+
+  return (
+    <Card title="我的报名">
+      {!editing && <p class={signedUp ? "ok" : "muted"}>{status}</p>}
+      {canEdit && editing && (
+        <>
+          <FriendsEditor friends={friends} max={null} onChange={setFriends} />
+          {error && <p class="error">{error}</p>}
+          <button class="button block" disabled={busy} onClick={save}>
+            {signedUp ? "保存修改" : "确认报名"}
+          </button>
+          <button class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
+            返回
+          </button>
+        </>
+      )}
+      {canEdit && !editing && (
+        <>
+          {error && <p class="error">{error}</p>}
+          {signedUp ? (
+            <div class="inline">
+              <button class="button secondary" onClick={() => { setFriends(current()); setEditing(true); }}>
+                修改
+              </button>
+              <button class="button danger" disabled={busy} onClick={cancel}>
+                取消报名
+              </button>
+            </div>
+          ) : (
+            <button class="button block" onClick={() => { setFriends(current()); setEditing(true); }}>
+              报名
+            </button>
+          )}
+          {e.status === "closed" && <p class="muted small">报名已截止，你作为管理员仍可以修改自己的报名，直到结算。</p>}
+        </>
+      )}
+    </Card>
   );
 }
 

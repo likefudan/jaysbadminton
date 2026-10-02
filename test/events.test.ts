@@ -282,3 +282,38 @@ describe("who's coming", () => {
     expect(list.filter((r: { absent: boolean }) => r.absent)).toHaveLength(1);
   });
 });
+
+describe("我的报名 (the Owner signs up from the admin page)", () => {
+  it("signs up with friends, edits, cancels, and stops at Finalize", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx, { joinSelf: false });
+    const eb = `${ctx.base}/events/${e.id}`;
+    const mine = (d: { roster: { memberName: string; name: string; friendIndex: number }[] }) =>
+      d.roster.filter((r) => r.memberName === "Jay").map((r) => r.name);
+
+    const signed = await ctx.admin.call(`${eb}/self-signup`, { friends: ["阿强", "", "老王", "小李"] }); // no friend cap for the Owner
+    expect(signed.status).toBe(200);
+    expect(mine(signed.data)).toEqual(["Jay", "阿强", "Jay的朋友2", "老王", "小李"]);
+    expect(mine((await ctx.admin.call(`${eb}/self-signup`, { friends: ["阿强"] })).data)).toEqual(["Jay", "阿强"]);
+
+    // After the deadline the Owner can still change their own sign-up.
+    await expire(e.id);
+    expect((await ctx.admin.call(`${eb}/self-cancel`, {})).status).toBe(200);
+    expect(mine((await ctx.admin.call(eb)).data)).toEqual([]);
+    expect(mine((await ctx.admin.call(`${eb}/self-signup`, { friends: [] })).data)).toEqual(["Jay"]);
+
+    // Bills exist after Finalize: own sign-up is locked (the roster editor still works).
+    const ming = await approveMember(ctx, "小明");
+    await env.DB.prepare("INSERT INTO registrations (event_id, member_id, friend_index, attended, added_by_owner, created_at, updated_at) VALUES (?, ?, 0, 1, 0, ?, ?)")
+      .bind(e.id, ming.id, new Date().toISOString(), new Date().toISOString()).run();
+    expect((await ctx.admin.call(`${eb}/finalize`, { courtTotal: "40", shuttleCount: 2, shuttlePrice: "3" })).status).toBe(200);
+    expect((await ctx.admin.call(`${eb}/self-signup`, { friends: ["x"] })).status).toBe(400);
+    expect((await ctx.admin.call(`${eb}/self-cancel`, {})).status).toBe(400);
+  });
+
+  it("is only for the admin session", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    expect((await new Client().call(`${ctx.base}/events/${e.id}/self-signup`, { friends: [] })).status).toBe(401);
+  });
+});

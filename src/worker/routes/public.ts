@@ -8,7 +8,7 @@ import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
 import { isStaging, siteTheme, siteTitle } from "../site";
 import { leaderboard } from "../stats";
-import { assertPendingRoom, createMember, issueMemberToken, memberLink } from "../members";
+import { assertPendingRoom, createMember } from "../members";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
@@ -77,18 +77,18 @@ publicRoutes.post("/admin-setup", async (c) => {
   if (!(await checkPassword(c.env, str(body.password)))) throw new HttpError(401, "wrong_password", "密码不正确");
 
   const origin = new URL(c.req.url).origin;
+  // The Owner is also a player (on rosters and bills), but signs up from the admin page, so they
+  // get no member link of their own: the admin link is the only one to keep.
   const owner = await c.env.DB.prepare("SELECT id FROM members WHERE is_owner = 1").first<{ id: string }>();
-  let ownerLink: string | null = null;
   if (!owner) {
-    const m = await createMember(c.env, {
+    await createMember(c.env, {
       username: str(body.username),
       wechatNickname: str(body.wechatNickname),
       status: "active",
       isOwner: true,
     });
-    ownerLink = memberLink(origin, await issueMemberToken(c.env, m.id));
   }
   const adminToken = await issueAdminToken(c.env);
   await startSession(c);
-  return c.json({ adminLink: `${origin}/admin/${adminToken}`, ownerLink });
+  return c.json({ adminLink: `${origin}/admin/${adminToken}` });
 });

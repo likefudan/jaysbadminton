@@ -15,6 +15,7 @@ import {
   cleanTitle,
   getEvent,
   saveVenue,
+  removeSignup,
   setSignup,
   summaries,
   validateFriends,
@@ -84,6 +85,32 @@ adminEventRoutes.post("/events", async (c) => {
     const owner = await c.env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{ id: string }>();
     if (owner) await setSignup(c.env, e.id, owner.id, [], false);
   }
+  return c.json(await detail(c.env, e));
+});
+
+/**
+ * 我的报名: the Owner signs themselves up (with friends) from the admin page, which is their only
+ * link. Allowed until Finalize, like any roster edit before the bills exist; no friend cap.
+ */
+async function ownerSignupEvent(env: Env, id: string) {
+  await closeExpired(env);
+  const e = await getEvent(env, Number(id));
+  if (e.status !== "open" && e.status !== "closed") throw badRequest("已经结算，不能再改自己的报名；需要调整请直接改名单");
+  const owner = await env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{ id: string }>();
+  if (!owner) throw badRequest("找不到管理员本人的成员记录");
+  return { e, ownerId: owner.id };
+}
+
+adminEventRoutes.post("/events/:id/self-signup", async (c) => {
+  const { e, ownerId } = await ownerSignupEvent(c.env, c.req.param("id"));
+  const body = await readJson(c.req.raw);
+  await setSignup(c.env, e.id, ownerId, validateFriends(body.friends ?? [], null), false);
+  return c.json(await detail(c.env, e));
+});
+
+adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
+  const { e, ownerId } = await ownerSignupEvent(c.env, c.req.param("id"));
+  await removeSignup(c.env, e.id, ownerId);
   return c.json(await detail(c.env, e));
 });
 
