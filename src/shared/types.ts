@@ -13,6 +13,9 @@ export interface MemberSummary {
   hasLink: boolean;
   /** The Google account a member signs in with, if any (shown so the admin knows who applied). */
   googleEmail: string | null;
+  applicantName?: string;
+  wechatAccount?: string;
+  approvalEmailStatus?: string | null;
   /** The admin's own name for this person, to tell people apart (never shown to members). */
   adminNote: string;
   /** Still owed across all bills (only filled in for the admin's member list). */
@@ -31,7 +34,10 @@ export interface LinkResponse {
 }
 
 /** Approving a request: a link to send, or none when they applied with Google and just sign in. */
+export type ApprovalEmailStatus = "sent" | "failed" | "not_configured" | "not_needed";
+
 export interface ApproveResponse {
+  emailStatus?: ApprovalEmailStatus;
   link: string | null;
   googleEmail: string | null;
 }

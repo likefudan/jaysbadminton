@@ -77,6 +77,8 @@ jobs:
           # Same OAuth client; its redirect URIs must also list the staging callback.
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
       - if: inputs.reset_admin_link
         run: npx wrangler d1 execute DB --remote --env staging --command "DELETE FROM settings WHERE key IN ('admin_token_hash', 'admin_token_enc')"
       - name: Smoke test the test site
@@ -128,6 +130,8 @@ jobs:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
       - if: inputs.reset_admin_link
         run: npx wrangler d1 execute DB --remote --command "DELETE FROM settings WHERE key IN ('admin_token_hash', 'admin_token_enc')"
       - name: Smoke test the live site

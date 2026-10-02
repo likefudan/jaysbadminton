@@ -1,3 +1,4 @@
+import { sendApprovalEmail } from "../approvalEmail";
 import { Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
@@ -58,12 +59,19 @@ const origin = (url: string) => new URL(url).origin;
 adminRoutes.post("/:token/members/:id/approve", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.status !== "pending") throw badRequest("这个申请已经处理过了");
-  await c.env.DB.prepare("UPDATE members SET status = 'active', approved_at = ? WHERE id = ?").bind(now(), m.id).run();
+  const updated = await c.env.DB.prepare("UPDATE members SET status = 'active', approved_at = ? WHERE id = ? AND status = 'pending'").bind(now(), m.id).run();
+  if (!updated.meta.changes) throw badRequest("这个申请已经处理过了");
   // Applied with Google: they sign in with it, so there is no link to send (a spare one can still
   // be made from the members list).
-  if (m.google_sub) return c.json<ApproveResponse>({ link: null, googleEmail: m.google_email });
+  if (m.google_sub) return c.json<ApproveResponse>({ link: null, googleEmail: m.google_email, emailStatus: await sendApprovalEmail(c.env, m.id) });
   const token = await issueMemberToken(c.env, m.id);
   return c.json<ApproveResponse>({ link: memberLink(origin(c.req.url), token), googleEmail: null });
+});
+
+adminRoutes.post("/:token/members/:id/approval-email", async (c) => {
+  const m = await requireMember(c.env, c.req.param("id"));
+  if (!m.google_sub || m.status !== "active" || m.deleted_at || !m.approved_at) throw badRequest("只能向已通过审核的 Google 成员发送通知");
+  return c.json({ emailStatus: await sendApprovalEmail(c.env, m.id) });
 });
 
 adminRoutes.post("/:token/members/:id/reject", async (c) => {

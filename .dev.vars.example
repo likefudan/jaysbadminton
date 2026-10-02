@@ -4,3 +4,7 @@ ADMIN_PASSWORD="local-password"
 # GOOGLE_CLIENT_ID="...apps.googleusercontent.com"
 # GOOGLE_CLIENT_SECRET="..."
 # For local dev pass --var SITE_ORIGIN:http://localhost:8787 to wrangler dev.
+
+# Approval email notifications (verified sender domain required):
+# RESEND_API_KEY="..."
+# EMAIL_FROM="Jay's Badminton <members@example.com>"

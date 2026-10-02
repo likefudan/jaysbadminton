@@ -18,6 +18,10 @@ export interface MemberRow {
   deleted_at: string | null;
   google_sub: string | null;
   google_email: string | null;
+  applicant_name: string | null;
+  wechat_account: string | null;
+  approval_email_status: string | null;
+  approval_email_sent_at: string | null;
   email: string | null;
   admin_note: string | null;
 }
@@ -34,6 +38,9 @@ export const toSummary = (m: MemberRow): MemberSummary => ({
   hasLink: !!m.token_enc,
   googleEmail: m.google_sub ? m.google_email : null,
   adminNote: m.admin_note ?? "",
+  applicantName: m.applicant_name ?? "",
+  wechatAccount: m.wechat_account ?? "",
+  approvalEmailStatus: m.approval_email_status ?? null,
   owingCents: 0,
 });
 
@@ -66,7 +73,7 @@ const takenError = () => new HttpError(409, "username_taken", "这个用户名�
 /** Inserts a member with the next never-reused ID. */
 export async function createMember(
   env: Env,
-  input: { username: string; wechatNickname: string; status: MemberStatus; isOwner?: boolean; googleSub?: string; googleEmail?: string },
+  input: { username: string; wechatNickname: string; status: MemberStatus; isOwner?: boolean; googleSub?: string; googleEmail?: string; applicantName?: string; wechatAccount?: string },
 ): Promise<MemberRow> {
   validateNames(input.username, input.wechatNickname);
   if (await usernameTaken(env, input.username)) throw takenError();
@@ -78,10 +85,10 @@ export async function createMember(
   const ts = now();
   try {
     await env.DB.prepare(
-      `INSERT INTO members (id, username, wechat_nickname, status, is_owner, requested_at, approved_at, google_sub, google_email)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO members (id, username, wechat_nickname, status, is_owner, requested_at, approved_at, google_sub, google_email, applicant_name, wechat_account)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(id, input.username.trim(), input.wechatNickname.trim(), input.status, input.isOwner ? 1 : 0, ts, input.status === "active" ? ts : null, input.googleSub ?? null, input.googleEmail ?? null)
+      .bind(id, input.username.trim(), input.wechatNickname.trim(), input.status, input.isOwner ? 1 : 0, ts, input.status === "active" ? ts : null, input.googleSub ?? null, input.googleEmail ?? null, input.applicantName ?? null, input.wechatAccount ?? null)
       .run();
   } catch (e) {
     if (String(e).includes("UNIQUE")) throw takenError();

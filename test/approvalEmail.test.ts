@@ -1,0 +1,51 @@
+import { env } from "cloudflare:workers";
+import { afterEach, expect, it, vi } from "vitest";
+import { createMember } from "../src/worker/members";
+import { sendApprovalEmail, sendApplicationNotice } from "../src/worker/approvalEmail";
+
+const bindings = () => ({ ...env, RESEND_API_KEY: "test-email-key", EMAIL_FROM: "Badminton <members@example.com>", SITE_ORIGIN: "https://badminton.test" });
+const member = (status: "active" | "pending" = "active") => createMember(env, { username: "Alice", wechatNickname: "Alice微信", status, googleSub: "alice", googleEmail: "alice@gmail.com", applicantName: "Alice 身份", wechatAccount: "alice_wechat" });
+afterEach(() => vi.restoreAllMocks());
+
+it("sends an approval email to the verified Google address with a normal login link and deduplicates retries", async () => {
+  const m = await member();
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id: "email1" }));
+  expect(await sendApprovalEmail(bindings(), m.id)).toBe("sent");
+  const [url, init] = fetchMock.mock.calls[0]!;
+  expect(url).toBe("https://api.resend.com/emails");
+  expect(init?.headers).toMatchObject({ "Idempotency-Key": `member-approval/${m.id}/${m.approved_at}` });
+  expect(JSON.parse(String(init?.body))).toMatchObject({ to: ["alice@gmail.com"], text: expect.stringContaining("https://badminton.test/login") });
+  expect(String(init?.body)).not.toContain("/m/");
+  expect(await sendApprovalEmail(bindings(), m.id)).toBe("sent");
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("keeps approval effective on provider failure and allows retry with the same idempotency key", async () => {
+  const m = await member();
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("unavailable", { status: 503 })).mockResolvedValueOnce(Response.json({ id: "email2" }));
+  expect(await sendApprovalEmail(bindings(), m.id)).toBe("failed");
+  expect(await env.DB.prepare("SELECT status, approval_email_status FROM members WHERE id = ?").bind(m.id).first()).toMatchObject({ status: "active", approval_email_status: "failed" });
+  expect(await sendApprovalEmail(bindings(), m.id)).toBe("sent");
+  expect(fetchMock.mock.calls[0]![1]?.headers).toEqual(fetchMock.mock.calls[1]![1]?.headers);
+});
+
+it("reports missing email configuration and does not email pending applicants", async () => {
+  const m = await member("pending");
+  const fetchMock = vi.spyOn(globalThis, "fetch");
+  expect(await sendApprovalEmail(bindings(), m.id)).toBe("not_needed");
+  await env.DB.prepare("UPDATE members SET status = 'active', approved_at = ? WHERE id = ?").bind(new Date().toISOString(), m.id).run();
+  expect(await sendApprovalEmail({ ...bindings(), RESEND_API_KEY: undefined }, m.id)).toBe("not_configured");
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("notifies the bound administrator of the three application details", async () => {
+  const m = await member("pending");
+  await env.DB.prepare("INSERT INTO settings (key,value) VALUES ('telegram_chat_id','owner-chat')").run();
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ ok: true }));
+  expect(await sendApplicationNotice({ ...bindings(), TELEGRAM_BOT_TOKEN: "test-bot" }, m)).toBe(true);
+  const message = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body));
+  expect(message).toMatchObject({ chat_id: "owner-chat", text: expect.stringContaining("Alice 身份") });
+  expect(message.text).toContain("alice_wechat");
+  expect(message.text).toContain("Alice");
+  expect(message.text).toContain("alice@gmail.com");
+});

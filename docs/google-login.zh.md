@@ -93,3 +93,19 @@ npm run dev -- --ip 127.0.0.1 --var SITE_ORIGIN:http://localhost:8787
 - `/api/auth/google?next=` 只接受本站的 `/me` 和 `/admin/...` 路径，登录完成后回到原页面。
 - `/api/m/session/*` 使用当前 cookie 身份，兼容原来的 `/api/m/:token/*`。`/api/auth/*` 位于现有 Worker API 路由范围内。
 - 停用的成员保留 `google_sub`，同一账号登录仍是这个（停用的）成员，不能借新注册绕过停用；删除成员时清空 `google_sub`（保留 `google_email` 作记录），让这个人能重新申请。新申请一律是待审核，计入待审核上限。管理页的全站重置同时清空 Google 会话和 OAuth state。
+
+## 新成员申请与审核邮件
+
+新成员先用 Google 登录，再填写「你是谁」「微信账号」「群内用户名」。申请写入管理员的「待审核」列表；已绑定 Telegram 时，也会向管理员发送申请资料提醒。审核前不能查看成员活动详情、账单或报名。老成员使用原专属链接绑定 Google 时不需要重新申请。
+
+审核通过后发送邮件至经过 Google 验证的登录邮箱，邮件中的链接为 `/login`，不发送成员密钥链接。原登录会话可以刷新审核状态；重新登录后也能正常使用。邮件服务暂不可用不会撤销审批，管理员会看到实际发送状态，并可在「成员」列表点「重试审核邮件」。同一次审批使用相同的 Resend Idempotency-Key；已记录成功发送的邮件不会重复发送。
+
+邮件配置（当前适配 Resend）：
+
+1. 在 Resend 添加并验证你有权限管理的发件域名，按其说明配置 DNS。
+2. 创建有发送权限的 API Key，保存到 GitHub Actions Secret `RESEND_API_KEY`，不要提交到仓库或发到聊天中。
+3. 添加 GitHub Actions Secret `EMAIL_FROM`，例如 `Jay's Badminton <members@你的域名>`，必须使用已验证发件域名。
+4. 部署工作流会将这两个值同步为 Worker Secrets；本地测试可放入忽略提交的 `.dev.vars`。未配置时，审批界面会明确显示邮件未发送。
+5. 用测试成员申请并审批，检查收件箱和垃圾邮件；API 接受邮件不等于收件服务器已投递成功。
+
+发送接口与去重规则见 [Resend Send Email](https://resend.com/docs/api-reference/emails/send-email) 和 [Idempotency Keys](https://resend.com/docs/dashboard/emails/idempotency-keys)。本次不需要 Gmail 读写权限或新的 Google OAuth 范围。

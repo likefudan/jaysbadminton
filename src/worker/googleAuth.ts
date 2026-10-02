@@ -1,3 +1,4 @@
+import { sendApplicationNotice } from "./approvalEmail";
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { createRemoteJWKSet, jwtVerify } from "jose";
@@ -68,7 +69,7 @@ googleRoutes.use("*", async (c, next) => {
 googleRoutes.get("/session", async (c) => {
   const session = await googleSession(c);
   const member = session ? await memberByGoogle(c.env, session.google_sub) : null;
-  return c.json({ enabled: googleEnabled(c.env), signedIn: !!session, email: session?.email ?? null, picture: session?.picture ?? null, hasMember: !!member && member.status !== "pending", pending: member?.status === "pending", isAdmin: !!member && member.is_owner === 1 && member.status === "active" });
+  return c.json({ enabled: googleEnabled(c.env), signedIn: !!session, email: session?.email ?? null, picture: session?.picture ?? null, hasMember: !!member && member.status !== "pending", pending: member?.status === "pending", emailNotificationsEnabled: !!(c.env.RESEND_API_KEY && c.env.EMAIL_FROM), isAdmin: !!member && member.is_owner === 1 && member.status === "active" });
 });
 googleRoutes.get("/google", async (c) => {
   if (!googleEnabled(c.env)) return c.redirect("/login?error=not_configured");
@@ -126,10 +127,14 @@ googleRoutes.post("/register", async (c) => {
   if (existing) throw new HttpError(409, "already_registered", "此 Google 账号已关联成员，请返回我的页面");
   const body = await readJson(c.req.raw);
   await assertPendingRoom(c.env);
+  const applicantName = str(body.applicantName).trim(), wechatAccount = str(body.wechatAccount).trim();
+  if (!applicantName || applicantName.length > 80) throw new HttpError(400, "invalid_application", "请填写你是谁（最多 80 个字）");
+  if (!wechatAccount || wechatAccount.length > 80) throw new HttpError(400, "invalid_application", "请填写微信账号（最多 80 个字）");
   // A deleted member keeps their history but lets go of the Google account, so it can apply anew.
   await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL").bind(session.google_sub).run();
   // Like 申请加入: the Owner approves every newcomer before they can sign up for anything.
-  const m = await createMember(c.env, { username: str(body.username), wechatNickname: str(body.wechatNickname), status: "pending", googleSub: session.google_sub, googleEmail: session.email });
+  const m = await createMember(c.env, { username: str(body.username), wechatNickname: str(body.wechatNickname) || applicantName.slice(0, 30), applicantName, wechatAccount, status: "pending", googleSub: session.google_sub, googleEmail: session.email });
+  try { await sendApplicationNotice(c.env, m); } catch { /* The admin queue remains authoritative if Telegram is unavailable. */ }
   return c.json({ id: m.id, pending: true });
 });
 googleRoutes.post("/link", async (c) => {
