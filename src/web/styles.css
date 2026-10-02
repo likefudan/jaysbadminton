@@ -1320,6 +1320,7 @@ details.fold[open] summary {
   width: 34px; height: 34px; padding: 0; border: 1px solid var(--line);
   border-radius: 50%; background: #fff; cursor: pointer;
 }
+.google-account-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .google-account-status {
   position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px;
   border-radius: 50%; background: #34a853; border: 2px solid var(--surface);
