@@ -54,7 +54,7 @@ export function Account() {
       <Card>
         {ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""] && <p class="error" role="alert">{ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""]}</p>}
         {s.enabled ? <button class="button block" onClick={() => window.location.assign("/api/auth/google")}>使用 Google 登录</button> : <p class="hint">网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。</p>}
-        <p class="muted small">仅使用 Google 账号身份和邮箱，不读取你的 Gmail 邮件。</p>
+        <p class="muted small">仅使用 Google 账号身份、邮箱和头像，不读取你的 Gmail 邮件。</p>
       </Card>
     </Page>;
     if (s.unavailable) return <Page title="账号暂不可用"><Card><p>此账号对应的成员已删除或尚未获准使用，请联系管理员。</p><Logout /></Card></Page>;

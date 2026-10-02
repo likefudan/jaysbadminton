@@ -54,3 +54,22 @@ test("the account panel fits a narrow screen with a long email in light and dark
     await page.screenshot({ path: testInfo.outputPath(`google-account-${mode}.png`) });
   }
 });
+
+test("shows the Google profile avatar and falls back when the image fails", async ({ page }) => {
+  const picture = "https://lh3.googleusercontent.com/a/test-avatar";
+  await page.route("**/api/auth/session", route => route.fulfill({ json: { signedIn: true, email: "avatar@gmail.com", picture } }));
+  await page.route(picture, route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="green"/></svg>' }));
+  await page.goto("/privacy");
+  const trigger = page.getByRole("button", { name: "Google 账号：avatar@gmail.com", exact: true });
+  const avatar = trigger.getByRole("img", { name: "Google 账号头像" });
+  await expect(avatar).toBeVisible();
+  await expect.poll(() => avatar.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  await expect(avatar).toHaveAttribute("referrerpolicy", "no-referrer");
+  await page.route(picture, route => route.fulfill({ status: 404, body: "" }));
+  await page.reload();
+  await expect(trigger).toBeVisible();
+  await expect(trigger.locator("svg")).toBeVisible();
+  await expect(avatar).toHaveCount(0);
+  await trigger.click();
+  await expect(page.getByRole("region", { name: "Google 账号信息" })).toBeVisible();
+});

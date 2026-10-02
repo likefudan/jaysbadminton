@@ -15,6 +15,16 @@ export const googleEnabled = (env: Env) => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE
 const cookieOptions = (c: Ctx) => ({ path: "/", httpOnly: true, secure: new URL(c.req.url).protocol === "https:", sameSite: "Lax" as const });
 const loginRequired = () => new HttpError(401, "login_required", "请先使用 Google 登录");
 
+/** Accept only HTTPS avatar URLs from Google's image hosts. Missing profiles still sign in. */
+function profilePicture(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 2048) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password &&
+      (url.hostname === "googleusercontent.com" || url.hostname.endsWith(".googleusercontent.com")) ? url.href : null;
+  } catch { return null; }
+}
+
 /** Cookie-authenticated writes require a same-origin browser request. */
 export function requireSameOrigin<E extends { Bindings: Env }>(c: Context<E>) {
   if (c.req.header("Origin") !== new URL(c.req.url).origin) throw new HttpError(403, "csrf", "请求来源无效，请刷新页面重试");
@@ -23,8 +33,8 @@ export function requireSameOrigin<E extends { Bindings: Env }>(c: Context<E>) {
 export async function googleSession<E extends { Bindings: Env }>(c: Context<E>) {
   const raw = getCookie(c, MEMBER_COOKIE);
   if (!raw) return null;
-  return c.env.DB.prepare("SELECT google_sub, email FROM member_sessions WHERE id_hash = ? AND expires_at > ?")
-    .bind(await sha256(raw), now()).first<{ google_sub: string; email: string }>();
+  return c.env.DB.prepare("SELECT google_sub, email, picture FROM member_sessions WHERE id_hash = ? AND expires_at > ?")
+    .bind(await sha256(raw), now()).first<{ google_sub: string; email: string; picture: string | null }>();
 }
 export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow> {
   const session = await googleSession(c);
@@ -43,7 +53,7 @@ googleRoutes.use("*", async (c, next) => {
 googleRoutes.get("/session", async (c) => {
   const session = await googleSession(c);
   const member = session ? await c.env.DB.prepare("SELECT id, deleted_at, status FROM members WHERE google_sub = ?").bind(session.google_sub).first<{ id: string; deleted_at: string | null; status: string }>() : null;
-  return c.json({ enabled: googleEnabled(c.env), signedIn: !!session, email: session?.email ?? null, hasMember: !!member, unavailable: !!member && (!!member.deleted_at || member.status === "pending") });
+  return c.json({ enabled: googleEnabled(c.env), signedIn: !!session, email: session?.email ?? null, picture: session?.picture ?? null, hasMember: !!member, unavailable: !!member && (!!member.deleted_at || member.status === "pending") });
 });
 googleRoutes.get("/google", async (c) => {
   if (!googleEnabled(c.env)) return c.redirect("/login?error=not_configured");
@@ -56,7 +66,7 @@ googleRoutes.get("/google", async (c) => {
   ]);
   setCookie(c, STATE_COOKIE, state, { ...cookieOptions(c), maxAge: 600 });
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  url.search = new URLSearchParams({ client_id: c.env.GOOGLE_CLIENT_ID!, redirect_uri: `${new URL(c.env.SITE_ORIGIN).origin}/api/auth/google/callback`, response_type: "code", scope: "openid email", state, nonce, code_challenge: challenge, code_challenge_method: "S256", prompt: "select_account" }).toString();
+  url.search = new URLSearchParams({ client_id: c.env.GOOGLE_CLIENT_ID!, redirect_uri: `${new URL(c.env.SITE_ORIGIN).origin}/api/auth/google/callback`, response_type: "code", scope: "openid email profile", state, nonce, code_challenge: challenge, code_challenge_method: "S256", prompt: "select_account" }).toString();
   return c.redirect(url.toString());
 });
 googleRoutes.get("/google/callback", async (c) => {
@@ -80,7 +90,7 @@ googleRoutes.get("/google/callback", async (c) => {
     const old = getCookie(c, MEMBER_COOKIE);
     await c.env.DB.batch([
       c.env.DB.prepare("DELETE FROM member_sessions WHERE expires_at < ? OR id_hash = ?").bind(now(), old ? await sha256(old) : ""),
-      c.env.DB.prepare("INSERT INTO member_sessions VALUES (?, ?, ?, ?)").bind(await sha256(raw), payload.sub, payload.email, expires.toISOString()),
+      c.env.DB.prepare("INSERT INTO member_sessions (id_hash, google_sub, email, expires_at, picture) VALUES (?, ?, ?, ?, ?)").bind(await sha256(raw), payload.sub, payload.email, expires.toISOString(), profilePicture(payload.picture)),
     ]);
     setCookie(c, MEMBER_COOKIE, raw, { ...cookieOptions(c), expires });
     return c.redirect("/me");

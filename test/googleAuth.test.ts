@@ -48,15 +48,15 @@ async function login(claims: Record<string, unknown> = {}, options: { audience?:
 }
 async function session(sub = "google-alice", expires = new Date(Date.now() + 60_000).toISOString()) {
   const token = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO member_sessions VALUES (?, ?, ?, ?)").bind(await sha256(token), sub, "alice@gmail.com", expires).run();
+  await env.DB.prepare("INSERT INTO member_sessions (id_hash, google_sub, email, expires_at) VALUES (?, ?, ?, ?)").bind(await sha256(token), sub, "alice@gmail.com", expires).run();
   return `jb_member=${token}`;
 }
 
 describe("Google authorization flow", () => {
-  it("uses state, nonce, PKCE, minimal scopes and the configured callback", async () => {
+  it("uses state, nonce, PKCE, profile scopes and the configured callback", async () => {
     const { url } = await begin();
     expect(url.origin).toBe("https://accounts.google.com");
-    expect(url.searchParams.get("scope")).toBe("openid email");
+    expect(url.searchParams.get("scope")).toBe("openid email profile");
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(url.searchParams.get("redirect_uri")).toBe(`${ORIGIN}/api/auth/google/callback`);
     expect(url.searchParams.get("client_secret")).toBeNull();
@@ -70,6 +70,18 @@ describe("Google authorization flow", () => {
     expect((await (await request("/api/auth/session", cookie)).json() as any).signedIn).toBe(true);
     const replay = await request(`/api/auth/google/callback?state=${start.state}&code=valid-code`, start.cookie);
     expect(replay.headers.get("Location")).toBe("/login?error=invalid_state");
+  });
+  it.each([
+    ["https://lh3.googleusercontent.com/a/avatar", "https://lh3.googleusercontent.com/a/avatar"],
+    [undefined, null],
+    ["http://lh3.googleusercontent.com/avatar", null],
+    ["https://googleusercontent.com.evil.test/avatar", null],
+    ["not-a-url", null],
+  ])("stores a safe optional profile picture %s", async (picture, expected) => {
+    const { response, cookie } = await login({ picture });
+    expect(response.headers.get("Location")).toBe("/me");
+    const result = await (await request("/api/auth/session", cookie)).json();
+    expect(result).toMatchObject({ signedIn: true, email: "alice@gmail.com", picture: expected });
   });
   it.each([{ email_verified: false }, { nonce: "wrong-nonce" }])("rejects invalid identity claims %j", async (claims) => {
     const { response, cookie } = await login(claims);

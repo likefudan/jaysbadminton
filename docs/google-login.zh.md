@@ -2,7 +2,7 @@
 
 ## 用户体验
 
-Google 登录成功后，各页面右上角显示彩色 Google 标志和登录状态小圆点。点击可查看当前登录邮箱、进入「我的活动」或退出登录；未登录时不显示此标志。该功能只使用已有登录会话中的邮箱，不额外请求 Google 权限。
+Google 登录成功后，各页面右上角显示 Google 账号头像和登录状态小圆点；没有头像或加载失败时显示彩色 Google 标志。点击可查看当前登录邮箱、进入「我的活动」或退出登录；未登录时不显示此标志。代码请求 `openid email profile`，头像来自已验证的 Google ID token。旧会话仍可使用，退出后重新登录即可获取头像，不影响成员绑定和报名记录。
 
 首页和活动页点击「登录 / 我的活动」，选择 Google 账号，第一次填写用户名和微信昵称即可成为普通成员并报名，不需要管理员生成或发送链接。以后进入 `/me` 会直接显示自己的活动、账单和统计。
 
@@ -16,7 +16,7 @@ Google 登录只授予成员权限。管理页仍使用原有管理员链接和�
 
 1. 在 **Branding** 配置应用名称、支持邮箱、开发者联系邮箱。
 2. 在 **Audience** 选择 **External**。开发期间使用 **Testing**，在 Test users 中添加你用来测试的 Gmail 账号。
-3. 在 **Data Access** 仅使用 OpenID 和邮箱身份范围（代码请求 `openid email`），不需要 Gmail 邮件读写权限。
+3. 在 **Data Access** 使用 OpenID、邮箱和基本资料范围（代码请求 `openid email profile`），不需要 Gmail 邮件读写权限。
 4. 在 **Clients → Create client** 创建 **Web application**。
 5. 添加 **Authorized redirect URIs**，必须完全一致：
    - 本地：`http://localhost:8787/api/auth/google/callback`
