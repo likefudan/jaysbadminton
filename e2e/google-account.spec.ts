@@ -40,7 +40,7 @@ test("signed-out users do not see a Google account badge", async ({ page }) => {
   await expect(page.getByRole("button", { name: /^Google 账号：/ })).toHaveCount(0);
 });
 
-test("the account panel fits a narrow screen with a long email in light and dark modes", async ({ page }) => {
+test("the account panel fits a narrow screen with a long email in light and dark modes", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: true, email: "a.long.google.account.address@example.com" } }));
   await page.goto("/privacy");
@@ -51,6 +51,6 @@ test("the account panel fits a narrow screen with a long email in light and dark
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
   for (const mode of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: mode });
-    await page.screenshot({ path: `/private/tmp/jaysbadminton-google-account-${mode}.png` });
+    await page.screenshot({ path: testInfo.outputPath(`google-account-${mode}.png`) });
   }
 });
