@@ -12,7 +12,9 @@ export function CalendarLinks(props: { e: EventSummary }) {
   return (
     <div class="calendar">
       <span class="calendar-label">加入日历</span>
-      <a class="calendar-link" href={`/api/public/events/${e.code}/calendar.ics`}>
+      {/* target="_top": opens in this tab like a plain link, but tells the app's router (preact-iso,
+          which takes over every same-origin link) to leave it to the browser. */}
+      <a class="calendar-link" href={`/api/public/events/${e.code}/calendar.ics`} target="_top">
         iPhone / Outlook
       </a>
       <a class="calendar-link" href={googleCalendarUrl(entry)} target="_blank" rel="noreferrer">

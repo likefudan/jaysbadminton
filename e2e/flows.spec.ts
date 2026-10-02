@@ -95,10 +95,15 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await expect(names.locator("summary")).toHaveText("名单（3 人）");
   await expect(names.locator(".names li")).toHaveText(["Jay", "小明（我）", "阿强（小明带）"]);
 
-  const ics = await card.getByRole("link", { name: "iPhone / Outlook" }).getAttribute("href");
-  const res = await page.request.get(ics!);
-  expect(res.headers()["content-type"]).toContain("text/calendar");
-  expect(await res.text()).toContain(`LOCATION:${VENUE}`);
+  // Tapping it must reach the server's .ics, not the app's own router (which showed 页面不存在).
+  const download = page.waitForEvent("download");
+  await card.getByRole("link", { name: "iPhone / Outlook" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^badminton-\d{4}-\d{2}-\d{2}\.ics$/);
+  const ics = await (await import("node:fs/promises")).readFile((await file.path())!, "utf8");
+  expect(ics).toContain("BEGIN:VCALENDAR");
+  expect(ics).toContain(`LOCATION:${VENUE}`);
+  await expect(page.getByRole("heading", { name: "你好，小明" })).toBeVisible(); // still on the member page
   const google = new URL((await card.getByRole("link", { name: "Google 日历" }).getAttribute("href"))!);
   expect(google.searchParams.get("dates")).toMatch(/^\d{8}T\d{6}Z\/\d{8}T\d{6}Z$/);
 });
@@ -116,6 +121,12 @@ test("public pages show the headcount and a link preview, never names", async ({
   expect(html).toMatch(/<meta property="og:description" content="19:00–21:00 · Test Gym · 已报名 3 人 · 报名截止 [^"]+"/);
   expect(html).toContain('/og-image.jpg"');
   expect(html).not.toContain("小明");
+
+  // The public event page has the same 加入日历 button; tapping it downloads the .ics too.
+  await page.goto(`/e/${eventCode}`);
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: "iPhone / Outlook" }).click();
+  expect((await download).suggestedFilename()).toMatch(/\.ics$/);
 });
 
 test("the Owner closes sign-up and settles; the member sees the bill and a Venmo link", async ({ page }) => {
