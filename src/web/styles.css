@@ -2340,3 +2340,15 @@ a.ev-meta {
 .names li.absent {
   opacity: 0.55;
 }
+.legal-links {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.5rem 1rem 2rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.legal-links a {
+  color: inherit;
+}

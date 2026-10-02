@@ -30,6 +30,11 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
         </div>
         {props.children}
       </main>
+      <footer class="legal-links">
+        <a href="/privacy">隐私政策</a>
+        <span aria-hidden="true">·</span>
+        <a href="/terms">使用条款</a>
+      </footer>
     </div>
   );
 }

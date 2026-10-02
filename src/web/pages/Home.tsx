@@ -23,7 +23,8 @@ function overview(events: EventSummary[]) {
 export function Home() {
   const [home] = useApi<HomeResponse>("/api/public/home");
   return (
-    <Page title={useSiteTitle()} subtitle="报名、结算、付款，一个链接搞定。">
+    <Page title={useSiteTitle()} subtitle="登录后报名、查看活动和账单。">
+      <a class="button block" href="/me">登录 / 我的活动</a>
       <Load result={home}>
         {(data) => {
           const tiles = overview(data.currentEvents);
