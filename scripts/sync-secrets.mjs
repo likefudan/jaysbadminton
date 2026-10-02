@@ -3,13 +3,17 @@
 //   password hash when it changes, which is how a forgotten password is recovered.
 // - TELEGRAM_BOT_TOKEN and GOOGLE_MAPS_API_KEY come from the GitHub secrets when they are set.
 // - TOKEN_KEY is generated once and never replaced: it decrypts member links and peppers the password hash.
+// Usage: node scripts/sync-secrets.mjs [production|staging] — each Worker has its own secrets.
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const wrangler = (...args) => execFileSync("npx", ["wrangler", ...args], { encoding: "utf8" });
+const target = process.argv[2] ?? "production";
+if (!["production", "staging"].includes(target)) throw new Error(`unknown environment ${target}`);
+const envArgs = target === "staging" ? ["--env", "staging"] : [];
+const wrangler = (...args) => execFileSync("npx", ["wrangler", ...args, ...envArgs], { encoding: "utf8" });
 
 const existing = new Set(JSON.parse(wrangler("secret", "list", "--format", "json")).map((s) => s.name));
 const secrets = {};
@@ -34,7 +38,7 @@ const file = join(dir, "secrets.json");
 try {
   writeFileSync(file, JSON.stringify(secrets), { mode: 0o600 });
   wrangler("secret", "bulk", file);
-  console.log(`Updated secrets: ${Object.keys(secrets).join(", ")}`);
+  console.log(`Updated ${target} secrets: ${Object.keys(secrets).join(", ")}`);
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

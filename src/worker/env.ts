@@ -13,4 +13,6 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string;
   /** Public site address, for links in messages sent by the cron job (which has no request). */
   SITE_ORIGIN: string;
+  /** "production" or "staging" (the test site); missing in tests, which count as production. */
+  ENVIRONMENT?: string;
 }

@@ -6,13 +6,15 @@ import { getSettings } from "../db";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
-import { siteTheme, siteTitle } from "../site";
+import { isStaging, siteTheme, siteTitle } from "../site";
 import { leaderboard } from "../stats";
 import { createMember, issueMemberToken, memberLink } from "../members";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
-publicRoutes.get("/site", async (c) => c.json({ title: await siteTitle(c.env), theme: await siteTheme(c.env) }));
+publicRoutes.get("/site", async (c) =>
+  c.json({ title: await siteTitle(c.env), theme: await siteTheme(c.env), staging: isStaging(c.env) }),
+);
 
 publicRoutes.get("/home", async (c) => {
   await closeExpired(c.env);

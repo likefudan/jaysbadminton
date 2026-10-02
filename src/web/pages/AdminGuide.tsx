@@ -134,10 +134,10 @@ export function AdminGuide(props: { base: string }) {
       <Section title="三、忘记密码或管理链接怎么办">
         <ul class="steps">
           <li>
-            <b>忘记管理链接</b>：在 Telegram 里给机器人发送「管理页面」，它会把链接发给你（只回复已连接的那个账号）。没连 Telegram 的话，请网站维护者在 GitHub → Actions → CI → Run workflow 里勾选 reset_admin_link 运行一次，然后打开 <code>{location.origin}/admin</code> 用密码重新生成。
+            <b>忘记管理链接</b>：在 Telegram 里给机器人发送「管理页面」，它会把链接发给你（只回复已连接的那个账号）。没连 Telegram 的话，请网站维护者在 GitHub → Actions → CI → Run workflow，「Use workflow from」选最新的版本标签（v 开头），勾选 reset_admin_link 运行一次，然后打开 <code>{location.origin}/admin</code> 用密码重新生成。
           </li>
           <li>
-            <b>忘记密码</b>：网站维护者把 GitHub 仓库里的 ADMIN_PASSWORD 改成一个新密码，然后在 Actions → CI → Run workflow 运行一次。部署完成后用新密码登录，再到这里改成你自己的密码。所有设备会被退出登录。
+            <b>忘记密码</b>：网站维护者把 GitHub 仓库里的 ADMIN_PASSWORD 改成一个新密码，然后在 Actions → CI → Run workflow 运行一次（「Use workflow from」选最新的版本标签，v 开头）。部署完成后用新密码登录，再到这里改成你自己的密码。所有设备会被退出登录。
           </li>
           <li>
             <b>换一部手机</b>：用管理链接打开，输入密码即可；每台设备记住登录 30 天。

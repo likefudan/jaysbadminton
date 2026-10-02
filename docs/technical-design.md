@@ -54,7 +54,7 @@ Members have no passwords: their identity is the secret token in their link, del
 
 - **Tokens**: 32 random bytes from `crypto.getRandomValues`, base64url (43 characters). D1 stores a SHA-256 hash for lookup plus the token encrypted with AES-GCM under a key held as a Worker secret (TOKEN\_KEY). Exports and the Sheets mirror never include either column.
 - **Showing a link again**: the admin page decrypts the stored token to show the member's link and QR code again, as the requirements ask. **Regenerate** issues a new token and the old one stops working at once.
-- **Admin token**: a separate token for `/admin/{token}`, plus a password. The first visit to `/admin` (while no admin link exists) asks for the password and creates the admin link and the Owner's member record. A lost link is reset by running the deploy workflow with `reset_admin_link`, which reopens first-time setup. The admin API needs both the link and a session cookie (HttpOnly, Secure, SameSite=Strict, path `/api/admin`, 30 days) obtained with the password. The password hash is PBKDF2-SHA256 over an HMAC peppered with `TOKEN_KEY`, with few iterations to fit the 10 ms CPU limit. Changing it in settings signs every device out. The `ADMIN_PASSWORD` GitHub secret is pushed to the Worker on every deploy; when its value changes, the stored hash resets to it and all sessions end (the forgotten-password path). `TOKEN_KEY` is generated once by CI and never replaced
+- **Admin token**: a separate token for `/admin/{token}`, plus a password. The first visit to `/admin` (while no admin link exists) asks for the password and creates the admin link and the Owner's member record. A lost link is reset by running the deploy workflow (on the latest release tag) with `reset_admin_link`, which reopens first-time setup. The admin API needs both the link and a session cookie (HttpOnly, Secure, SameSite=Strict, path `/api/admin`, 30 days) obtained with the password. The password hash is PBKDF2-SHA256 over an HMAC peppered with `TOKEN_KEY`, with few iterations to fit the 10 ms CPU limit. Changing it in settings signs every device out. The `ADMIN_PASSWORD` GitHub secret is pushed to the Worker on every deploy; when its value changes, the stored hash resets to it and all sessions end (the forgotten-password path). `TOKEN_KEY` is generated once by CI and never replaced
 - **Export key**: a third independent token for `/export/*`, used by the CSV links and the Apps Script mirror. Regenerable from settings.
 - **Member IDs**: `M001`, `M002`, … assigned on join request, never reused or changed. Used in payment codes and as the stable key everywhere.
 - **Authorization**: every API handler resolves the token first and only reads or writes rows for that member; the Owner token unlocks admin endpoints. Deactivated members' tokens are rejected.
@@ -198,7 +198,7 @@ The site never logs into Google. 设置 → Google 表格同步 → 开启同步
 
 ## Repository, tooling and deployment
 
-One TypeScript repository (`likefudan/jaysbadminton`) builds one Worker that serves both the static front end and the API; pushing to `main` runs the tests and deploys.
+One TypeScript repository (`likefudan/jaysbadminton`) builds one Worker that serves both the static front end and the API; every merge to `main` deploys the test site (`env.staging`: Worker `jaysbadminton-staging`, its own D1 and domain `staging.jaysbadminton.llmat.dev`, its own Telegram bot); production deploys only from a `v*` release tag on `main`, after exporting its database.
 
 | Part | Choice | Why |
 | --- | --- | --- |
@@ -209,7 +209,7 @@ One TypeScript repository (`likefudan/jaysbadminton`) builds one Worker that ser
 | QR codes | `qrcode` npm package, rendered in the browser | Owner long-presses to save, as required |
 | Email parsing | `postal-mime` | Standard MIME parser for Email Workers |
 | Tests | Vitest + `@cloudflare/vitest-pool-workers`; Playwright browser tests (`e2e/`) | Unit/integration against a real local D1; browser tests drive the main flows on a local Worker with a fresh database (`scripts/e2e-server.sh`) |
-| CI/CD | GitHub Actions: typecheck, test, build, browser tests, then `wrangler d1 migrations apply`, `wrangler deploy`, smoke test; Dependabot opens monthly grouped update PRs | Uses a `CLOUDFLARE_API_TOKEN` repository secret |
+| CI/CD | GitHub Actions: typecheck, test, build, browser tests; `main` → staging, `v*` tag → production (tag-on-main check, D1 export artifact, migrations, deploy, secret sync, smoke test); re-running on an older tag rolls back; Dependabot opens monthly grouped update PRs | Uses a `CLOUDFLARE_API_TOKEN` repository secret |
 
 ```text
 docs/            requirements (Chinese) and this design

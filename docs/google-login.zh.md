@@ -21,6 +21,7 @@ Google 登录只授予成员权限。管理页仍使用原有管理员链接和�
 5. 添加 **Authorized redirect URIs**，必须完全一致：
    - 本地：`http://localhost:8787/api/auth/google/callback`
    - 正式站：`https://jaysbadminton.llmat.dev/api/auth/google/callback`
+   - 测试环境：`https://staging.jaysbadminton.llmat.dev/api/auth/google/callback`
 6. 保存 Client ID 和 Client Secret。
 
 这里采用服务端跳转登录，不依赖浏览器 Google JavaScript SDK，不需要为 SDK 添加 JavaScript origins。若更换域名或端口，需要同步修改 redirect URI 和 `SITE_ORIGIN`。测试完成后，在 Audience 中按 Google 控制台要求发布应用，以便测试名单以外的用户使用。
@@ -57,7 +58,7 @@ npm run dev -- --ip 127.0.0.1 --var SITE_ORIGIN:http://localhost:8787
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 
-现有 CI 已接入这两项，通过 `scripts/sync-secrets.mjs` 写入 Cloudflare Worker secrets。部署会应用 `0009_google_auth.sql`。`wrangler.jsonc` 的 `SITE_ORIGIN` 必须与正式站域名一致。PR 验证通过后再按团队流程合并；main 的推送会触发部署。
+现有 CI 已接入这两项，通过 `scripts/sync-secrets.mjs` 写入测试环境和正式站各自的 Cloudflare Worker secrets（两边共用同一个 OAuth client，所以上面两个 redirect URI 都要加）。部署会应用 `0009_google_auth.sql`。`wrangler.jsonc` 里两个环境的 `SITE_ORIGIN` 必须与各自域名一致。PR 验证通过后再按团队流程合并：合并到 main 只部署测试环境，打 `v*` 版本标签才部署正式站。
 
 也可通过 `npx wrangler secret put GOOGLE_CLIENT_ID` 和 `npx wrangler secret put GOOGLE_CLIENT_SECRET` 交互设置 Worker secrets。不要把 Secret 写进 wrangler.jsonc。
 
@@ -67,7 +68,7 @@ npm run dev -- --ip 127.0.0.1 --var SITE_ORIGIN:http://localhost:8787
 
 这表示运行中的 Worker 缺少 `GOOGLE_CLIENT_ID` 或 `GOOGLE_CLIENT_SECRET`，不是成员权限或审批问题。本地 `.dev.vars` 不会随 Git 推送上线。网站维护者只需按第 3 节配置一次，之后所有已有成员可自行授权并确认绑定，无需管理员逐人处理。
 
-确认 Google Client 的 Authorized redirect URIs 包含 `https://jaysbadminton.llmat.dev/api/auth/google/callback`。在 Cloudflare 的 `jaysbadminton` Worker 配置两个 Secret，或将其保存到 GitHub Actions Secrets 后重新运行 main 分支部署。不要复制 `.dev.vars` 中的其他本地密钥覆盖生产密钥。
+确认 Google Client 的 Authorized redirect URIs 包含 `https://jaysbadminton.llmat.dev/api/auth/google/callback`。在 Cloudflare 的 `jaysbadminton` Worker 配置两个 Secret，或将其保存到 GitHub Actions Secrets 后，在最新的版本标签上重新运行部署（Actions → CI → Run workflow → Use workflow from 选 v 开头的标签）。不要复制 `.dev.vars` 中的其他本地密钥覆盖生产密钥。
 
 部署后访问 `https://jaysbadminton.llmat.dev/api/auth/session`，应返回 `enabled: true`。旧成员页面会直接跳转 Google 授权，返回后确认绑定；即使账号已登录，也会先确认原成员链接，避免误进入另一个成员账号。重复确认同一个绑定会成功，已绑定到其他成员的 Google 账号仍会被拒绝。
 
