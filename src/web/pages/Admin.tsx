@@ -18,8 +18,12 @@ type Tab = "events" | "inbound" | "pending" | "members" | "settings";
 export function Admin(props: { token?: string }) {
   const base = `/api/admin/${props.token}`;
   const [members, reload] = useApi<MembersResponse>(`${base}/members`);
-  const [tab, setTab] = useState<Tab>("events");
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = new URLSearchParams(location.search).get("tab");
+    return t === "settings" || t === "members" ? t : "events";
+  });
 
+  if (members.state === "error" && members.code === "google_admin_required") return <GoogleAdminLogin />;
   if (members.state === "error" && members.code === "login_required") return <Login base={base} onDone={reload} />;
   if (members.state === "error" && members.code === "invalid_link") {
     return (
@@ -55,10 +59,27 @@ export function Admin(props: { token?: string }) {
             {tab === "inbound" && <InboundTab base={base} />}
             {tab === "pending" && <Pending base={base} list={m.pending} onChange={reload} />}
             {tab === "members" && <Members base={base} data={m} onChange={reload} />}
-            {tab === "settings" && <Settings base={base} />}
+            {tab === "settings" && <Settings base={base} viaGoogle={props.token === "google"} />}
           </>
         )}
       </Load>
+    </Page>
+  );
+}
+
+/** /admin/google without the bound Google account signed in (or with a different one). */
+function GoogleAdminLogin() {
+  const [session] = useApi<{ signedIn: boolean; email: string | null }>("/api/auth/session");
+  const other = session.state === "ok" && session.data.signedIn ? session.data.email : null;
+  return (
+    <Page title="管理员登录">
+      <Card>
+        {other && <p class="error">当前登录的 Google 账号 {other} 不是管理员绑定的账号。</p>}
+        <button class="button block" onClick={() => location.assign("/api/auth/google?next=/admin/google")}>
+          {other ? "换一个 Google 账号登录" : "使用 Google 登录"}
+        </button>
+        <p class="muted small">只有在管理页「设置」里绑定过的那个 Google 账号能进。没绑定的话，请用管理链接和密码登录。</p>
+      </Card>
     </Page>
   );
 }
@@ -317,7 +338,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
   );
 }
 
-function Settings(props: { base: string }) {
+function Settings(props: { base: string; viaGoogle: boolean }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
@@ -338,6 +359,11 @@ function Settings(props: { base: string }) {
     if (r) setNewAdmin(r.link);
   }
   async function logout() {
+    if (props.viaGoogle) {
+      await api("/api/auth/logout", {}).catch(() => undefined);
+      location.assign("/login");
+      return;
+    }
     await api(`${props.base}/logout`, {}).catch(() => undefined);
     location.reload();
   }
@@ -370,6 +396,7 @@ function Settings(props: { base: string }) {
           <span class="chevron">›</span>
         </button>
       </Card>
+      <GoogleAdminCard base={props.base} viaGoogle={props.viaGoogle} />
       <Card title="修改管理密码">
         <form onSubmit={changePassword}>
           <Field label="当前密码" type="password" value={current} onInput={setCurrent} autocomplete="current-password" />
@@ -672,6 +699,67 @@ function ThemeCard(props: { base: string }) {
         {a.mine && "（你自己选了别的外观，所以这里换了你看不到变化。）"}
       </p>
       {error && <p class="error">{error}</p>}
+    </Card>
+  );
+}
+
+/**
+ * 用 Google 登录管理页: binds the Google account signed in on this browser to the Owner. One account
+ * is one person, so an account that already belongs to a member can't be bound.
+ */
+function GoogleAdminCard(props: { base: string; viaGoogle: boolean }) {
+  type State = { bound: string | null; current: { email: string; holder: string | null; isOwner: boolean } | null };
+  const [res, reload] = useApi<State>(`${props.base}/settings/google`);
+  const { busy, error, run } = useAction();
+  const signIn = () => location.assign(`/api/auth/google?next=${encodeURIComponent(`${location.pathname}?tab=settings`)}`);
+  async function bind() {
+    if (await run(() => api(`${props.base}/settings/google/bind`, {}))) reload();
+  }
+  async function unbind() {
+    if (!confirm("解除后不能再用这个 Google 账号进入管理页（管理链接和密码照常可用）。继续吗？")) return;
+    if (!(await run(() => api(`${props.base}/settings/google/unbind`, {})))) return;
+    if (props.viaGoogle) location.assign("/admin");
+    else reload();
+  }
+  return (
+    <Card title="用 Google 登录管理页">
+      <Load result={res}>
+        {(g) =>
+          g.bound !== null ? (
+            <>
+              <p>
+                已绑定 <strong>{g.bound || "Google 账号"}</strong>。用这个账号登录后，在首页或 /admin 就能直接进入管理页，不用链接和密码。
+              </p>
+              {error && <p class="error">{error}</p>}
+              <button class="button secondary block" disabled={busy} onClick={unbind}>
+                解除绑定
+              </button>
+            </>
+          ) : (
+            <>
+              <p class="muted">绑定一个 Google 账号（只能一个），以后用它登录就能直接进入管理页。管理链接和密码仍然可用。</p>
+              {g.current?.holder ? (
+                <p class="error">
+                  当前登录的 {g.current.email} 已经属于成员「{g.current.holder}」，一个 Google 账号只能对应一个人。请换一个账号。
+                </p>
+              ) : g.current ? (
+                <p>当前浏览器登录的 Google 账号：{g.current.email}</p>
+              ) : null}
+              {error && <p class="error">{error}</p>}
+              {g.current && !g.current.holder ? (
+                <button class="button block" disabled={busy} onClick={bind}>
+                  绑定 {g.current.email}
+                </button>
+              ) : (
+                <button class="button secondary block" onClick={signIn}>
+                  {g.current ? "换一个 Google 账号" : "先登录 Google"}
+                </button>
+              )}
+              <p class="muted small">请给这个 Google 账号开启两步验证：绑定后它就等于管理员钥匙。</p>
+            </>
+          )
+        }
+      </Load>
     </Card>
   );
 }

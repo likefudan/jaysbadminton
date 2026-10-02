@@ -28,6 +28,11 @@ export function Member(props: { token?: string }) {
       {(m) => (
         <Page title={`你好，${m.username}`} eyebrow={`${m.id} · 我的活动`} subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}>
           {props.token && <GoogleLink token={props.token} />}
+          {!props.token && m.isOwner && (
+            <a class="button block" href="/admin/google">
+              进入管理页
+            </a>
+          )}
           {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
           <MyEvents base={base} />
           <MyStatsCard base={base} />

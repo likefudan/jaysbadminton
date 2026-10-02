@@ -8,10 +8,20 @@ import { HttpError, badRequest, readJson, str } from "../http";
 import { adminEventRoutes } from "./adminEvents";
 import { type MemberRow, issueMemberToken, memberLink, requireMember, revealMemberToken, toSummary } from "../members";
 import { memberProfile, setAdminNote } from "../profile";
+import { googleOwner, googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
+
+/** /admin/google: the admin page reached through the Owner's own Google account instead of the link. */
+export const GOOGLE_ADMIN = "google";
 
 export const adminRoutes = new Hono<{ Bindings: Env }>();
 
 adminRoutes.use("/:token/*", async (c, next) => {
+  if (c.req.param("token") === GOOGLE_ADMIN) {
+    // The Google cookie is SameSite=Lax (the admin one is Strict), so writes must come from this site.
+    if (c.req.method !== "GET") requireSameOrigin(c);
+    if (!(await googleOwner(c))) throw new HttpError(401, "google_admin_required", "请用管理员绑定的 Google 账号登录");
+    return next();
+  }
   await assertAdminToken(c.env, c.req.param("token"));
   if (!c.req.path.endsWith("/login") && !(await hasSession(c))) {
     throw new HttpError(401, "login_required", "请输入管理密码");
@@ -140,6 +150,43 @@ async function owingByMember(env: Env): Promise<Map<string, number>> {
 adminRoutes.post("/:token/settings/rotate-admin", async (c) => {
   const token = await issueAdminToken(c.env);
   return c.json<LinkResponse>({ link: `${origin(c.req.url)}/admin/${token}` });
+});
+
+/**
+ * 用 Google 登录管理页: the Owner's member record holds one Google account, like any member's, so
+ * one account is one person: an account already bound to someone else can't be bound here.
+ */
+adminRoutes.get("/:token/settings/google", async (c) => {
+  const owner = await c.env.DB.prepare("SELECT * FROM members WHERE is_owner = 1").first<MemberRow>();
+  const session = await googleSession(c);
+  const holder = session ? await memberByGoogle(c.env, session.google_sub) : null;
+  return c.json({
+    bound: owner?.google_sub ? owner.google_email ?? "" : null,
+    current: session ? { email: session.email, holder: holder && holder.id !== owner?.id ? holder.username : null, isOwner: !!holder && holder.id === owner?.id } : null,
+  });
+});
+
+adminRoutes.post("/:token/settings/google/bind", async (c) => {
+  requireSameOrigin(c);
+  const session = await googleSession(c);
+  if (!session) throw new HttpError(401, "login_required", "请先在这个浏览器登录 Google");
+  const owner = await c.env.DB.prepare("SELECT * FROM members WHERE is_owner = 1").first<MemberRow>();
+  if (!owner) throw new HttpError(404, "member_not_found", "找不到管理员的成员记录");
+  if (owner.google_sub === session.google_sub) return c.json({ ok: true });
+  if (owner.google_sub) throw new HttpError(409, "already_linked", "管理员已经绑定了一个 Google 账号，请先解除绑定");
+  const holder = await memberByGoogle(c.env, session.google_sub);
+  if (holder) throw new HttpError(409, "already_linked", `这个 Google 账号已经属于成员「${holder.username}」，一个 Google 账号只能对应一个人`);
+  // A deleted member keeps their history but lets go of the account.
+  await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL").bind(session.google_sub).run();
+  await c.env.DB.prepare("UPDATE members SET google_sub = ?, google_email = ? WHERE id = ? AND google_sub IS NULL")
+    .bind(session.google_sub, session.email, owner.id)
+    .run();
+  return c.json({ ok: true });
+});
+
+adminRoutes.post("/:token/settings/google/unbind", async (c) => {
+  await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE is_owner = 1").run();
+  return c.json({ ok: true });
 });
 
 adminRoutes.route("/:token", adminEventRoutes);

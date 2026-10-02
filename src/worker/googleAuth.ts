@@ -10,6 +10,9 @@ import { HttpError, readJson, str } from "./http";
 type Ctx = Context<{ Bindings: Env }>;
 export const MEMBER_COOKIE = "jb_member";
 const STATE_COOKIE = "jb_google_state";
+const NEXT_COOKIE = "jb_google_next";
+/** Where to land after Google: only this site's own pages, never another host. */
+const safeNext = (v: string | undefined) => (v && /^\/(me|admin\/[\w-]+)(\?[\w=&-]*)?$/.test(v) ? v : null);
 const keys = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 export const googleEnabled = (env: Env) => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 const cookieOptions = (c: Ctx) => ({ path: "/", httpOnly: true, secure: new URL(c.req.url).protocol === "https:", sameSite: "Lax" as const });
@@ -37,7 +40,7 @@ export async function googleSession<E extends { Bindings: Env }>(c: Context<E>) 
     .bind(await sha256(raw), now()).first<{ google_sub: string; email: string; picture: string | null }>();
 }
 /** The live member a Google account belongs to; deleted members no longer hold their account. */
-const memberByGoogle = (env: Env, sub: string) =>
+export const memberByGoogle = (env: Env, sub: string) =>
   env.DB.prepare("SELECT * FROM members WHERE google_sub = ? AND deleted_at IS NULL").bind(sub).first<MemberRow>();
 
 export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow> {
@@ -49,6 +52,14 @@ export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): 
   return m;
 }
 
+/** The Owner, when this browser's Google account is the one bound to them; otherwise null. */
+export async function googleOwner<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow | null> {
+  const session = await googleSession(c);
+  if (!session) return null;
+  const m = await memberByGoogle(c.env, session.google_sub);
+  return m && m.is_owner === 1 && m.status === "active" ? m : null;
+}
+
 export const googleRoutes = new Hono<{ Bindings: Env }>();
 googleRoutes.use("*", async (c, next) => {
   if (c.req.method !== "GET") requireSameOrigin(c);
@@ -57,7 +68,7 @@ googleRoutes.use("*", async (c, next) => {
 googleRoutes.get("/session", async (c) => {
   const session = await googleSession(c);
   const member = session ? await memberByGoogle(c.env, session.google_sub) : null;
-  return c.json({ enabled: googleEnabled(c.env), signedIn: !!session, email: session?.email ?? null, picture: session?.picture ?? null, hasMember: !!member && member.status !== "pending", pending: member?.status === "pending" });
+  return c.json({ enabled: googleEnabled(c.env), signedIn: !!session, email: session?.email ?? null, picture: session?.picture ?? null, hasMember: !!member && member.status !== "pending", pending: member?.status === "pending", isAdmin: !!member && member.is_owner === 1 && member.status === "active" });
 });
 googleRoutes.get("/google", async (c) => {
   if (!googleEnabled(c.env)) return c.redirect("/login?error=not_configured");
@@ -69,13 +80,17 @@ googleRoutes.get("/google", async (c) => {
     c.env.DB.prepare("INSERT INTO oauth_states VALUES (?, ?, ?, ?)").bind(await sha256(state), nonce, verifier, new Date(Date.now() + 600_000).toISOString()),
   ]);
   setCookie(c, STATE_COOKIE, state, { ...cookieOptions(c), maxAge: 600 });
+  const next = safeNext(c.req.query("next"));
+  if (next) setCookie(c, NEXT_COOKIE, next, { ...cookieOptions(c), maxAge: 600 });
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.search = new URLSearchParams({ client_id: c.env.GOOGLE_CLIENT_ID!, redirect_uri: `${new URL(c.env.SITE_ORIGIN).origin}/api/auth/google/callback`, response_type: "code", scope: "openid email profile", state, nonce, code_challenge: challenge, code_challenge_method: "S256", prompt: "select_account" }).toString();
   return c.redirect(url.toString());
 });
 googleRoutes.get("/google/callback", async (c) => {
   const state = c.req.query("state") ?? "", cookie = getCookie(c, STATE_COOKIE) ?? "";
+  const next = safeNext(getCookie(c, NEXT_COOKIE)) ?? "/me";
   deleteCookie(c, STATE_COOKIE, cookieOptions(c));
+  if (getCookie(c, NEXT_COOKIE)) deleteCookie(c, NEXT_COOKIE, cookieOptions(c));
   if (!googleEnabled(c.env) || !state || !cookie || !timingSafeEqual(state, cookie)) return c.redirect("/login?error=invalid_state");
   const saved = await c.env.DB.prepare("DELETE FROM oauth_states WHERE id_hash = ? AND expires_at > ? RETURNING nonce, verifier")
     .bind(await sha256(state), now()).first<{ nonce: string; verifier: string }>();
@@ -97,7 +112,7 @@ googleRoutes.get("/google/callback", async (c) => {
       c.env.DB.prepare("INSERT INTO member_sessions (id_hash, google_sub, email, expires_at, picture) VALUES (?, ?, ?, ?, ?)").bind(await sha256(raw), payload.sub, payload.email, expires.toISOString(), profilePicture(payload.picture)),
     ]);
     setCookie(c, MEMBER_COOKIE, raw, { ...cookieOptions(c), expires });
-    return c.redirect("/me");
+    return c.redirect(next);
   } catch {
     // Never log codes, tokens, or provider responses.
     return c.redirect("/login?error=failed");

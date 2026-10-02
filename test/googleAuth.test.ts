@@ -210,3 +210,81 @@ describe("Google member access", () => {
     expect((await (await request("/api/auth/session", cookie)).json() as any).signedIn).toBe(false);
   });
 });
+
+describe("Google login for the admin", () => {
+  const jay = () => session("google-jay");
+  async function bindJay() {
+    const ctx = await setUpAdmin();
+    const google = await jay();
+    const res = await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${google}`, {});
+    expect(res.status).toBe(200);
+    return { ctx, google };
+  }
+
+  it("opens /admin/google only for the Google account bound to the Owner", async () => {
+    await setUpAdmin();
+    expect((await request("/api/admin/google/members")).status).toBe(401);
+    const res = await request("/api/admin/google/members", await jay());
+    expect(res.status).toBe(401);
+    expect(((await res.json()) as any).error.code).toBe("google_admin_required");
+  });
+
+  it("binds the signed-in account from the admin page, then lets it in without link or password", async () => {
+    const { ctx, google } = await bindJay();
+    const members = await request("/api/admin/google/members", google);
+    expect(members.status).toBe(200);
+    expect(((await members.json()) as any).active[0]).toMatchObject({ isOwner: true });
+    expect(await (await request("/api/auth/session", google)).json()).toMatchObject({ isAdmin: true, hasMember: true });
+    expect(await (await request(`${ctx.base}/settings/google`, `${ctx.admin.cookie}; ${google}`)).json()).toMatchObject({
+      bound: "alice@gmail.com",
+      current: { isOwner: true, holder: null },
+    });
+    // The Owner's own sign-ups work through the same session.
+    const e = await createTestEvent(ctx);
+    expect((await request(`/api/admin/google/events/${e.id}/self-signup`, google, { friends: [] })).status).toBe(200);
+    // Lax cookie: writes from another site are refused.
+    expect((await request(`/api/admin/google/events/${e.id}/self-cancel`, google, {}, "https://evil.example")).status).toBe(403);
+    // Someone else's Google account still can't get in.
+    expect((await request("/api/admin/google/members", await session("google-alice"))).status).toBe(401);
+  });
+
+  it("keeps one Google account to one person", async () => {
+    const ctx = await setUpAdmin();
+    await createMember(env, { username: "Alice", wechatNickname: "Alice", status: "active", googleSub: "google-alice", googleEmail: "alice@gmail.com" });
+    const alice = await session("google-alice");
+    const taken = await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${alice}`, {});
+    expect(taken.status).toBe(409);
+    expect(((await taken.json()) as any).error.message).toContain("Alice");
+    expect(await (await request(`${ctx.base}/settings/google`, `${ctx.admin.cookie}; ${alice}`)).json()).toMatchObject({ bound: null, current: { holder: "Alice" } });
+    // Alice's account stays a member's: it doesn't open the admin page.
+    expect((await request("/api/admin/google/members", alice)).status).toBe(401);
+
+    expect((await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${await jay()}`, {})).status).toBe(200);
+    // Bound already: a second account needs an unbind first.
+    expect((await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${await session("google-other")}`, {})).status).toBe(409);
+  });
+
+  it("unbinding shuts the Google way in; the link and password still work", async () => {
+    const { ctx, google } = await bindJay();
+    expect((await request("/api/admin/google/settings/google/unbind", google, {})).status).toBe(200);
+    expect((await request("/api/admin/google/members", google)).status).toBe(401);
+    expect((await request(`${ctx.base}/members`, ctx.admin.cookie)).status).toBe(200);
+    expect(await (await request("/api/auth/session", google)).json()).toMatchObject({ isAdmin: false });
+  });
+
+  it("returns to the page that asked for Google, and only to this site's pages", async () => {
+    for (const [next, landing] of <[string, string][]>[["/admin/google", "/admin/google"], ["//evil.example/x", "/me"], ["https://evil.example", "/me"]]) {
+      const res = await request(`/api/auth/google?next=${encodeURIComponent(next)}`);
+      const cookies = res.headers.getSetCookie().map((c) => c.split(";")[0]!);
+      const url = new URL(res.headers.get("Location")!);
+      const token = await new SignJWT({ email: "jay@gmail.com", email_verified: true, nonce: url.searchParams.get("nonce") })
+        .setProtectedHeader({ alg: "RS256", kid: "google-test" }).setSubject("google-jay")
+        .setIssuer("https://accounts.google.com").setAudience("test-client").setIssuedAt().setExpirationTime("5m").sign(privateKey);
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+        String(input instanceof Request ? input.url : input).includes("certs") ? Response.json({ keys: [jwk] }) : Response.json({ id_token: token }));
+      const back = await request(`/api/auth/google/callback?state=${url.searchParams.get("state")}&code=c`, cookies.join("; "));
+      expect(back.headers.get("Location")).toBe(landing);
+      vi.restoreAllMocks();
+    }
+  });
+});

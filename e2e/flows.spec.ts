@@ -50,6 +50,12 @@ test("the Owner sets up the site and the payment details", async ({ page }) => {
     data: { password: PASSWORD, venmoUsername: "Jays-Badminton", venmoEmail: "owner@example.com" },
   });
   expect(res.ok()).toBe(true);
+
+  // 设置 offers binding a Google account for the admin page; nothing is bound yet.
+  await page.goto(`${adminPath}?tab=settings`);
+  const google = page.locator(".card", { has: page.getByText("用 Google 登录管理页") });
+  await expect(google).toContainText("绑定一个 Google 账号（只能一个）");
+  await expect(google.getByRole("button", { name: "先登录 Google" })).toBeVisible();
 });
 
 test("a newcomer applies and the Owner approves them", async ({ page }) => {
