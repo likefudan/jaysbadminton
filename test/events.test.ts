@@ -2,7 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { env } from "cloudflare:workers";
 import worker from "../src/worker/index";
 import { describe, expect, it } from "vitest";
-import { Client, approveMember, createTestEvent, futureDate, setUpAdmin } from "./helpers";
+import { Client, approveMember, billingScenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
 
 const anon = new Client();
 const expire = (id: number) =>
@@ -244,5 +244,41 @@ describe("event title and public leaderboard switch", () => {
     await ctx.admin.call(`${ctx.base}/settings`, { showLeaderboard: false });
     expect((await ctx.admin.call(`${ctx.base}/settings`)).data.showLeaderboard).toBe(false);
     expect((await new Client().call("/api/public/home")).data.leaderboard).toBeNull();
+  });
+});
+
+describe("who's coming", () => {
+  it("shows signed-up members the whole list with friends, and nobody else", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx, { joinSelf: true });
+    const ming = await approveMember(ctx, "小明");
+    const bob = await approveMember(ctx, "Bob");
+    const carol = await approveMember(ctx, "Carol");
+    await anon.call(`${ming.base}/events/${e.id}/signup`, { friends: ["阿强", ""] });
+    await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: [] });
+
+    const mine = (await anon.call(`${ming.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
+    expect(mine.roster).toEqual([
+      { name: "Jay", friendOf: null, mine: false, absent: false },
+      { name: "小明", friendOf: null, mine: true, absent: false },
+      { name: "阿强", friendOf: "小明", mine: true, absent: false },
+      { name: "小明的朋友2", friendOf: "小明", mine: true, absent: false },
+      { name: "Bob", friendOf: null, mine: false, absent: false },
+    ]);
+    expect((await anon.call(`${bob.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id).roster).toHaveLength(5);
+
+    // Not signed up: just the count, like the public page.
+    const theirs = (await anon.call(`${carol.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
+    expect(theirs.roster).toBeNull();
+    expect(theirs.headcount).toBe(5);
+    expect(JSON.stringify((await anon.call(`/api/public/events/${e.code}`)).data)).not.toContain("小明");
+  });
+
+  it("marks who did not come once the event is settled", async () => {
+    const s = await billingScenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const list = (await new Client().call(`${s.alice.base}/events`)).data.events.find((x: { id: number }) => x.id === s.e.id).roster;
+    expect(list.find((r: { name: string }) => r.name === "Tom")).toMatchObject({ friendOf: "Alice", mine: true, absent: true });
+    expect(list.filter((r: { absent: boolean }) => r.absent)).toHaveLength(1);
   });
 });

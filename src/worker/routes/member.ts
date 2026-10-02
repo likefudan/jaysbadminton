@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { settle } from "../../shared/settle";
-import type { MeResponse, MyEvent, MyPayment, PaymentStatus } from "../../shared/types";
+import type { MeResponse, MyEvent, MyPayment, MyRosterEntry, PaymentStatus } from "../../shared/types";
 import { refundOf, savedInput, settleRows } from "../billing";
 import { myStats } from "../stats";
 import { getSettings } from "../db";
-import { closeExpired, friendCap, getEvent, removeSignup, setSignup, summaries, type EventRow, validateFriends } from "../events";
+import { closeExpired, friendCap, getEvent, removeSignup, roster, setSignup, summaries, type EventRow, validateFriends } from "../events";
 import type { Env } from "../env";
 import { badRequest, invalidLink, readJson, str } from "../http";
 import { type MemberRow, memberByToken, renameMember } from "../members";
@@ -74,11 +74,23 @@ memberRoutes.get("/:token/events", async (c) => {
         zelleAccount: s.zelle_account ?? "",
       };
     }
+    // Who else is coming: only for members on the list themselves (the public pages show a count).
+    let names: MyRosterEntry[] | null = null;
+    if (rows.length > 0) {
+      const settled = e.status === "finalized" || e.status === "settled";
+      names = (await roster(c.env, e.id)).map((r) => ({
+        name: r.name,
+        friendOf: r.friendIndex > 0 ? r.memberName : null,
+        mine: r.memberId === m.id,
+        absent: settled && !r.attended,
+      }));
+    }
     events.push({
       ...e,
       myFriends: rows.length === 0 ? null : friends.map((f) => f.friend_name ?? ""),
       canEdit: e.status === "open" && m.status === "active",
       payment,
+      roster: names,
     });
   }
   return c.json({ events, friendCap: await friendCap(c.env) });

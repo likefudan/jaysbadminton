@@ -2290,3 +2290,53 @@ a.ev-meta {
 .calendar + .button {
   margin-top: 14px;
 }
+
+/* ---- 名单 on the member's event card ---- */
+.roster-fold {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.roster-fold summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.roster-fold summary::-webkit-details-marker {
+  display: none;
+}
+.roster-fold summary::after {
+  content: "›";
+  color: var(--faint);
+  transition: transform 0.2s;
+}
+.roster-fold[open] summary::after {
+  transform: rotate(90deg);
+}
+.roster-fold .names {
+  margin-top: 10px;
+}
+.names li {
+  font-size: 13.5px;
+  color: var(--text);
+}
+.names li small {
+  margin-left: 2px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.names li.friend {
+  color: var(--text-2);
+  border-style: dashed;
+}
+.names li.mine {
+  border-color: var(--acc-line);
+  background: var(--acc-soft);
+}
+.names li.absent {
+  opacity: 0.55;
+}

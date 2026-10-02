@@ -7,6 +7,7 @@ import { CalendarLinks } from "../Calendar";
 import { EventInfo } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
+import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
 import { MyStatsCard } from "../Stats";
 
@@ -112,6 +113,7 @@ function SignupCard(props: { base: string; e: MyEvent; cap: number; onChange: ()
   return (
     <Card>
       <EventInfo e={e} status={e.payment ? BILL_STATUS[e.payment.status] : undefined} />
+      {e.roster && e.roster.length > 0 && <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />}
       {signedUp && !editing && !e.payment && (
         <>
           <p class="ok">
