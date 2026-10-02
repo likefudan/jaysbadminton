@@ -8,12 +8,15 @@ import { closeExpired, friendCap, getEvent, removeSignup, roster, setSignup, sum
 import type { Env } from "../env";
 import { badRequest, invalidLink, readJson, str } from "../http";
 import { type MemberRow, memberByToken, renameMember } from "../members";
+import { googleMember, requireSameOrigin } from "../googleAuth";
 
 type Vars = { member: MemberRow };
 export const memberRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
 
 memberRoutes.use("/:token/*", async (c, next) => {
-  const m = await memberByToken(c.env, c.req.param("token"));
+  const session = c.req.param("token") === "session";
+  if (session && c.req.method !== "GET") requireSameOrigin(c);
+  const m = session ? await googleMember(c) : await memberByToken(c.env, c.req.param("token"));
   if (!m) throw invalidLink();
   c.set("member", m);
   await next();

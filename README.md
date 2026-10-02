@@ -54,6 +54,8 @@ Phone-sized renders with demo data (names, venues and accounts are made up).
 
 ## Development
 
+Google 登录支持成员自行注册、报名和查看账单，旧成员可绑定 Google 保留历史记录。配置 OAuth Client 和本地/正式回调地址请参见 [Google 登录配置](docs/google-login.zh.md)。没有配置 Google Client 时，原有成员链接仍可使用。
+
 Requires Node.js 22.
 
 ```sh

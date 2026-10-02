@@ -16,6 +16,8 @@ export interface MemberRow {
   requested_at: string;
   approved_at: string | null;
   deleted_at: string | null;
+  google_sub: string | null;
+  google_email: string | null;
 }
 
 export const toSummary = (m: MemberRow): MemberSummary => ({
@@ -50,7 +52,7 @@ const takenError = () => new HttpError(409, "username_taken", "这个用户名�
 /** Inserts a member with the next never-reused ID. */
 export async function createMember(
   env: Env,
-  input: { username: string; wechatNickname: string; status: MemberStatus; isOwner?: boolean },
+  input: { username: string; wechatNickname: string; status: MemberStatus; isOwner?: boolean; googleSub?: string; googleEmail?: string },
 ): Promise<MemberRow> {
   validateNames(input.username, input.wechatNickname);
   if (await usernameTaken(env, input.username)) throw takenError();
@@ -62,10 +64,10 @@ export async function createMember(
   const ts = now();
   try {
     await env.DB.prepare(
-      `INSERT INTO members (id, username, wechat_nickname, status, is_owner, requested_at, approved_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO members (id, username, wechat_nickname, status, is_owner, requested_at, approved_at, google_sub, google_email)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(id, input.username.trim(), input.wechatNickname.trim(), input.status, input.isOwner ? 1 : 0, ts, input.status === "active" ? ts : null)
+      .bind(id, input.username.trim(), input.wechatNickname.trim(), input.status, input.isOwner ? 1 : 0, ts, input.status === "active" ? ts : null, input.googleSub ?? null, input.googleEmail ?? null)
       .run();
   } catch (e) {
     if (String(e).includes("UNIQUE")) throw takenError();

@@ -199,11 +199,11 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
           <div class="row" key={m.id}>
             {who(m)}
             <div class="actions">
-              <button class="button secondary" disabled={busy} onClick={() => view(m)}>
+              {m.hasLink && <button class="button secondary" disabled={busy} onClick={() => view(m)}>
                 链接
-              </button>
+              </button>}
               <button class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
-                重新生成
+                {m.hasLink ? "重新生成" : "生成备用链接"}
               </button>
               {!m.isOwner && (
                 <button class="button danger" disabled={busy} onClick={() => deactivate(m)}>

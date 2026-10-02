@@ -16,9 +16,9 @@ export function EventPage(props: { code?: string }) {
             <EventInfo e={e} publicView />
             <CalendarLinks e={e} />
           </Card>
-          <p class="muted small">报名请用你自己的专属链接。还没有链接？</p>
-          <a class="button secondary block" href="/join">
-            申请加入
+          <p class="muted small">使用 Google 账号登录后即可报名。</p>
+          <a class="button block" href="/me">
+            登录 / 我的活动
           </a>
           <a class="button secondary block" href="/">
             所有活动
