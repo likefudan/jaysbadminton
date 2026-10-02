@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
-import type { LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
+import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
 import { assertAdminToken, checkPassword, endSession, hasSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
 import type { Env } from "../env";
@@ -59,8 +59,11 @@ adminRoutes.post("/:token/members/:id/approve", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.status !== "pending") throw badRequest("这个申请已经处理过了");
   await c.env.DB.prepare("UPDATE members SET status = 'active', approved_at = ? WHERE id = ?").bind(now(), m.id).run();
+  // Applied with Google: they sign in with it, so there is no link to send (a spare one can still
+  // be made from the members list).
+  if (m.google_sub) return c.json<ApproveResponse>({ link: null, googleEmail: m.google_email });
   const token = await issueMemberToken(c.env, m.id);
-  return c.json<LinkResponse>({ link: memberLink(origin(c.req.url), token) });
+  return c.json<ApproveResponse>({ link: memberLink(origin(c.req.url), token), googleEmail: null });
 });
 
 adminRoutes.post("/:token/members/:id/reject", async (c) => {
@@ -134,10 +137,18 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能删除已停用的成员");
   const owing = (await owingByMember(c.env)).get(m.id) ?? 0;
   if (owing > 0) throw badRequest(`${m.username} 还有 $${(owing / 100).toFixed(2)} 没付清，付清或标记已付后才能删除`);
-  // History stays; the link and the Google account are released, so the person can apply again.
-  await c.env.DB.prepare("UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL WHERE id = ?").bind(now(), m.id).run();
+  // History stays; the link, the Google account and the name are released, so the person (or
+  // someone else with that name) can apply again. The old record keeps the name with its ID
+  // appended, e.g. "Alice（M004）", so rosters and rankings never mix the two up.
+  await c.env.DB.prepare(
+    "UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL, username = ? WHERE id = ?",
+  )
+    .bind(now(), deletedName(m), m.id)
+    .run();
   return c.json({ ok: true });
 });
+
+export const deletedName = (m: Pick<MemberRow, "id" | "username">) => `${m.username}（${m.id}）`;
 
 async function owingByMember(env: Env): Promise<Map<string, number>> {
   const { results } = await env.DB.prepare(

@@ -2,7 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { env } from "cloudflare:workers";
 import worker from "../src/worker/index";
 import { describe, expect, it } from "vitest";
-import { Client, approveMember, billingScenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
+import { Client, approveMember, billingScenario, createTestEvent, futureDate, setUpAdmin, tokenOf } from "./helpers";
 
 const anon = new Client();
 const expire = (id: number) =>
@@ -309,6 +309,24 @@ describe("我的报名 (the Owner signs up from the admin page)", () => {
     expect((await ctx.admin.call(`${eb}/finalize`, { courtTotal: "40", shuttleCount: 2, shuttlePrice: "3" })).status).toBe(200);
     expect((await ctx.admin.call(`${eb}/self-signup`, { friends: ["x"] })).status).toBe(400);
     expect((await ctx.admin.call(`${eb}/self-cancel`, {})).status).toBe(400);
+  });
+
+  it("has the same rules when the Owner signs up from their own member page (Google)", async () => {
+    const ctx = await setUpAdmin();
+    const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active.find((m: { isOwner: boolean }) => m.isOwner);
+    const base = `/api/m/${tokenOf((await ctx.admin.call(`${ctx.base}/members/${owner.id}/regenerate`, {})).data.link)}`;
+    const e = await createTestEvent(ctx, { joinSelf: false });
+    const c = new Client();
+    expect((await c.call(`${base}/events/${e.id}/signup`, { friends: ["a", "b", "c", "d", "e"] })).status).toBe(200); // past the cap of 3
+    expect((await c.call(`${base}/events`)).data).toMatchObject({ friendCap: 20 });
+    await expire(e.id);
+    const ev = (await c.call(`${base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
+    expect(ev).toMatchObject({ status: "closed", canEdit: true });
+    expect((await c.call(`${base}/events/${e.id}/signup`, { friends: ["a"] })).status).toBe(200);
+    expect((await c.call(`${base}/events/${e.id}/cancel`, {})).status).toBe(200);
+    // A normal member is locked out after the deadline.
+    const ming = await approveMember(ctx, "小明");
+    expect((await c.call(`${ming.base}/events/${e.id}/signup`, { friends: [] })).status).toBe(400);
   });
 
   it("is only for the admin session", async () => {

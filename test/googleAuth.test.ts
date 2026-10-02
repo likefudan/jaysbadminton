@@ -125,7 +125,10 @@ describe("Google member access", () => {
     // The Owner sees who applied, Google email included, and approves.
     const pending = (await ctx.admin.call(`${ctx.base}/members`)).data.pending;
     expect(pending).toEqual([expect.objectContaining({ id, username: "Alice", googleEmail: "alice@gmail.com" })]);
-    expect((await ctx.admin.call(`${ctx.base}/members/${id}/approve`, {})).status).toBe(200);
+    // Applied with Google, so there is no link to send: they just sign in.
+    const approved = await ctx.admin.call(`${ctx.base}/members/${id}/approve`, {});
+    expect(approved.data).toEqual({ link: null, googleEmail: "alice@gmail.com" });
+    expect((await ctx.admin.call(`${ctx.base}/members`)).data.active.find((m: { id: string }) => m.id === id)).toMatchObject({ hasLink: false });
 
     expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({ hasMember: true, pending: false });
     expect(await (await request("/api/m/session/me", cookie)).json()).toMatchObject({ id, username: "Alice", active: true, isOwner: false });

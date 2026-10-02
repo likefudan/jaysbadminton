@@ -30,6 +30,12 @@ export interface LinkResponse {
   link: string;
 }
 
+/** Approving a request: a link to send, or none when they applied with Google and just sign in. */
+export interface ApproveResponse {
+  link: string | null;
+  googleEmail: string | null;
+}
+
 /** One event on the 个人信息 activity map (the member's own sign-up, not friends). */
 export interface ActivityDay {
   date: string; // Pacific YYYY-MM-DD

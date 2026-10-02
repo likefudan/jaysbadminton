@@ -1,8 +1,10 @@
+import { execSync } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 /**
  * The main path through the site in a phone-sized browser, one step per test and in order:
- * setup → join → approve → create → sign up → 个人信息 → public pages → close & settle → pay → appearance.
+ * setup → join → approve → create → sign up → 个人信息 → public pages → Google sign-in → close & settle → pay → appearance.
  * Each run starts from an empty database (scripts/e2e-server.sh).
  */
 test.describe.configure({ mode: "serial" });
@@ -26,6 +28,19 @@ async function openAdmin(page: Page) {
     await page.getByRole("button", { name: "登录" }).click();
   }
   await expect(page.locator(".tabs")).toBeVisible();
+}
+
+/**
+ * A signed-in Google session for `sub`, written straight into the test server's database (the
+ * local server has no Google client; the OAuth exchange itself is covered by the unit tests).
+ */
+function googleSession(sub: string, email: string, extraSql = ""): string {
+  const token = randomUUID();
+  const hash = createHash("sha256").update(token).digest("hex");
+  const expires = new Date(Date.now() + 86400e3).toISOString();
+  const sql = `${extraSql}INSERT INTO member_sessions (id_hash, google_sub, email, expires_at) VALUES ('${hash}', '${sub}', '${email}', '${expires}')`;
+  execSync(`npx wrangler d1 execute DB --local --persist-to .wrangler/e2e --command "${sql}"`, { stdio: "ignore" });
+  return token;
 }
 
 /** Seven days from today in Pacific time, as the date input wants it. */
@@ -181,6 +196,34 @@ test("public pages show the headcount and a link preview, never names", async ({
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "iPhone / Outlook" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.ics$/);
+});
+
+test("signed in with Google: the member sees the roster on shared pages; the Owner binds Google for the admin page", async ({ page, context, baseURL }) => {
+  acceptDialogs(page);
+  const ming = googleSession("google-ming", "ming@example.com", "UPDATE members SET google_sub = 'google-ming' WHERE username = '小明'; ");
+  await context.addCookies([{ name: "jb_member", value: ming, url: baseURL! }]);
+  await page.goto(`/e/${eventCode}`);
+  await expect(page.getByText("✓ 已报名，带 1 个朋友")).toBeVisible();
+  await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "我的活动", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "申请加入" })).toHaveCount(0);
+
+  // The Owner binds their Google account in 设置, then gets in with it alone.
+  const jay = googleSession("google-jay", "jay@example.com");
+  await context.addCookies([{ name: "jb_member", value: jay, url: baseURL! }]);
+  await page.goto("/admin/google");
+  await expect(page.getByRole("button", { name: /Google 账号登录|使用 Google 登录/ })).toBeVisible(); // not bound yet
+  await openAdmin(page);
+  await page.goto(`${adminPath}?tab=settings`);
+  const card = page.locator(".card", { has: page.getByText("用 Google 登录管理页") });
+  await card.getByRole("button", { name: "绑定 jay@example.com" }).click();
+  await expect(card).toContainText("已绑定 jay@example.com");
+  await context.clearCookies({ name: "jb_admin" });
+  await page.goto("/admin/google");
+  await expect(page.locator(".tabs")).toBeVisible();
+  await page.goto("/me");
+  await expect(page.getByRole("link", { name: "进入管理页" })).toHaveAttribute("href", "/admin/google");
 });
 
 test("the Owner closes sign-up and settles; the member sees the bill and a Venmo link", async ({ page }) => {
