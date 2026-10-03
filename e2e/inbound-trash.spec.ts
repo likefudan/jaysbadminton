@@ -27,6 +27,7 @@ test("已删除: delete a payment, restore one, and 清空 with the password", a
       json: {
         open: [row(1, "open")],
         done: [],
+        ignored: [row(4, "ignored")],
         deleted: [row(2, "deleted", { deletedAt }), row(3, "deleted", { deletedAt })],
         payments: [],
         refunds: [],
@@ -51,16 +52,21 @@ test("已删除: delete a payment, restore one, and 清空 with the password", a
   await expect(trash).toContainText("28 天后永久删除");
 
   // Into 已删除 without a dialog; restoring and deleting for good both ask first.
-  await page.locator(".card", { hasText: "待确认" }).getByRole("button", { name: "删除", exact: true }).click();
+  await page
+    .locator(".card", { has: page.getByRole("heading", { name: "待确认 (1)" }) })
+    .getByRole("button", { name: "删除", exact: true })
+    .click();
+  await page.getByRole("button", { name: "移回待确认" }).click();
   await trash.getByRole("button", { name: "恢复" }).first().click();
   await trash.getByRole("button", { name: "永久删除", exact: true }).first().click();
   await trash.getByRole("button", { name: "清空" }).click();
   await trash.getByLabel("管理密码").fill("pw");
   await trash.getByRole("button", { name: "永久删除全部 2 笔" }).click();
 
-  await expect.poll(() => calls.length).toBe(4);
+  await expect.poll(() => calls.length).toBe(5);
   expect(calls).toEqual([
     "/inbound/1/delete {}",
+    "/inbound/4/unignore {}",
     "/inbound/2/restore {}",
     "/inbound/2/purge {}",
     '/inbound/trash/clear {"password":"pw"}',

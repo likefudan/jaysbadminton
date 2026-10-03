@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { TABLES } from "../src/worker/export";
 import { purgeDeletedInbound } from "../src/worker/inbound";
-import { setUpAdmin } from "./helpers";
+import { createTestEvent, setUpAdmin } from "./helpers";
 
 const add = async (txn: string, state = "open") =>
   (await env.DB.prepare(
@@ -34,13 +34,68 @@ describe("已删除 Venmo payments", () => {
     await ctx.admin.call(`${ctx.base}/inbound/${ignored}/restore`, {});
     d = await list();
     expect(d.open).toMatchObject([{ id: pending, state: "open", deletedAt: null }]);
-    expect(d.done.find((i: { id: number }) => i.id === ignored)).toMatchObject({ state: "ignored" });
+    expect(d.ignored).toMatchObject([{ id: ignored, state: "ignored" }]);
     expect(d.deleted).toEqual([]);
 
     await ctx.admin.call(`${ctx.base}/inbound/${pending}/delete`, {});
     expect((await ctx.admin.call(`${ctx.base}/inbound/${ignored}/purge`, {})).status).toBe(400); // not in 已删除
     expect((await ctx.admin.call(`${ctx.base}/inbound/${pending}/purge`, {})).status).toBe(200);
     expect(await env.DB.prepare("SELECT id FROM inbound_payments WHERE id = ?").bind(pending).first()).toBeNull();
+  });
+
+  it("moves a mistakenly ignored payment back to 待确认", async () => {
+    const ctx = await setUpAdmin();
+    const ignored = await add("U1", "ignored");
+    const pending = await add("U2");
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${ignored}/unignore`, {})).status).toBe(200);
+    const d = (await ctx.admin.call(`${ctx.base}/inbound`)).data;
+    expect(d.open.map((i: { id: number }) => i.id).sort()).toEqual([ignored, pending].sort());
+    expect(d.open.find((i: { id: number }) => i.id === ignored).reason).toBe("这次活动还没结算（忽略后移回）");
+    // Only ignored ones: 待确认 and a second click are refused.
+    const again = await ctx.admin.call(`${ctx.base}/inbound/${ignored}/unignore`, {});
+    expect(again.data.error.message).toBe("只能把已忽略的收款移回待确认");
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${pending}/unignore`, {})).status).toBe(400);
+  });
+
+  it("never moves back a payment whose money is already on a bill, and ignores only from 待确认", async () => {
+    const ctx = await setUpAdmin();
+    const linked = await add("R1", "linked");
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${linked}/ignore`, {})).status).toBe(400);
+    // An ignored row whose transaction a receipt still counts (left by an older race) stays put.
+    const stray = await add("R2", "ignored");
+    const e = await createTestEvent(ctx);
+    const bill = (await env.DB.prepare(
+      `INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status)
+       VALUES (?, (SELECT id FROM members LIMIT 1), 100, 'x', 'unpaid') RETURNING id`,
+    )
+      .bind(e.id)
+      .first<{ id: number }>())!;
+    await env.DB.prepare(
+      "INSERT INTO payment_receipts (payment_id, amount_cents, method, venmo_txn_id, received_at) VALUES (?, 100, 'venmo', 'R2', ?)",
+    )
+      .bind(bill.id, new Date().toISOString())
+      .run();
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${stray}/unignore`, {})).data.error.message).toBe(
+      "这笔付款已经记在一张账单上了，不能再移回待确认；需要改的话请在那张账单里撤销",
+    );
+  });
+
+  it("lists every ignored payment, however many newer ones were linked", async () => {
+    const ctx = await setUpAdmin();
+    const old = await add("OLD", "ignored");
+    await env.DB.prepare("UPDATE inbound_payments SET received_at = '2020-01-01T00:00:00.000Z' WHERE id = ?")
+      .bind(old)
+      .run();
+    for (let n = 0; n < 31; n++) await add(`L${n}`, "linked");
+    const d = (await ctx.admin.call(`${ctx.base}/inbound`)).data;
+    expect(d.done).toHaveLength(30);
+    expect(d.ignored.map((i: { id: number }) => i.id)).toEqual([old]);
+    // Ignored and moved back twice: the note is added once.
+    for (let n = 0; n < 2; n++) {
+      await ctx.admin.call(`${ctx.base}/inbound/${old}/unignore`, {});
+      await ctx.admin.call(`${ctx.base}/inbound/${old}/ignore`, {});
+    }
+    expect((await ctx.admin.call(`${ctx.base}/inbound`)).data.ignored[0].reason).toBe("这次活动还没结算（忽略后移回）");
   });
 
   it("清空 needs the password and empties only 已删除", async () => {

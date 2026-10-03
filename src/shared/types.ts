@@ -314,7 +314,10 @@ export interface RefundRow {
 
 export interface InboundResponse {
   open: InboundRow[];
+  /** The 30 latest linked to a bill. */
   done: InboundRow[];
+  /** Every ignored one, until deleted, so a mistaken 忽略 can be moved back. */
+  ignored: InboundRow[];
   deleted: InboundRow[];
   payments: OpenPayment[];
   refunds: RefundRow[];

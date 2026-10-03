@@ -196,7 +196,10 @@ const eventLabel = (date: string, code: string) =>
 
 const ROW_FILTER = {
   open: "i.state = 'open' ORDER BY i.received_at DESC LIMIT 200",
-  done: "i.state IN ('linked', 'ignored') ORDER BY i.received_at DESC LIMIT 30",
+  done: "i.state = 'linked' ORDER BY i.received_at DESC LIMIT 30",
+  // All of them, until deleted, so a mistaken 忽略 can always be moved back (only payments that
+  // carry our code ever get here, so there are few).
+  ignored: "i.state = 'ignored' ORDER BY i.received_at DESC",
   deleted: "i.state = 'deleted' ORDER BY i.deleted_at DESC",
 };
 

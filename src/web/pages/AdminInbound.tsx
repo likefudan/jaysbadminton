@@ -19,19 +19,24 @@ export function InboundTab(props: { base: string }) {
           </p>
           <Refunds base={props.base} list={d.refunds} onDone={reload} />
           <OpenList base={props.base} open={d.open} payments={d.payments} onDone={reload} />
+          {(d.ignored ?? []).length > 0 && (
+            <Card title={`已忽略 (${d.ignored.length})`}>
+              <p class="muted small">忽略错了可以移回待确认，再关联到账单；不需要的可以删除。</p>
+              {d.ignored.map((i) => (
+                <IgnoredItem key={i.id} base={props.base} item={i} onDone={reload} />
+              ))}
+            </Card>
+          )}
           {d.done.length > 0 && (
-            <Card title="最近处理过的">
+            <Card title="最近关联的">
               {d.done.map((i) => (
                 <div class="inbound" key={i.id}>
                   <Summary item={i} />
-                  <small class="muted">
-                    {i.state === "ignored"
-                      ? "已忽略"
-                      : i.linked
-                        ? `已关联到 ${i.linked.memberName}（${i.linked.eventLabel}）`
-                        : ""}
-                  </small>
-                  {i.state === "ignored" && <DeleteButton base={props.base} item={i} onDone={reload} />}
+                  {i.linked && (
+                    <small class="muted">
+                      已关联到 {i.linked.memberName}（{i.linked.eventLabel}）
+                    </small>
+                  )}
                 </div>
               ))}
             </Card>
@@ -95,7 +100,7 @@ function Item(props: { base: string; item: InboundRow; groups: [string, OpenPaym
     if (await run(() => api(`${props.base}/inbound/${i.id}/link`, { paymentId: p.id }))) props.onDone();
   }
   async function ignore() {
-    if (!confirm("忽略这笔收款？之后不会再提醒。")) return;
+    if (!confirm("忽略这笔收款？之后不会再提醒；忽略错了可以在「已忽略」里移回待确认。")) return;
     if (await run(() => api(`${props.base}/inbound/${i.id}/ignore`, {}))) props.onDone();
   }
 
@@ -136,6 +141,29 @@ function Item(props: { base: string; item: InboundRow; groups: [string, OpenPaym
           忽略
         </button>
         <DeleteButton base={props.base} item={i} onDone={props.onDone} />
+      </div>
+    </div>
+  );
+}
+
+/** An ignored payment: 移回待确认 (undoes 忽略) or 删除, sharing one busy state. */
+function IgnoredItem(props: { base: string; item: InboundRow; onDone: () => void }) {
+  const { busy, error, run } = useAction();
+  const act = async (action: "unignore" | "delete") => {
+    if (await run(() => api(`${props.base}/inbound/${props.item.id}/${action}`, {}))) props.onDone();
+  };
+  return (
+    <div class="inbound">
+      <Summary item={props.item} />
+      {props.item.reason && <p class="small reason">{props.item.reason}</p>}
+      {error && <p class="error">{error}</p>}
+      <div class="link-row">
+        <button type="button" class="button secondary" disabled={busy} onClick={() => act("unignore")}>
+          移回待确认
+        </button>
+        <button type="button" class="button secondary" disabled={busy} onClick={() => act("delete")}>
+          删除
+        </button>
       </div>
     </div>
   );

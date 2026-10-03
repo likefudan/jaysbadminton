@@ -398,6 +398,40 @@ describe("emergency controls", () => {
     expect((await anon.call(`/api/public/events/${e.code}`)).data.location).toBe("New Gym");
   });
 
+  it("moves a reopened deadline with the start, and keeps it when only the venue changes", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx, { deadlineDays: 1, deadlineHours: 0 });
+    await expire(e.id);
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/reopen`, { date: e.date, time: "20:30" });
+    const reopened = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.deadlineAt;
+    // A venue fix: sign-up stays open until the reopened deadline.
+    const fixed = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+      date: e.date,
+      startTime: e.startTime,
+      endTime: e.endTime,
+      location: "Fixed Gym",
+    });
+    expect(fixed.data).toMatchObject({ status: "open", deadlineAt: reopened, location: "Fixed Gym" });
+    // Ending before the reopened deadline pulls it in to the end.
+    const shorter = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+      date: e.date,
+      startTime: e.startTime,
+      endTime: "20:00",
+      location: "Fixed Gym",
+    });
+    expect(shorter.data.status).toBe("open");
+    expect(Date.parse(shorter.data.deadlineAt)).toBe(Date.parse(reopened) - 30 * 60_000);
+    // Moving the start an hour later moves the deadline with it.
+    const moved = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+      date: e.date,
+      startTime: "20:00",
+      endTime: "22:00",
+      location: "Fixed Gym",
+    });
+    expect(moved.data.status).toBe("open");
+    expect(Date.parse(moved.data.deadlineAt)).toBe(Date.parse(reopened) + 30 * 60_000);
+  });
+
   it("closes sign-up when an edit moves the deadline into the past, and works after Finalize", async () => {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx, { deadlineDays: 3, deadlineHours: 0 });

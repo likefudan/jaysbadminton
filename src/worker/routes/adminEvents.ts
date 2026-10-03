@@ -221,8 +221,8 @@ adminEventRoutes.post("/events/:id/close-now", async (c) => {
 
 /**
  * Emergency edit of date, times and location. The event code stays the same so links and
- * payment codes already sent out keep working. An open event keeps its deadline offset; if the
- * new deadline has already passed, sign-up closes. Closed events stay closed.
+ * payment codes already sent out keep working. An open event's deadline moves with the start
+ * (never past the end); if it has already passed, sign-up closes. Closed events stay closed.
  */
 adminEventRoutes.post("/events/:id/edit", async (c) => {
   await closeExpired(c.env);
@@ -244,7 +244,11 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   let deadline = e.deadline_at;
   let status = e.status;
   if (e.status === "open") {
-    deadline = new Date(Date.parse(startAt) - e.deadline_offset_min * 60_000).toISOString();
+    // The deadline moves with the start, keeping its lead time: the usual offset, or whatever
+    // 重新开放报名 set (which may run past the start), so a title or venue fix changes nothing.
+    // Like reopen, never past the end, or the event would stay open (and unsettleable) after it.
+    deadline = new Date(Date.parse(e.deadline_at) + Date.parse(startAt) - Date.parse(e.start_at)).toISOString();
+    if (deadline > endAt) deadline = endAt;
     if (deadline <= now()) status = "closed";
   }
   const ts = now();
@@ -623,15 +627,17 @@ adminEventRoutes.post("/payments/:pid/refunded", async (c) => {
   return c.json({ ok: true });
 });
 
-adminEventRoutes.get("/inbound", async (c) =>
-  c.json<InboundResponse>({
-    open: await inboundRows(c.env, "open"),
-    done: await inboundRows(c.env, "done"),
-    deleted: await inboundRows(c.env, "deleted"),
-    payments: await openPayments(c.env),
-    refunds: await refundRows(c.env),
-  }),
-);
+adminEventRoutes.get("/inbound", async (c) => {
+  const [open, done, ignored, deleted, payments, refunds] = await Promise.all([
+    inboundRows(c.env, "open"),
+    inboundRows(c.env, "done"),
+    inboundRows(c.env, "ignored"),
+    inboundRows(c.env, "deleted"),
+    openPayments(c.env),
+    refundRows(c.env),
+  ]);
+  return c.json<InboundResponse>({ open, done, ignored, deleted, payments, refunds });
+});
 
 async function openInbound(env: Env, id: number) {
   const i = await env.DB.prepare("SELECT * FROM inbound_payments WHERE id = ?").bind(id).first<{
@@ -705,7 +711,37 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
 
 adminEventRoutes.post("/inbound/:iid/ignore", async (c) => {
   const i = await openInbound(c.env, Number(c.req.param("iid")));
-  await c.env.DB.prepare("UPDATE inbound_payments SET state = 'ignored' WHERE id = ?").bind(i.id).run();
+  // Only from 待确认, so a 关联 that won the race is never overwritten.
+  const res = await c.env.DB.prepare("UPDATE inbound_payments SET state = 'ignored' WHERE id = ? AND state = 'open'")
+    .bind(i.id)
+    .run();
+  if (!res.meta.changes) throw badRequest("这笔收款已经处理过了");
+  return c.json({ ok: true });
+});
+
+/** 移回待确认: undoes a mistaken 忽略, so the payment can still be linked to a bill. */
+adminEventRoutes.post("/inbound/:iid/unignore", async (c) => {
+  const res = await c.env.DB.prepare(
+    `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL,
+       reason = CASE WHEN COALESCE(reason, '') = '' THEN '忽略后移回'
+                     WHEN reason LIKE '%忽略后移回%' THEN reason ELSE reason || '（忽略后移回）' END
+     WHERE id = ?1 AND state = 'ignored'
+       -- Never one whose money is already on a bill, so it can't be counted twice.
+       AND NOT EXISTS (SELECT 1 FROM payment_receipts o
+         WHERE o.inbound_id = ?1 OR o.venmo_txn_id = inbound_payments.venmo_txn_id)`,
+  )
+    .bind(Number(c.req.param("iid")))
+    .run();
+  if (!res.meta.changes) {
+    const row = await c.env.DB.prepare("SELECT state FROM inbound_payments WHERE id = ?")
+      .bind(Number(c.req.param("iid")))
+      .first<{ state: string }>();
+    throw badRequest(
+      row?.state === "ignored"
+        ? "这笔付款已经记在一张账单上了，不能再移回待确认；需要改的话请在那张账单里撤销"
+        : "只能把已忽略的收款移回待确认",
+    );
+  }
   return c.json({ ok: true });
 });
 

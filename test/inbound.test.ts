@@ -299,7 +299,8 @@ describe("Owner review", () => {
     expect((await s.admin.call(`${s.base}/inbound/${other.id}/ignore`, {})).status).toBe(200);
     const after = (await s.admin.call(`${s.base}/inbound`)).data;
     expect(after.open).toEqual([]);
-    expect(after.done.map((i: { state: string }) => i.state).sort()).toEqual(["ignored", "linked"]);
+    expect(after.done.map((i: { state: string }) => i.state)).toEqual(["linked"]);
+    expect(after.ignored.map((i: { id: number }) => i.id)).toEqual([other.id]);
   });
 
   it("links a second payment to a paid bill, archived ones included, as an over-payment to refund", async () => {
