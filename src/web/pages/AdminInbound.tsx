@@ -19,23 +19,23 @@ export function InboundTab(props: { base: string }) {
           </p>
           <Refunds base={props.base} list={d.refunds} onDone={reload} />
           <OpenList base={props.base} open={d.open} payments={d.payments} onDone={reload} />
+          {d.ignored.length > 0 && (
+            <Card title={`已忽略 (${d.ignored.length})`}>
+              <p class="muted small">忽略错了可以移回待确认，再关联到账单；不需要的可以删除。</p>
+              {d.ignored.map((i) => (
+                <IgnoredItem key={i.id} base={props.base} item={i} onDone={reload} />
+              ))}
+            </Card>
+          )}
           {d.done.length > 0 && (
-            <Card title="最近处理过的">
+            <Card title="最近关联的">
               {d.done.map((i) => (
                 <div class="inbound" key={i.id}>
                   <Summary item={i} />
-                  <small class="muted">
-                    {i.state === "ignored"
-                      ? "已忽略"
-                      : i.linked
-                        ? `已关联到 ${i.linked.memberName}（${i.linked.eventLabel}）`
-                        : ""}
-                  </small>
-                  {i.state === "ignored" && (
-                    <div class="link-row">
-                      <InboundAction base={props.base} item={i} action="unignore" label="移回待确认" onDone={reload} />
-                      <InboundAction base={props.base} item={i} action="delete" label="删除" onDone={reload} />
-                    </div>
+                  {i.linked && (
+                    <small class="muted">
+                      已关联到 {i.linked.memberName}（{i.linked.eventLabel}）
+                    </small>
                   )}
                 </div>
               ))}
@@ -100,7 +100,7 @@ function Item(props: { base: string; item: InboundRow; groups: [string, OpenPaym
     if (await run(() => api(`${props.base}/inbound/${i.id}/link`, { paymentId: p.id }))) props.onDone();
   }
   async function ignore() {
-    if (!confirm("忽略这笔收款？之后不会再提醒；忽略错了可以在「最近处理过的」里移回待确认。")) return;
+    if (!confirm("忽略这笔收款？之后不会再提醒；忽略错了可以在「已忽略」里移回待确认。")) return;
     if (await run(() => api(`${props.base}/inbound/${i.id}/ignore`, {}))) props.onDone();
   }
 
@@ -140,33 +140,47 @@ function Item(props: { base: string; item: InboundRow; groups: [string, OpenPaym
         <button type="button" class="button secondary" disabled={busy} onClick={ignore}>
           忽略
         </button>
-        <InboundAction base={props.base} item={i} action="delete" label="删除" onDone={props.onDone} />
+        <DeleteButton base={props.base} item={i} onDone={props.onDone} />
       </div>
     </div>
   );
 }
 
-/**
- * 移回待确认 (undoes 忽略) or 删除 (to 已删除; no confirmation, it can be restored for 30 days).
- * The error sits on its own line below the buttons.
- */
-function InboundAction(props: {
-  base: string;
-  item: InboundRow;
-  action: "unignore" | "delete";
-  label: string;
-  onDone: () => void;
-}) {
+/** An ignored payment: 移回待确认 (undoes 忽略) or 删除, sharing one busy state. */
+function IgnoredItem(props: { base: string; item: InboundRow; onDone: () => void }) {
   const { busy, error, run } = useAction();
-  async function go() {
-    if (await run(() => api(`${props.base}/inbound/${props.item.id}/${props.action}`, {}))) props.onDone();
+  const act = async (action: "unignore" | "delete") => {
+    if (await run(() => api(`${props.base}/inbound/${props.item.id}/${action}`, {}))) props.onDone();
+  };
+  return (
+    <div class="inbound">
+      <Summary item={props.item} />
+      {props.item.reason && <p class="small reason">{props.item.reason}</p>}
+      {error && <p class="error">{error}</p>}
+      <div class="link-row">
+        <button type="button" class="button secondary" disabled={busy} onClick={() => act("unignore")}>
+          移回待确认
+        </button>
+        <button type="button" class="button secondary" disabled={busy} onClick={() => act("delete")}>
+          删除
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Moves a payment to 已删除. No confirmation: it can be restored from there for 30 days. */
+function DeleteButton(props: { base: string; item: InboundRow; onDone: () => void }) {
+  const { busy, error, run } = useAction();
+  async function remove() {
+    if (await run(() => api(`${props.base}/inbound/${props.item.id}/delete`, {}))) props.onDone();
   }
   return (
     <>
-      <button type="button" class="button secondary" disabled={busy} onClick={go}>
-        {props.label}
+      <button type="button" class="button secondary" disabled={busy} onClick={remove}>
+        删除
       </button>
-      {error && <p class="error full-row">{error}</p>}
+      {error && <p class="error">{error}</p>}
     </>
   );
 }

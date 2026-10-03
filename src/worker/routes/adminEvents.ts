@@ -630,6 +630,7 @@ adminEventRoutes.get("/inbound", async (c) =>
   c.json<InboundResponse>({
     open: await inboundRows(c.env, "open"),
     done: await inboundRows(c.env, "done"),
+    ignored: await inboundRows(c.env, "ignored"),
     deleted: await inboundRows(c.env, "deleted"),
     payments: await openPayments(c.env),
     refunds: await refundRows(c.env),
@@ -716,7 +717,8 @@ adminEventRoutes.post("/inbound/:iid/ignore", async (c) => {
 adminEventRoutes.post("/inbound/:iid/unignore", async (c) => {
   const res = await c.env.DB.prepare(
     `UPDATE inbound_payments SET state = 'open',
-       reason = CASE WHEN COALESCE(reason, '') = '' THEN '忽略后移回' ELSE reason || '（忽略后移回）' END
+       reason = CASE WHEN COALESCE(reason, '') = '' THEN '忽略后移回'
+                     WHEN reason LIKE '%忽略后移回%' THEN reason ELSE reason || '（忽略后移回）' END
      WHERE id = ? AND state = 'ignored'`,
   )
     .bind(Number(c.req.param("iid")))
