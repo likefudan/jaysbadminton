@@ -442,8 +442,9 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
 adminEventRoutes.post("/payments/:pid/refunded", async (c) => {
   const id = Number(c.req.param("pid"));
   const res = await c.env.DB.prepare(
-    `UPDATE payments SET refunded_cents = amount_paid_cents - amount_due_cents
-     WHERE id = ? AND amount_paid_cents > amount_due_cents + refunded_cents`,
+    // amount_paid_cents is net of refunds; both sides read the old values.
+    `UPDATE payments SET refunded_cents = refunded_cents + amount_paid_cents - amount_due_cents, amount_paid_cents = amount_due_cents
+     WHERE id = ? AND amount_paid_cents > amount_due_cents`,
   )
     .bind(id)
     .run();

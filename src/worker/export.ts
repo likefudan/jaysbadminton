@@ -154,7 +154,7 @@ export const TABLES = {
           p.username,
           p.payment_code,
           money(p.amount_due_cents),
-          money(p.amount_paid_cents),
+          money(p.amount_paid_cents + p.refunded_cents),
           money(p.refunded_cents),
           PAY_STATUS[p.status] ?? p.status,
           at(p.paid_at),

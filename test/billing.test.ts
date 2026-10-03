@@ -79,6 +79,35 @@ describe("settlement", () => {
     await s.admin.call(`${s.eb}/roster/${bobRow.id}/remove`, {});
     expect(await payment(s, "Bob")).toBeUndefined();
   });
+
+  it("turns a paid bill into a refund when the member leaves, and drops the Owner's", async () => {
+    const s = await scenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    await s.admin.call(`${s.base}/payments/${(await payment(s, "Bob")).id}/mark-paid`, {});
+    const roster = (await s.admin.call(s.eb)).data.roster;
+    for (const name of ["Bob", "Jay"]) {
+      await s.admin.call(`${s.eb}/roster/${roster.find((r: { name: string }) => r.name === name).id}/remove`, {});
+    }
+    expect(await payment(s, "Bob")).toMatchObject({ amountDueCents: 0, amountPaidCents: 3100, status: "paid", refundCents: 3100 });
+    expect(await payment(s, "Jay")).toBeUndefined();
+  });
+
+  it("asks for the difference again when a bill goes back up after a refund", async () => {
+    const s = await scenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const a = await payment(s, "Alice");
+    await s.admin.call(`${s.base}/payments/${a.id}/mark-paid`, {});
+    await s.admin.call(`${s.eb}/finalize`, { ...s.fees, courtTotal: "80" });
+    expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 2000 + 600 + 2000, refundCents: 1000 });
+    expect((await s.admin.call(`${s.base}/payments/${a.id}/refunded`, {})).status).toBe(200);
+    expect(await payment(s, "Alice")).toMatchObject({ amountPaidCents: 4600, status: "paid", refundCents: 0 });
+
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 5600, amountPaidCents: 4600, status: "partial" });
+    await s.admin.call(`${s.base}/payments/${a.id}/mark-paid`, {});
+    expect(await payment(s, "Alice")).toMatchObject({ amountPaidCents: 5600, status: "paid", refundCents: 0 });
+    expect((await payment(s, "Alice")).receipts.map((r: { amountCents: number }) => r.amountCents)).toEqual([5600, 1000]);
+  });
 });
 
 describe("collection and archive", () => {
