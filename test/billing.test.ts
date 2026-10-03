@@ -173,6 +173,14 @@ describe("settlement", () => {
     const row = (await s.admin.call(s.eb)).data.roster.find((r: { name: string }) => r.name === "Jay").id;
     expect((await s.admin.call(`${s.eb}/roster/${row}/remove`, {})).status).toBe(200);
     expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 0, amountPaidCents: 500, refundCents: 500 });
+    // Back on the list: the Venmo payment stays and the manual receipt covers only the rest.
+    await s.admin.call(`${s.eb}/roster/add`, { memberId: s.owner, includeSelf: true, friends: [] });
+    const back = await payment(s, "Jay");
+    expect(back).toMatchObject({ amountPaidCents: back.amountDueCents, status: "paid", refundCents: 0 });
+    expect(back.receipts.map((r: { method: string; amountCents: number }) => [r.method, r.amountCents])).toEqual([
+      ["venmo", 500],
+      ["manual", back.amountDueCents - 500],
+    ]);
   });
 
   it("refuses roster changes after Finalize that would leave the fees unshared", async () => {

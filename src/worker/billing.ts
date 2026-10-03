@@ -101,14 +101,18 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
         ),
       );
       if (ownerIds.has(b.memberId)) {
-        // The Owner pays themselves, so their receipt is redone at the new amount.
+        // The Owner pays themselves, so their manual receipt is redone at the new amount, less
+        // anything else on the bill (a Venmo payment linked to it stays, with its refunds).
         stmts.push(
           env.DB.prepare(
-            "DELETE FROM payment_receipts WHERE payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
+            "DELETE FROM payment_receipts WHERE method = 'manual' AND payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
           ).bind(e.id, b.memberId),
           env.DB.prepare(
             `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
-             SELECT id, amount_due_cents, 'manual', ? FROM payments WHERE event_id = ? AND member_id = ?`,
+             SELECT id, amount_due_cents - (SELECT COALESCE(SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id),
+               'manual', ?
+             FROM payments WHERE event_id = ? AND member_id = ?
+               AND amount_due_cents > (SELECT COALESCE(SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id)`,
           ).bind(ts, e.id, b.memberId),
         );
       }
