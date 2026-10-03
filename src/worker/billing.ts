@@ -23,9 +23,11 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
 }
 
 /**
- * Writes the settlement and brings the payment rows in line with it. Unpaid and partly paid rows
- * follow the new amounts; paid rows are left alone. The Owner's own bill is paid with a manual
- * receipt. A member who left the roster loses a row that has received nothing.
+ * Writes the settlement and brings the payment rows in line with it. Every row follows the new
+ * amounts, paid ones included, so a corrected fee is shared by everyone: a member who already paid
+ * the old amount ends up owing the difference (partial) or due a refund. The Owner's own bill is
+ * always paid in full with one manual receipt that tracks the amount. A member who left the roster
+ * loses a row that has received nothing.
  */
 export async function applySettlement(env: Env, e: EventRow, input: SettleInput): Promise<Settlement> {
   const result = settle(await settleRows(env, e.id), input);
@@ -34,7 +36,7 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
     .bind(e.id)
     .all<{ member_id: string; status: string }>();
   const people = await env.DB.prepare(
-    `SELECT id, username, is_owner FROM members WHERE id IN (SELECT member_id FROM registrations WHERE event_id = ?)`,
+    `SELECT id, username, is_owner FROM members WHERE is_owner = 1 OR id IN (SELECT member_id FROM registrations WHERE event_id = ?)`,
   )
     .bind(e.id)
     .all<{ id: string; username: string; is_owner: number }>();
@@ -80,7 +82,7 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
           ).bind(ts, e.id, b.memberId),
         );
       }
-    } else if (status !== "paid") {
+    } else {
       stmts.push(
         env.DB.prepare("UPDATE payments SET amount_due_cents = ? WHERE event_id = ? AND member_id = ?").bind(
           b.totalCents,
@@ -88,12 +90,33 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
           b.memberId,
         ),
       );
+      if (ownerIds.has(b.memberId)) {
+        // The Owner pays themselves, so their receipt is redone at the new amount.
+        stmts.push(
+          env.DB.prepare(
+            "DELETE FROM payment_receipts WHERE payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
+          ).bind(e.id, b.memberId),
+          env.DB.prepare(
+            `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
+             SELECT id, amount_due_cents, 'manual', ? FROM payments WHERE event_id = ? AND member_id = ?`,
+          ).bind(ts, e.id, b.memberId),
+        );
+      }
     }
   }
   for (const [memberId, status] of prev) {
-    if (!billed.has(memberId) && status === "unpaid") {
-      // Unpaid means no receipts, so nothing is lost.
-      stmts.push(env.DB.prepare("DELETE FROM payments WHERE event_id = ? AND member_id = ?").bind(e.id, memberId));
+    if (billed.has(memberId)) continue;
+    if (status === "unpaid" || ownerIds.has(memberId)) {
+      // Unpaid means no receipts, and the Owner's are their own, so nothing is lost.
+      stmts.push(
+        env.DB.prepare(
+          "DELETE FROM payment_receipts WHERE payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
+        ).bind(e.id, memberId),
+        env.DB.prepare("DELETE FROM payments WHERE event_id = ? AND member_id = ?").bind(e.id, memberId),
+      );
+    } else {
+      // Paid something but no longer on the roster: owes nothing, so all of it is a refund.
+      stmts.push(env.DB.prepare("UPDATE payments SET amount_due_cents = 0 WHERE event_id = ? AND member_id = ?").bind(e.id, memberId));
     }
   }
   stmts.push(...syncPayments(env.DB, "event_id = ?", e.id));
@@ -161,15 +184,19 @@ export async function paymentRows(env: Env, eventId: number): Promise<PaymentRow
 }
 
 /**
- * Recomputes the received total and status of the matching bills from their receipts:
- * nothing → unpaid, less than due → partial, due or more → paid (any excess is a refund).
+ * Recomputes the received total and status of the matching bills from their receipts. Refunds are
+ * receipts with a negative amount, so the total is net of them: nothing → unpaid, less than due →
+ * partial, due or more → paid (any excess is still to be refunded).
  */
 export function syncPayments(db: D1Database, where: string, ...args: unknown[]): D1PreparedStatement[] {
   return [
     db
       .prepare(
         `UPDATE payments SET amount_paid_cents =
-           (SELECT COALESCE(SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id) WHERE ${where}`,
+           (SELECT COALESCE(SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id),
+         refunded_cents =
+           (SELECT COALESCE(-SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id AND method = 'refund')
+         WHERE ${where}`,
       )
       .bind(...args),
     db
@@ -232,5 +259,5 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
   return out;
 }
 
-export const refundOf = (p: { amount_paid_cents: number; amount_due_cents: number; refunded_cents: number }) =>
-  Math.max(0, p.amount_paid_cents - p.amount_due_cents - p.refunded_cents);
+/** amount_paid_cents is net of refunds, so whatever is above the bill is still owed back. */
+export const refundOf = (p: { amount_paid_cents: number; amount_due_cents: number }) => Math.max(0, p.amount_paid_cents - p.amount_due_cents);

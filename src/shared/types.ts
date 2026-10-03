@@ -226,7 +226,7 @@ export type PaymentStatus = "unpaid" | "partial" | "paid";
 export interface Receipt {
   id: number;
   amountCents: number;
-  method: "venmo" | "manual";
+  method: "venmo" | "manual" | "refund"; // a refund has a negative amount
   payerName: string | null;
   receivedAt: string;
 }

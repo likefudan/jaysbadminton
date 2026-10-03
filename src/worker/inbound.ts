@@ -205,7 +205,7 @@ export async function refundRows(env: Env): Promise<RefundRow[]> {
   const { results } = await env.DB.prepare(
     `SELECT p.*, m.username, e.date, e.code FROM payments p
      JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
-     WHERE p.amount_paid_cents > p.amount_due_cents + p.refunded_cents
+     WHERE p.amount_paid_cents > p.amount_due_cents
      ORDER BY e.start_at DESC, m.username`,
   ).all<Record<string, any>>();
   const receipts = await receiptsFor(env, results.map((p) => p.id));
