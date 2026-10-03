@@ -30,9 +30,19 @@ export async function rotateExportKey(env: Env): Promise<string> {
   return appsScript(env.SITE_ORIGIN, key);
 }
 
-export async function currentScript(env: Env): Promise<string | null> {
+/**
+ * The script with the current key, for the admin page. keyLost: sync is on but its key can't be
+ * decrypted (TOKEN_KEY was replaced), so the Owner has to make a new one; the old script, which
+ * still holds the key, keeps working until then.
+ */
+export async function currentScript(env: Env): Promise<{ script: string | null; keyLost: boolean }> {
   const s = await getSettings(env.DB, ["export_key_enc"]);
-  return s.export_key_enc ? appsScript(env.SITE_ORIGIN, await decryptToken(s.export_key_enc, env.TOKEN_KEY)) : null;
+  if (!s.export_key_enc) return { script: null, keyLost: false };
+  try {
+    return { script: appsScript(env.SITE_ORIGIN, await decryptToken(s.export_key_enc, env.TOKEN_KEY)), keyLost: false };
+  } catch {
+    return { script: null, keyLost: true };
+  }
 }
 
 export async function disableExport(env: Env): Promise<void> {

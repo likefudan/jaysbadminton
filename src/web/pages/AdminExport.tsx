@@ -35,6 +35,8 @@ interface SheetsState {
   enabled: boolean;
   lastSyncAt: string | null;
   script: string | null;
+  /** On, but the key can't be shown any more (the site's key was replaced): make a new one. */
+  keyLost: boolean;
 }
 
 /** Google 表格同步: the sheet pulls from the site daily with a script the Owner pastes once. */
@@ -80,6 +82,12 @@ export function SheetsCard(props: { base: string }) {
           }
           return (
             <>
+              {s.keyLost && !script && (
+                <p class="error">
+                  网站密钥换过，同步脚本已无法显示。请点下面的「重新生成密钥」，再把新脚本粘贴到 Google
+                  表格里（旧脚本在那之前还能继续同步）。
+                </p>
+              )}
               <p class="small">
                 {s.lastSyncAt
                   ? `✓ 上次同步：${formatInstantZh(s.lastSyncAt)}`

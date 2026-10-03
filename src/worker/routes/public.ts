@@ -88,7 +88,12 @@ publicRoutes.post("/recover-link", async (c) => {
   if (str(body.website)) return c.json({ ok: true });
   const err = checkEmail(str(body.email));
   if (err) throw badRequest(err);
-  await sendLinkRecovery(c.env, str(body.email));
+  try {
+    await sendLinkRecovery(c.env, str(body.email));
+  } catch (err) {
+    // Same answer either way: an error only for members' addresses would tell who is one.
+    console.error("link recovery failed:", err);
+  }
   return c.json({ ok: true });
 });
 

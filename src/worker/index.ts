@@ -10,7 +10,7 @@ import { emailProblemAlert, recordCronError } from "./health";
 import { runScheduled } from "./notify";
 import { eventMeta, homeMeta, sharePage } from "./share";
 import { isStaging } from "./site";
-import { CSP, CSP_HEADER, HSTS } from "../shared/security";
+import { SECURITY_HEADERS } from "../shared/security";
 import { checkExportKey } from "./sheets";
 import { handleUpdate, webhookSecret } from "./telegram";
 import { adminRoutes } from "./routes/admin";
@@ -22,15 +22,10 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use("*", async (c, next) => {
   await next();
-  // Member and admin links carry secret tokens in the path; keep them out of caches and referrers.
+  // Member and admin links carry secret tokens in the path; keep them out of caches.
   c.header("Cache-Control", "no-store");
-  c.header("Referrer-Policy", "no-referrer");
-  c.header("X-Content-Type-Options", "nosniff");
-  c.header("X-Frame-Options", "DENY");
   // Same as public/_headers, now that the Worker also serves the home and event pages.
-  c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
-  c.header("Strict-Transport-Security", HSTS);
-  c.header(CSP_HEADER, CSP);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) c.header(name, value);
   if (isStaging(c.env)) c.header("X-Robots-Tag", "noindex, nofollow");
 });
 

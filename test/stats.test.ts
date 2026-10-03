@@ -140,6 +140,7 @@ describe("export", () => {
       enabled: false,
       lastSyncAt: null,
       script: null,
+      keyLost: false,
     });
   });
 

@@ -65,6 +65,11 @@ export function AdminGuide(props: { base: string }) {
             <b>连接 Telegram</b>（上面「Telegram 通知」→
             连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里；以后忘了管理链接也能在这里找回。
           </Step>
+          <Step>
+            <b>备份网站密钥</b>（「设置 → 备份网站密钥」，要先连接 Telegram）：密钥发到 Telegram
+            后存进密码管理器，再交给网站维护者存成 GitHub secret。万一 Cloudflare
+            里的密钥丢了，部署时会用它自动恢复，成员链接、管理链接和表格同步脚本才能继续显示和找回。
+          </Step>
           <Step done={s?.venmo}>
             <b>填写收款设置</b>（上面「收款设置」，保存时要输入管理密码）：Venmo 用户名、Venmo 通知邮箱（Venmo
             账户里登记的、收款通知发到的那个邮箱），Zelle 选填。

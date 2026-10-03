@@ -27,3 +27,14 @@ export const CSP = [
 
 /** One year of HTTPS-only; no includeSubDomains or preload, so nothing outside this site is bound. */
 export const HSTS = "max-age=31536000";
+
+/** Every security header, set by the Worker and repeated in _headers (the test checks each one). */
+export const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  // Member and admin links carry secret tokens in the path; keep them out of referrers.
+  "Referrer-Policy": "no-referrer",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+  "Strict-Transport-Security": HSTS,
+  [CSP_HEADER]: CSP,
+};
