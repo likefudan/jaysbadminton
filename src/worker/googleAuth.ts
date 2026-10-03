@@ -239,6 +239,8 @@ googleRoutes.post("/link", async (c) => {
   const m = await memberByToken(c.env, str(body.token));
   if (!m) throw new HttpError(403, "invalid_link", "原成员链接无效，请联系管理员");
   if (m.google_sub === session.google_sub) return c.json({ ok: true });
+  const holder = await memberByGoogle(c.env, session.google_sub);
+  if (holder) throw new HttpError(409, "already_linked", "此成员或 Google 账号已绑定，请使用原账号登录");
   // The member's own email may match; anyone else's may not.
   if (await emailTaken(c.env, session.email, m.id)) throw googleEmailTaken();
   try {

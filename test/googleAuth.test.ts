@@ -297,6 +297,9 @@ describe("Google member access", () => {
     );
     const ally = (await env.DB.prepare("SELECT id FROM members WHERE username = 'Ally'").first<{ id: string }>())!;
     expect((await request("/api/auth/link", cookie, { token: await issueMemberToken(env, ally.id) })).status).toBe(200);
+    // Once linked, trying another link says it is already linked rather than blaming the email.
+    const again = await request("/api/auth/link", cookie, { token: await issueMemberToken(env, other.id) });
+    expect(((await again.json()) as any).error.code).toBe("already_linked");
   });
 
   it("binds an existing member without changing ID, token or records and prevents reassignment", async () => {
