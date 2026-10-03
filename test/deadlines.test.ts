@@ -1,4 +1,9 @@
-import { createExecutionContext, runDurableObjectAlarm, runInDurableObject, waitOnExecutionContext } from "cloudflare:test";
+import {
+  createExecutionContext,
+  runDurableObjectAlarm,
+  runInDurableObject,
+  waitOnExecutionContext,
+} from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/worker/index";
@@ -40,7 +45,11 @@ describe("deadline alarms", () => {
     await runInDurableObject(stub(e.id), (_o, state) => state.storage.deleteAlarm());
     expect(await alarmOf(e.id)).toBeNull();
     const c = createExecutionContext();
-    await worker.scheduled!({ scheduledTime: Date.now(), cron: "*/15 * * * *", noRetry() {} } as ScheduledController, env, c);
+    await worker.scheduled!(
+      { scheduledTime: Date.now(), cron: "*/15 * * * *", noRetry() {} } as ScheduledController,
+      env,
+      c,
+    );
     await waitOnExecutionContext(c);
     expect(await alarmOf(e.id)).toBe(Date.parse(e.deadlineAt) - 6 * 3600_000);
   });
@@ -49,7 +58,9 @@ describe("deadline alarms", () => {
     const ctx = await setUpAdmin();
     await connectChat();
     const e = await createTestEvent(ctx, { joinSelf: true });
-    await env.DB.prepare("UPDATE events SET deadline_at = ? WHERE id = ?").bind(new Date(Date.now() - 1000).toISOString(), e.id).run();
+    await env.DB.prepare("UPDATE events SET deadline_at = ? WHERE id = ?")
+      .bind(new Date(Date.now() - 1000).toISOString(), e.id)
+      .run();
     await stub(e.id).sync(e.id);
     await runDurableObjectAlarm(stub(e.id)); // false when the alarm is already firing by itself
     await vi.waitFor(() => expect(texts).toHaveLength(1));
@@ -74,9 +85,13 @@ describe("deadline alarms", () => {
   it("follows the deadline when sign-up is reopened, and clears the alarm when the event is cancelled", async () => {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx);
-    await env.DB.prepare("UPDATE events SET status = 'closed', deadline_at = '2000-01-01T00:00:00.000Z' WHERE id = ?").bind(e.id).run();
+    await env.DB.prepare("UPDATE events SET status = 'closed', deadline_at = '2000-01-01T00:00:00.000Z' WHERE id = ?")
+      .bind(e.id)
+      .run();
     await ctx.admin.call(`${ctx.base}/events/${e.id}/reopen`, { date: e.date, time: "18:00" });
-    const reopened = await env.DB.prepare("SELECT deadline_at FROM events WHERE id = ?").bind(e.id).first<{ deadline_at: string }>();
+    const reopened = await env.DB.prepare("SELECT deadline_at FROM events WHERE id = ?")
+      .bind(e.id)
+      .first<{ deadline_at: string }>();
     expect(await alarmOf(e.id)).toBe(Date.parse(reopened!.deadline_at) - 6 * 3600_000);
 
     await ctx.admin.call(`${ctx.base}/events/${e.id}/cancel`, {});

@@ -170,7 +170,11 @@ function drawQr(
     }
   }
 
-  for (const [r, c] of [[0, 0], [0, n - 7], [n - 7, 0]] as const) {
+  for (const [r, c] of [
+    [0, 0],
+    [0, n - 7],
+    [n - 7, 0],
+  ] as const) {
     const ex = x + c * cell;
     const ey = y + r * cell;
     roundRect(ctx, ex, ey, 7 * cell, 7 * cell, 2.2 * cell);

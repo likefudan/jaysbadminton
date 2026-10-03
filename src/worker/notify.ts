@@ -37,13 +37,23 @@ export async function notifySettings(env: Env): Promise<NotifySettings> {
  * runs cannot both send; if Telegram fails (or building the message throws) the row is removed
  * and the next run tries again.
  */
-export async function once(env: Env, eventId: number, type: string, key: string, send: () => Promise<boolean>): Promise<void> {
-  const claim = await env.DB.prepare("INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, ?, ?, ?)")
+export async function once(
+  env: Env,
+  eventId: number,
+  type: string,
+  key: string,
+  send: () => Promise<boolean>,
+): Promise<void> {
+  const claim = await env.DB.prepare(
+    "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, ?, ?, ?)",
+  )
     .bind(eventId, type, key, now())
     .run();
   if (claim.meta.changes === 0) return;
   const release = () =>
-    env.DB.prepare("DELETE FROM notification_log WHERE event_id = ? AND type = ? AND sent_on = ?").bind(eventId, type, key).run();
+    env.DB.prepare("DELETE FROM notification_log WHERE event_id = ? AND type = ? AND sent_on = ?")
+      .bind(eventId, type, key)
+      .run();
   let ok: boolean;
   try {
     ok = await send();
@@ -61,7 +71,9 @@ const when = (e: EventRow) => `${day(e)} ${toPacific(e.start_at).time}–${toPac
 const eventLink = (env: Env, e: EventRow) => `${env.SITE_ORIGIN}/e/${e.code}`;
 
 async function headcount(env: Env, eventId: number): Promise<number> {
-  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ?").bind(eventId).first<{ n: number }>();
+  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ?")
+    .bind(eventId)
+    .first<{ n: number }>();
   return r?.n ?? 0;
 }
 
@@ -69,7 +81,9 @@ async function headcount(env: Env, eventId: number): Promise<number> {
 
 export async function runScheduled(env: Env, at: Date = new Date()): Promise<void> {
   const cfg = await notifySettings(env);
-  const { results: events } = await env.DB.prepare("SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized')").all<EventRow>();
+  const { results: events } = await env.DB.prepare(
+    "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized')",
+  ).all<EventRow>();
   for (const e of events) {
     try {
       await deadlineReminder(env, e, at, cfg);
@@ -154,7 +168,8 @@ export async function nextDeadlineAlarm(env: Env, eventId: number, at: Date = ne
   const e = await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(eventId).first<EventRow>();
   if (!e) return null;
   const deadline = new Date(e.deadline_at).getTime();
-  if (e.status === "closed") return deadline <= at.getTime() && at.getTime() - deadline <= 24 * 3600_000 ? at.getTime() : null;
+  if (e.status === "closed")
+    return deadline <= at.getTime() && at.getTime() - deadline <= 24 * 3600_000 ? at.getTime() : null;
   if (e.status !== "open") return null;
   const reminder = reminderStart(e, await notifySettings(env));
   return reminder !== null && reminder > at.getTime() ? reminder : deadline;
@@ -191,12 +206,20 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
        FROM payments p JOIN members m ON m.id = p.member_id WHERE p.event_id = ? ORDER BY m.username`,
     )
       .bind(e.id)
-      .all<{ amount_due_cents: number; amount_paid_cents: number; status: string; username: string; wechat_nickname: string }>();
+      .all<{
+        amount_due_cents: number;
+        amount_paid_cents: number;
+        status: string;
+        username: string;
+        wechat_nickname: string;
+      }>();
     const owing = pays.filter((x) => x.status !== "paid");
     if (owing.length === 0) return true;
     const due = pays.reduce((t, x) => t + x.amount_due_cents, 0);
     const paid = pays.reduce((t, x) => t + x.amount_paid_cents, 0);
-    const lines = owing.map((x) => `${x.username} 还差 $${dollars(x.amount_due_cents - x.amount_paid_cents)}`).join("\n");
+    const lines = owing
+      .map((x) => `${x.username} 还差 $${dollars(x.amount_due_cents - x.amount_paid_cents)}`)
+      .join("\n");
     const ok = await sendToOwner(
       env,
       message(
@@ -248,7 +271,13 @@ export async function notifyCollected(env: Env, eventId: number): Promise<void> 
       "SELECT court_total_cents, shuttle_count, shuttle_price_cents, registered_count, attended_count FROM settlements WHERE event_id = ?",
     )
       .bind(e.id)
-      .first<{ court_total_cents: number; shuttle_count: number; shuttle_price_cents: number; registered_count: number; attended_count: number }>();
+      .first<{
+        court_total_cents: number;
+        shuttle_count: number;
+        shuttle_price_cents: number;
+        registered_count: number;
+        attended_count: number;
+      }>();
     const pay = await env.DB.prepare(
       `SELECT COUNT(*) AS n, SUM(amount_due_cents) AS due, SUM(amount_paid_cents) AS paid,
          SUM(MAX(amount_paid_cents - amount_due_cents, 0)) AS refund
@@ -297,7 +326,13 @@ export async function notifyPayment(
        FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
     )
       .bind(info.paymentId)
-      .first<{ amount_due_cents: number; amount_paid_cents: number; refunded_cents: number; username: string; date: string }>();
+      .first<{
+        amount_due_cents: number;
+        amount_paid_cents: number;
+        refunded_cents: number;
+        username: string;
+        date: string;
+      }>();
     if (!p) return;
     const d = formatDateZh(p.date);
     text =

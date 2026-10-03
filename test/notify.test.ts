@@ -22,7 +22,11 @@ beforeEach(() => {
     const url = String(input instanceof Request ? input.url : input);
     if (!url.startsWith("https://api.telegram.org/bottest-bot-token/")) throw new Error(`unexpected fetch ${url}`);
     calls.push({ method: url.split("/").pop()!, body: JSON.parse(String(init?.body ?? "{}")) });
-    return Response.json(telegramOk ? { ok: true, result: { username: "jb_test_bot", message_id: 1 } } : { ok: false, description: "nope" });
+    return Response.json(
+      telegramOk
+        ? { ok: true, result: { username: "jb_test_bot", message_id: 1 } }
+        : { ok: false, description: "nope" },
+    );
   });
 });
 afterEach(() => vi.restoreAllMocks());
@@ -34,7 +38,10 @@ const pacific = (date: string, time: string) => new Date(pacificToUtc(date, time
 async function webhook(text: string, chatId = 42, secret?: string) {
   return exports.default.fetch(`${ORIGIN}/api/telegram/webhook`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Telegram-Bot-Api-Secret-Token": secret ?? (await webhookSecret(env)) },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Telegram-Bot-Api-Secret-Token": secret ?? (await webhookSecret(env)),
+    },
     body: JSON.stringify({ message: { text, chat: { id: chatId, type: "private", first_name: "Ming" } } }),
   });
 }
@@ -45,7 +52,10 @@ describe("connecting Telegram", () => {
     const { link } = (await ctx.admin.call(`${ctx.base}/telegram/connect`, {})).data;
     expect(link).toMatch(/^https:\/\/t\.me\/jb_test_bot\?start=[A-Za-z0-9_-]{43}$/);
     const hook = calls.find((c) => c.method === "setWebhook")!.body;
-    expect(hook).toMatchObject({ url: "https://jaysbadminton.llmat.dev/api/telegram/webhook", allowed_updates: ["message"] });
+    expect(hook).toMatchObject({
+      url: "https://jaysbadminton.llmat.dev/api/telegram/webhook",
+      allowed_updates: ["message"],
+    });
     const code = link.split("=")[1];
 
     expect((await webhook(`/start ${code}`, 42, "forged")).status).toBe(403);
@@ -54,7 +64,11 @@ describe("connecting Telegram", () => {
     expect((await ctx.admin.call(`${ctx.base}/telegram`)).data.connected).toBe(false);
 
     expect((await webhook(`/start ${code}`, 42)).status).toBe(200);
-    expect((await ctx.admin.call(`${ctx.base}/telegram`)).data).toMatchObject({ connected: true, chatName: "Ming", botUsername: "jb_test_bot" });
+    expect((await ctx.admin.call(`${ctx.base}/telegram`)).data).toMatchObject({
+      connected: true,
+      chatName: "Ming",
+      botUsername: "jb_test_bot",
+    });
     expect(calls.at(-1)!.body).toMatchObject({ chat_id: "42" });
 
     // The code is spent: someone else using it later changes nothing.
@@ -99,12 +113,20 @@ describe("scheduled notifications", () => {
     const ctx = await setUpAdmin();
     await connectChat();
     const e = await createTestEvent(ctx, { joinSelf: true });
-    await env.DB.prepare("UPDATE events SET deadline_at = ? WHERE id = ?").bind(new Date(Date.now() - 20_000).toISOString(), e.id).run();
+    await env.DB.prepare("UPDATE events SET deadline_at = ? WHERE id = ?")
+      .bind(new Date(Date.now() - 20_000).toISOString(), e.id)
+      .run();
     const c = createExecutionContext();
-    await worker.scheduled!({ scheduledTime: Date.now(), cron: "* * * * *", noRetry() {} } as ScheduledController, env, c);
+    await worker.scheduled!(
+      { scheduledTime: Date.now(), cron: "* * * * *", noRetry() {} } as ScheduledController,
+      env,
+      c,
+    );
     await waitOnExecutionContext(c);
     expect(sent()).toEqual([expect.stringContaining("报名已截止，共 1 人")]);
-    expect((await env.DB.prepare("SELECT status FROM events WHERE id = ?").bind(e.id).first<{ status: string }>())!.status).toBe("closed");
+    expect(
+      (await env.DB.prepare("SELECT status FROM events WHERE id = ?").bind(e.id).first<{ status: string }>())!.status,
+    ).toBe("closed");
   });
 
   it("skips the reminder when the event was created inside the window, or reminders are off", async () => {
@@ -112,7 +134,9 @@ describe("scheduled notifications", () => {
     await connectChat();
     const e = await createTestEvent(ctx);
     const deadline = new Date(e.deadlineAt).getTime();
-    await env.DB.prepare("UPDATE events SET created_at = ?").bind(new Date(deadline - 3 * 3600_000).toISOString()).run();
+    await env.DB.prepare("UPDATE events SET created_at = ?")
+      .bind(new Date(deadline - 3 * 3600_000).toISOString())
+      .run();
     await runScheduled(env, new Date(deadline - 3600_000));
     expect(sent()).toEqual([]);
 
@@ -147,7 +171,9 @@ describe("scheduled notifications", () => {
 
     calls = [];
     // Forwarding is healthy and the Monday digest is off: this test is about bill reminders only.
-    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('email_last_at', ?), ('weekly_digest', '0')").bind(new Date().toISOString()).run();
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('email_last_at', ?), ('weekly_digest', '0')")
+      .bind(new Date().toISOString())
+      .run();
     const today = futureDate(0);
     await runScheduled(env, pacific(today, "10:05")); // less than 24 h after Finalize
     expect(sent()).toEqual([]);
@@ -221,7 +247,8 @@ describe("Venmo payment notifications", () => {
     await connectChat();
     await s.admin.call(`${s.eb}/finalize`, s.fees);
     const { payments } = (await s.admin.call(`${s.eb}/settlement`)).data;
-    const code = (name: string) => payments.find((p: { memberName: string }) => p.memberName === name).paymentCode as string;
+    const code = (name: string) =>
+      payments.find((p: { memberName: string }) => p.memberName === name).paymentCode as string;
     const { resolveKey } = await testKey();
     const deliver = async (f: ReceiptFields) => handleEmail(env, (await venmoEmail(f)).raw, { resolveKey });
     calls = [];
@@ -289,7 +316,9 @@ describe("Gmail forwarding confirmation", () => {
     expect(sent()[0]).toContain("https://mail-settings.google.com/mail/vf-abc");
 
     await recordEmailOutcome(env, outcome);
-    expect((await ctx.admin.call(`${ctx.base}/email-status`)).data).toMatchObject({ outcome: "收到 Gmail 转发确认邮件，已发到你的 Telegram" });
+    expect((await ctx.admin.call(`${ctx.base}/email-status`)).data).toMatchObject({
+      outcome: "收到 Gmail 转发确认邮件，已发到你的 Telegram",
+    });
   });
 
   it("ignores an unsigned one", async () => {
@@ -361,7 +390,9 @@ describe("health alerts", () => {
 
     // An email arrives: forwarding works, no alert while it is recent.
     calls = [];
-    await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('email_last_at', ?)").bind(pacific(day, "09:00").toISOString()).run();
+    await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('email_last_at', ?)")
+      .bind(pacific(day, "09:00").toISOString())
+      .run();
     await runScheduled(env, pacific(futureDate(2), "10:05"));
     expect(sent().filter((t) => t.includes("📭"))).toEqual([]);
   });
@@ -374,7 +405,9 @@ describe("health alerts", () => {
     const at = pacific(monday, "10:05");
     const recent = new Date(at.getTime() - 2 * 24 * 3600_000).toISOString();
     await env.DB.prepare("DELETE FROM email_log").run();
-    await env.DB.prepare("INSERT INTO email_log (received_at, outcome) VALUES (?, 'paid'), (?, 'paid'), (?, 'review'), (?, 'ignored'), ('2000-01-01T00:00:00.000Z', 'paid')")
+    await env.DB.prepare(
+      "INSERT INTO email_log (received_at, outcome) VALUES (?, 'paid'), (?, 'paid'), (?, 'review'), (?, 'ignored'), ('2000-01-01T00:00:00.000Z', 'paid')",
+    )
       .bind(recent, recent, recent, recent)
       .run();
     await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('email_last_at', ?)").bind(recent).run();
@@ -413,7 +446,9 @@ describe("health alerts", () => {
 describe("backing up TOKEN_KEY", () => {
   it("sends the key to the Owner's Telegram only, after the password", async () => {
     const ctx = await setUpAdmin();
-    expect((await ctx.admin.call(`${ctx.base}/settings/backup-key`, { password: "initial-password" })).status).toBe(400);
+    expect((await ctx.admin.call(`${ctx.base}/settings/backup-key`, { password: "initial-password" })).status).toBe(
+      400,
+    );
     await connectChat();
     expect((await ctx.admin.call(`${ctx.base}/settings/backup-key`, { password: "wrong" })).status).toBe(401);
     expect(sent()).toEqual([]);

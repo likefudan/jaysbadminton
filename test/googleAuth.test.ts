@@ -7,18 +7,28 @@ import { createMember, issueMemberToken } from "../src/worker/members";
 import { createTestEvent, setUpAdmin } from "./helpers";
 
 const ORIGIN = "https://jaysbadminton.test";
-const bindings = () => ({ ...env, GOOGLE_CLIENT_ID: "test-client", GOOGLE_CLIENT_SECRET: "test-secret", SITE_ORIGIN: ORIGIN });
-const request = (path: string, cookie = "", body?: unknown, origin = ORIGIN) => worker.fetch(new Request(`${ORIGIN}${path}`, {
-  method: body === undefined ? "GET" : "POST",
-  headers: { Cookie: cookie, Origin: origin, "Content-Type": "application/json" },
-  body: body === undefined ? undefined : JSON.stringify(body),
-}), bindings(), {} as ExecutionContext);
+const bindings = () => ({
+  ...env,
+  GOOGLE_CLIENT_ID: "test-client",
+  GOOGLE_CLIENT_SECRET: "test-secret",
+  SITE_ORIGIN: ORIGIN,
+});
+const request = (path: string, cookie = "", body?: unknown, origin = ORIGIN) =>
+  worker.fetch(
+    new Request(`${ORIGIN}${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { Cookie: cookie, Origin: origin, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+    bindings(),
+    {} as ExecutionContext,
+  );
 
 let privateKey: CryptoKey, jwk: Awaited<ReturnType<typeof exportJWK>>;
 beforeAll(async () => {
   const pair = await generateKeyPair("RS256", { extractable: true });
   privateKey = pair.privateKey;
-  jwk = { ...await exportJWK(pair.publicKey), kid: "google-test", alg: "RS256", use: "sig" };
+  jwk = { ...(await exportJWK(pair.publicKey)), kid: "google-test", alg: "RS256", use: "sig" };
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -28,11 +38,23 @@ async function begin() {
   const url = new URL(res.headers.get("Location")!);
   return { url, state: url.searchParams.get("state")!, cookie: res.headers.get("Set-Cookie")!.split(";")[0]! };
 }
-async function login(claims: Record<string, unknown> = {}, options: { audience?: string; issuer?: string; expires?: string; badSignature?: boolean } = {}) {
+async function login(
+  claims: Record<string, unknown> = {},
+  options: { audience?: string; issuer?: string; expires?: string; badSignature?: boolean } = {},
+) {
   const start = await begin();
-  const token = await new SignJWT({ email: "alice@gmail.com", email_verified: true, nonce: start.url.searchParams.get("nonce"), ...claims })
-    .setProtectedHeader({ alg: "RS256", kid: "google-test" }).setSubject("google-alice")
-    .setIssuer(options.issuer ?? "https://accounts.google.com").setAudience(options.audience ?? "test-client").setIssuedAt().setExpirationTime(options.expires ?? "5m")
+  const token = await new SignJWT({
+    email: "alice@gmail.com",
+    email_verified: true,
+    nonce: start.url.searchParams.get("nonce"),
+    ...claims,
+  })
+    .setProtectedHeader({ alg: "RS256", kid: "google-test" })
+    .setSubject("google-alice")
+    .setIssuer(options.issuer ?? "https://accounts.google.com")
+    .setAudience(options.audience ?? "test-client")
+    .setIssuedAt()
+    .setExpirationTime(options.expires ?? "5m")
     .sign(options.badSignature ? (await generateKeyPair("RS256")).privateKey : privateKey);
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = String(input instanceof Request ? input.url : input);
@@ -48,7 +70,9 @@ async function login(claims: Record<string, unknown> = {}, options: { audience?:
 }
 async function session(sub = "google-alice", expires = new Date(Date.now() + 60_000).toISOString()) {
   const token = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO member_sessions (id_hash, google_sub, email, expires_at) VALUES (?, ?, ?, ?)").bind(await sha256(token), sub, "alice@gmail.com", expires).run();
+  await env.DB.prepare("INSERT INTO member_sessions (id_hash, google_sub, email, expires_at) VALUES (?, ?, ?, ?)")
+    .bind(await sha256(token), sub, "alice@gmail.com", expires)
+    .run();
   return `jb_member=${token}`;
 }
 
@@ -67,7 +91,7 @@ describe("Google authorization flow", () => {
     expect(response.headers.get("Set-Cookie")).toContain("HttpOnly");
     expect(response.headers.get("Set-Cookie")).toContain("Secure");
     expect(response.headers.get("Set-Cookie")).toContain("SameSite=Lax");
-    expect((await (await request("/api/auth/session", cookie)).json() as any).signedIn).toBe(true);
+    expect(((await (await request("/api/auth/session", cookie)).json()) as any).signedIn).toBe(true);
     const replay = await request(`/api/auth/google/callback?state=${start.state}&code=valid-code`, start.cookie);
     expect(replay.headers.get("Location")).toBe("/login?error=invalid_state");
   });
@@ -83,25 +107,43 @@ describe("Google authorization flow", () => {
     const result = await (await request("/api/auth/session", cookie)).json();
     expect(result).toMatchObject({ signedIn: true, email: "alice@gmail.com", picture: expected });
   });
-  it.each([{ email_verified: false }, { nonce: "wrong-nonce" }])("rejects invalid identity claims %j", async (claims) => {
-    const { response, cookie } = await login(claims);
-    expect(response.headers.get("Location")).toBe("/login?error=failed");
-    expect(cookie).toBe("");
-  });
+  it.each([{ email_verified: false }, { nonce: "wrong-nonce" }])(
+    "rejects invalid identity claims %j",
+    async (claims) => {
+      const { response, cookie } = await login(claims);
+      expect(response.headers.get("Location")).toBe("/login?error=failed");
+      expect(cookie).toBe("");
+    },
+  );
   it("rejects state without the same browser cookie and handles cancellation", async () => {
     const start = await begin();
-    expect((await request(`/api/auth/google/callback?state=${start.state}&code=x`)).headers.get("Location")).toContain("invalid_state");
-    expect((await request(`/api/auth/google/callback?state=${start.state}&error=access_denied`, start.cookie)).headers.get("Location")).toContain("cancelled");
+    expect((await request(`/api/auth/google/callback?state=${start.state}&code=x`)).headers.get("Location")).toContain(
+      "invalid_state",
+    );
+    expect(
+      (await request(`/api/auth/google/callback?state=${start.state}&error=access_denied`, start.cookie)).headers.get(
+        "Location",
+      ),
+    ).toContain("cancelled");
   });
-  it.each([{ audience: "different-client" }, { issuer: "https://evil.test" }, { expires: "-1m" }, { badSignature: true }])("rejects untrusted or expired tokens %j", async (options) => {
+  it.each([
+    { audience: "different-client" },
+    { issuer: "https://evil.test" },
+    { expires: "-1m" },
+    { badSignature: true },
+  ])("rejects untrusted or expired tokens %j", async (options) => {
     const { response, cookie } = await login({}, options);
     expect(response.headers.get("Location")).toBe("/login?error=failed");
     expect(cookie).toBe("");
   });
   it("rejects an expired authorization request", async () => {
     const start = await begin();
-    await env.DB.prepare("UPDATE oauth_states SET expires_at = ?").bind(new Date(Date.now() - 1000).toISOString()).run();
-    expect((await request(`/api/auth/google/callback?state=${start.state}&code=x`, start.cookie)).headers.get("Location")).toContain("invalid_state");
+    await env.DB.prepare("UPDATE oauth_states SET expires_at = ?")
+      .bind(new Date(Date.now() - 1000).toISOString())
+      .run();
+    expect(
+      (await request(`/api/auth/google/callback?state=${start.state}&code=x`, start.cookie)).headers.get("Location"),
+    ).toContain("invalid_state");
   });
 });
 
@@ -109,10 +151,30 @@ describe("Google member access", () => {
   it("asks for just a username and a WeChat name, with an optional note to the admin", async () => {
     const cookie = await session();
     expect((await request("/api/auth/register", cookie, { username: "Alice" })).status).toBe(400); // no WeChat name
-    expect((await request("/api/auth/register", cookie, { username: "Alice", wechatNickname: "a", message: "x".repeat(201) })).status).toBe(400);
+    expect(
+      (
+        await request("/api/auth/register", cookie, {
+          username: "Alice",
+          wechatNickname: "a",
+          message: "x".repeat(201),
+        })
+      ).status,
+    ).toBe(400);
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM members").first<{ n: number }>())?.n).toBe(0);
-    expect((await request("/api/auth/register", cookie, { username: "Alice", wechatNickname: "alice_wx", message: " 小明介绍的 " })).status).toBe(200);
-    expect(await env.DB.prepare("SELECT username, wechat_nickname, application_message FROM members WHERE username = 'Alice'").first()).toEqual({
+    expect(
+      (
+        await request("/api/auth/register", cookie, {
+          username: "Alice",
+          wechatNickname: "alice_wx",
+          message: " 小明介绍的 ",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await env.DB.prepare(
+        "SELECT username, wechat_nickname, application_message FROM members WHERE username = 'Alice'",
+      ).first(),
+    ).toEqual({
       username: "Alice",
       wechat_nickname: "alice_wx",
       application_message: "小明介绍的",
@@ -122,44 +184,83 @@ describe("Google member access", () => {
     const ctx = await setUpAdmin();
     const event = await createTestEvent(ctx);
     const cookie = await session();
-    const reg = await request("/api/auth/register", cookie, { username: "Alice", wechatNickname: "Alice微信", message: "小明介绍的" });
+    const reg = await request("/api/auth/register", cookie, {
+      username: "Alice",
+      wechatNickname: "Alice微信",
+      message: "小明介绍的",
+    });
     expect(reg.status).toBe(200);
-    const { id } = await reg.json() as { id: string };
+    const { id } = (await reg.json()) as { id: string };
 
     // Waiting: the session says so, member pages and sign-up are closed, applying twice is refused.
-    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({ signedIn: true, hasMember: false, pending: true });
+    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({
+      signedIn: true,
+      hasMember: false,
+      pending: true,
+    });
     const me = await request("/api/m/session/me", cookie);
     expect(me.status).toBe(403);
-    expect((await me.json() as any).error.code).toBe("pending_approval");
+    expect(((await me.json()) as any).error.code).toBe("pending_approval");
     expect((await request(`/api/m/session/events/${event.id}/signup`, cookie, { friends: [] })).status).toBe(403);
-    expect((await request("/api/auth/register", cookie, { username: "Other", wechatNickname: "Other" })).status).toBe(409);
+    expect((await request("/api/auth/register", cookie, { username: "Other", wechatNickname: "Other" })).status).toBe(
+      409,
+    );
 
     // The Owner sees who applied, Google email included, and approves.
     const pending = (await ctx.admin.call(`${ctx.base}/members`)).data.pending;
-    expect(pending).toEqual([expect.objectContaining({ id, username: "Alice", wechatNickname: "Alice微信", googleEmail: "alice@gmail.com", applicationMessage: "小明介绍的" })]);
+    expect(pending).toEqual([
+      expect.objectContaining({
+        id,
+        username: "Alice",
+        wechatNickname: "Alice微信",
+        googleEmail: "alice@gmail.com",
+        applicationMessage: "小明介绍的",
+      }),
+    ]);
     // Applied with Google, so there is no link to send: they just sign in.
     const approved = await ctx.admin.call(`${ctx.base}/members/${id}/approve`, {});
     expect(approved.data).toMatchObject({ link: null, googleEmail: "alice@gmail.com", emailStatus: "not_configured" });
-    expect((await ctx.admin.call(`${ctx.base}/members`)).data.active.find((m: { id: string }) => m.id === id)).toMatchObject({ hasLink: false });
+    expect(
+      (await ctx.admin.call(`${ctx.base}/members`)).data.active.find((m: { id: string }) => m.id === id),
+    ).toMatchObject({ hasLink: false });
 
-    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({ hasMember: true, pending: false });
-    expect(await (await request("/api/m/session/me", cookie)).json()).toMatchObject({ id, username: "Alice", active: true, isOwner: false });
+    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({
+      hasMember: true,
+      pending: false,
+    });
+    expect(await (await request("/api/m/session/me", cookie)).json()).toMatchObject({
+      id,
+      username: "Alice",
+      active: true,
+      isOwner: false,
+    });
     expect((await request(`/api/m/session/events/${event.id}/signup`, cookie, { friends: [] })).status).toBe(200);
     expect((await request(`${ctx.base}/members`, cookie)).status).toBe(401);
-    expect((await request("/api/auth/register", cookie, { username: "Other", wechatNickname: "Other" })).status).toBe(409);
+    expect((await request("/api/auth/register", cookie, { username: "Other", wechatNickname: "Other" })).status).toBe(
+      409,
+    );
   });
   it("frees the Google account of a rejected applicant to apply again", async () => {
     const ctx = await setUpAdmin();
     const cookie = await session("google-bob");
-    const { id } = await (await request("/api/auth/register", cookie, { username: "Bob", wechatNickname: "Bob" })).json() as { id: string };
+    const { id } = (await (
+      await request("/api/auth/register", cookie, { username: "Bob", wechatNickname: "Bob" })
+    ).json()) as { id: string };
     await ctx.admin.call(`${ctx.base}/members/${id}/reject`, {});
-    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({ hasMember: false, pending: false });
+    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({
+      hasMember: false,
+      pending: false,
+    });
     expect((await request("/api/auth/register", cookie, { username: "Bob", wechatNickname: "Bob" })).status).toBe(200);
   });
   it("counts Google applications toward the 待审核 cap", async () => {
     await env.DB.prepare("DELETE FROM members WHERE status = 'pending'").run();
-    for (let i = 0; i < 30; i++) await createMember(env, { username: `Wait${i}`, wechatNickname: "w", status: "pending" });
-    const res = await request("/api/auth/register", await session("google-flood"), { username: "Flood", wechatNickname: "f" });
+    for (let i = 0; i < 30; i++)
+      await createMember(env, { username: `Wait${i}`, wechatNickname: "w", status: "pending" });
+    const res = await request("/api/auth/register", await session("google-flood"), {
+      username: "Flood",
+      wechatNickname: "f",
+    });
     expect(res.status).toBe(429);
     await env.DB.prepare("DELETE FROM members WHERE status = 'pending'").run();
   });
@@ -168,15 +269,20 @@ describe("Google member access", () => {
     const expired = await session("expired", new Date(Date.now() - 1000).toISOString());
     expect((await request("/api/m/session/me", expired)).status).toBe(401);
     const cookie = await session();
-    expect((await request("/api/auth/register", cookie, { username: "Alice", wechatNickname: "Alice" }, "https://evil.test")).status).toBe(403);
-    expect((await request("/api/m/session/rename", cookie, { username: "Oops" }, "https://evil.test")).status).toBe(403);
+    expect(
+      (await request("/api/auth/register", cookie, { username: "Alice", wechatNickname: "Alice" }, "https://evil.test"))
+        .status,
+    ).toBe(403);
+    expect((await request("/api/m/session/rename", cookie, { username: "Oops" }, "https://evil.test")).status).toBe(
+      403,
+    );
   });
   it("binds an existing member without changing ID, token or records and prevents reassignment", async () => {
     const m = await createMember(env, { username: "Alice", wechatNickname: "Alice", status: "active" });
     const token = await issueMemberToken(env, m.id);
     const cookie = await session();
     expect((await request("/api/auth/link", cookie, { token })).status).toBe(200);
-    expect((await (await request("/api/m/session/me", cookie)).json() as any).id).toBe(m.id);
+    expect(((await (await request("/api/m/session/me", cookie)).json()) as any).id).toBe(m.id);
     expect((await request(`/api/m/${token}/me`)).status).toBe(200);
     expect((await request("/api/auth/link", cookie, { token })).status).toBe(200);
     const other = await createMember(env, { username: "Other", wechatNickname: "Other", status: "active" });
@@ -188,41 +294,62 @@ describe("Google member access", () => {
   it("does not merge people by matching usernames and keeps disabled/deleted restrictions", async () => {
     const ctx = await setUpAdmin();
     const event = await createTestEvent(ctx);
-    const m = await createMember(env, { username: "Alice", wechatNickname: "Alice", status: "inactive", googleSub: "google-alice" });
+    const m = await createMember(env, {
+      username: "Alice",
+      wechatNickname: "Alice",
+      status: "inactive",
+      googleSub: "google-alice",
+    });
     const cookie = await session();
     expect((await request("/api/m/session/me", cookie)).status).toBe(200);
     expect((await request(`/api/m/session/events/${event.id}/signup`, cookie, { friends: [] })).status).toBe(400);
-    expect((await request("/api/auth/register", await session("other"), { username: "Alice", wechatNickname: "Alice" })).status).toBe(409);
+    expect(
+      (await request("/api/auth/register", await session("other"), { username: "Alice", wechatNickname: "Alice" }))
+        .status,
+    ).toBe(409);
     // A member deleted before deletions released the account (still holding google_sub) no longer
     // opens anything, and the person can apply again as someone new.
     await env.DB.prepare("UPDATE members SET deleted_at = ? WHERE id = ?").bind(new Date().toISOString(), m.id).run();
     expect((await request("/api/m/session/me", cookie)).status).toBe(409);
-    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({ hasMember: false, pending: false });
+    expect(await (await request("/api/auth/session", cookie)).json()).toMatchObject({
+      hasMember: false,
+      pending: false,
+    });
     const again = await request("/api/auth/register", cookie, { username: "Again", wechatNickname: "Again" });
     expect(again.status).toBe(200);
-    expect((await again.json() as { id: string }).id).not.toBe(m.id);
+    expect(((await again.json()) as { id: string }).id).not.toBe(m.id);
   });
   it("lets a deleted member's Google account apply again for a new member number, keeping the old record", async () => {
     const ctx = await setUpAdmin();
-    const old = await createMember(env, { username: "Carol", wechatNickname: "Carol", status: "active", googleSub: "google-carol", googleEmail: "carol@gmail.com" });
+    const old = await createMember(env, {
+      username: "Carol",
+      wechatNickname: "Carol",
+      status: "active",
+      googleSub: "google-carol",
+      googleEmail: "carol@gmail.com",
+    });
     expect((await ctx.admin.call(`${ctx.base}/members/${old.id}/deactivate`, {})).status).toBe(200);
     expect((await ctx.admin.call(`${ctx.base}/members/${old.id}/delete`, {})).status).toBe(200);
-    const row = await env.DB.prepare("SELECT google_sub, google_email, deleted_at FROM members WHERE id = ?").bind(old.id).first<Record<string, string | null>>();
+    const row = await env.DB.prepare("SELECT google_sub, google_email, deleted_at FROM members WHERE id = ?")
+      .bind(old.id)
+      .first<Record<string, string | null>>();
     expect(row).toMatchObject({ google_sub: null, google_email: "carol@gmail.com" });
     expect(row!.deleted_at).not.toBeNull();
 
     const cookie = await session("google-carol");
     const res = await request("/api/auth/register", cookie, { username: "Carol2", wechatNickname: "Carol" });
     expect(res.status).toBe(200);
-    const { id } = await res.json() as { id: string };
+    const { id } = (await res.json()) as { id: string };
     expect(id).not.toBe(old.id);
     expect(Number(id.slice(1))).toBeGreaterThan(Number(old.id.slice(1)));
-    expect((await ctx.admin.call(`${ctx.base}/members`)).data.pending).toEqual([expect.objectContaining({ id, googleEmail: "alice@gmail.com" })]);
+    expect((await ctx.admin.call(`${ctx.base}/members`)).data.pending).toEqual([
+      expect.objectContaining({ id, googleEmail: "alice@gmail.com" }),
+    ]);
   });
   it("revokes a session on logout", async () => {
     const cookie = await session();
     expect((await request("/api/auth/logout", cookie, {})).status).toBe(200);
-    expect((await (await request("/api/auth/session", cookie)).json() as any).signedIn).toBe(false);
+    expect(((await (await request("/api/auth/session", cookie)).json()) as any).signedIn).toBe(false);
   });
 });
 
@@ -250,33 +377,51 @@ describe("Google login for the admin", () => {
     expect(members.status).toBe(200);
     expect(((await members.json()) as any).active[0]).toMatchObject({ isOwner: true });
     expect(await (await request("/api/auth/session", google)).json()).toMatchObject({ isAdmin: true, hasMember: true });
-    expect(await (await request(`${ctx.base}/settings/google`, `${ctx.admin.cookie}; ${google}`)).json()).toMatchObject({
-      bound: "alice@gmail.com",
-      current: { isOwner: true, holder: null },
-    });
+    expect(await (await request(`${ctx.base}/settings/google`, `${ctx.admin.cookie}; ${google}`)).json()).toMatchObject(
+      {
+        bound: "alice@gmail.com",
+        current: { isOwner: true, holder: null },
+      },
+    );
     // The Owner's own sign-ups work through the same session.
     const e = await createTestEvent(ctx);
     expect((await request(`/api/admin/google/events/${e.id}/self-signup`, google, { friends: [] })).status).toBe(200);
     // Lax cookie: writes from another site are refused.
-    expect((await request(`/api/admin/google/events/${e.id}/self-cancel`, google, {}, "https://evil.example")).status).toBe(403);
+    expect(
+      (await request(`/api/admin/google/events/${e.id}/self-cancel`, google, {}, "https://evil.example")).status,
+    ).toBe(403);
     // Someone else's Google account still can't get in.
     expect((await request("/api/admin/google/members", await session("google-alice"))).status).toBe(401);
   });
 
   it("keeps one Google account to one person", async () => {
     const ctx = await setUpAdmin();
-    await createMember(env, { username: "Alice", wechatNickname: "Alice", status: "active", googleSub: "google-alice", googleEmail: "alice@gmail.com" });
+    await createMember(env, {
+      username: "Alice",
+      wechatNickname: "Alice",
+      status: "active",
+      googleSub: "google-alice",
+      googleEmail: "alice@gmail.com",
+    });
     const alice = await session("google-alice");
     const taken = await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${alice}`, {});
     expect(taken.status).toBe(409);
     expect(((await taken.json()) as any).error.message).toContain("Alice");
-    expect(await (await request(`${ctx.base}/settings/google`, `${ctx.admin.cookie}; ${alice}`)).json()).toMatchObject({ bound: null, current: { holder: "Alice" } });
+    expect(await (await request(`${ctx.base}/settings/google`, `${ctx.admin.cookie}; ${alice}`)).json()).toMatchObject({
+      bound: null,
+      current: { holder: "Alice" },
+    });
     // Alice's account stays a member's: it doesn't open the admin page.
     expect((await request("/api/admin/google/members", alice)).status).toBe(401);
 
-    expect((await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${await jay()}`, {})).status).toBe(200);
+    expect((await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${await jay()}`, {})).status).toBe(
+      200,
+    );
     // Bound already: a second account needs an unbind first.
-    expect((await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${await session("google-other")}`, {})).status).toBe(409);
+    expect(
+      (await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${await session("google-other")}`, {}))
+        .status,
+    ).toBe(409);
   });
 
   it("unbinding shuts the Google way in; the link and password still work", async () => {
@@ -288,16 +433,35 @@ describe("Google login for the admin", () => {
   });
 
   it("returns to the page that asked for Google, and only to this site's pages", async () => {
-    for (const [next, landing] of <[string, string][]>[["/admin/google", "/admin/google"], ["//evil.example/x", "/me"], ["https://evil.example", "/me"]]) {
+    for (const [next, landing] of <[string, string][]>[
+      ["/admin/google", "/admin/google"],
+      ["//evil.example/x", "/me"],
+      ["https://evil.example", "/me"],
+    ]) {
       const res = await request(`/api/auth/google?next=${encodeURIComponent(next)}`);
       const cookies = res.headers.getSetCookie().map((c) => c.split(";")[0]!);
       const url = new URL(res.headers.get("Location")!);
-      const token = await new SignJWT({ email: "jay@gmail.com", email_verified: true, nonce: url.searchParams.get("nonce") })
-        .setProtectedHeader({ alg: "RS256", kid: "google-test" }).setSubject("google-jay")
-        .setIssuer("https://accounts.google.com").setAudience("test-client").setIssuedAt().setExpirationTime("5m").sign(privateKey);
+      const token = await new SignJWT({
+        email: "jay@gmail.com",
+        email_verified: true,
+        nonce: url.searchParams.get("nonce"),
+      })
+        .setProtectedHeader({ alg: "RS256", kid: "google-test" })
+        .setSubject("google-jay")
+        .setIssuer("https://accounts.google.com")
+        .setAudience("test-client")
+        .setIssuedAt()
+        .setExpirationTime("5m")
+        .sign(privateKey);
       vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
-        String(input instanceof Request ? input.url : input).includes("certs") ? Response.json({ keys: [jwk] }) : Response.json({ id_token: token }));
-      const back = await request(`/api/auth/google/callback?state=${url.searchParams.get("state")}&code=c`, cookies.join("; "));
+        String(input instanceof Request ? input.url : input).includes("certs")
+          ? Response.json({ keys: [jwk] })
+          : Response.json({ id_token: token }),
+      );
+      const back = await request(
+        `/api/auth/google/callback?state=${url.searchParams.get("state")}&code=c`,
+        cookies.join("; "),
+      );
       expect(back.headers.get("Location")).toBe(landing);
       vi.restoreAllMocks();
     }

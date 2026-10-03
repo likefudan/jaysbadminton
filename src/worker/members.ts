@@ -66,7 +66,9 @@ export async function usernameTaken(env: Env, username: string, exceptId?: strin
 export const MAX_PENDING = 30;
 
 export async function assertPendingRoom(env: Env): Promise<void> {
-  const pending = await env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE status = 'pending'").first<{ n: number }>();
+  const pending = await env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE status = 'pending'").first<{
+    n: number;
+  }>();
   if ((pending?.n ?? 0) >= MAX_PENDING) {
     throw new HttpError(429, "too_many_pending", "现在待审核的申请太多了，请先联系管理员处理后再提交");
   }
@@ -91,7 +93,16 @@ const takenError = () => new HttpError(409, "username_taken", "这个用户名�
 /** Inserts a member with the next never-reused ID. */
 export async function createMember(
   env: Env,
-  input: { username: string; wechatNickname: string; status: MemberStatus; isOwner?: boolean; googleSub?: string; googleEmail?: string; message?: string; email?: string },
+  input: {
+    username: string;
+    wechatNickname: string;
+    status: MemberStatus;
+    isOwner?: boolean;
+    googleSub?: string;
+    googleEmail?: string;
+    message?: string;
+    email?: string;
+  },
 ): Promise<MemberRow> {
   validateNames(input.username, input.wechatNickname);
   const messageError = checkMessage(input.message ?? "");
@@ -99,7 +110,8 @@ export async function createMember(
   if (input.email !== undefined) {
     const emailError = checkEmail(input.email);
     if (emailError) throw badRequest(emailError);
-    if (await emailTaken(env, input.email)) throw new HttpError(409, "email_taken", "这个邮箱已经注册过了。已经是成员的话，可以用「找回我的专属链接」");
+    if (await emailTaken(env, input.email))
+      throw new HttpError(409, "email_taken", "这个邮箱已经注册过了。已经是成员的话，可以用「找回我的专属链接」");
   }
   if (await usernameTaken(env, input.username)) throw takenError();
   const seq = await env.DB.prepare(
@@ -113,7 +125,19 @@ export async function createMember(
       `INSERT INTO members (id, username, wechat_nickname, status, is_owner, requested_at, approved_at, google_sub, google_email, application_message, email)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(id, input.username.trim(), input.wechatNickname.trim(), input.status, input.isOwner ? 1 : 0, ts, input.status === "active" ? ts : null, input.googleSub ?? null, input.googleEmail ?? null, input.message?.trim() || null, input.email?.trim() || null)
+      .bind(
+        id,
+        input.username.trim(),
+        input.wechatNickname.trim(),
+        input.status,
+        input.isOwner ? 1 : 0,
+        ts,
+        input.status === "active" ? ts : null,
+        input.googleSub ?? null,
+        input.googleEmail ?? null,
+        input.message?.trim() || null,
+        input.email?.trim() || null,
+      )
       .run();
   } catch (e) {
     if (String(e).includes("UNIQUE")) throw takenError();
@@ -142,13 +166,16 @@ export async function issueMemberToken(env: Env, id: string): Promise<string> {
 }
 
 export async function revealMemberToken(env: Env, m: MemberRow): Promise<string> {
-  if (m.deleted_at || m.status === "pending" || !m.token_enc) throw new HttpError(409, "no_link", "这个成员目前没有有效链接");
+  if (m.deleted_at || m.status === "pending" || !m.token_enc)
+    throw new HttpError(409, "no_link", "这个成员目前没有有效链接");
   return decryptToken(m.token_enc, env.TOKEN_KEY);
 }
 
 export async function memberByToken(env: Env, token: string): Promise<MemberRow | null> {
   // Disabled members keep their link so they can still pay what they owe; deleted ones do not.
-  return env.DB.prepare("SELECT * FROM members WHERE token_hash = ? AND status IN ('active', 'inactive') AND deleted_at IS NULL")
+  return env.DB.prepare(
+    "SELECT * FROM members WHERE token_hash = ? AND status IN ('active', 'inactive') AND deleted_at IS NULL",
+  )
     .bind(await sha256(token))
     .first<MemberRow>();
 }

@@ -25,7 +25,11 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function toPacific(iso: string | Date): PacificParts {
   const p = Object.fromEntries(partsFmt.formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
-  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}`, weekday: WEEKDAYS.indexOf(p.weekday!) };
+  return {
+    date: `${p.year}-${p.month}-${p.day}`,
+    time: `${p.hour}:${p.minute}`,
+    weekday: WEEKDAYS.indexOf(p.weekday!),
+  };
 }
 
 /** Converts a Pacific wall-clock date + time to a UTC ISO string. */

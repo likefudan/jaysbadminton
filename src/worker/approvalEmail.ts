@@ -19,12 +19,19 @@ export async function sendApplicationNotice(env: Env, m: MemberRow): Promise<boo
 type SendResult = "sent" | "failed" | "not_configured";
 
 /** One plain-text email through Resend. Never logs credentials, addresses or provider responses. */
-async function sendEmail(env: Env, mail: { to: string; subject: string; text: string; key: string }): Promise<SendResult> {
+async function sendEmail(
+  env: Env,
+  mail: { to: string; subject: string; text: string; key: string },
+): Promise<SendResult> {
   if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return "not_configured";
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": mail.key },
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": mail.key,
+      },
       body: JSON.stringify({ from: env.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.text }),
       signal: AbortSignal.timeout(10_000),
     });
@@ -59,11 +66,18 @@ export async function sendApprovalEmail(env: Env, id: string): Promise<ApprovalE
       }
     : {
         subject: "你的羽毛球群专属链接",
-        text: linkEmailText(m, memberLink(new URL(env.SITE_ORIGIN).origin, await revealMemberToken(env, m)), "你的入群申请已通过管理员审核。"),
+        text: linkEmailText(
+          m,
+          memberLink(new URL(env.SITE_ORIGIN).origin, await revealMemberToken(env, m)),
+          "你的入群申请已通过管理员审核。",
+        ),
       };
   const status = await sendEmail(env, { to, ...mail, key: `member-approval/${id}/${m.approved_at}` });
-  await env.DB.prepare("UPDATE members SET approval_email_status = ?, approval_email_sent_at = COALESCE(approval_email_sent_at, ?) WHERE id = ?")
-    .bind(status, status === "sent" ? now() : null, id).run();
+  await env.DB.prepare(
+    "UPDATE members SET approval_email_status = ?, approval_email_sent_at = COALESCE(approval_email_sent_at, ?) WHERE id = ?",
+  )
+    .bind(status, status === "sent" ? now() : null, id)
+    .run();
   return status;
 }
 
@@ -85,10 +99,19 @@ export async function sendLinkRecovery(env: Env, email: string): Promise<void> {
   const at = Date.now();
   if (m.link_resent_at && at - Date.parse(m.link_resent_at) < RECOVERY_GAP_MS) return;
   if (!m.token_enc && !m.google_sub) return; // nothing to send; the admin can make a link
-  await env.DB.prepare("UPDATE members SET link_resent_at = ? WHERE id = ?").bind(new Date(at).toISOString(), m.id).run();
+  await env.DB.prepare("UPDATE members SET link_resent_at = ? WHERE id = ?")
+    .bind(new Date(at).toISOString(), m.id)
+    .run();
   const to = email.trim();
   const mail = m.token_enc
-    ? { subject: "你的羽毛球群专属链接", text: linkEmailText(m, memberLink(new URL(env.SITE_ORIGIN).origin, await revealMemberToken(env, m)), "你刚才在网站上申请找回专属链接。") }
+    ? {
+        subject: "你的羽毛球群专属链接",
+        text: linkEmailText(
+          m,
+          memberLink(new URL(env.SITE_ORIGIN).origin, await revealMemberToken(env, m)),
+          "你刚才在网站上申请找回专属链接。",
+        ),
+      }
     : {
         subject: "如何登录羽毛球群网站",
         text: `${m.username}，你好！\n你刚才在网站上申请找回专属链接。你的账号用 Google 登录，不需要专属链接：\n${site(env, "/login")}\n用 ${m.google_email} 这个 Google 账号登录即可。\n\n${SPAM_HINT}`,

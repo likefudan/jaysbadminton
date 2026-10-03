@@ -38,7 +38,9 @@ export async function setUpAdmin() {
 
 /** A Pacific calendar date `days` from today, YYYY-MM-DD. */
 export function futureDate(days: number): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(Date.now() + days * 86400_000));
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(
+    new Date(Date.now() + days * 86400_000),
+  );
 }
 
 /** A 用邮箱注册 body: the two names plus a fresh email, typed twice as the form requires. */
@@ -68,7 +70,9 @@ export async function createTestEvent(ctx: { admin: Client; base: string }, over
 }
 
 export const expire = (id: number) =>
-  env.DB.prepare("UPDATE events SET deadline_at = ?, status = 'closed' WHERE id = ?").bind(new Date(Date.now() - 60_000).toISOString(), id).run();
+  env.DB.prepare("UPDATE events SET deadline_at = ?, status = 'closed' WHERE id = ?")
+    .bind(new Date(Date.now() - 60_000).toISOString(), id)
+    .run();
 
 /** Owner Jay plays; Alice brings Tom (absent); Bob comes alone. 4 registered, 3 attended. */
 export async function billingScenario() {
@@ -82,7 +86,9 @@ export async function billingScenario() {
   const e = await createTestEvent(ctx);
   const alice = await approveMember(ctx, "Alice");
   const bob = await approveMember(ctx, "Bob");
-  const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active.find((m: { isOwner: boolean }) => m.isOwner).id;
+  const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active.find(
+    (m: { isOwner: boolean }) => m.isOwner,
+  ).id;
   await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: owner, includeSelf: true, friends: [] });
   await new Client().call(`${alice.base}/events/${e.id}/signup`, { friends: ["Tom"] });
   await new Client().call(`${bob.base}/events/${e.id}/signup`, { friends: [] });
@@ -93,4 +99,3 @@ export async function billingScenario() {
   const fees = { courtTotal: "100", shuttleCount: 6, shuttlePrice: "3" }; // court 25.00, shuttle 18/3 = 6.00
   return { ...ctx, e, alice, bob, owner, fees, eb: `${ctx.base}/events/${e.id}` };
 }
-

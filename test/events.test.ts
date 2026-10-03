@@ -6,7 +6,9 @@ import { Client, approveMember, billingScenario, createTestEvent, futureDate, se
 
 const anon = new Client();
 const expire = (id: number) =>
-  env.DB.prepare("UPDATE events SET deadline_at = ? WHERE id = ?").bind(new Date(Date.now() - 60_000).toISOString(), id).run();
+  env.DB.prepare("UPDATE events SET deadline_at = ? WHERE id = ?")
+    .bind(new Date(Date.now() - 60_000).toISOString(), id)
+    .run();
 
 describe("creating events", () => {
   it("computes the deadline from the offset and assigns date codes", async () => {
@@ -14,21 +16,45 @@ describe("creating events", () => {
     const date = futureDate(7);
     const e = await createTestEvent(ctx, { date, deadlineDays: 1, deadlineHours: 2 });
     expect(e.code).toBe(date.slice(5, 7) + date.slice(8));
-    expect(Date.parse(e.deadlineAt)).toBe(Date.parse(`${date}T19:00:00-07:00`) - 26 * 3600_000 + (date >= "2026-11-01" ? 3600_000 : 0));
+    expect(Date.parse(e.deadlineAt)).toBe(
+      Date.parse(`${date}T19:00:00-07:00`) - 26 * 3600_000 + (date >= "2026-11-01" ? 3600_000 : 0),
+    );
     const second = await createTestEvent(ctx, { date });
-    expect(second.code).toBe(e.code + "B");
+    expect(second.code).toBe(`${e.code}B`);
   });
 
   it("remembers the last times, venue with its address, and deadline offset as defaults", async () => {
     const ctx = await setUpAdmin();
     const address = "1 Wellness Way, San Jose, CA 95131";
-    const e = await createTestEvent(ctx, { startTime: "20:00", endTime: "22:30", location: "Wellness Gym", address, deadlineDays: 2, deadlineHours: 6 });
+    const e = await createTestEvent(ctx, {
+      startTime: "20:00",
+      endTime: "22:30",
+      location: "Wellness Gym",
+      address,
+      deadlineDays: 2,
+      deadlineHours: 6,
+    });
     expect(e).toMatchObject({ location: "Wellness Gym", address });
     await createTestEvent(ctx, { location: "Bay Center", address: "2 Bay St, Fremont, CA 94538" });
     // Using a venue again without an address keeps the one it already had.
-    await createTestEvent(ctx, { location: "Wellness Gym", address: "", startTime: "20:00", endTime: "22:30", deadlineDays: 2, deadlineHours: 6, date: futureDate(8) });
+    await createTestEvent(ctx, {
+      location: "Wellness Gym",
+      address: "",
+      startTime: "20:00",
+      endTime: "22:30",
+      deadlineDays: 2,
+      deadlineHours: 6,
+      date: futureDate(8),
+    });
     const { data } = await ctx.admin.call(`${ctx.base}/events/defaults`);
-    expect(data).toMatchObject({ startTime: "20:00", endTime: "22:30", location: "Wellness Gym", address, deadlineDays: 2, deadlineHours: 6 });
+    expect(data).toMatchObject({
+      startTime: "20:00",
+      endTime: "22:30",
+      location: "Wellness Gym",
+      address,
+      deadlineDays: 2,
+      deadlineHours: 6,
+    });
     expect(data.locations).toEqual([
       { name: "Wellness Gym", address },
       { name: "Bay Center", address: "2 Bay St, Fremont, CA 94538" },
@@ -49,7 +75,12 @@ describe("creating events", () => {
   it("refuses a deadline that is already in the past", async () => {
     const ctx = await setUpAdmin();
     const res = await ctx.admin.call(`${ctx.base}/events`, {
-      date: futureDate(1), startTime: "19:00", endTime: "21:00", location: "X", deadlineDays: 3, deadlineHours: 0,
+      date: futureDate(1),
+      startTime: "19:00",
+      endTime: "21:00",
+      location: "X",
+      deadlineDays: 3,
+      deadlineHours: 0,
     });
     expect(res.data.error.message).toBe("按这个提前量算出的截止时间已经过了，请调整");
   });
@@ -128,10 +159,18 @@ describe("Owner roster edits", () => {
     await expire(e.id);
     const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active[0].id;
     const res = await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, {
-      memberId: owner, includeSelf: false, friends: ["路人甲", "", "", "", ""],
+      memberId: owner,
+      includeSelf: false,
+      friends: ["路人甲", "", "", "", ""],
     });
     expect(res.status).toBe(200); // walk-ins ignore the friend cap
-    expect(res.data.roster.map((r: { name: string }) => r.name)).toEqual(["路人甲", "Jay的朋友2", "Jay的朋友3", "Jay的朋友4", "Jay的朋友5"]);
+    expect(res.data.roster.map((r: { name: string }) => r.name)).toEqual([
+      "路人甲",
+      "Jay的朋友2",
+      "Jay的朋友3",
+      "Jay的朋友4",
+      "Jay的朋友5",
+    ]);
   });
 
   it("replaces a member with a substitute and renames friends", async () => {
@@ -146,10 +185,20 @@ describe("Owner roster edits", () => {
 
     d = (await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/${friendRow.id}/rename`, { name: "小李" })).data;
     d = (await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/${danRow.id}/remove`, {})).data;
-    d = (await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: eve.id, includeSelf: true, friends: [] })).data;
+    d = (
+      await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, {
+        memberId: eve.id,
+        includeSelf: true,
+        friends: [],
+      })
+    ).data;
     expect(d.roster.map((r: { name: string }) => r.name)).toEqual(["小李", "Eve"]);
 
-    const dup = await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: eve.id, includeSelf: true, friends: [] });
+    const dup = await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, {
+      memberId: eve.id,
+      includeSelf: true,
+      friends: [],
+    });
     expect(dup.data.error.message).toBe("Eve 已经在名单上了");
   });
 
@@ -161,7 +210,11 @@ describe("Owner roster edits", () => {
     expect(home.currentEvents).toEqual([]);
     expect(home.pastEvents[0].status).toBe("cancelled");
     const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active[0].id;
-    const add = await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: owner, includeSelf: true, friends: [] });
+    const add = await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, {
+      memberId: owner,
+      includeSelf: true,
+      friends: [],
+    });
     expect(add.data.error.message).toBe("这个活动已取消");
   });
 
@@ -200,10 +253,16 @@ describe("emergency controls", () => {
     await anon.call(`${gus.base}/events/${e.id}/signup`, { friends: [] });
     expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/close-now`, {})).status).toBe(200);
     expect((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.status).toBe("closed");
-    expect((await anon.call(`${gus.base}/events/${e.id}/cancel`, {})).data.error.message).toBe("报名已截止，不能再修改");
+    expect((await anon.call(`${gus.base}/events/${e.id}/cancel`, {})).data.error.message).toBe(
+      "报名已截止，不能再修改",
+    );
     const again = await ctx.admin.call(`${ctx.base}/events/${e.id}/close-now`, {});
     expect(again.data.error.message).toBe("只有报名中的活动可以提前截止");
-    const fin = await ctx.admin.call(`${ctx.base}/events/${e.id}/finalize`, { courtTotal: "20", shuttleCount: 1, shuttlePrice: "3" });
+    const fin = await ctx.admin.call(`${ctx.base}/events/${e.id}/finalize`, {
+      courtTotal: "20",
+      shuttleCount: 1,
+      shuttlePrice: "3",
+    });
     expect(fin.status).toBe(200);
   });
 
@@ -212,11 +271,23 @@ describe("emergency controls", () => {
     const e = await createTestEvent(ctx, { deadlineDays: 1, deadlineHours: 0 });
     const newDate = futureDate(9);
     const res = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
-      date: newDate, startTime: "20:00", endTime: "22:00", location: "New Gym",
+      date: newDate,
+      startTime: "20:00",
+      endTime: "22:00",
+      location: "New Gym",
     });
-    expect(res.data).toMatchObject({ code: e.code, date: newDate, startTime: "20:00", endTime: "22:00", location: "New Gym", status: "open" });
+    expect(res.data).toMatchObject({
+      code: e.code,
+      date: newDate,
+      startTime: "20:00",
+      endTime: "22:00",
+      location: "New Gym",
+      status: "open",
+    });
     // An open event keeps its "1 day before start" deadline.
-    expect(Date.parse(res.data.deadlineAt)).toBe(Date.parse((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.deadlineAt));
+    expect(Date.parse(res.data.deadlineAt)).toBe(
+      Date.parse((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.deadlineAt),
+    );
     const start = await env.DB.prepare("SELECT start_at FROM events WHERE id = ?").bind(e.id).first<string>("start_at");
     expect(Date.parse(start!) - Date.parse(res.data.deadlineAt)).toBe(86400_000);
     expect((await anon.call(`/api/public/events/${e.code}`)).data.location).toBe("New Gym");
@@ -226,15 +297,29 @@ describe("emergency controls", () => {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx, { deadlineDays: 3, deadlineHours: 0 });
     const soon = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
-      date: futureDate(1), startTime: "19:00", endTime: "21:00", location: "Gym",
+      date: futureDate(1),
+      startTime: "19:00",
+      endTime: "21:00",
+      location: "Gym",
     });
     expect(soon.data.status).toBe("closed");
     const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active[0].id;
-    await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: owner, includeSelf: true, friends: ["x"] });
-    await ctx.admin.call(`${ctx.base}/events/${e.id}/finalize`, { courtTotal: "20", shuttleCount: 1, shuttlePrice: "3" });
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, {
+      memberId: owner,
+      includeSelf: true,
+      friends: ["x"],
+    });
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/finalize`, {
+      courtTotal: "20",
+      shuttleCount: 1,
+      shuttlePrice: "3",
+    });
     // Settled (Owner-only bill is auto-paid) → read-only.
     const locked = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
-      date: futureDate(1), startTime: "19:00", endTime: "21:00", location: "Elsewhere",
+      date: futureDate(1),
+      startTime: "19:00",
+      endTime: "21:00",
+      location: "Elsewhere",
     });
     expect(locked.data.error.message).toBe("这个活动已收齐归档，不能再修改");
   });
@@ -244,7 +329,9 @@ describe("Owner joins own event", () => {
   it("signs the Owner up when 我自己也报名 is ticked, and not otherwise", async () => {
     const ctx = await setUpAdmin();
     const withMe = await createTestEvent(ctx, { joinSelf: true });
-    expect(withMe.roster.map((r: { memberName: string; addedByOwner: boolean }) => [r.memberName, r.addedByOwner])).toEqual([["Jay", false]]);
+    expect(
+      withMe.roster.map((r: { memberName: string; addedByOwner: boolean }) => [r.memberName, r.addedByOwner]),
+    ).toEqual([["Jay", false]]);
     const without = await createTestEvent(ctx, { joinSelf: false, startTime: "09:00", endTime: "11:00" });
     expect(without.roster).toEqual([]);
   });
@@ -256,8 +343,26 @@ describe("event title and public leaderboard switch", () => {
     const e = await createTestEvent(ctx, { title: "  HappyTuesday 比赛 " });
     expect(e.title).toBe("HappyTuesday 比赛");
     expect((await createTestEvent(ctx, { startTime: "08:00", endTime: "09:00" })).title).toBe("");
-    expect((await ctx.admin.call(`${ctx.base}/events`, { date: futureDate(9), startTime: "19:00", endTime: "21:00", location: "X", deadlineDays: 1, deadlineHours: 0, title: "长".repeat(31) })).status).toBe(400);
-    await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, { date: e.date, startTime: e.startTime, endTime: e.endTime, location: e.location, title: "决赛" });
+    expect(
+      (
+        await ctx.admin.call(`${ctx.base}/events`, {
+          date: futureDate(9),
+          startTime: "19:00",
+          endTime: "21:00",
+          location: "X",
+          deadlineDays: 1,
+          deadlineHours: 0,
+          title: "长".repeat(31),
+        })
+      ).status,
+    ).toBe(400);
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+      date: e.date,
+      startTime: e.startTime,
+      endTime: e.endTime,
+      location: e.location,
+      title: "决赛",
+    });
     expect((await new Client().call(`/api/public/events/${e.code}`)).data.title).toBe("决赛");
   });
 
@@ -288,7 +393,9 @@ describe("who's coming", () => {
       { name: "小明的朋友2", friendOf: "小明", mine: true, absent: false },
       { name: "Bob", friendOf: null, mine: false, absent: false },
     ]);
-    expect((await anon.call(`${bob.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id).roster).toHaveLength(5);
+    expect(
+      (await anon.call(`${bob.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id).roster,
+    ).toHaveLength(5);
 
     // Not signed up: just the count, like the public page.
     const theirs = (await anon.call(`${carol.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
@@ -300,8 +407,14 @@ describe("who's coming", () => {
   it("marks who did not come once the event is settled", async () => {
     const s = await billingScenario();
     await s.admin.call(`${s.eb}/finalize`, s.fees);
-    const list = (await new Client().call(`${s.alice.base}/events`)).data.events.find((x: { id: number }) => x.id === s.e.id).roster;
-    expect(list.find((r: { name: string }) => r.name === "Tom")).toMatchObject({ friendOf: "Alice", mine: true, absent: true });
+    const list = (await new Client().call(`${s.alice.base}/events`)).data.events.find(
+      (x: { id: number }) => x.id === s.e.id,
+    ).roster;
+    expect(list.find((r: { name: string }) => r.name === "Tom")).toMatchObject({
+      friendOf: "Alice",
+      mine: true,
+      absent: true,
+    });
     expect(list.filter((r: { absent: boolean }) => r.absent)).toHaveLength(1);
   });
 });
@@ -327,16 +440,23 @@ describe("我的报名 (the Owner signs up from the admin page)", () => {
 
     // Bills exist after Finalize: own sign-up is locked (the roster editor still works).
     const ming = await approveMember(ctx, "小明");
-    await env.DB.prepare("INSERT INTO registrations (event_id, member_id, friend_index, attended, added_by_owner, created_at, updated_at) VALUES (?, ?, 0, 1, 0, ?, ?)")
-      .bind(e.id, ming.id, new Date().toISOString(), new Date().toISOString()).run();
-    expect((await ctx.admin.call(`${eb}/finalize`, { courtTotal: "40", shuttleCount: 2, shuttlePrice: "3" })).status).toBe(200);
+    await env.DB.prepare(
+      "INSERT INTO registrations (event_id, member_id, friend_index, attended, added_by_owner, created_at, updated_at) VALUES (?, ?, 0, 1, 0, ?, ?)",
+    )
+      .bind(e.id, ming.id, new Date().toISOString(), new Date().toISOString())
+      .run();
+    expect(
+      (await ctx.admin.call(`${eb}/finalize`, { courtTotal: "40", shuttleCount: 2, shuttlePrice: "3" })).status,
+    ).toBe(200);
     expect((await ctx.admin.call(`${eb}/self-signup`, { friends: ["x"] })).status).toBe(400);
     expect((await ctx.admin.call(`${eb}/self-cancel`, {})).status).toBe(400);
   });
 
   it("has the same rules when the Owner signs up from their own member page (Google)", async () => {
     const ctx = await setUpAdmin();
-    const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active.find((m: { isOwner: boolean }) => m.isOwner);
+    const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active.find(
+      (m: { isOwner: boolean }) => m.isOwner,
+    );
     const base = `/api/m/${tokenOf((await ctx.admin.call(`${ctx.base}/members/${owner.id}/regenerate`, {})).data.link)}`;
     const e = await createTestEvent(ctx, { joinSelf: false });
     const c = new Client();
@@ -365,14 +485,26 @@ describe("我的活动 (the member's events)", () => {
     const alice = await approveMember(ctx, "Alice");
     const c = new Client();
     const make = async (days: number) => createTestEvent(ctx, { date: futureDate(days), joinSelf: false });
-    const [old, unpaid, soon, later, notMine, cancelled] = [await make(7), await make(8), await make(9), await make(10), await make(11), await make(12)];
-    for (const e of [old, unpaid, soon, later, cancelled]) await c.call(`${alice.base}/events/${e.id}/signup`, { friends: e === old ? ["Tom"] : [] });
+    const [old, unpaid, soon, later, notMine, cancelled] = [
+      await make(7),
+      await make(8),
+      await make(9),
+      await make(10),
+      await make(11),
+      await make(12),
+    ];
+    for (const e of [old, unpaid, soon, later, cancelled])
+      await c.call(`${alice.base}/events/${e.id}/signup`, { friends: e === old ? ["Tom"] : [] });
     const past = (id: number, daysAgo: number, status: string) => {
       const day = new Date(Date.now() - daysAgo * 86400_000).toISOString();
-      return env.DB.prepare("UPDATE events SET status = ?, date = ?, start_at = ?, end_at = ? WHERE id = ?").bind(status, day.slice(0, 10), day, day, id).run();
+      return env.DB.prepare("UPDATE events SET status = ?, date = ?, start_at = ?, end_at = ? WHERE id = ?")
+        .bind(status, day.slice(0, 10), day, day, id)
+        .run();
     };
     const bill = (id: number, status: string) =>
-      env.DB.prepare("INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, amount_paid_cents) VALUES (?, ?, 2500, 'x', ?, ?)")
+      env.DB.prepare(
+        "INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, amount_paid_cents) VALUES (?, ?, 2500, 'x', ?, ?)",
+      )
         .bind(id, alice.id, status, status === "paid" ? 2500 : 0)
         .run();
     await past(old.id, 30, "settled");
@@ -385,14 +517,28 @@ describe("我的活动 (the member's events)", () => {
     // Current: theirs plus the one still open to join, newest first; the cancelled one is gone.
     expect(r.events.map((e: { id: number }) => e.id)).toEqual([notMine.id, later.id, soon.id, unpaid.id]);
     expect(r.events.find((e: { id: number }) => e.id === notMine.id).myFriends).toBeNull();
-    expect(r.events.find((e: { id: number }) => e.id === unpaid.id).payment).toMatchObject({ status: "unpaid", amountCents: 2500 });
+    expect(r.events.find((e: { id: number }) => e.id === unpaid.id).payment).toMatchObject({
+      status: "unpaid",
+      amountCents: 2500,
+    });
     // Over and paid up: in history, briefly.
     expect(r.history).toEqual([
-      { id: old.id, code: old.code, date: expect.any(String), title: "", location: "Bay Badminton Center", amountCents: 2500, attended: true, friends: 1 },
+      {
+        id: old.id,
+        code: old.code,
+        date: expect.any(String),
+        title: "",
+        location: "Bay Badminton Center",
+        amountCents: 2500,
+        attended: true,
+        friends: 1,
+      },
     ]);
 
     // Once paid, the finalized one moves to history too (newest first).
-    await env.DB.prepare("UPDATE payments SET status = 'paid', amount_paid_cents = 2500 WHERE event_id = ?").bind(unpaid.id).run();
+    await env.DB.prepare("UPDATE payments SET status = 'paid', amount_paid_cents = 2500 WHERE event_id = ?")
+      .bind(unpaid.id)
+      .run();
     const after = (await c.call(`${alice.base}/events`)).data;
     expect(after.history.map((h: { id: number }) => h.id)).toEqual([unpaid.id, old.id]);
     expect(after.events.map((e: { id: number }) => e.id)).toEqual([notMine.id, later.id, soon.id]);

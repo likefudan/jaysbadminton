@@ -58,13 +58,16 @@ export function AdminGuide(props: { base: string }) {
       <Section title="一、第一次设置后要做的事" open={!!s && !(s.venmo && s.telegram)}>
         <ol class="checklist">
           <Step>
-            <b>收藏管理链接</b>。打开管理页需要「管理链接 + 管理密码」两样。如果是用初始密码登录的，请在上面「修改管理密码」里改成你自己的。
+            <b>收藏管理链接</b>。打开管理页需要「管理链接 +
+            管理密码」两样。如果是用初始密码登录的，请在上面「修改管理密码」里改成你自己的。
           </Step>
           <Step done={s?.telegram}>
-            <b>连接 Telegram</b>（上面「Telegram 通知」→ 连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里；以后忘了管理链接也能在这里找回。
+            <b>连接 Telegram</b>（上面「Telegram 通知」→
+            连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里；以后忘了管理链接也能在这里找回。
           </Step>
           <Step done={s?.venmo}>
-            <b>填写收款设置</b>（上面「收款设置」，保存时要输入管理密码）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。
+            <b>填写收款设置</b>（上面「收款设置」，保存时要输入管理密码）：Venmo 用户名、Venmo 通知邮箱（Venmo
+            账户里登记的、收款通知发到的那个邮箱），Zelle 选填。
           </Step>
           <Step done={!!s?.email.lastAt}>
             <b>设置 Venmo 邮件转发</b>，让系统自动对账，见下面第二部分。
@@ -79,7 +82,9 @@ export function AdminGuide(props: { base: string }) {
             <b>外观</b>：网站标题和配色。
           </Step>
           <Step>
-            <b>邀请成员</b>：把网站首页发到微信群，大家点「登录 / 注册」，用 Google 账号或邮箱申请。在「待审核」里通过后：用 Google 申请的人直接登录就能报名；用邮箱注册的人会自动收到专属链接的邮件（没收到可以在成员列表重试，或者把链接私发给对方；成员自己也能在「找回我的专属链接」里再要一次）。
+            <b>邀请成员</b>：把网站首页发到微信群，大家点「登录 / 注册」，用 Google
+            账号或邮箱申请。在「待审核」里通过后：用 Google
+            申请的人直接登录就能报名；用邮箱注册的人会自动收到专属链接的邮件（没收到可以在成员列表重试，或者把链接私发给对方；成员自己也能在「找回我的专属链接」里再要一次）。
             <div class="inline-copy">
               <code>{join}</code> <CopyButton text={join} label="复制" />
             </div>
@@ -92,7 +97,8 @@ export function AdminGuide(props: { base: string }) {
 
       <Section title="二、Venmo 收款邮件转发：设置与测试">
         <p class="small">
-          系统读取 Venmo 发来的收款通知邮件，按备注里的付款编号自动记账。你的邮箱密码系统拿不到，只是用 Gmail 把 Venmo 的邮件转发过来；和羽毛球无关的收款会被忽略，不会保存。
+          系统读取 Venmo 发来的收款通知邮件，按备注里的付款编号自动记账。你的邮箱密码系统拿不到，只是用 Gmail 把 Venmo
+          的邮件转发过来；和羽毛球无关的收款会被忽略，不会保存。
         </p>
         <ol class="steps">
           <li>
@@ -105,10 +111,12 @@ export function AdminGuide(props: { base: string }) {
             </div>
           </li>
           <li>
-            Gmail 会往这个地址发一封确认邮件，系统会把它<b>转到你的 Telegram</b>（需要先连接 Telegram）。把里面的确认码填回 Gmail，或打开里面的确认链接。
+            Gmail 会往这个地址发一封确认邮件，系统会把它<b>转到你的 Telegram</b>（需要先连接
+            Telegram）。把里面的确认码填回 Gmail，或打开里面的确认链接。
           </li>
           <li>
-            回到 Gmail，在搜索框输入 <code>from:venmo@venmo.com</code> → 点搜索框右边的「显示搜索选项」→「创建过滤器」→ 勾选「转发到」并选择上面的地址（建议同时加一个「Venmo」标签，<b>不要</b>勾删除）→ 创建过滤器。
+            回到 Gmail，在搜索框输入 <code>from:venmo@venmo.com</code> → 点搜索框右边的「显示搜索选项」→「创建过滤器」→
+            勾选「转发到」并选择上面的地址（建议同时加一个「Venmo」标签，<b>不要</b>勾删除）→ 创建过滤器。
           </li>
           <li>
             <b>测试</b>：请朋友用 Venmo 付你 $1（备注随便写，之后退回），过一两分钟刷新本页，看下面的「转发状态」。
@@ -127,23 +135,31 @@ export function AdminGuide(props: { base: string }) {
           )}
         </div>
         <p class="muted small">
-          成员付款时，备注里要带他专属页面上显示的付款编号（例如 xiaoming-jbm20261007-m002），系统才能自动记到他的账上。对不上的会进入「收款 → 待确认」，由你手动关联。
+          成员付款时，备注里要带他专属页面上显示的付款编号（例如
+          xiaoming-jbm20261007-m002），系统才能自动记到他的账上。对不上的会进入「收款 → 待确认」，由你手动关联。
         </p>
       </Section>
 
       <Section title="三、忘记密码或管理链接怎么办">
         <ul class="steps">
           <li>
-            <b>忘记管理链接</b>：在 Telegram 里给机器人发送「管理页面」，它会把链接发给你（只回复已连接的那个账号）。没连 Telegram 的话，请网站维护者在 GitHub → Actions → CI → Run workflow，「Use workflow from」选最新的版本标签（v 开头），勾选 reset_admin_link 运行一次（测试环境则选 main，密码用 ADMIN_PASSWORD_STAGING），然后打开 <code>{location.origin}/admin</code> 用密码重新生成。
+            <b>忘记管理链接</b>：在 Telegram
+            里给机器人发送「管理页面」，它会把链接发给你（只回复已连接的那个账号）。没连 Telegram 的话，请网站维护者在
+            GitHub → Actions → CI → Run workflow，「Use workflow from」选最新的版本标签（v 开头），勾选 reset_admin_link
+            运行一次（测试环境则选 main，密码用 ADMIN_PASSWORD_STAGING），然后打开 <code>{location.origin}/admin</code>{" "}
+            用密码重新生成。
           </li>
           <li>
-            <b>忘记密码</b>：网站维护者把 GitHub 仓库里的 ADMIN_PASSWORD 改成一个新密码，然后在 Actions → CI → Run workflow 运行一次（「Use workflow from」选最新的版本标签，v 开头）。部署完成后用新密码登录，再到这里改成你自己的密码。所有设备会被退出登录。
+            <b>忘记密码</b>：网站维护者把 GitHub 仓库里的 ADMIN_PASSWORD 改成一个新密码，然后在 Actions → CI → Run
+            workflow 运行一次（「Use workflow from」选最新的版本标签，v
+            开头）。部署完成后用新密码登录，再到这里改成你自己的密码。所有设备会被退出登录。
           </li>
           <li>
             <b>换一部手机</b>：用管理链接打开，输入密码即可；每台设备记住登录 30 天。
           </li>
           <li>
-            <b>交接给新的管理员</b>：用下面的「清空所有数据」重置网站，新管理员用管理密码在 <code>{location.origin}/admin</code> 做初次设置，再按本指南走一遍。
+            <b>交接给新的管理员</b>：用下面的「清空所有数据」重置网站，新管理员用管理密码在{" "}
+            <code>{location.origin}/admin</code> 做初次设置，再按本指南走一遍。
           </li>
         </ul>
       </Section>

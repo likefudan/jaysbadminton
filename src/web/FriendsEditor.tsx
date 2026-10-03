@@ -1,7 +1,12 @@
 import { Field } from "./components";
 
 /** A +/- counter for friends with an optional name for each. */
-export function FriendsEditor(props: { friends: string[]; max: number | null; onChange: (f: string[]) => void; label?: string }) {
+export function FriendsEditor(props: {
+  friends: string[];
+  max: number | null;
+  onChange: (f: string[]) => void;
+  label?: string;
+}) {
   const f = props.friends;
   const set = (i: number, v: string) => props.onChange(f.map((x, j) => (j === i ? v : x)));
   return (
@@ -10,7 +15,12 @@ export function FriendsEditor(props: { friends: string[]; max: number | null; on
         <span>{props.label ?? "带朋友"}</span>
       </div>
       <div class="stepper">
-        <button type="button" disabled={f.length === 0} onClick={() => props.onChange(f.slice(0, -1))} aria-label="少一个">
+        <button
+          type="button"
+          disabled={f.length === 0}
+          onClick={() => props.onChange(f.slice(0, -1))}
+          aria-label="少一个"
+        >
           −
         </button>
         <output>{f.length}</output>

@@ -52,7 +52,9 @@ export async function leaderboard(env: Env): Promise<Leaderboard> {
 
   // Longest run of consecutive counted events attended, over all events ever held.
   const events = [...new Set(all.map((r) => r.event_id))];
-  const present = new Set(all.filter((r) => r.friend_index === 0 && r.attended).map((r) => `${r.event_id}:${r.member_id}`));
+  const present = new Set(
+    all.filter((r) => r.friend_index === 0 && r.attended).map((r) => `${r.event_id}:${r.member_id}`),
+  );
   const names = new Map(all.map((r) => [r.member_id, r.username]));
   const streak = new Map<string, { name: string; value: number }>();
   for (const [id, name] of names) {
@@ -97,7 +99,8 @@ export async function myStats(env: Env, memberId: string): Promise<MyStats> {
     attended: came.has(b.id),
   }));
   const billed = new Set(bills.map((b) => b.id));
-  for (const v of visits) if (!billed.has(v.id)) history.push({ date: v.date, title: "", location: "", cents: 0, attended: true });
+  for (const v of visits)
+    if (!billed.has(v.id)) history.push({ date: v.date, title: "", location: "", cents: 0, attended: true });
   history.sort((a, b) => a.date.localeCompare(b.date));
 
   const inYear = (d: string, y: string, upTo?: string) => d.startsWith(y) && (!upTo || d <= upTo);
@@ -110,7 +113,9 @@ export async function myStats(env: Env, memberId: string): Promise<MyStats> {
     yearSpendCents: yearSpend,
     avgSpendCents: yearCount ? Math.round(yearSpend / yearCount) : 0,
     lastYearCount: visits.filter((v) => inYear(v.date, lastYear, sameDayLastYear)).length,
-    lastYearSpendCents: bills.filter((b) => inYear(b.date, lastYear, sameDayLastYear)).reduce((t, b) => t + b.amount_due_cents, 0),
+    lastYearSpendCents: bills
+      .filter((b) => inYear(b.date, lastYear, sameDayLastYear))
+      .reduce((t, b) => t + b.amount_due_cents, 0),
     today,
     history,
   };

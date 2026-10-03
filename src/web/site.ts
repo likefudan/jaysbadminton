@@ -37,14 +37,15 @@ let staging = false;
 const stagingListeners = new Set<(s: boolean) => void>();
 
 function load() {
-  loading ??= api<{ title: string; theme: string; staging?: boolean }>("/api/public/site")
-    .then((r) => {
-      setSiteTitle(r.title);
-      setSiteTheme(r.theme);
-      staging = !!r.staging;
-      stagingListeners.forEach((l) => l(staging));
-    })
-    .catch(() => undefined);
+  if (!loading)
+    loading = api<{ title: string; theme: string; staging?: boolean }>("/api/public/site")
+      .then((r) => {
+        setSiteTitle(r.title);
+        setSiteTheme(r.theme);
+        staging = !!r.staging;
+        stagingListeners.forEach((l) => l(staging));
+      })
+      .catch(() => undefined);
 }
 
 /** True on the test site (staging.…), which shows a banner so its links are never mistaken for real ones. */

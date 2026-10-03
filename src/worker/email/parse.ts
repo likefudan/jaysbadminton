@@ -95,12 +95,19 @@ export function parseReceipt(lines: string[], subject: string): VenmoReceipt | n
 
 export async function parseEmail(raw: ArrayBuffer | Uint8Array): Promise<ParsedEmail> {
   const mail = await PostalMime.parse(raw);
-  const lines = mail.html ? htmlLines(mail.html) : (mail.text ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = mail.html
+    ? htmlLines(mail.html)
+    : (mail.text ?? "")
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
   const subject = mail.subject ?? "";
   return {
     fromAddress: (mail.from?.address ?? "").toLowerCase(),
     subject,
-    toAddresses: (mail.to ?? []).flatMap((a) => (a.address ? [a.address.toLowerCase()] : (a.group ?? []).map((g) => g.address.toLowerCase()))),
+    toAddresses: (mail.to ?? []).flatMap((a) =>
+      a.address ? [a.address.toLowerCase()] : (a.group ?? []).map((g) => g.address.toLowerCase()),
+    ),
     messageId: (mail.messageId ?? "").slice(0, 200),
     text: lines.join("\n"),
     receipt: parseReceipt(lines, subject),

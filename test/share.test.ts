@@ -13,7 +13,11 @@ const SHELL = `<!doctype html><html><head><title>Jay's 羽毛球</title>
 describe("link previews", () => {
   it("describes an event by title, date, time, venue and headcount — never names", async () => {
     const ctx = await setUpAdmin();
-    const e = await createTestEvent(ctx, { title: "HappyTuesday 比赛", joinSelf: true, address: "1191 Montague Expy, Milpitas, CA 95035" });
+    const e = await createTestEvent(ctx, {
+      title: "HappyTuesday 比赛",
+      joinSelf: true,
+      address: "1191 Montague Expy, Milpitas, CA 95035",
+    });
     const meta = (await eventMeta(env, e.code))!;
     expect(meta.title).toMatch(/^HappyTuesday 比赛 · \d{4}年\d+月\d+日 周. 羽毛球 · Jay's 羽毛球$/);
     expect(meta.description).toMatch(/^19:00–21:00 · Bay Badminton Center · 已报名 1 人 · 报名截止 /);
@@ -25,7 +29,11 @@ describe("link previews", () => {
 
   it("writes the tags into the app shell, escaped", async () => {
     const meta = { title: `A "quoted" <title> & more`, description: "19:00 · 场馆", url: "https://example.com/e/1006" };
-    const html = await withShareMeta(new Response(SHELL, { headers: { "Content-Type": "text/html" } }), meta, "https://example.com").text();
+    const html = await withShareMeta(
+      new Response(SHELL, { headers: { "Content-Type": "text/html" } }),
+      meta,
+      "https://example.com",
+    ).text();
     // Text escapes markup, attributes escape quotes: nothing can break out of either.
     expect(html).toContain('<title>A "quoted" &lt;title&gt; &amp; more</title>');
     expect(html).toContain('<meta property="og:title" content="A &quot;quoted&quot; <title> & more" />');

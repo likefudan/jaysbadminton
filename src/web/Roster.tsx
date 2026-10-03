@@ -14,7 +14,10 @@ export function RosterList(props: { roster: MyRosterEntry[]; open: boolean }) {
       </summary>
       <ul class="names">
         {list.map((r, i) => (
-          <li key={i} class={[r.friendOf ? "friend" : "", r.mine ? "mine" : "", r.absent ? "absent" : ""].join(" ").trim()}>
+          <li
+            key={i}
+            class={[r.friendOf ? "friend" : "", r.mine ? "mine" : "", r.absent ? "absent" : ""].join(" ").trim()}
+          >
             {r.name}
             {r.friendOf && !r.name.startsWith(r.friendOf) && <small>（{r.friendOf}带）</small>}
             {r.mine && !r.friendOf && <small>（我）</small>}

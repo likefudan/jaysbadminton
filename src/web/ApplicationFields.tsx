@@ -12,8 +12,19 @@ export function ApplicationFields(props: {
 }) {
   return (
     <>
-      <Field label="用户名" value={props.username} onInput={props.setUsername} hint="报名名单上显示的名字，不能和别人重复" autocomplete="nickname" />
-      <Field label="微信名" value={props.nickname} onInput={props.setNickname} hint="群昵称或微信号都可以，管理员能认出你就行" />
+      <Field
+        label="用户名"
+        value={props.username}
+        onInput={props.setUsername}
+        hint="报名名单上显示的名字，不能和别人重复"
+        autocomplete="nickname"
+      />
+      <Field
+        label="微信名"
+        value={props.nickname}
+        onInput={props.setNickname}
+        hint="群昵称或微信号都可以，管理员能认出你就行"
+      />
       <label class="field">
         <span>给管理员的留言（选填）</span>
         <textarea

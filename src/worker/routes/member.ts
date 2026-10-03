@@ -1,11 +1,29 @@
 import { Hono } from "hono";
 import { settle } from "../../shared/settle";
-import type { MeResponse, MyEvent, MyEventsResponse, MyHistoryEvent, MyPayment, MyRosterEntry, PaymentStatus } from "../../shared/types";
+import type {
+  MeResponse,
+  MyEvent,
+  MyEventsResponse,
+  MyHistoryEvent,
+  MyPayment,
+  MyRosterEntry,
+  PaymentStatus,
+} from "../../shared/types";
 import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
 import { getSettings } from "../db";
-import { closeExpired, friendCap, getEvent, removeSignup, roster, setSignup, summaries, type EventRow, validateFriends } from "../events";
+import {
+  closeExpired,
+  friendCap,
+  getEvent,
+  removeSignup,
+  roster,
+  setSignup,
+  summaries,
+  type EventRow,
+  validateFriends,
+} from "../events";
 import type { Env } from "../env";
 import { badRequest, invalidLink, readJson, str } from "../http";
 import { type MemberRow, memberByToken, renameMember } from "../members";
@@ -25,7 +43,13 @@ memberRoutes.use("/:token/*", async (c, next) => {
 
 memberRoutes.get("/:token/me", (c) => {
   const m = c.get("member");
-  return c.json<MeResponse>({ id: m.id, username: m.username, wechatNickname: m.wechat_nickname, isOwner: m.is_owner === 1, active: m.status === "active" });
+  return c.json<MeResponse>({
+    id: m.id,
+    username: m.username,
+    wechatNickname: m.wechat_nickname,
+    isOwner: m.is_owner === 1,
+    active: m.status === "active",
+  });
 });
 
 memberRoutes.get("/:token/stats", async (c) => c.json(await myStats(c.env, c.get("member").id)));
@@ -57,13 +81,18 @@ memberRoutes.get("/:token/events", async (c) => {
   )
     .bind(m.id, m.id)
     .all<EventRow>();
-  const pays = await c.env.DB.prepare(
-    "SELECT * FROM payments WHERE member_id = ?",
-  )
-    .bind(m.id)
-    .all<{ event_id: number; amount_due_cents: number; amount_paid_cents: number; refunded_cents: number; payment_code: string; status: PaymentStatus }>();
+  const pays = await c.env.DB.prepare("SELECT * FROM payments WHERE member_id = ?").bind(m.id).all<{
+    event_id: number;
+    amount_due_cents: number;
+    amount_paid_cents: number;
+    refunded_cents: number;
+    payment_code: string;
+    status: PaymentStatus;
+  }>();
   const s = await getSettings(c.env.DB, ["venmo_username", "zelle_account"]);
-  const mine = await c.env.DB.prepare("SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?")
+  const mine = await c.env.DB.prepare(
+    "SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?",
+  )
     .bind(m.id)
     .all<{ event_id: number; friend_index: number; friend_name: string | null; attended: number }>();
 
@@ -72,7 +101,9 @@ memberRoutes.get("/:token/events", async (c) => {
   const ended = new Date().toISOString();
   const payOf = (id: number) => pays.results.find((p) => p.event_id === id);
   const isHistory = (e: EventRow) =>
-    (e.status === "finalized" || e.status === "settled") && e.end_at <= ended && (payOf(e.id)?.status ?? "paid") === "paid";
+    (e.status === "finalized" || e.status === "settled") &&
+    e.end_at <= ended &&
+    (payOf(e.id)?.status ?? "paid") === "paid";
   const history: MyHistoryEvent[] = results.filter(isHistory).map((e) => {
     const rows = mine.results.filter((r) => r.event_id === e.id);
     return {
@@ -87,7 +118,10 @@ memberRoutes.get("/:token/events", async (c) => {
     };
   });
 
-  const list = await summaries(c.env, results.filter((e) => !isHistory(e)));
+  const list = await summaries(
+    c.env,
+    results.filter((e) => !isHistory(e)),
+  );
   const events: MyEvent[] = [];
   for (const e of list) {
     const rows = mine.results.filter((r) => r.event_id === e.id);
@@ -131,7 +165,11 @@ memberRoutes.get("/:token/events", async (c) => {
       roster: names,
     });
   }
-  return c.json<MyEventsResponse>({ events, history, friendCap: ownerRules(m) ? OWNER_FRIEND_MAX : await friendCap(c.env) });
+  return c.json<MyEventsResponse>({
+    events,
+    history,
+    friendCap: ownerRules(m) ? OWNER_FRIEND_MAX : await friendCap(c.env),
+  });
 });
 
 /**
@@ -147,7 +185,10 @@ async function openEventFor(c: { env: import("../env").Env; get: (k: "member") =
   await closeExpired(c.env);
   const e = await getEvent(c.env, Number(id));
   if (ownerRules(m) && e.status === "closed") return e;
-  if (e.status !== "open") throw badRequest(ownerRules(m) ? "已经结算，不能再改自己的报名；需要调整请在管理页直接改名单" : "报名已截止，不能再修改");
+  if (e.status !== "open")
+    throw badRequest(
+      ownerRules(m) ? "已经结算，不能再改自己的报名；需要调整请在管理页直接改名单" : "报名已截止，不能再修改",
+    );
   return e;
 }
 

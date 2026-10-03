@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import { billingScenario as scenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
 
 const count = async (sql: string, ...args: unknown[]) =>
-  (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${sql}`).bind(...args).first<{ n: number }>())!.n;
+  (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${sql}`)
+    .bind(...args)
+    .first<{ n: number }>())!.n;
 
 describe("从数据库永久删除", () => {
   it("removes an archived event with its roster, bills, receipts and matched Venmo payments", async () => {
@@ -23,7 +25,11 @@ describe("从数据库永久删除", () => {
     expect((await s.admin.call(s.eb)).data).toMatchObject({ status: "settled", deletable: true });
     // An unrelated event stays untouched.
     const other = await createTestEvent(s);
-    await env.DB.prepare("INSERT INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, 'reminder', 'x', 'x')").bind(s.e.id).run();
+    await env.DB.prepare(
+      "INSERT INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, 'reminder', 'x', 'x')",
+    )
+      .bind(s.e.id)
+      .run();
 
     const wrong = await s.admin.call(`${s.eb}/delete`, { password: "nope" });
     expect(wrong.status).toBe(401);
@@ -51,14 +57,18 @@ describe("从数据库永久删除", () => {
     expect(res.data.error.message).toBe("只能删除已收齐归档或已取消的活动");
 
     await ctx.admin.call(`${ctx.base}/events/${e.id}/cancel`, {});
-    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/delete`, { password: "initial-password" })).status).toBe(200);
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/delete`, { password: "initial-password" })).status).toBe(
+      200,
+    );
     expect(await count("events")).toBe(0);
   });
 
   it("refuses an event that still has unpaid bills, even once it is over", async () => {
     const s = await scenario();
     await s.admin.call(`${s.eb}/finalize`, s.fees);
-    await env.DB.prepare("UPDATE events SET end_at = ? WHERE id = ?").bind(new Date(Date.now() - 60_000).toISOString(), s.e.id).run();
+    await env.DB.prepare("UPDATE events SET end_at = ? WHERE id = ?")
+      .bind(new Date(Date.now() - 60_000).toISOString(), s.e.id)
+      .run();
     expect((await s.admin.call(s.eb)).data).toMatchObject({ status: "finalized", deletable: false });
     const res = await s.admin.call(`${s.eb}/delete`, { password: "initial-password" });
     expect(res.data.error.message).toBe("只能删除已收齐归档或已取消的活动");

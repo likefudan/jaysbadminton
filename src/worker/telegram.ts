@@ -39,7 +39,12 @@ export const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, 
 export async function sendToOwner(env: Env, html: string): Promise<boolean> {
   const { telegram_chat_id: chatId } = await getSettings(env.DB, ["telegram_chat_id"]);
   if (!chatId) return false;
-  const r = await call(env, "sendMessage", { chat_id: chatId, text: html, parse_mode: "HTML", link_preview_options: { is_disabled: true } });
+  const r = await call(env, "sendMessage", {
+    chat_id: chatId,
+    text: html,
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
+  });
   if (!r.ok) console.error("telegram send failed:", r.description);
   return r.ok;
 }
@@ -71,7 +76,8 @@ export async function telegramStatus(env: Env): Promise<TelegramStatus> {
  * whose one-time code is good for 10 minutes.
  */
 export async function startBinding(env: Env): Promise<string> {
-  if (!env.TELEGRAM_BOT_TOKEN) throw new HttpError(400, "no_bot", "还没有配置 Telegram 机器人（GitHub secret TELEGRAM_BOT_TOKEN）");
+  if (!env.TELEGRAM_BOT_TOKEN)
+    throw new HttpError(400, "no_bot", "还没有配置 Telegram 机器人（GitHub secret TELEGRAM_BOT_TOKEN）");
   const me = await call<{ username: string }>(env, "getMe", {});
   if (!me.ok || !me.result) throw new HttpError(502, "telegram", `连接 Telegram 失败：${me.description ?? "未知错误"}`);
   const hook = await call(env, "setWebhook", {
@@ -111,7 +117,7 @@ const ADMIN_LINK_WORDS = new Set(["管理页面", "管理页", "管理链接", "
 export async function handleUpdate(env: Env, update: Update): Promise<void> {
   const msg = update.message;
   const text = msg?.text?.trim() ?? "";
-  if (!msg?.chat || msg.chat.type !== "private") return;
+  if (msg?.chat?.type !== "private") return;
   if (ADMIN_LINK_WORDS.has(text)) return sendAdminLink(env, String(msg.chat.id));
   const m = /^\/start\s+([A-Za-z0-9_-]{20,64})$/.exec(text);
   if (!m) return;
@@ -126,7 +132,10 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
     setSetting(env.DB, "telegram_chat_name", name.slice(0, 60)),
     env.DB.prepare("DELETE FROM settings WHERE key IN ('telegram_bind_hash', 'telegram_bind_expires')"),
   ]);
-  await sendToOwner(env, "✅ 已连接。羽毛球群的提醒、结算和账单提醒都会发到这里。\n忘记管理页面地址时，在这里发送「管理页面」即可找回。");
+  await sendToOwner(
+    env,
+    "✅ 已连接。羽毛球群的提醒、结算和账单提醒都会发到这里。\n忘记管理页面地址时，在这里发送「管理页面」即可找回。",
+  );
 }
 
 async function sendAdminLink(env: Env, chatId: string): Promise<void> {

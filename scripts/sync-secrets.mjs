@@ -30,8 +30,17 @@ async function keyMatches(key) {
   const out = JSON.parse(
     execFileSync(
       "npx",
-      ["wrangler", "d1", "execute", "DB", "--remote", "--json", "--command",
-        "SELECT key, value FROM settings WHERE key IN ('admin_token_hash', 'admin_token_enc')", ...envArgs],
+      [
+        "wrangler",
+        "d1",
+        "execute",
+        "DB",
+        "--remote",
+        "--json",
+        "--command",
+        "SELECT key, value FROM settings WHERE key IN ('admin_token_hash', 'admin_token_enc')",
+        ...envArgs,
+      ],
       { encoding: "utf8" },
     ),
   );
@@ -39,9 +48,15 @@ async function keyMatches(key) {
   if (!s.admin_token_hash || !s.admin_token_enc) return null;
   // Same format as src/worker/lib/crypto.ts: base64url(iv || ciphertext), AES key = SHA-256(TOKEN_KEY).
   const bytes = Buffer.from(s.admin_token_enc, "base64url");
-  const aes = await webcrypto.subtle.importKey("raw", createHash("sha256").update(key).digest(), "AES-GCM", false, ["decrypt"]);
+  const aes = await webcrypto.subtle.importKey("raw", createHash("sha256").update(key).digest(), "AES-GCM", false, [
+    "decrypt",
+  ]);
   try {
-    const token = await webcrypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.subarray(0, 12) }, aes, bytes.subarray(12));
+    const token = await webcrypto.subtle.decrypt(
+      { name: "AES-GCM", iv: bytes.subarray(0, 12) },
+      aes,
+      bytes.subarray(12),
+    );
     return createHash("sha256").update(Buffer.from(token).toString("utf8")).digest("hex") === s.admin_token_hash;
   } catch {
     return false;
@@ -82,7 +97,9 @@ if (backup) {
   if (ok === null) console.log(`${backupName}: not checked (no admin link yet, or the query failed)`);
   else if (ok) console.log(`✓ ${backupName} matches the key this site's links are encrypted with`);
   else {
-    console.log(`::error::${backupName} does not match the key this site's links are encrypted with; send the key again from 设置 → 备份网站密钥 and update the GitHub secret`);
+    console.log(
+      `::error::${backupName} does not match the key this site's links are encrypted with; send the key again from 设置 → 备份网站密钥 and update the GitHub secret`,
+    );
     process.exitCode = 1;
   }
 } else {
