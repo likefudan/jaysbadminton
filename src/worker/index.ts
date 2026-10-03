@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "./env";
 import { closeExpired } from "./events";
+export { DeadlineAlarm } from "./deadlines";
 import { HttpError } from "./http";
 import { MAX_EMAIL_BYTES, handleEmail, recordEmailOutcome } from "./inbound";
 import { exportAll } from "./export";

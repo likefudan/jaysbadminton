@@ -2,7 +2,7 @@ import { dollars } from "../shared/settle";
 import { formatDateZh, toPacific } from "../shared/time";
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
-import { type EventRow, roster } from "./events";
+import { type EventRow, closeExpired, roster } from "./events";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { escapeHtml, sendToOwner } from "./telegram";
 
@@ -65,7 +65,7 @@ async function headcount(env: Env, eventId: number): Promise<number> {
   return r?.n ?? 0;
 }
 
-// ---- Scheduled jobs (cron, every minute; each notice is sent once via notification_log) ----
+// ---- Scheduled jobs (cron, every 15 minutes; each notice is sent once via notification_log) ----
 
 export async function runScheduled(env: Env, at: Date = new Date()): Promise<void> {
   const cfg = await notifySettings(env);
@@ -90,13 +90,19 @@ export async function runScheduled(env: Env, at: Date = new Date()): Promise<voi
   }
 }
 
+/** When 截止前提醒 is due (ms), or null when it is off or the event was created inside its window. */
+function reminderStart(e: EventRow, cfg: NotifySettings): number | null {
+  if (!cfg.reminderEnabled || cfg.reminderHours <= 0) return null;
+  const windowStart = new Date(e.deadline_at).getTime() - cfg.reminderHours * 3600_000;
+  return new Date(e.created_at).getTime() > windowStart ? null : windowStart;
+}
+
 /** 截止前提醒: once per deadline, only if the event existed before the reminder window opened. */
 async function deadlineReminder(env: Env, e: EventRow, at: Date, cfg: NotifySettings): Promise<void> {
-  if (e.status !== "open" || !cfg.reminderEnabled || cfg.reminderHours <= 0) return;
+  if (e.status !== "open") return;
   const deadline = new Date(e.deadline_at).getTime();
-  const windowStart = deadline - cfg.reminderHours * 3600_000;
-  if (at.getTime() < windowStart || at.getTime() >= deadline) return;
-  if (new Date(e.created_at).getTime() > windowStart) return;
+  const windowStart = reminderStart(e, cfg);
+  if (windowStart === null || at.getTime() < windowStart || at.getTime() >= deadline) return;
   await once(env, e.id, "deadline_reminder", e.deadline_at, async () => {
     const n = await headcount(env, e.id);
     const left = Math.max(1, Math.round((deadline - at.getTime()) / 3600_000));
@@ -127,6 +133,31 @@ async function closedNotice(env: Env, e: EventRow, at: Date): Promise<void> {
       ),
     );
   });
+}
+
+// ---- Deadline alarms (see deadlines.ts): 截止前提醒 and 报名截止 on time, without waiting for the cron ----
+
+/** Closes sign-up if the deadline has passed, then sends whichever of the two notices is due. */
+export async function deadlineNotices(env: Env, eventId: number, at: Date = new Date()): Promise<void> {
+  await closeExpired(env);
+  const e = await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(eventId).first<EventRow>();
+  if (!e) return;
+  await deadlineReminder(env, e, at, await notifySettings(env));
+  await closedNotice(env, e, at);
+}
+
+/**
+ * When the event's alarm should next fire (ms): the reminder or the deadline of an open event,
+ * now for a freshly closed one (closed early, or edited past its deadline), otherwise null.
+ */
+export async function nextDeadlineAlarm(env: Env, eventId: number, at: Date = new Date()): Promise<number | null> {
+  const e = await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(eventId).first<EventRow>();
+  if (!e) return null;
+  const deadline = new Date(e.deadline_at).getTime();
+  if (e.status === "closed") return deadline <= at.getTime() && at.getTime() - deadline <= 24 * 3600_000 ? at.getTime() : null;
+  if (e.status !== "open") return null;
+  const reminder = reminderStart(e, await notifySettings(env));
+  return reminder !== null && reminder > at.getTime() ? reminder : deadline;
 }
 
 /** 结算提醒: hourly once the event is over and not finalized, quiet from 22:00 to 8:00. */
