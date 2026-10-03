@@ -74,12 +74,7 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
       stmts.push(
         env.DB.prepare(
           `INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status) VALUES (?, ?, ?, ?, 'unpaid')`,
-        ).bind(
-          e.id,
-          b.memberId,
-          b.totalCents,
-          paymentCode(usernames.get(b.memberId) ?? "", e.date, e.code, b.memberId),
-        ),
+        ).bind(e.id, b.memberId, b.totalCents, paymentCode(usernames.get(b.memberId) ?? "", e.number, b.memberId)),
       );
       if (ownerIds.has(b.memberId)) {
         stmts.push(
