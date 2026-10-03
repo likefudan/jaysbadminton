@@ -2341,6 +2341,14 @@ a.ev-meta {
 .calendar + .button {
   margin-top: 14px;
 }
+button.calendar-link {
+  font-family: inherit;
+  cursor: pointer;
+}
+.calendar + .share-row {
+  margin-top: 10px;
+  padding-top: 10px;
+}
 
 /* ---- 名单 on the member's event card ---- */
 .roster-fold {

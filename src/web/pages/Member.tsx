@@ -12,6 +12,7 @@ import { PaymentBox } from "../PaymentBox";
 import { ProfileCard } from "../Profile";
 import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
+import { EventShareRow } from "../ShareCard";
 import { MyStatsCard } from "../Stats";
 import { GoogleLink } from "./Account";
 
@@ -248,6 +249,7 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
       )}
       {!e.canEdit && e.status === "closed" && signedUp && <p class="muted small">报名已截止，需要修改请联系管理员。费用会在活动后公布。</p>}
       {e.payment && <PaymentBox p={e.payment} />}
+      <EventShareRow e={e} />
     </Card>
   );
 }
