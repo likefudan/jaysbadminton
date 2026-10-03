@@ -47,14 +47,18 @@ app.post("/api/csp-report", async (c) => {
   const reader = c.req.raw.body?.getReader();
   const bytes = new Uint8Array(2000);
   let n = 0;
-  while (reader && n < bytes.length) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const part = value.subarray(0, bytes.length - n);
-    bytes.set(part, n);
-    n += part.length;
+  try {
+    while (reader && n < bytes.length) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const part = value.subarray(0, bytes.length - n);
+      bytes.set(part, n);
+      n += part.length;
+    }
+    await reader?.cancel();
+  } catch {
+    // The sender went away mid-report: log what arrived.
   }
-  await reader?.cancel();
   const report = new TextDecoder().decode(bytes.subarray(0, n));
   console.warn("csp report:", report);
   return c.body(null, 204);

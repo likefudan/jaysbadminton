@@ -352,6 +352,20 @@ describe("Owner review", () => {
     const receipt = (await s.by("Alice")).receipts[0];
     await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {});
     expect((await s.admin.call(`${s.base}/inbound`)).data.open).toMatchObject([{ id: row.id }]);
+    expect((await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {})).status).toBe(400); // second click
+  });
+
+  it("undoing a linked payment whose 待确认 row is gone still puts it back in 待确认", async () => {
+    const s = await finalized();
+    await deliver({ amount: "10.00", note: `alice-${s.aliceCode.split("-")[1]}-m099`, txnId: "G1", payer: "Carol" });
+    const { open } = (await s.admin.call(`${s.base}/inbound`)).data;
+    await s.admin.call(`${s.base}/inbound/${open[0].id}/link`, { paymentId: (await s.by("Alice")).id });
+    await env.DB.prepare("DELETE FROM inbound_payments WHERE id = ?").bind(open[0].id).run();
+    const receipt = (await s.by("Alice")).receipts[0];
+    await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {});
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toMatchObject([
+      { amountCents: 1000, txnId: "G1", payerName: "Carol", reason: "从账单撤销的 Venmo 付款" },
+    ]);
   });
 });
 

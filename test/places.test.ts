@@ -61,9 +61,9 @@ describe("address suggestions without a Google key (Photon)", () => {
     expect(r.suggestions).toEqual([
       { id: null, place: "Bay Badminton Center", label: "1191 Montague Expressway, Milpitas, CA 95035" },
     ]);
-    expect(calls).toHaveLength(2); // nearby and US-wide searches run together
+    expect(calls).toHaveLength(1);
     expect((await ctx.admin.call(`${ctx.base}/places?q=ba`)).data.suggestions).toEqual([]);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(1);
   });
 });
 

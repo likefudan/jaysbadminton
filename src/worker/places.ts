@@ -133,10 +133,7 @@ async function photonIn(q: string, box: typeof US, signal: AbortSignal): Promise
 }
 
 async function photon(q: string): Promise<AddressSuggestion[]> {
-  // Both searches at once, each with its own timeout; nearby results win when there are any.
-  const [near, us] = await Promise.all([
-    photonIn(q, NORCAL, AbortSignal.timeout(TIMEOUT_MS)),
-    photonIn(q, US, AbortSignal.timeout(TIMEOUT_MS)),
-  ]);
-  return near.length > 0 ? near : us;
+  // Nearby first; the US-wide search only when that finds nothing. Each gets its own timeout.
+  const near = await photonIn(q, NORCAL, AbortSignal.timeout(TIMEOUT_MS));
+  return near.length > 0 ? near : photonIn(q, US, AbortSignal.timeout(TIMEOUT_MS));
 }
