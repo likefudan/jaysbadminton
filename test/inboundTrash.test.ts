@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { TABLES } from "../src/worker/export";
 import { purgeDeletedInbound } from "../src/worker/inbound";
-import { setUpAdmin } from "./helpers";
+import { createTestEvent, setUpAdmin } from "./helpers";
 
 const add = async (txn: string, state = "open") =>
   (await env.DB.prepare(
@@ -55,6 +55,27 @@ describe("已删除 Venmo payments", () => {
     const again = await ctx.admin.call(`${ctx.base}/inbound/${ignored}/unignore`, {});
     expect(again.data.error.message).toBe("只能把已忽略的收款移回待确认");
     expect((await ctx.admin.call(`${ctx.base}/inbound/${pending}/unignore`, {})).status).toBe(400);
+  });
+
+  it("never moves back a payment whose money is already on a bill, and ignores only from 待确认", async () => {
+    const ctx = await setUpAdmin();
+    const linked = await add("R1", "linked");
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${linked}/ignore`, {})).status).toBe(400);
+    // An ignored row whose transaction a receipt still counts (left by an older race) stays put.
+    const stray = await add("R2", "ignored");
+    const e = await createTestEvent(ctx);
+    const bill = (await env.DB.prepare(
+      `INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status)
+       VALUES (?, (SELECT id FROM members LIMIT 1), 100, 'x', 'unpaid') RETURNING id`,
+    )
+      .bind(e.id)
+      .first<{ id: number }>())!;
+    await env.DB.prepare(
+      "INSERT INTO payment_receipts (payment_id, amount_cents, method, venmo_txn_id, received_at) VALUES (?, 100, 'venmo', 'R2', ?)",
+    )
+      .bind(bill.id, new Date().toISOString())
+      .run();
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${stray}/unignore`, {})).status).toBe(400);
   });
 
   it("lists every ignored payment, however many newer ones were linked", async () => {

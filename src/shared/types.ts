@@ -316,7 +316,7 @@ export interface InboundResponse {
   open: InboundRow[];
   /** The 30 latest linked to a bill. */
   done: InboundRow[];
-  /** Ignored ones (latest 300), kept until deleted, so a mistaken 忽略 can be moved back. */
+  /** Every ignored one, until deleted, so a mistaken 忽略 can be moved back. */
   ignored: InboundRow[];
   deleted: InboundRow[];
   payments: OpenPayment[];
