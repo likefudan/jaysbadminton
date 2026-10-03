@@ -59,43 +59,30 @@ function Summary(props: { item: InboundRow }) {
 }
 
 function OpenList(props: { base: string; open: InboundRow[]; payments: OpenPayment[]; onDone: () => void }) {
-  const linkGroups = groups(props.payments);
+  const groups = groupPayments(props.payments);
   return (
     <Card title={`待确认${props.open.length ? ` (${props.open.length})` : ""}`}>
       {props.open.length === 0 && <Empty>没有需要确认的付款</Empty>}
       {props.open.map((i) => (
-        <Item
-          key={i.id}
-          base={props.base}
-          item={i}
-          payments={props.payments}
-          groups={linkGroups}
-          onDone={props.onDone}
-        />
+        <Item key={i.id} base={props.base} item={i} groups={groups} onDone={props.onDone} />
       ))}
     </Card>
   );
 }
 
 /** Someone who pays twice (a Venmo payment on top of cash, say) can only be put on a paid bill. */
-const groups = (payments: OpenPayment[]): [string, OpenPayment[]][] => [
+const groupPayments = (payments: OpenPayment[]): [string, OpenPayment[]][] => [
   ["未付清", payments.filter((p) => p.status !== "paid")],
   ["已付清（多付的钱列入需要退款）", payments.filter((p) => p.status === "paid")],
 ];
 
-function Item(props: {
-  base: string;
-  item: InboundRow;
-  payments: OpenPayment[];
-  groups: [string, OpenPayment[]][];
-  onDone: () => void;
-}) {
+function Item(props: { base: string; item: InboundRow; groups: [string, OpenPayment[]][]; onDone: () => void }) {
   const i = props.item;
   const [target, setTarget] = useState("");
   const { busy, error, run } = useAction();
 
   async function link() {
-    const p = props.payments.find((x) => String(x.id) === target);
+    const p = props.groups.flatMap(([, list]) => list).find((x) => String(x.id) === target);
     if (!p) return;
     const amount = i.amountCents === null ? "" : ` $${dollars(i.amountCents)}`;
     const what =
@@ -118,7 +105,7 @@ function Item(props: {
       {i.reason && <p class="small reason">{i.reason}</p>}
       {error && <p class="error">{error}</p>}
       <div class="link-row">
-        {props.payments.length > 0 && (
+        {props.groups.some(([, list]) => list.length > 0) && (
           <>
             <select value={target} onChange={(e) => setTarget((e.target as HTMLSelectElement).value)}>
               <option value="">关联到谁的应付款…</option>
@@ -274,7 +261,13 @@ function Refunds(props: { base: string; list: RefundRow[]; onDone: () => void })
   );
 }
 
-export function ReceiptList(props: { receipts: Receipt[]; onRemove?: (r: Receipt) => void; busy?: boolean }) {
+export function ReceiptList(props: {
+  receipts: Receipt[];
+  onRemove?: (r: Receipt) => void;
+  /** Which receipts get 撤销; all of them when left out. */
+  canRemove?: (r: Receipt) => boolean;
+  busy?: boolean;
+}) {
   if (props.receipts.length === 0) return null;
   return (
     <ul class="receipts">
@@ -291,7 +284,7 @@ export function ReceiptList(props: { receipts: Receipt[]; onRemove?: (r: Receipt
           </span>
           <span>
             {r.amountCents < 0 ? `−$${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`}
-            {props.onRemove && (
+            {props.onRemove && (props.canRemove?.(r) ?? true) && (
               <button type="button" class="undo" disabled={props.busy} onClick={() => props.onRemove!(r)}>
                 撤销
               </button>

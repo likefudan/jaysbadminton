@@ -41,7 +41,7 @@ import { checkPassword } from "../auth";
 import { SITE_TITLE_MAX, siteTheme, siteTitle } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
-import { emailStatus, inboundRows, openPayments, refundRows } from "../inbound";
+import { LINKABLE, emailStatus, inboundRows, linkCutoff, openPayments, refundRows } from "../inbound";
 import { message, notifySettings } from "../notify";
 import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
@@ -497,7 +497,7 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
   return c.json({ ok: true });
 });
 
-async function paymentEvent(env: Env, paymentId: number) {
+async function paymentEvent(env: Env, paymentId: number, allowSettled = false) {
   const p = await env.DB.prepare("SELECT * FROM payments WHERE id = ?").bind(paymentId).first<{
     event_id: number;
     member_id: string;
@@ -508,7 +508,8 @@ async function paymentEvent(env: Env, paymentId: number) {
   }>();
   if (!p) throw badRequest("找不到这笔应付款");
   const e = await getEvent(env, p.event_id);
-  if (e.status !== "finalized") throw badRequest("这个活动已收齐归档，不能再修改");
+  if (e.status !== "finalized" && !(allowSettled && e.status === "settled"))
+    throw badRequest("这个活动已收齐归档，不能再修改");
   return { p, e };
 }
 
@@ -544,7 +545,13 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
       inbound_id: number | null;
     }>();
   if (!r) throw badRequest("找不到这笔付款记录");
-  const { p } = await paymentEvent(c.env, r.payment_id);
+  const { p, e } = await paymentEvent(c.env, r.payment_id, true);
+  // Archived: only an extra Venmo payment may come off (a wrong link, say), so the bill stays paid.
+  if (
+    e.status === "settled" &&
+    !((r.method === "venmo" || r.venmo_txn_id) && p.amount_paid_cents - r.amount_cents >= p.amount_due_cents)
+  )
+    throw badRequest("这个活动已收齐归档，只能撤销多付的 Venmo 付款");
   // The Owner's own bill is paid by itself, and every recompute redoes that receipt anyway.
   if (r.method === "manual" && !r.venmo_txn_id && (await isOwner(c.env, p.member_id)))
     throw badRequest("管理员本人的账单自动记为已付，不用撤销");
@@ -625,8 +632,14 @@ async function openInbound(env: Env, id: number) {
 adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const i = await openInbound(c.env, Number(c.req.param("iid")));
   const paymentId = num((await readJson(c.req.raw)).paymentId);
-  // A paid bill too: the payment is then an over-payment, listed for refund.
-  const { e } = await paymentEvent(c.env, paymentId);
+  // Only what the list offers; a paid bill then gets an over-payment, listed for refund.
+  const e = await c.env.DB.prepare(
+    `SELECT e.id FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
+     WHERE p.id = ?2 AND ${LINKABLE}`,
+  )
+    .bind(linkCutoff(), paymentId)
+    .first<{ id: number }>();
+  if (!e) throw badRequest("这笔应付款不能关联：活动还没结算或已经归档，或者是管理员本人的账单");
   if (i.amount_cents === null) throw badRequest("这笔收款没有金额，请改用「标记已付」");
   // Only one request can move it out of 待确认, so a double click never adds the money twice.
   const claimed = await c.env.DB.prepare(

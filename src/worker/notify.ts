@@ -213,7 +213,7 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
   await once(env, e.id, "dunning", p.date, async () => {
     const { results: pays } = await env.DB.prepare(
       `SELECT p.amount_due_cents, p.amount_paid_cents, p.status, m.username, m.wechat_nickname,
-         m.token_enc IS NULL AND m.google_sub IS NOT NULL AS google_only
+         m.token_enc IS NOT NULL AS has_link, m.google_sub IS NOT NULL AS has_google
        FROM payments p JOIN members m ON m.id = p.member_id WHERE p.event_id = ? ORDER BY m.username`,
     )
       .bind(e.id)
@@ -223,7 +223,8 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
         status: string;
         username: string;
         wechat_nickname: string;
-        google_only: number;
+        has_link: number;
+        has_google: number;
       }>();
     const owing = pays.filter((x) => x.status !== "paid");
     if (owing.length === 0) return true;
@@ -241,8 +242,9 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
     if (!ok) return false;
     for (const x of owing) {
       const owed = dollars(x.amount_due_cents - x.amount_paid_cents);
-      // Members who joined with Google have no link: they sign in instead.
-      const via = x.google_only ? "用 Google 登录网站" : "通过你的专属链接";
+      // Members who joined with Google have no link: they sign in instead. With neither, the
+      // Owner sends them a new link anyway, so the text doesn't name one.
+      const via = x.has_link ? "通过你的专属链接" : x.has_google ? "用 Google 登录网站" : "";
       const text =
         x.status === "partial"
           ? `${x.username}，${day(e)}羽毛球的费用还差 $${owed} 没付哦，麻烦${via}补一下，谢谢！`

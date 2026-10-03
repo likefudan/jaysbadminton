@@ -234,21 +234,34 @@ export async function inboundRows(env: Env, state: keyof typeof ROW_FILTER): Pro
   }));
 }
 
+/** How long after an event is archived its bills can still take a 待确认 payment, as an over-payment. */
+export const LINK_ARCHIVED_DAYS = 60;
+
 /**
- * Bills an inbound row can be linked to, on events still collecting: unpaid ones first, then paid
- * ones. Someone who pays twice (a Venmo payment on top of cash, say) can only be put on a paid bill,
- * and the excess shows up under 需要退款, as when a Venmo payment is matched automatically. Paid
- * bills that can't be meant are left out: the Owner's own, $0 ones of people taken off the list, and
- * deleted members'.
+ * Which bills a 待确认 payment may go on (bill p, member m, event e): any unpaid bill of an event
+ * still collecting, and paid ones there or on an event archived lately, so someone who paid twice
+ * (cash, then Venmo with a mistyped code) ends up under 需要退款, as when Venmo matches it
+ * automatically. Paid bills that can't be meant are left out: the Owner's own, deleted members',
+ * and $0 ones that never received anything. Bind the archive cut-off once.
  */
+export const LINKABLE = `(e.status = 'finalized' AND p.status != 'paid'
+  OR (e.status = 'finalized' OR (e.status = 'settled' AND e.settled_at >= ?1))
+     AND p.status = 'paid' AND m.is_owner = 0 AND m.deleted_at IS NULL
+     AND (p.amount_due_cents > 0 OR p.amount_paid_cents > 0))`;
+
+export const linkCutoff = (at: Date = new Date()) =>
+  new Date(at.getTime() - LINK_ARCHIVED_DAYS * 86400_000).toISOString();
+
+/** The bills 待确认 offers to link to: unpaid ones first, then paid ones. */
 export async function openPayments(env: Env): Promise<OpenPayment[]> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.amount_due_cents, p.amount_paid_cents, p.status, p.payment_code, m.username, e.date, e.code
      FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
-     WHERE e.status = 'finalized'
-       AND (p.status != 'paid' OR (p.amount_due_cents > 0 AND m.is_owner = 0 AND m.deleted_at IS NULL))
+     WHERE ${LINKABLE}
      ORDER BY p.status = 'paid', e.start_at DESC, m.username`,
-  ).all<Record<string, any>>();
+  )
+    .bind(linkCutoff())
+    .all<Record<string, any>>();
   return results.map((p) => ({
     id: p.id,
     eventLabel: eventLabel(p.date, p.code),
