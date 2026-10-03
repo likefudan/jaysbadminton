@@ -197,9 +197,9 @@ memberRoutes.post("/:token/events/:id/signup", async (c) => {
   const e = await openEventFor(c, c.req.param("id"));
   const body = await readJson(c.req.raw);
   const m = c.get("member");
-  const [cap, keep] = ownerRules(m) ? [null, 0] : await Promise.all([friendCap(c.env), friendCount(c.env, e.id, m.id)]);
+  const [cap, keep] = await Promise.all([ownerRules(m) ? null : friendCap(c.env), friendCount(c.env, e.id, m.id)]);
   const friends = validateFriends(body.friends ?? [], cap, keep);
-  await setSignup(c.env, e.id, c.get("member").id, friends, false);
+  await setSignup(c.env, e.id, m.id, friends, false);
   return c.json({ ok: true });
 });
 
