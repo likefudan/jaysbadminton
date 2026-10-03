@@ -136,3 +136,19 @@ jobs:
         run: npx wrangler d1 execute DB --remote --command "DELETE FROM settings WHERE key IN ('admin_token_hash', 'admin_token_enc')"
       - name: Smoke test the live site
         run: node scripts/smoke.mjs
+      - name: Tell the developers
+        if: always()
+        env:
+          TELEGRAM_DEV_BOT_TOKEN: ${{ secrets.TELEGRAM_DEV_BOT_TOKEN }}
+          TELEGRAM_DEV_CHAT_ID: ${{ secrets.TELEGRAM_DEV_CHAT_ID }}
+          STATUS: ${{ job.status }}
+        run: |
+          [ -x scripts/notify-dev.sh ] || exit 0
+          run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "$STATUS" = success ]; then
+            text=$(printf '🚀 %s 已发布到正式网站\nhttps://jaysbadminton.llmat.dev\n\n更新内容：%s/%s/releases/tag/%s' \
+              "$GITHUB_REF_NAME" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME")
+          else
+            text=$(printf '⚠️ %s 发布到正式网站失败（%s）\n%s' "$GITHUB_REF_NAME" "$STATUS" "$run")
+          fi
+          scripts/notify-dev.sh "$text"
