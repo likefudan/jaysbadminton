@@ -75,7 +75,9 @@ describe("已删除 Venmo payments", () => {
     )
       .bind(bill.id, new Date().toISOString())
       .run();
-    expect((await ctx.admin.call(`${ctx.base}/inbound/${stray}/unignore`, {})).status).toBe(400);
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${stray}/unignore`, {})).data.error.message).toBe(
+      "这笔付款已经记在一张账单上了，不能再移回待确认；需要改的话请在那张账单里撤销",
+    );
   });
 
   it("lists every ignored payment, however many newer ones were linked", async () => {

@@ -732,7 +732,16 @@ adminEventRoutes.post("/inbound/:iid/unignore", async (c) => {
   )
     .bind(Number(c.req.param("iid")))
     .run();
-  if (!res.meta.changes) throw badRequest("只能把已忽略的收款移回待确认");
+  if (!res.meta.changes) {
+    const row = await c.env.DB.prepare("SELECT state FROM inbound_payments WHERE id = ?")
+      .bind(Number(c.req.param("iid")))
+      .first<{ state: string }>();
+    throw badRequest(
+      row?.state === "ignored"
+        ? "这笔付款已经记在一张账单上了，不能再移回待确认；需要改的话请在那张账单里撤销"
+        : "只能把已忽略的收款移回待确认",
+    );
+  }
   return c.json({ ok: true });
 });
 
