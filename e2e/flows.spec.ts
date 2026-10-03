@@ -148,8 +148,13 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
 
 test("the member sees their 个人信息 and the Owner adds a 备注名", async ({ page }) => {
   await page.goto(memberPath);
-  await page.getByRole("link", { name: "个人信息 ›" }).click(); // its own page, one tap from 我的活动
+  const nav = page.getByRole("navigation", { name: "我的页面" });
+  await expect(nav.getByRole("link", { name: "我的活动" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("main")).not.toContainText(/M\d{3}/); // members never see their ID
+  await nav.getByRole("link", { name: "个人信息" }).click(); // same tab row on both pages
   await expect(page.getByRole("heading", { name: "个人信息", level: 1 })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "个人信息" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("main")).not.toContainText(/M\d{3}/);
   await expect(page.getByRole("button", { name: "修改用户名" })).toBeVisible();
   await expect(page.getByRole("button", { name: /退出/ })).toHaveCount(0);
   const profile = page.locator(".card.profile");

@@ -29,17 +29,8 @@ export function Member(props: { token?: string }) {
   return (
     <Load result={me}>
       {(m) => (
-        <Page title={`你好，${m.username}`} eyebrow={`${m.id} · 我的活动`} subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}>
-          <div class="page-links">
-            {!props.token && m.isOwner && (
-              <a class="button secondary" href="/admin/google">
-                管理页
-              </a>
-            )}
-            <a class="button secondary" href={profilePath(props.token)}>
-              个人信息 ›
-            </a>
-          </div>
+        <Page title={`你好，${m.username}`} subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}>
+          <MemberNav token={props.token} owner={m.isOwner} current="events" />
           {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
           <MyEvents base={base} />
         </Page>
@@ -48,7 +39,29 @@ export function Member(props: { token?: string }) {
   );
 }
 
-const profilePath = (token?: string) => (token ? `/m/${token}/profile` : "/me/profile");
+/**
+ * 我的活动 ⇄ 个人信息: the same row on both pages, the current one highlighted (and 管理页 for the
+ * Owner signed in with Google).
+ */
+function MemberNav(props: { token?: string; owner: boolean; current: "events" | "profile" }) {
+  const home = props.token ? `/m/${props.token}` : "/me";
+  const link = (key: "events" | "profile", href: string, label: string) => (
+    <a class={`button secondary${props.current === key ? " on" : ""}`} href={href} aria-current={props.current === key ? "page" : undefined}>
+      {label}
+    </a>
+  );
+  return (
+    <nav class="page-links" aria-label="我的页面">
+      {!props.token && props.owner && (
+        <a class="button secondary" href="/admin/google">
+          管理页
+        </a>
+      )}
+      {link("events", home, "我的活动")}
+      {link("profile", `${home}/profile`, "个人信息")}
+    </nav>
+  );
+}
 
 /** 个人信息: statistics, profile and account settings, one tap from 我的活动 or the avatar menu. */
 export function MemberProfilePage(props: { token?: string }) {
@@ -57,10 +70,8 @@ export function MemberProfilePage(props: { token?: string }) {
   return (
     <Load result={me}>
       {(m) => (
-        <Page title="个人信息" eyebrow={`${m.id} · ${m.username}`}>
-          <a class="back" href={props.token ? `/m/${props.token}` : "/me"}>
-            ‹ 我的活动
-          </a>
+        <Page title="个人信息" subtitle="你的统计、资料和账号设置。">
+          <MemberNav token={props.token} owner={m.isOwner} current="profile" />
           <MyStatsCard base={base} />
           <MyProfile base={base} />
           <Rename base={base} current={m.username} onDone={reload} />
