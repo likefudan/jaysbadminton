@@ -85,7 +85,9 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
   const code = parsePaymentCode(r.note);
   if (!code?.name || !(await isGroupName(env, code.name))) return "ignored";
   const e = await env.DB.prepare("SELECT * FROM events WHERE date = ? AND code = ?").bind(code.date, code.eventCode).first<EventRow>();
-  if (!e) return "ignored";
+  // A payment for an event the Owner deleted is still a group member's money: 待确认, not ignored.
+  const deleted = !e && (await env.DB.prepare("SELECT 1 FROM deleted_events WHERE date = ? AND code = ?").bind(code.date, code.eventCode).first());
+  if (!e && !deleted) return "ignored";
 
   const seen = await env.DB.prepare(
     "SELECT 1 FROM inbound_payments WHERE venmo_txn_id = ?1 UNION ALL SELECT 1 FROM payment_receipts WHERE venmo_txn_id = ?1",
@@ -94,10 +96,11 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
     .first();
   if (seen) return "duplicate";
 
+  const review = (reason: string) => record(env, r, mail.messageId, reason);
+  if (!e) return review("这次活动已从数据库永久删除");
   const p = await env.DB.prepare("SELECT id, payment_code FROM payments WHERE event_id = ? AND member_id = ?")
     .bind(e.id, code.memberId)
     .first<{ id: number; payment_code: string }>();
-  const review = (reason: string) => record(env, r, mail.messageId, reason);
 
   if (!p) {
     if (e.status === "open" || e.status === "closed") return review("这次活动还没结算");
@@ -202,7 +205,7 @@ export async function refundRows(env: Env): Promise<RefundRow[]> {
   const { results } = await env.DB.prepare(
     `SELECT p.*, m.username, e.date, e.code FROM payments p
      JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
-     WHERE p.amount_paid_cents > p.amount_due_cents + p.refunded_cents
+     WHERE p.amount_paid_cents > p.amount_due_cents
      ORDER BY e.start_at DESC, m.username`,
   ).all<Record<string, any>>();
   const receipts = await receiptsFor(env, results.map((p) => p.id));

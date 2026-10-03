@@ -16,7 +16,7 @@ flowchart LR
     API["Pages + API<br/>Preact UI, Hono /api"]
     EM["Email handler<br/>match payment codes"]
     EX["Export feed<br/>JSON + CSV"]
-    CR["Cron trigger<br/>every minute"]
+    CR["Cron trigger<br/>every 15 minutes"]
     D1[("D1 database")]
     API --- D1
     EM --- D1
@@ -161,7 +161,7 @@ The admin page's 收款 tab lists the 待确认 rows with their reason; the Owne
 
 ## Scheduled jobs and Telegram notifications
 
-One Cron Trigger runs every minute (`* * * * *`, UTC), so 报名截止 goes out within seconds of a deadline (deadlines fall on whole minutes); the handler converts "now" to Pacific time and walks every non-archived event. Each notification is written to `notification_log` before sending, so a retry never sends twice.
+Each event has a Durable Object (`DeadlineAlarm`, `src/worker/deadlines.ts`) whose alarm is set for its 截止前提醒 and then its deadline, so 报名截止 goes out the moment sign-up closes. The alarm is re-aimed whenever the deadline can change: create, edit, close early, reopen, cancel, and a change to the reminder settings; every cron run also re-aims the alarms of all open events, so events created before alarms existed get one. One Cron Trigger runs every 15 minutes (`*/15 * * * *`, UTC) for the hourly and daily jobs and as a backstop for a failed alarm; the handler converts "now" to Pacific time and walks every non-archived event. Each notification is written to `notification_log` before sending, so a retry never sends twice.
 
 | Job | Fires when | Repeats |
 | --- | --- | --- |
@@ -192,7 +192,7 @@ Two styles (`minimal`, `aurora`) × four accents each, light and dark. `src/shar
 
 ## Link previews, calendar and icon
 
-The Worker runs first for `/` and `/e/*` (`run_worker_first`), fetches the app shell from `ASSETS` and rewrites `<title>`, `description` and `og:*` with HTMLRewriter (`src/worker/share.ts`): event title, date, time, venue, headcount, deadline — never names. `GET /api/public/events/{code}/calendar.ics` serves an RFC 5545 file (UTC times, folded lines, 2-hour alarm); the page also links a prefilled Google Calendar URL (`src/shared/calendar.ts`). Icons, `manifest.webmanifest` (no `start_url`, so a member's home-screen shortcut opens their own page) and the share image live in `src/web/public`.
+The Worker runs first for `/` and `/e/*` (`run_worker_first`), fetches the app shell from `ASSETS` and rewrites `<title>`, `description` and `og:*` with HTMLRewriter (`src/worker/share.ts`): event title, date, time, venue, headcount, deadline — never names. `GET /api/public/events/{code}/calendar.ics` serves an RFC 5545 file (UTC times, folded lines, 2-hour alarm); the page also links a prefilled Google Calendar URL (`src/shared/calendar.ts`). Icons, `manifest.webmanifest` (no `start_url`, so a member's home-screen shortcut opens their own page) and the share image live in `src/web/public`. The home page has a 生成分享名片 button for the site, and every event card (public page and the member's own) has a 分享活动 row with 生成活动名片: `src/web/ShareCard.tsx` draws a PNG in the browser (canvas) with `/icon.svg`, the site title, the event's date, time and venue (`src/shared/shareCard.ts`, never names), a QR code and the link, for long-press saving or download.
 
 ## Google Sheets daily mirror
 

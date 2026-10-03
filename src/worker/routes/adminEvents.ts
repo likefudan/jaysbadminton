@@ -1,19 +1,22 @@
 import { Hono } from "hono";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
 import type { EventDefaults, InboundResponse, SettlementView } from "../../shared/types";
-import { addReceipt, checkCollected, finalize, paymentRows, recomputeIfFinalized, savedInput, settleRows, syncPayments } from "../billing";
+import { addReceipt, checkCollected, finalize, markPaid, paymentRows, recomputeIfFinalized, savedInput, settleRows, syncPayments } from "../billing";
 import { isDate, isTime, pacificToUtc } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
+import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
 import type { Env } from "../env";
 import {
   assertRosterEditable,
   closeExpired,
   createEvent,
+  deleteEvent,
   detail,
   friendCap,
   checkVenue,
   cleanTitle,
   getEvent,
+  isDeletable,
   saveVenue,
   removeSignup,
   setSignup,
@@ -39,7 +42,6 @@ export const adminEventRoutes = new Hono<{ Bindings: Env }>();
 const num = (v: unknown) => (typeof v === "number" ? v : Number(v));
 
 adminEventRoutes.get("/events", async (c) => {
-  await closeExpired(c.env);
   const current = await c.env.DB.prepare(
     "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at",
   ).all<EventRow>();
@@ -66,6 +68,17 @@ adminEventRoutes.get("/events/defaults", async (c) => {
     locations: results,
     friendCap: await friendCap(c.env),
   });
+});
+
+/** 最近的场馆 ✕: forgets a venue. Events keep their own copy of the venue and address. */
+adminEventRoutes.post("/locations/remove", async (c) => {
+  const name = str((await readJson(c.req.raw)).name);
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM locations WHERE name = ?").bind(name),
+    // Otherwise the next new event would still start with it filled in.
+    c.env.DB.prepare("DELETE FROM settings WHERE key = 'last_location' AND value = ?").bind(name),
+  ]);
+  return c.json({ ok: true });
 });
 
 adminEventRoutes.post("/events", async (c) => {
@@ -115,7 +128,6 @@ adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
 });
 
 adminEventRoutes.get("/events/:id", async (c) => {
-  await closeExpired(c.env);
   return c.json(await detail(c.env, await getEvent(c.env, Number(c.req.param("id")))));
 });
 
@@ -123,6 +135,23 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   if (e.status !== "open" && e.status !== "closed") throw badRequest("只能在 Finalize 之前取消活动");
   await c.env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e.id).run();
+  await syncDeadline(c.env, e.id);
+  return c.json({ ok: true });
+});
+
+/**
+ * 从数据库永久删除, for test events and other history the Owner wants gone. Needs the admin
+ * password; the page also asks for confirmation. Reported to the Owner's Telegram like other
+ * password-gated changes. D1 Time Travel can still restore the last 7 days if it was a mistake.
+ */
+adminEventRoutes.post("/events/:id/delete", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  if (!(await checkPassword(c.env, str((await readJson(c.req.raw)).password)))) throw new HttpError(401, "wrong_password", "管理密码不正确");
+  if (!isDeletable(e)) throw badRequest("只能删除已收齐归档或已取消的活动");
+  await deleteEvent(c.env, e);
+  await clearDeadline(c.env, e.id);
+  const label = `${e.date} ${e.code}${e.title ? ` ${e.title}` : ""}`;
+  await sendToOwner(c.env, message(`🗑 活动 ${label} 已从数据库永久删除（报名、账单和付款记录一并删除）。\n\n如果不是你本人操作，请立刻修改管理密码。`));
   return c.json({ ok: true });
 });
 
@@ -134,6 +163,7 @@ adminEventRoutes.post("/events/:id/close-now", async (c) => {
   await c.env.DB.prepare("UPDATE events SET status = 'closed', deadline_at = ? WHERE id = ? AND status = 'open'")
     .bind(now(), e.id)
     .run();
+  await syncDeadline(c.env, e.id); // 报名截止 goes out right away
   return c.json({ ok: true });
 });
 
@@ -172,6 +202,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
     ).bind(date, startAt, endAt, location, address, b.title === undefined ? e.title : cleanTitle(str(b.title)), deadline, status, e.id),
     saveVenue(c.env, location, address, ts),
   ]);
+  await syncDeadline(c.env, e.id);
   return c.json(await detail(c.env, await getEvent(c.env, e.id)));
 });
 
@@ -188,6 +219,7 @@ adminEventRoutes.post("/events/:id/reopen", async (c) => {
   if (deadline <= now()) throw badRequest("新的截止时间必须晚于现在");
   if (deadline > e.end_at) throw badRequest("截止时间最晚只能到活动结束");
   await c.env.DB.prepare("UPDATE events SET status = 'open', deadline_at = ? WHERE id = ?").bind(deadline, e.id).run();
+  await syncDeadline(c.env, e.id);
   return c.json({ ok: true });
 });
 
@@ -292,6 +324,7 @@ adminEventRoutes.post("/settings", async (c) => {
   }
   if (b.weeklyDigest !== undefined) writes.push(setSetting(c.env.DB, "weekly_digest", b.weeklyDigest === false ? "0" : "1"));
   if (writes.length) await c.env.DB.batch(writes);
+  if (b.reminderEnabled !== undefined || b.reminderHours !== undefined) await syncAllDeadlines(c.env);
   return c.json({ ok: true });
 });
 
@@ -379,6 +412,7 @@ adminEventRoutes.get("/events/:id/settlement", async (c) => {
 });
 
 adminEventRoutes.post("/events/:id/preview", async (c) => {
+  await closeExpired(c.env);
   const e = await getEvent(c.env, Number(c.req.param("id")));
   assertSettleable(e);
   const input = readInput(await readJson(c.req.raw));
@@ -408,10 +442,8 @@ async function paymentEvent(env: Env, paymentId: number) {
 /** Cash, Zelle or anything else: a manual receipt for whatever is still owed. */
 adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
   const id = Number(c.req.param("pid"));
-  const { p, e } = await paymentEvent(c.env, id);
-  const owed = p.amount_due_cents - p.amount_paid_cents;
-  if (owed <= 0) throw badRequest("这笔已经付清了");
-  await addReceipt(c.env, id, { amountCents: owed, method: "manual" });
+  const { e } = await paymentEvent(c.env, id);
+  if (!(await markPaid(c.env, id))) throw badRequest("这笔已经付清了");
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });
 });
@@ -438,13 +470,15 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
 /** The Owner sent the over-payment back. Allowed on archived events too: it changes no bill. */
 adminEventRoutes.post("/payments/:pid/refunded", async (c) => {
   const id = Number(c.req.param("pid"));
-  const res = await c.env.DB.prepare(
-    `UPDATE payments SET refunded_cents = amount_paid_cents - amount_due_cents
-     WHERE id = ? AND amount_paid_cents > amount_due_cents + refunded_cents`,
-  )
-    .bind(id)
-    .run();
-  if (res.meta.changes === 0) throw badRequest("这笔没有需要退的钱");
+  // One refund record for the whole excess, worked out in the same transaction so a second click adds nothing.
+  const [res] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
+       SELECT id, amount_due_cents - amount_paid_cents, 'refund', ? FROM payments WHERE id = ? AND amount_paid_cents > amount_due_cents`,
+    ).bind(now(), id),
+    ...syncPayments(c.env.DB, "id = ?", id),
+  ]);
+  if ((res?.meta.changes ?? 0) === 0) throw badRequest("这笔没有需要退的钱");
   return c.json({ ok: true });
 });
 
@@ -472,7 +506,11 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const paymentId = num((await readJson(c.req.raw)).paymentId);
   const { e } = await paymentEvent(c.env, paymentId);
   if (i.amount_cents === null) throw badRequest("这笔收款没有金额，请改用「标记已付」");
-  await c.env.DB.prepare("UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ?").bind(paymentId, i.id).run();
+  // Only one request can move it out of 待确认, so a double click never adds the money twice.
+  const claimed = await c.env.DB.prepare("UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ? AND state = 'open'")
+    .bind(paymentId, i.id)
+    .run();
+  if (!claimed.meta.changes) throw badRequest("这笔收款已经处理过了");
   await addReceipt(c.env, paymentId, { amountCents: i.amount_cents, method: "venmo", txnId: i.venmo_txn_id, payerName: i.payer_name });
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });

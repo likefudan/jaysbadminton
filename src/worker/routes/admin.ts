@@ -4,12 +4,15 @@ import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
 import { assertAdminToken, checkPassword, endSession, hasSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
+import { closeExpired } from "../events";
 import type { Env } from "../env";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { adminEventRoutes } from "./adminEvents";
 import { type MemberRow, issueMemberToken, memberLink, requireMember, revealMemberToken, toSummary } from "../members";
 import { memberProfile, setAdminNote } from "../profile";
 import { googleOwner, googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
+import { isStaging } from "../site";
+import { escapeHtml, sendToOwner } from "../telegram";
 
 /** /admin/google: the admin page reached through the Owner's own Google account instead of the link. */
 export const GOOGLE_ADMIN = "google";
@@ -111,6 +114,7 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.is_owner) throw badRequest("不能停用管理员自己");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
+  await closeExpired(c.env); // an event past its deadline keeps its sign-ups
   await c.env.DB.batch([
     // The link keeps working so they can still pay what they owe; sign-up is refused.
     c.env.DB.prepare("UPDATE members SET status = 'inactive' WHERE id = ?").bind(m.id),
@@ -129,6 +133,24 @@ adminRoutes.post("/:token/settings/password", async (c) => {
   const err = checkPasswordRule(next);
   if (err) throw badRequest(err);
   await setPassword(c.env, next);
+  return c.json({ ok: true });
+});
+
+/**
+ * 备份 TOKEN_KEY: Cloudflare secrets can't be read back, so the Worker itself sends the key to the
+ * Owner's Telegram, never to the browser. Needs the password like other rare, sensitive settings.
+ */
+adminRoutes.post("/:token/settings/backup-key", async (c) => {
+  const body = await readJson(c.req.raw);
+  if (!(await checkPassword(c.env, str(body.password)))) throw new HttpError(401, "wrong_password", "密码不正确");
+  const site = isStaging(c.env) ? "测试站" : "正式网站";
+  const sent = await sendToOwner(
+    c.env,
+    `🔑 ${site}的 TOKEN_KEY（${escapeHtml(c.env.SITE_ORIGIN)}）：\n<pre>${escapeHtml(c.env.TOKEN_KEY)}</pre>\n` +
+      `请存进密码管理器，并存为 GitHub secret <code>${isStaging(c.env) ? "LINK_ENCRYPTION_KEY_STAGING" : "LINK_ENCRYPTION_KEY"}</code>，然后删除这条消息。` +
+      "每次部署都会核对它；万一 Worker 的 secret 丢了，部署时会自动用它填回去。",
+  );
+  if (!sent) throw badRequest("发送失败：请先在设置里连接 Telegram");
   return c.json({ ok: true });
 });
 
@@ -242,6 +264,7 @@ const RESET_TABLES = [
   "settlements",
   "registrations",
   "events",
+  "deleted_events",
   "locations",
   "admin_sessions",
   "members",

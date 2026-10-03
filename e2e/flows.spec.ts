@@ -131,6 +131,19 @@ test("the Owner creates an event and is signed up for it", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "名单（1）" })).toBeVisible();
 });
 
+test("the Owner forgets a venue from 最近的场馆 with its ✕", async ({ page }) => {
+  await openAdmin(page);
+  await page.getByRole("button", { name: "＋ 新建活动" }).click();
+  await expect(page.getByRole("button", { name: VENUE, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: `从最近的场馆中删除「${VENUE}」` }).click(); // no confirmation dialog
+  await expect(page.getByText("最近的场馆")).toHaveCount(0);
+  await page.reload();
+  await openAdmin(page);
+  await page.getByRole("button", { name: "＋ 新建活动" }).click();
+  await expect(field(page, "日期")).toBeVisible();
+  await expect(page.getByText("最近的场馆")).toHaveCount(0);
+});
+
 test("the member signs up with a friend and can add it to a calendar", async ({ page }) => {
   await page.goto(memberPath);
   await expect(page.getByRole("heading", { name: "你好，小明" })).toBeVisible();
@@ -157,6 +170,11 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await expect(page.getByRole("heading", { name: "你好，小明" })).toBeVisible(); // still on the member page
   const google = new URL((await card.getByRole("link", { name: "Google 日历" }).getAttribute("href"))!);
   expect(google.searchParams.get("dates")).toMatch(/^\d{8}T\d{6}Z\/\d{8}T\d{6}Z$/);
+
+  // The same 活动名片 as on the public page, from inside their own event card.
+  await card.getByRole("button", { name: "生成活动名片" }).click();
+  await expect(page.getByRole("dialog", { name: "分享名片" }).locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
+  await page.getByRole("button", { name: "关闭" }).click();
 });
 
 test("the member sees their 个人信息 and the Owner adds a 备注名", async ({ page }) => {
@@ -219,6 +237,15 @@ test("public pages show the headcount and a link preview, never names", async ({
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "iPhone / Outlook" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.ics$/);
+
+  // 分享活动 inside the event card: an image with the logo, QR code and link, to long-press or download.
+  await expect(page.getByRole("button", { name: "生成分享名片" })).toHaveCount(0); // the old button under the card is gone
+  await page.locator(".card").getByRole("button", { name: "生成活动名片" }).click();
+  const card = page.getByRole("dialog", { name: "分享名片" });
+  await expect(card.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
+  const png = page.waitForEvent("download");
+  await card.getByRole("link", { name: "下载图片" }).click();
+  expect((await png).suggestedFilename()).toBe(`event-${eventCode}.png`);
 });
 
 test("signed in with Google: the member sees the roster on shared pages; the Owner binds Google for the admin page", async ({ page, context, baseURL }) => {
@@ -266,6 +293,7 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   const bill = page.locator(".card", { hasText: "本次应付" });
   await expect(bill.locator(".amount")).toHaveText("$48.00"); // 小明 + 阿强
   await expect(bill.locator(".status")).toHaveText("待付款");
+  await expect(bill.getByRole("button", { name: "生成活动名片" })).toHaveCount(0); // a billed event isn't shared
   const code = await bill.locator(".memo code").innerText();
   expect(code).toMatch(/^xiaoming-jbm\d{8}-m002$/);
   const venmo = new URL((await bill.getByRole("link", { name: "用 Venmo 付 $48.00" }).getAttribute("href"))!);

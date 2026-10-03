@@ -874,6 +874,35 @@ input[role="switch"]:checked::after {
   color: var(--accent-text);
   border-color: transparent;
 }
+.chips:has(.chip-remove) {
+  padding-top: 8px; /* room for the ✕, which the scrolling row would otherwise clip */
+  padding-right: 8px;
+}
+.chip-wrap {
+  position: relative;
+  flex: none;
+}
+.chip-remove {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg, #fff);
+  font-size: 10px;
+  line-height: 20px;
+  text-align: center;
+  opacity: 0.55;
+  cursor: pointer;
+}
+.chip-remove:hover,
+.chip-remove:focus-visible {
+  opacity: 0.9;
+}
 .suggest {
   position: relative;
 }
@@ -2312,6 +2341,14 @@ a.ev-meta {
 .calendar + .button {
   margin-top: 14px;
 }
+button.calendar-link {
+  font-family: inherit;
+  cursor: pointer;
+}
+.calendar + .share-row {
+  margin-top: 10px;
+  padding-top: 10px;
+}
 
 /* ---- 名单 on the member's event card ---- */
 .roster-fold {
@@ -2776,4 +2813,15 @@ a.back {
 }
 p.center a {
   color: var(--acc-ink);
+}
+
+/* 分享名片 */
+.sharecard {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(440px, 58vh);
+  margin: 8px auto 4px;
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
 }

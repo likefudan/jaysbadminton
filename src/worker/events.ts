@@ -1,6 +1,7 @@
 import type { EventDetail, EventStatus, EventSummary, RosterEntry } from "../shared/types";
 import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
 import { getSettings, now, setSetting } from "./db";
+import { syncDeadline } from "./deadlines";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 
@@ -37,6 +38,12 @@ export const DEFAULT_FRIEND_CAP = 3;
 export const friendLabel = (memberName: string, index: number, name: string | null) =>
   name?.trim() || `${memberName}的朋友${index}`;
 
+/**
+ * An open event past its deadline reads as closed straight away; its deadline alarm (or the cron) or the
+ * next write stores it. Read paths use this instead of writing to the database themselves.
+ */
+export const liveStatus = (e: EventRow): EventStatus => (e.status === "open" && e.deadline_at <= now() ? "closed" : e.status);
+
 export function toSummary(e: EventRow, headcount: number): EventSummary {
   return {
     id: e.id,
@@ -48,12 +55,12 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
     address: e.address,
     title: e.title,
     deadlineAt: e.deadline_at,
-    status: e.status,
+    status: liveStatus(e),
     headcount,
   };
 }
 
-/** Moves open events past their deadline to closed. Cheap enough to run before any event read. */
+/** Moves open events past their deadline to closed: from the cron, and before any write that depends on it. */
 export async function closeExpired(env: Env): Promise<void> {
   await env.DB.prepare("UPDATE events SET status = 'closed' WHERE status = 'open' AND deadline_at <= ?").bind(now()).run();
 }
@@ -104,7 +111,31 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
 
 export async function detail(env: Env, e: EventRow): Promise<EventDetail> {
   const list = await roster(env, e.id);
-  return { ...toSummary(e, list.length), roster: list, dunningStopped: e.dunning_stopped === 1 };
+  return { ...toSummary(e, list.length), roster: list, dunningStopped: e.dunning_stopped === 1, deletable: isDeletable(e) };
+}
+
+/** Only history can be deleted for good: events that are archived (all paid) or cancelled. */
+export const isDeletable = (e: EventRow): boolean => e.status === "settled" || e.status === "cancelled";
+
+/**
+ * 从数据库永久删除: removes the event and everything hanging off it in one transaction (children
+ * first, for the foreign keys). Venmo payments matched to its bills go with it, both auto-matched
+ * receipts and 待确认 rows the Owner linked by hand. Leaderboard, member spending and the Sheets
+ * export are all computed from these tables, so the event simply stops counting everywhere.
+ * Only its date and code are kept (deleted_events), so the code is never reused.
+ */
+export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
+  const bills = "SELECT id FROM payments WHERE event_id = ?1";
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM inbound_payments WHERE linked_payment_id IN (${bills})`).bind(e.id),
+    env.DB.prepare(`DELETE FROM payment_receipts WHERE payment_id IN (${bills})`).bind(e.id),
+    env.DB.prepare("DELETE FROM payments WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM settlements WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM events WHERE id = ?").bind(e.id),
+    env.DB.prepare("INSERT INTO deleted_events (id, code, date, deleted_at) VALUES (?, ?, ?, ?)").bind(e.id, e.code, e.date, now()),
+  ]);
 }
 
 export async function friendCap(env: Env): Promise<number> {
@@ -169,7 +200,12 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const v = validateEventInput(input);
   const location = input.location.trim();
   const address = input.address.trim();
-  const sameDay = await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE date = ?").bind(input.date).first<{ n: number }>();
+  // Deleted events still count, so their codes are never handed out again.
+  const sameDay = await env.DB.prepare(
+    "SELECT (SELECT COUNT(*) FROM events WHERE date = ?1) + (SELECT COUNT(*) FROM deleted_events WHERE date = ?1) AS n",
+  )
+    .bind(input.date)
+    .first<{ n: number }>();
   const n = sameDay?.n ?? 0;
   if (n >= 26) throw badRequest("同一天的活动太多了");
   const code = input.date.slice(5, 7) + input.date.slice(8, 10) + (n === 0 ? "" : String.fromCharCode(65 + n)); // 1006, 1006B, 1006C
@@ -187,6 +223,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     setSetting(env.DB, "last_location", location),
     setSetting(env.DB, "last_deadline_offset_min", String(v.offsetMin)),
   ]);
+  await syncDeadline(env, res!.id);
   return getEvent(env, res!.id);
 }
 

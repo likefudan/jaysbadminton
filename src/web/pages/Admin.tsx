@@ -466,12 +466,47 @@ function Settings(props: { base: string; viaGoogle: boolean }) {
           </>
         )}
       </Card>
+      <BackupKey base={props.base} />
       <button class="button secondary block" onClick={logout}>
         退出登录
       </button>
       <AdminGuide base={props.base} />
       <ResetAll base={props.base} />
     </>
+  );
+}
+
+/** Sends TOKEN_KEY to the Owner's Telegram so it can be kept somewhere safe (Cloudflare can't show it). */
+function BackupKey(props: { base: string }) {
+  const [password, setPassword] = useState("");
+  const [done, setDone] = useState(false);
+  const { busy, error, run } = useAction();
+
+  async function submit(e: Event) {
+    e.preventDefault();
+    if (await run(() => api(`${props.base}/settings/backup-key`, { password }))) {
+      setDone(true);
+      setPassword("");
+    }
+  }
+
+  return (
+    <Card title="备份网站密钥">
+      <p class="muted small">
+        TOKEN_KEY 用来加密保存成员链接和管理链接，Cloudflare 里看不到它的值。把它发到你的 Telegram，存进密码管理器后删掉那条消息。
+      </p>
+      {done ? (
+        <p>已发送到 Telegram。</p>
+      ) : (
+        <form onSubmit={submit}>
+          <Field label="管理密码" type="password" value={password} onInput={setPassword} autocomplete="current-password" />
+          {error && <p class="error">{error}</p>}
+          <button class="button secondary block" disabled={busy || !password}>
+            发送到 Telegram
+          </button>
+        </form>
+      )}
+    </Card>
   );
 }
 

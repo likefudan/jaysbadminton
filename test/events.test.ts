@@ -35,6 +35,17 @@ describe("creating events", () => {
     ]);
   });
 
+  it("forgets a recent venue from 最近的场馆", async () => {
+    const ctx = await setUpAdmin();
+    await createTestEvent(ctx, { location: "Old Gym", address: "1 Old St, San Jose, CA 95131" });
+    await createTestEvent(ctx, { location: "Test Gym", address: "" });
+    expect((await ctx.admin.call(`${ctx.base}/locations/remove`, { name: "Test Gym" })).status).toBe(200);
+    const { data } = await ctx.admin.call(`${ctx.base}/events/defaults`);
+    expect(data.locations.map((l: { name: string }) => l.name)).not.toContain("Test Gym");
+    expect(data.locations).toContainEqual({ name: "Old Gym", address: "1 Old St, San Jose, CA 95131" });
+    expect(data.location).toBe(""); // it was the last one used, so it no longer pre-fills either
+  });
+
   it("refuses a deadline that is already in the past", async () => {
     const ctx = await setUpAdmin();
     const res = await ctx.admin.call(`${ctx.base}/events`, {
@@ -161,11 +172,23 @@ describe("Owner roster edits", () => {
     const fay = await approveMember(ctx, "Fay");
     await anon.call(`${fay.base}/events/${open.id}/signup`, { friends: [] });
     await anon.call(`${fay.base}/events/${closed.id}/signup`, { friends: [] });
-    await expire(closed.id);
-    await anon.call("/api/public/home"); // closes the expired event
+    await expire(closed.id); // past its deadline, not yet closed by the cron
     await ctx.admin.call(`${ctx.base}/members/${fay.id}/deactivate`, {});
     expect((await ctx.admin.call(`${ctx.base}/events/${open.id}`)).data.headcount).toBe(0);
     expect((await ctx.admin.call(`${ctx.base}/events/${closed.id}`)).data.headcount).toBe(1);
+  });
+});
+
+describe("deadlines on read", () => {
+  it("shows an event past its deadline as closed without writing to the database", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    await expire(e.id);
+    expect((await anon.call(`/api/public/events/${e.code}`)).data.status).toBe("closed");
+    expect((await anon.call("/api/public/home")).data.currentEvents[0].status).toBe("closed");
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.status).toBe("closed");
+    const row = await env.DB.prepare("SELECT status FROM events WHERE id = ?").bind(e.id).first<{ status: string }>();
+    expect(row!.status).toBe("open"); // the cron stores it
   });
 });
 

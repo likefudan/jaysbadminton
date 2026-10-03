@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { settle } from "../../shared/settle";
 import type { MeResponse, MyEvent, MyEventsResponse, MyHistoryEvent, MyPayment, MyRosterEntry, PaymentStatus } from "../../shared/types";
-import { refundOf, savedInput, settleRows } from "../billing";
+import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
 import { getSettings } from "../db";
@@ -47,7 +47,6 @@ memberRoutes.post("/:token/rename", async (c) => {
 
 memberRoutes.get("/:token/events", async (c) => {
   const m = c.get("member");
-  await closeExpired(c.env);
   // 我的活动: every event they signed up for or were billed for (cancelled ones left out), plus the
   // open ones they can still join; newest first.
   const { results } = await c.env.DB.prepare(
@@ -96,10 +95,13 @@ memberRoutes.get("/:token/events", async (c) => {
     const pay = payOf(e.id);
     // Events they are not on are only offered while open, and never to a disabled member.
     if (rows.length === 0 && !pay && (e.status !== "open" || m.status !== "active")) continue;
+    const settled = e.status === "finalized" || e.status === "settled";
+    // One roster read serves both the bill breakdown and the list of who is coming.
+    const people = rows.length > 0 || (pay && settled) ? await roster(c.env, e.id) : [];
     let payment: MyPayment | null = null;
-    if (pay && (e.status === "finalized" || e.status === "settled")) {
+    if (pay && settled) {
       const input = await savedInput(c.env, e.id);
-      const bill = input ? settle(await settleRows(c.env, e.id), input).bills.find((b) => b.memberId === m.id) : undefined;
+      const bill = input ? settle(toSettleRows(people), input).bills.find((b) => b.memberId === m.id) : undefined;
       payment = {
         amountCents: pay.amount_due_cents,
         paidCents: pay.amount_paid_cents,
@@ -114,8 +116,7 @@ memberRoutes.get("/:token/events", async (c) => {
     // Who else is coming: only for members on the list themselves (the public pages show a count).
     let names: MyRosterEntry[] | null = null;
     if (rows.length > 0) {
-      const settled = e.status === "finalized" || e.status === "settled";
-      names = (await roster(c.env, e.id)).map((r) => ({
+      names = people.map((r) => ({
         name: r.name,
         friendOf: r.friendIndex > 0 ? r.memberName : null,
         mine: r.memberId === m.id,

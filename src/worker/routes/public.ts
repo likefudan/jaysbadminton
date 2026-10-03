@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { calendarEntry, icsFile } from "../../shared/calendar";
 import type { HomeResponse, PublicEvent } from "../../shared/types";
-import { closeExpired, summaries, type EventRow } from "../events";
+import { summaries, type EventRow } from "../events";
 import { getSettings } from "../db";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
@@ -19,7 +19,6 @@ publicRoutes.get("/site", async (c) =>
 );
 
 publicRoutes.get("/home", async (c) => {
-  await closeExpired(c.env);
   const current = await c.env.DB.prepare(
     "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at",
   ).all<EventRow>();
@@ -34,7 +33,6 @@ publicRoutes.get("/home", async (c) => {
 });
 
 publicRoutes.get("/events/:code", async (c) => {
-  await closeExpired(c.env);
   const e = await c.env.DB.prepare("SELECT * FROM events WHERE code = ? ORDER BY start_at DESC LIMIT 1")
     .bind(c.req.param("code").toUpperCase())
     .first<EventRow>();

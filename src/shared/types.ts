@@ -110,6 +110,8 @@ export interface RosterEntry {
 export interface EventDetail extends EventSummary {
   roster: RosterEntry[];
   dunningStopped: boolean;
+  /** 从数据库永久删除 is offered: the event is archived (all paid) or cancelled. */
+  deletable: boolean;
 }
 
 export interface MyEvent extends EventSummary {
@@ -224,7 +226,7 @@ export type PaymentStatus = "unpaid" | "partial" | "paid";
 export interface Receipt {
   id: number;
   amountCents: number;
-  method: "venmo" | "manual";
+  method: "venmo" | "manual" | "refund"; // a refund has a negative amount
   payerName: string | null;
   receivedAt: string;
 }

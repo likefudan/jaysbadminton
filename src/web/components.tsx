@@ -1,4 +1,4 @@
-import type { ComponentChildren } from "preact";
+import type { AccessibleInputHTMLAttributes, ComponentChildren, HTMLInputTypeAttribute } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import type { Loaded } from "./hooks";
 import { AppearanceButton, AppearanceSheet } from "./Appearance";
@@ -18,7 +18,7 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
       <header class="topbar">
         <a href="/" class="brand">
           <span class="logo">
-            <RacketMark />
+            <BridgeMark />
           </span>
           <span class="brand-name">{site}</span>
         </a>
@@ -45,19 +45,29 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
   );
 }
 
-/** The app icon's racket and swing, in the current accent colour. */
-function RacketMark() {
+/** The app icon's Golden Gate towers, main cable, deck and shuttlecock, simplified, in the current accent colour. */
+function BridgeMark() {
   return (
-    <svg viewBox="0 0 512 512" width="22" height="22" aria-hidden="true">
-      <g fill="none" stroke="currentColor" stroke-linecap="round">
-        <path d="M84 300 A220 220 0 0 1 160 92" stroke-width="26" opacity=".4" />
-      </g>
-      <g transform="translate(262 262) scale(1.28) rotate(38)" fill="none" stroke="currentColor">
-        <ellipse rx="62" ry="84" stroke-width="28" />
-        <path d="M-40 -60V60M0 -80V80M40 -60V60M-56 -30H56M-60 10H60M-50 50H50" stroke-width="7" opacity=".7" />
-        <path d="M-16 80 L0 112 L16 80" stroke-width="12" stroke-linejoin="round" />
-        <path d="M0 112V166" stroke-width="20" stroke-linecap="round" />
-        <path d="M0 176V220" stroke-width="36" stroke-linecap="round" />
+    <svg viewBox="0 0 512 512" width="22" height="22" aria-hidden="true" fill="currentColor">
+      <path d="M0 300 Q70 210 132 120 Q256 420 380 120 Q442 210 512 300" fill="none" stroke="currentColor" stroke-width="30" stroke-linejoin="round" />
+      <path d="M99 92L119 92L110 470L90 470ZM165 92L145 92L154 470L174 470Z" />
+      <path d="M347 92L367 92L358 470L338 470ZM413 92L393 92L402 470L422 470Z" />
+      <rect x="99" y="92" width="66" height="20" />
+      <rect x="98" y="141" width="68" height="14" />
+      <rect x="97" y="194" width="71" height="14" />
+      <rect x="95" y="255" width="73" height="14" />
+      <rect x="103" y="74" width="12" height="20" />
+      <rect x="149" y="74" width="12" height="20" />
+      <rect x="347" y="92" width="66" height="20" />
+      <rect x="346" y="141" width="68" height="14" />
+      <rect x="345" y="194" width="71" height="14" />
+      <rect x="343" y="255" width="73" height="14" />
+      <rect x="351" y="74" width="12" height="20" />
+      <rect x="397" y="74" width="12" height="20" />
+      <rect x="0" y="356" width="512" height="34" />
+      <g transform="translate(256 140) scale(.82)">
+        <path d="M-26 22 L-66 -78 Q-50 -94 -33 -80 Q-16 -96 0 -82 Q16 -96 33 -80 Q50 -94 66 -78 L26 22 Z" />
+        <path d="M-30 30 H30 V40 A30 30 0 0 1 -30 40 Z" />
       </g>
     </svg>
   );
@@ -122,7 +132,7 @@ export function Field(props: {
   label: string;
   value: string;
   onInput: (v: string) => void;
-  type?: string;
+  type?: HTMLInputTypeAttribute;
   hint?: string;
   autocomplete?: string;
 }) {
@@ -130,7 +140,8 @@ export function Field(props: {
     <label class="field">
       <span>{props.label}</span>
       <input
-        type={props.type ?? "text"}
+        // Preact 11 types <input> as a union keyed on `type`, which a variable `type` can't satisfy.
+        {...({ type: props.type ?? "text" } as AccessibleInputHTMLAttributes)}
         value={props.value}
         autocomplete={props.autocomplete}
         onInput={(e) => props.onInput((e.target as HTMLInputElement).value)}

@@ -7,6 +7,7 @@ declare global {
     }
     interface Env {
       DB: D1Database;
+      DEADLINES: DurableObjectNamespace<import("../src/worker/deadlines").DeadlineAlarm>;
       ASSETS: Fetcher;
       TEST_MIGRATIONS: D1Migration[];
       TOKEN_KEY: string;

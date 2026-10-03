@@ -7,29 +7,9 @@
     <meta name="theme-color" content="#f7f4ef" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Jay's 羽毛球</title>
-    <script>
-      // Apply the remembered appearance before the first paint (site.ts keeps it up to date).
-      (function () {
-        var d = document.documentElement;
-        try {
-          var old = { lagoon: "minimal-coral", ocean: "minimal-ocean", grape: "minimal-grape", sunset: "minimal-coral", sakura: "aurora-sunset", forest: "minimal-forest", graphite: "minimal-ocean" };
-          var t = localStorage.getItem("my-theme") || localStorage.getItem("site-theme") || "minimal-coral";
-          t = old[t] || t;
-          var p = t.split("-");
-          if (p.length === 2) {
-            d.setAttribute("data-style", p[0]);
-            d.setAttribute("data-accent", p[1]);
-          }
-        } catch (e) {}
-        var m = null;
-        try {
-          m = localStorage.getItem("my-mode");
-        } catch (e) {}
-        if (m !== "light" && m !== "dark") m = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-        d.setAttribute("data-mode", m);
-      })();
-    </script>
-    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <!-- Classic (blocking) script, so the remembered appearance applies before the first paint. -->
+    <script src="/theme-init.js"></script>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />

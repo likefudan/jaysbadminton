@@ -24,7 +24,7 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
   }
   async function doFinalize() {
     const msg = finalized
-      ? "保存后，未付清的人金额会按新数据重新计算；已付清的人不变。继续吗？"
+      ? "保存后，所有人的金额都会按新数据重新计算；已付款的人会显示还差多少或多付多少。继续吗？"
       : "Finalize 后，成员就能看到应付金额和付款链接。确定吗？";
     if (!confirm(msg)) return;
     if (await run(() => api(`${eb}/finalize`, body()))) {
@@ -86,7 +86,8 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
     if (await run(() => api(`${props.base}/payments/${p.id}/mark-paid`, {}))) props.onDone();
   }
   async function remove(p: PaymentRow, r: Receipt) {
-    if (!confirm(`撤销 ${p.memberName} 的这笔 $${dollars(r.amountCents)}？`)) return;
+    const what = r.amountCents < 0 ? `退款 $${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`;
+    if (!confirm(`撤销 ${p.memberName} 的这笔${what}？`)) return;
     if (await run(() => api(`${props.base}/receipts/${r.id}/remove`, {}))) props.onDone();
   }
 

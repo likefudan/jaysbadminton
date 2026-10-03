@@ -6,9 +6,9 @@ import { pacificToUtc } from "../src/shared/time";
 import { handleEmail, recordEmailOutcome } from "../src/worker/inbound";
 import { digestText, emailProblemAlert } from "../src/worker/health";
 import worker from "../src/worker/index";
-import { runScheduled } from "../src/worker/notify";
+import { once, runScheduled } from "../src/worker/notify";
 import { webhookSecret } from "../src/worker/telegram";
-import { ORIGIN, billingScenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
+import { Client, ORIGIN, billingScenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
 import { type ReceiptFields, testKey, venmoEmail } from "./venmoMail";
 
 /** Telegram API calls the Worker made: method and JSON body. */
@@ -95,7 +95,7 @@ describe("scheduled notifications", () => {
     expect(sent()[1]).toContain("1. Jay");
   });
 
-  it("closes sign-up and posts the roster in the run right after the deadline (the cron runs every minute)", async () => {
+  it("closes sign-up and posts the roster in the next cron run, as a backstop for the alarm", async () => {
     const ctx = await setUpAdmin();
     await connectChat();
     const e = await createTestEvent(ctx, { joinSelf: true });
@@ -178,6 +178,14 @@ describe("scheduled notifications", () => {
     calls = [];
     await runScheduled(env, pacific(s.e.date, "14:15"));
     expect(sent()).toHaveLength(1);
+  });
+
+  it("tries again next time when building a notice throws, instead of dropping it", async () => {
+    const send = vi.fn<() => Promise<boolean>>().mockRejectedValueOnce(new Error("D1 hiccup")).mockResolvedValue(true);
+    await expect(once(env, 1, "test", "k", send)).rejects.toThrow("D1 hiccup");
+    await once(env, 1, "test", "k", send);
+    await once(env, 1, "test", "k", send);
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -399,5 +407,29 @@ describe("health alerts", () => {
     await recordEmailOutcome(env, "parse_failed");
     const { results } = await env.DB.prepare("SELECT outcome FROM email_log ORDER BY id").all<{ outcome: string }>();
     expect(results.map((r) => r.outcome)).toEqual(["paid", "parse_failed"]);
+  });
+});
+
+describe("backing up TOKEN_KEY", () => {
+  it("sends the key to the Owner's Telegram only, after the password", async () => {
+    const ctx = await setUpAdmin();
+    expect((await ctx.admin.call(`${ctx.base}/settings/backup-key`, { password: "initial-password" })).status).toBe(400);
+    await connectChat();
+    expect((await ctx.admin.call(`${ctx.base}/settings/backup-key`, { password: "wrong" })).status).toBe(401);
+    expect(sent()).toEqual([]);
+
+    const res = await ctx.admin.call(`${ctx.base}/settings/backup-key`, { password: "initial-password" });
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.data)).not.toContain(env.TOKEN_KEY);
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toContain(`<pre>${env.TOKEN_KEY}</pre>`);
+  });
+
+  it("is refused without the admin session", async () => {
+    const ctx = await setUpAdmin();
+    await connectChat();
+    const res = await new Client().call(`${ctx.base}/settings/backup-key`, { password: "initial-password" });
+    expect(res.status).toBe(401);
+    expect(sent()).toEqual([]);
   });
 });
