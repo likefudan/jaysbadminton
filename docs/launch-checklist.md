@@ -4,7 +4,7 @@
 
 ## 一、交接前（网站维护者）
 
-- [ ] GitHub 仓库 Settings → Secrets 里有：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`ADMIN_PASSWORD`、`TELEGRAM_BOT_TOKEN`、`GOOGLE_MAPS_API_KEY`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`RESEND_API_KEY`、`EMAIL_FROM`、`LINK_ENCRYPTION_KEY`（正式网站管理员备份密钥后由维护者存入；测试环境另有 `ADMIN_PASSWORD_STAGING`、`TELEGRAM_BOT_TOKEN_STAGING`、`LINK_ENCRYPTION_KEY_STAGING`）
+- [ ] GitHub 仓库 Settings → Secrets 里有：`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`ADMIN_PASSWORD`、`TELEGRAM_BOT_TOKEN`、`GOOGLE_MAPS_API_KEY`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`RESEND_API_KEY`、`EMAIL_FROM`（`LINK_ENCRYPTION_KEY` 要等新管理员在第二节备份密钥后由维护者存入；测试环境另有 `ADMIN_PASSWORD_STAGING`、`TELEGRAM_BOT_TOKEN_STAGING`、`LINK_ENCRYPTION_KEY_STAGING`）
 - [ ] 把 `ADMIN_PASSWORD` 改成一个给新管理员用的临时密码，然后 Actions → CI → Run workflow（Use workflow from 选最新的版本标签）运行一次
 - [ ] 管理页 → 设置 → 危险操作 → **清空所有数据**，删掉测试数据。交接时必须用它：只要还有管理链接，`/admin` 的初次设置就会被拒绝，新管理员没法成为 Owner。（网站已经在用、只想删掉几个测试活动时，改用活动详情页底部的**从数据库永久删除**，只能删已取消或已收齐归档的活动，不会动到成员和设置。）
 - [ ] Cloudflare → Email Routing（jaysbadminton.llmat.dev）：`venmo@` 的规则是 **Send to a Worker → jaysbadminton**
