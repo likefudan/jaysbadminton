@@ -1,5 +1,5 @@
 import { settle, type SettleInput, type Settlement, type SettleRow } from "../shared/settle";
-import type { PaymentRow, Receipt } from "../shared/types";
+import type { PaymentRow, Receipt, RosterEntry } from "../shared/types";
 import { now, setSetting } from "./db";
 import { notifyCollected, notifyFinalized } from "./notify";
 import { paymentCode } from "./paymentCode";
@@ -7,13 +7,11 @@ import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
-  return (await roster(env, eventId)).map((r) => ({
-    memberId: r.memberId,
-    friendIndex: r.friendIndex,
-    name: r.name,
-    attended: r.attended,
-  }));
+  return toSettleRows(await roster(env, eventId));
 }
+
+export const toSettleRows = (list: RosterEntry[]): SettleRow[] =>
+  list.map((r) => ({ memberId: r.memberId, friendIndex: r.friendIndex, name: r.name, attended: r.attended }));
 
 export async function savedInput(env: Env, eventId: number): Promise<SettleInput | null> {
   const s = await env.DB.prepare(

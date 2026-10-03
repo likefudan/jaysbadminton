@@ -39,7 +39,6 @@ export const adminEventRoutes = new Hono<{ Bindings: Env }>();
 const num = (v: unknown) => (typeof v === "number" ? v : Number(v));
 
 adminEventRoutes.get("/events", async (c) => {
-  await closeExpired(c.env);
   const current = await c.env.DB.prepare(
     "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at",
   ).all<EventRow>();
@@ -115,7 +114,6 @@ adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
 });
 
 adminEventRoutes.get("/events/:id", async (c) => {
-  await closeExpired(c.env);
   return c.json(await detail(c.env, await getEvent(c.env, Number(c.req.param("id")))));
 });
 
@@ -379,6 +377,7 @@ adminEventRoutes.get("/events/:id/settlement", async (c) => {
 });
 
 adminEventRoutes.post("/events/:id/preview", async (c) => {
+  await closeExpired(c.env);
   const e = await getEvent(c.env, Number(c.req.param("id")));
   assertSettleable(e);
   const input = readInput(await readJson(c.req.raw));

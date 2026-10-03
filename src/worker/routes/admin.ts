@@ -4,6 +4,7 @@ import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
 import { assertAdminToken, checkPassword, endSession, hasSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
+import { closeExpired } from "../events";
 import type { Env } from "../env";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { adminEventRoutes } from "./adminEvents";
@@ -113,6 +114,7 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.is_owner) throw badRequest("不能停用管理员自己");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
+  await closeExpired(c.env); // an event past its deadline keeps its sign-ups
   await c.env.DB.batch([
     // The link keeps working so they can still pay what they owe; sign-up is refused.
     c.env.DB.prepare("UPDATE members SET status = 'inactive' WHERE id = ?").bind(m.id),
