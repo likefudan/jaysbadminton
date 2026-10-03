@@ -23,9 +23,11 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
 }
 
 /**
- * Writes the settlement and brings the payment rows in line with it. Unpaid and partly paid rows
- * follow the new amounts; paid rows are left alone. The Owner's own bill is paid with a manual
- * receipt. A member who left the roster loses a row that has received nothing.
+ * Writes the settlement and brings the payment rows in line with it. Every row follows the new
+ * amounts, paid ones included, so a corrected fee is shared by everyone: a member who already paid
+ * the old amount ends up owing the difference (partial) or due a refund. The Owner's own bill is
+ * always paid in full with one manual receipt that tracks the amount. A member who left the roster
+ * loses a row that has received nothing.
  */
 export async function applySettlement(env: Env, e: EventRow, input: SettleInput): Promise<Settlement> {
   const result = settle(await settleRows(env, e.id), input);
@@ -80,7 +82,7 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
           ).bind(ts, e.id, b.memberId),
         );
       }
-    } else if (status !== "paid") {
+    } else {
       stmts.push(
         env.DB.prepare("UPDATE payments SET amount_due_cents = ? WHERE event_id = ? AND member_id = ?").bind(
           b.totalCents,
@@ -88,6 +90,18 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
           b.memberId,
         ),
       );
+      if (ownerIds.has(b.memberId)) {
+        // The Owner pays themselves, so their receipt is redone at the new amount.
+        stmts.push(
+          env.DB.prepare(
+            "DELETE FROM payment_receipts WHERE payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
+          ).bind(e.id, b.memberId),
+          env.DB.prepare(
+            `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
+             SELECT id, amount_due_cents, 'manual', ? FROM payments WHERE event_id = ? AND member_id = ?`,
+          ).bind(ts, e.id, b.memberId),
+        );
+      }
     }
   }
   for (const [memberId, status] of prev) {

@@ -24,7 +24,7 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
   }
   async function doFinalize() {
     const msg = finalized
-      ? "保存后，未付清的人金额会按新数据重新计算；已付清的人不变。继续吗？"
+      ? "保存后，所有人的金额都会按新数据重新计算；已付款的人会显示还差多少或多付多少。继续吗？"
       : "Finalize 后，成员就能看到应付金额和付款链接。确定吗？";
     if (!confirm(msg)) return;
     if (await run(() => api(`${eb}/finalize`, body()))) {

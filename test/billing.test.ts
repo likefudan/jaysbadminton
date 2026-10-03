@@ -36,21 +36,39 @@ describe("settlement", () => {
     expect(res.data.error.message).toBe("报名还没截止，不能结算");
   });
 
-  it("recomputes unpaid bills after Finalize but leaves paid ones alone", async () => {
+  it("recomputes every bill after Finalize, paid ones included", async () => {
     const s = await scenario();
     await s.admin.call(`${s.eb}/finalize`, s.fees);
     const alicePay = await payment(s, "Alice");
     await s.admin.call(`${s.base}/payments/${alicePay.id}/mark-paid`, {});
 
-    // A walk-in hung under Bob: 5 registered, 4 attended.
+    // A walk-in hung under Bob: 5 registered, 4 attended. Alice paid 56.00 but now owes 44.50.
     await s.admin.call(`${s.eb}/roster/add`, { memberId: s.bob.id, includeSelf: false, friends: ["路人"] });
-    expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 5600, status: "paid" });
+    expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 2000 + 450 + 2000, amountPaidCents: 5600, status: "paid", refundCents: 1150 });
     expect((await payment(s, "Bob")).amountDueCents).toBe(2 * (2000 + 450));
 
-    // Changing the fees later updates only the unpaid bill too.
+    // Raising the fees later turns her paid bill into a balance due.
+    await s.admin.call(`${s.eb}/finalize`, { ...s.fees, courtTotal: "150" });
+    expect((await payment(s, "Bob")).amountDueCents).toBe(2 * (3000 + 450));
+    expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 3000 + 450 + 3000, amountPaidCents: 5600, status: "partial", refundCents: 0 });
+  });
+
+  it("keeps the Owner's auto-paid share in step when the fees are corrected", async () => {
+    const s = await scenario();
+    await s.admin.call(`${s.eb}/finalize`, { ...s.fees, courtTotal: "200" });
+    expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 5000 + 600, status: "paid", amountPaidCents: 5600 });
+
+    // The court total was mistyped: everyone, the Owner included, gets the same smaller share.
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const jay = await payment(s, "Jay");
+    expect(jay).toMatchObject({ amountDueCents: 3100, status: "paid", amountPaidCents: 3100, refundCents: 0 });
+    expect(jay.receipts).toMatchObject([{ method: "manual", amountCents: 3100 }]);
+    expect((await payment(s, "Bob")).amountDueCents).toBe(3100);
+    expect((await payment(s, "Alice")).amountDueCents).toBe(3100 + 2500);
+
+    // And back up again.
     await s.admin.call(`${s.eb}/finalize`, { ...s.fees, courtTotal: "120" });
-    expect((await payment(s, "Bob")).amountDueCents).toBe(2 * (2400 + 450));
-    expect((await payment(s, "Alice")).amountDueCents).toBe(5600);
+    expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 3000 + 600, status: "paid", amountPaidCents: 3600 });
   });
 
   it("drops an unpaid bill when the member leaves the roster", async () => {
