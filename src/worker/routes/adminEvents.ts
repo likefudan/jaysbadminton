@@ -136,7 +136,7 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
 adminEventRoutes.post("/events/:id/delete", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   if (!(await checkPassword(c.env, str((await readJson(c.req.raw)).password)))) throw new HttpError(401, "wrong_password", "管理密码不正确");
-  if (!isDeletable(e)) throw badRequest("只能删除已结束、已归档或已取消的活动");
+  if (!isDeletable(e)) throw badRequest("只能删除已收齐归档或已取消的活动");
   await deleteEvent(c.env, e);
   await clearDeadline(c.env, e.id);
   const label = `${e.date} ${e.code}${e.title ? ` ${e.title}` : ""}`;

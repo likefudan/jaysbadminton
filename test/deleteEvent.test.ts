@@ -1,7 +1,7 @@
 import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { billingScenario as scenario, createTestEvent, setUpAdmin } from "./helpers";
+import { billingScenario as scenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
 
 const count = async (sql: string, ...args: unknown[]) =>
   (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${sql}`).bind(...args).first<{ n: number }>())!.n;
@@ -48,20 +48,29 @@ describe("从数据库永久删除", () => {
     const e = await createTestEvent(ctx);
     expect((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.deletable).toBe(false);
     const res = await ctx.admin.call(`${ctx.base}/events/${e.id}/delete`, { password: "initial-password" });
-    expect(res.data.error.message).toBe("只能删除已结束、已归档或已取消的活动");
+    expect(res.data.error.message).toBe("只能删除已收齐归档或已取消的活动");
 
     await ctx.admin.call(`${ctx.base}/events/${e.id}/cancel`, {});
     expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/delete`, { password: "initial-password" })).status).toBe(200);
     expect(await count("events")).toBe(0);
   });
 
-  it("deletes an event that is over even with unpaid bills", async () => {
+  it("refuses an event that still has unpaid bills, even once it is over", async () => {
     const s = await scenario();
     await s.admin.call(`${s.eb}/finalize`, s.fees);
     await env.DB.prepare("UPDATE events SET end_at = ? WHERE id = ?").bind(new Date(Date.now() - 60_000).toISOString(), s.e.id).run();
-    expect((await s.admin.call(s.eb)).data).toMatchObject({ status: "finalized", deletable: true });
-    expect((await s.admin.call(`${s.eb}/delete`, { password: "initial-password" })).status).toBe(200);
-    expect(await count("payments")).toBe(0);
-    expect((await s.admin.call(`${s.base}/inbound`)).data.payments).toEqual([]);
+    expect((await s.admin.call(s.eb)).data).toMatchObject({ status: "finalized", deletable: false });
+    const res = await s.admin.call(`${s.eb}/delete`, { password: "initial-password" });
+    expect(res.data.error.message).toBe("只能删除已收齐归档或已取消的活动");
+    expect(await count("payments WHERE event_id = ?", s.e.id)).toBeGreaterThan(0);
+  });
+
+  it("never gives a deleted event's code to a new event", async () => {
+    const ctx = await setUpAdmin();
+    const first = await createTestEvent(ctx, { date: futureDate(20) }); // a day no other test uses
+    await ctx.admin.call(`${ctx.base}/events/${first.id}/cancel`, {});
+    await ctx.admin.call(`${ctx.base}/events/${first.id}/delete`, { password: "initial-password" });
+    const second = await createTestEvent(ctx, { date: first.date });
+    expect(second.code).toBe(`${first.code}B`);
   });
 });

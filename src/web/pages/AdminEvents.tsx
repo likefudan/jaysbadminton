@@ -304,7 +304,7 @@ function DeleteEvent(props: { eb: string; e: EventDetail; onDone: () => void }) 
     <Card title="危险操作">
       {!open ? (
         <>
-          <p class="muted small">比如测试用的活动。删除后不再计入排行榜、成员花费和 Google Sheets 同步。</p>
+          <p class="muted small">比如测试用的活动。只有已收齐归档或已取消的活动可以删除。删除后不再计入排行榜、成员花费和 Google Sheets 同步。</p>
           <button class="button danger block" onClick={() => setOpen(true)}>
             从数据库永久删除
           </button>

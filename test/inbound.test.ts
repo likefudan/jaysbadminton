@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { KeyLookupError, verifyDkim } from "../src/worker/email/dkim";
 import { htmlLines, parseEmail } from "../src/worker/email/parse";
 import { handleEmail } from "../src/worker/inbound";
-import { Client, billingScenario } from "./helpers";
+import { Client, billingScenario, createTestEvent } from "./helpers";
 import { receiptHtml, testKey, venmoEmail, type ReceiptFields } from "./venmoMail";
 
 let resolveKey: Awaited<ReturnType<typeof testKey>>["resolveKey"];
@@ -84,6 +84,19 @@ describe("matching", () => {
     const loose = s.bobCode.replace("-m", " - M").toUpperCase();
     expect(await deliver({ amount: "31.00", note: loose, txnId: "T2" })).toBe("paid");
     expect((await s.admin.call(s.eb)).data.status).toBe("settled");
+  });
+
+  it("sends a payment for a deleted event to 待确认, never to a new event on the same day", async () => {
+    const s = await finalized();
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "D1" })).toBe("paid");
+    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "D2" })).toBe("paid");
+    expect((await s.admin.call(`${s.eb}/delete`, { password: "initial-password" })).status).toBe(200);
+    const next = await createTestEvent(s, { date: s.e.date });
+    expect(next.code).toBe(`${s.e.code}B`);
+
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "D3" })).toBe("review");
+    const { open } = (await s.admin.call(`${s.base}/inbound`)).data;
+    expect(open).toMatchObject([{ reason: "这次活动已从数据库永久删除" }]);
   });
 
   it("adds up partial payments until the bill is paid", async () => {

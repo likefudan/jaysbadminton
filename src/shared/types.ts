@@ -110,7 +110,7 @@ export interface RosterEntry {
 export interface EventDetail extends EventSummary {
   roster: RosterEntry[];
   dunningStopped: boolean;
-  /** 从数据库永久删除 is offered: the event is archived, cancelled, or already over. */
+  /** 从数据库永久删除 is offered: the event is archived (all paid) or cancelled. */
   deletable: boolean;
 }
 
