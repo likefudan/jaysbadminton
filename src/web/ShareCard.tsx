@@ -138,9 +138,13 @@ export function ShareCardButton(props: { text: CardText; filename: string }) {
   );
 }
 
-/** 分享活动: a row inside every event card, public or the member's own, opening the same 名片. */
+/**
+ * 分享活动: a row inside every event card, public or the member's own, opening the same 名片.
+ * Not on events already billed (结算中 / 已结清): nobody needs to be invited to those.
+ */
 export function EventShareRow(props: { e: EventSummary }) {
   const [open, setOpen] = useState(false);
+  if (props.e.status === "finalized" || props.e.status === "settled") return null;
   return (
     <div class="calendar share-row">
       <span class="calendar-label">分享活动</span>

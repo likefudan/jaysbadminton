@@ -280,6 +280,7 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   const bill = page.locator(".card", { hasText: "本次应付" });
   await expect(bill.locator(".amount")).toHaveText("$48.00"); // 小明 + 阿强
   await expect(bill.locator(".status")).toHaveText("待付款");
+  await expect(bill.getByRole("button", { name: "生成活动名片" })).toHaveCount(0); // a billed event isn't shared
   const code = await bill.locator(".memo code").innerText();
   expect(code).toMatch(/^xiaoming-jbm\d{8}-m002$/);
   const venmo = new URL((await bill.getByRole("link", { name: "用 Venmo 付 $48.00" }).getAttribute("href"))!);
