@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
-import type { CardText } from "../shared/shareCard";
+import { eventCardText, type CardText } from "../shared/shareCard";
+import type { EventSummary } from "../shared/types";
 import { useSiteTitle } from "./site";
 
 const W = 1080;
@@ -134,6 +135,26 @@ export function ShareCardButton(props: { text: CardText; filename: string }) {
       </button>
       {open && <ShareCardSheet {...props} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/** 分享活动: a row inside every event card, public or the member's own, opening the same 名片. */
+export function EventShareRow(props: { e: EventSummary }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div class="calendar share-row">
+      <span class="calendar-label">分享活动</span>
+      <button class="calendar-link" type="button" onClick={() => setOpen(true)}>
+        生成活动名片
+      </button>
+      {open && (
+        <ShareCardSheet
+          text={eventCardText(location.origin, props.e)}
+          filename={`event-${props.e.code}.png`}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </div>
   );
 }
 

@@ -157,6 +157,11 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await expect(page.getByRole("heading", { name: "你好，小明" })).toBeVisible(); // still on the member page
   const google = new URL((await card.getByRole("link", { name: "Google 日历" }).getAttribute("href"))!);
   expect(google.searchParams.get("dates")).toMatch(/^\d{8}T\d{6}Z\/\d{8}T\d{6}Z$/);
+
+  // The same 活动名片 as on the public page, from inside their own event card.
+  await card.getByRole("button", { name: "生成活动名片" }).click();
+  await expect(page.getByRole("dialog", { name: "分享名片" }).locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
+  await page.getByRole("button", { name: "关闭" }).click();
 });
 
 test("the member sees their 个人信息 and the Owner adds a 备注名", async ({ page }) => {
@@ -220,8 +225,9 @@ test("public pages show the headcount and a link preview, never names", async ({
   await page.getByRole("link", { name: "iPhone / Outlook" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.ics$/);
 
-  // 分享名片: an image with the logo, QR code and link, to long-press or download.
-  await page.getByRole("button", { name: "生成分享名片" }).click();
+  // 分享活动 inside the event card: an image with the logo, QR code and link, to long-press or download.
+  await expect(page.getByRole("button", { name: "生成分享名片" })).toHaveCount(0); // the old button under the card is gone
+  await page.locator(".card").getByRole("button", { name: "生成活动名片" }).click();
   const card = page.getByRole("dialog", { name: "分享名片" });
   await expect(card.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
   const png = page.waitForEvent("download");

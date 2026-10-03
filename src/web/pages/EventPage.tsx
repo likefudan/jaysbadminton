@@ -4,8 +4,7 @@ import { Card, Load, Page } from "../components";
 import { CalendarLinks } from "../Calendar";
 import { EventInfo } from "../events";
 import { useApi, useMemberSession } from "../hooks";
-import { ShareCardButton } from "../ShareCard";
-import { eventCardText } from "../../shared/shareCard";
+import { EventShareRow } from "../ShareCard";
 import { SignupCard } from "./Member";
 
 /**
@@ -26,6 +25,7 @@ export function EventPage(props: { code?: string }) {
               <Card>
                 <EventInfo e={e} publicView />
                 <CalendarLinks e={e} />
+                <EventShareRow e={e} />
               </Card>
               {(member === "none" || member === "loading") && <p class="muted small">登录后即可报名；新朋友请先注册入群。</p>}
               {member === "pending" && <p class="muted small">你的入群申请正在等待管理员审核，通过后就能报名。</p>}
@@ -34,7 +34,6 @@ export function EventPage(props: { code?: string }) {
           <a class="button block" href="/me">
             {member === "member" || member === "pending" ? "我的活动" : "登录 / 注册"}
           </a>
-          <ShareCardButton text={eventCardText(location.origin, e)} filename={`event-${e.code}.png`} />
           <a class="button secondary block" href="/">
             所有活动
           </a>
@@ -54,6 +53,7 @@ function MemberView(props: { e: PublicEvent }) {
     <Card>
       <EventInfo e={props.e} publicView />
       <CalendarLinks e={props.e} />
+      <EventShareRow e={props.e} />
     </Card>
   );
 }
