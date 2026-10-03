@@ -533,6 +533,7 @@ adminEventRoutes.get("/inbound", async (c) =>
   c.json<InboundResponse>({
     open: await inboundRows(c.env, "open"),
     done: await inboundRows(c.env, "done"),
+    deleted: await inboundRows(c.env, "deleted"),
     payments: await openPayments(c.env),
     refunds: await refundRows(c.env),
   }),
@@ -578,6 +579,48 @@ adminEventRoutes.post("/inbound/:iid/ignore", async (c) => {
   const i = await openInbound(c.env, Number(c.req.param("iid")));
   await c.env.DB.prepare("UPDATE inbound_payments SET state = 'ignored' WHERE id = ?").bind(i.id).run();
   return c.json({ ok: true });
+});
+
+// ---- 已删除: Venmo payments in the trash, kept 30 days ----
+
+/** Moves a 待确认 or ignored payment to 已删除. A linked one belongs to a bill: undo it there instead. */
+adminEventRoutes.post("/inbound/:iid/delete", async (c) => {
+  const res = await c.env.DB.prepare(
+    `UPDATE inbound_payments SET deleted_from = state, state = 'deleted', deleted_at = ?
+     WHERE id = ? AND state IN ('open', 'ignored')`,
+  )
+    .bind(now(), Number(c.req.param("iid")))
+    .run();
+  if (!res.meta.changes) throw badRequest("只能删除待确认或已忽略的收款；已关联的请在账单里撤销");
+  return c.json({ ok: true });
+});
+
+adminEventRoutes.post("/inbound/:iid/restore", async (c) => {
+  const res = await c.env.DB.prepare(
+    `UPDATE inbound_payments SET state = COALESCE(deleted_from, 'open'), deleted_from = NULL, deleted_at = NULL
+     WHERE id = ? AND state = 'deleted'`,
+  )
+    .bind(Number(c.req.param("iid")))
+    .run();
+  if (!res.meta.changes) throw badRequest("这笔收款不在「已删除」里");
+  return c.json({ ok: true });
+});
+
+/** 永久删除 one payment from 已删除; the page asks for confirmation. */
+adminEventRoutes.post("/inbound/:iid/purge", async (c) => {
+  const res = await c.env.DB.prepare("DELETE FROM inbound_payments WHERE id = ? AND state = 'deleted'")
+    .bind(Number(c.req.param("iid")))
+    .run();
+  if (!res.meta.changes) throw badRequest("这笔收款不在「已删除」里");
+  return c.json({ ok: true });
+});
+
+/** 清空 已删除: needs the admin password as well as the page's confirmation. */
+adminEventRoutes.post("/inbound/trash/clear", async (c) => {
+  if (!(await checkPassword(c.env, str((await readJson(c.req.raw)).password))))
+    throw new HttpError(401, "wrong_password", "管理密码不正确");
+  const res = await c.env.DB.prepare("DELETE FROM inbound_payments WHERE state = 'deleted'").run();
+  return c.json({ ok: true, removed: res.meta.changes });
 });
 
 // ---- Telegram ----

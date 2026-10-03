@@ -4,7 +4,7 @@ import { closeExpired } from "./events";
 import { syncAllDeadlines } from "./deadlines";
 export { DeadlineAlarm } from "./deadlines";
 import { HttpError } from "./http";
-import { MAX_EMAIL_BYTES, handleEmail, recordEmailOutcome } from "./inbound";
+import { MAX_EMAIL_BYTES, handleEmail, purgeDeletedInbound, recordEmailOutcome } from "./inbound";
 import { exportAll } from "./export";
 import { emailProblemAlert, recordCronError } from "./health";
 import { runScheduled } from "./notify";
@@ -101,6 +101,7 @@ export default {
       // sync failed) still get theirs.
       await syncAllDeadlines(env);
       await runScheduled(env);
+      await purgeDeletedInbound(env); // 已删除 Venmo payments older than 30 days
     } catch (err) {
       console.error("scheduled run failed:", err);
       await recordCronError(env, err);
