@@ -209,7 +209,7 @@ The site never logs into Google. 设置 → Google 表格同步 → 开启同步
 
 ## Repository, tooling and deployment
 
-One TypeScript repository (`likefudan/jaysbadminton`) builds one Worker that serves both the static front end and the API; every merge to `main` deploys the test site (`env.staging`: Worker `jaysbadminton-staging`, its own D1 and domain `staging.jaysbadminton.llmat.dev`, its own Telegram bot); production deploys only from a `v*` release tag on `main`, after exporting its database.
+One TypeScript repository (`likefudan/jaysbadminton`) builds one Worker that serves both the static front end and the API; every merge to `main` deploys the test site (`env.staging`: Worker `jaysbadminton-staging`, its own D1 and domain `staging.jaysbadminton.llmat.dev`, its own Telegram bot); production deploys only from a `v*` release tag on `main`, after exporting its database. The `Release` workflow (run by hand on `main`) picks the next `vYYYY.MM.DD[.N]` tag in Pacific time, refuses a commit whose CI on `main` is not green or that is already tagged, publishes a GitHub release with generated notes, and starts `ci.yml` on the tag (a tag created with the workflow token fires no push run of its own).
 
 | Part | Choice | Why |
 | --- | --- | --- |

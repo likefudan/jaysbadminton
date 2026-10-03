@@ -84,7 +84,7 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 
 ### 网站维护者
 
-- **发布**：改动合并到 `main` 后自动部署到测试网站；测试没问题后，在 GitHub → Releases 新建一个 `vYYYY.MM.DD` 标签（同一天第二次加 `.2`），会先备份正式数据库再部署到正式网站。
+- **发布**：改动合并到 `main` 后自动部署到测试网站。测试没问题后，在 GitHub → Actions → **Release** → Run workflow（分支选 `main`，发布说明可选填），或者直接让 Claude「发布」。它会给 `main` 打上当天的 `vYYYY.MM.DD` 标签（同一天再发加 `.2`）、发布 Release（自动附上合并的 PR 列表），然后先备份正式数据库再部署到正式网站。`main` 的 CI 没通过、或者这个提交已经发布过时会拒绝发布。也可以照旧在 GitHub → Releases 手动新建标签发布。
 - **回滚**：Actions → CI → Run workflow，「Use workflow from」选上一个版本标签。
 - **忘记管理密码**：修改 GitHub secret `ADMIN_PASSWORD`（测试网站是 `ADMIN_PASSWORD_STAGING`），再按上面的方法重新部署一次。
 - **丢了管理链接**：已绑定 Google 的话直接用 Google 登录；或者在 Telegram 给机器人发「管理页面」；或者运行一次部署并勾选 `reset_admin_link`（正式网站选最新版本标签，测试网站选 `main`），然后回到 `/admin` 重新设置。数据不受影响。

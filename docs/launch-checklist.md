@@ -37,7 +37,7 @@
 | 事情 | 怎么做 |
 | --- | --- |
 | 试新功能 | 合并到 `main` 后自动部署到**测试环境** https://staging.jaysbadminton.llmat.dev （顶部有黄色「测试环境」横幅，数据和正式网站分开，可以随便试） |
-| 发布到正式网站 | 测试环境确认没问题后，打一个版本标签 `vYYYY.MM.DD`（GitHub → Releases → Draft a new release → 新建标签 → Generate release notes → Publish，或让 Claude「发布」）。会先备份正式数据库，再部署，并自动检查线上网站 |
+| 发布到正式网站 | 测试环境确认没问题后，运行 GitHub → Actions → **Release**（分支选 `main`）或让 Claude「发布」，自动打上 `vYYYY.MM.DD` 标签并发布 Release；也可以在 GitHub → Releases 手动新建标签。会先备份正式数据库，再部署，并自动检查线上网站 |
 | 回滚 | GitHub → Actions → CI → Run workflow → Use workflow from 选上一个版本标签 → Run。约 1 分钟恢复到上个版本 |
 | 出问题看哪里 | GitHub → Actions 看部署记录；Cloudflare → Workers → jaysbadminton → Logs 看运行日志 |
 | 数据恢复 | Cloudflare D1 自带 7 天「时间回溯」；每次发布前的数据库备份在那次 Actions 运行的 Artifacts 里（保存 90 天）；开了 Google 表格同步的话，表格的「版本记录」里也有每天的数据 |
