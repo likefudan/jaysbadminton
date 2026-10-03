@@ -497,37 +497,44 @@ adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
 
 /**
  * Takes back one payment (a mistaken manual mark, or a Venmo payment on the wrong bill). A Venmo
- * payment goes to 待确认 rather than vanishing, so the Owner can put it on the right bill: a linked
- * 待确认 row goes back there, and an auto-matched one gets a new row.
+ * payment goes to 待确认 rather than vanishing, so the Owner can put it on the right bill: the
+ * 待确认 row it was linked from is reopened, and an auto-matched one gets a new row with its note.
  */
 adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
-  const rid = Number(c.req.param("rid"));
-  const r = await c.env.DB.prepare("SELECT payment_id FROM payment_receipts WHERE id = ?")
-    .bind(rid)
-    .first<{ payment_id: number }>();
+  const r = await c.env.DB.prepare("SELECT * FROM payment_receipts WHERE id = ?")
+    .bind(Number(c.req.param("rid")))
+    .first<{
+      id: number;
+      payment_id: number;
+      amount_cents: number;
+      method: string;
+      venmo_txn_id: string | null;
+      payer_name: string | null;
+      received_at: string;
+      note: string | null;
+      inbound_id: number | null;
+    }>();
   if (!r) throw badRequest("找不到这笔付款记录");
   await paymentEvent(c.env, r.payment_id);
-  const receipt = "SELECT * FROM payment_receipts WHERE id = ?1";
+  const back: D1PreparedStatement[] = [];
+  if (r.method === "venmo") {
+    back.push(
+      // Linked from 待确认 (receipts from before the link was kept are found by their transaction).
+      c.env.DB.prepare(
+        `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL
+         WHERE state = 'linked' AND (id = ?1 OR (?1 IS NULL AND ?2 IS NOT NULL AND venmo_txn_id = ?2))`,
+      ).bind(r.inbound_id, r.venmo_txn_id),
+      // Auto-matched: never in 待确认 before, so it gets a row now.
+      c.env.DB.prepare(
+        `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)
+         SELECT ?, ?, ?, ?, ?, 'unmatched', '从账单撤销的 Venmo 付款'
+         WHERE ? IS NULL AND NOT EXISTS (SELECT 1 FROM inbound_payments WHERE venmo_txn_id = ?)`,
+      ).bind(r.venmo_txn_id, r.payer_name, r.amount_cents, r.note, r.received_at, r.inbound_id, r.venmo_txn_id),
+    );
+  }
   await c.env.DB.batch([
-    // The 待确认 row this payment was linked from: same Venmo transaction, or, for one without a
-    // transaction ID, same bill and amount.
-    c.env.DB.prepare(
-      `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL
-       WHERE id = (SELECT i.id FROM inbound_payments i, (${receipt}) pr
-         WHERE i.state = 'linked' AND pr.method = 'venmo' AND (i.venmo_txn_id = pr.venmo_txn_id
-           OR (pr.venmo_txn_id IS NULL AND i.venmo_txn_id IS NULL AND i.linked_payment_id = pr.payment_id
-               AND i.amount_cents = pr.amount_cents))
-         ORDER BY i.id LIMIT 1)`,
-    ).bind(rid),
-    // Auto-matched: never in 待确认 before, so it gets a row now.
-    c.env.DB.prepare(
-      `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, received_at, kind, reason)
-       SELECT pr.venmo_txn_id, pr.payer_name, pr.amount_cents, pr.received_at, 'unmatched', '从账单撤销的 Venmo 付款'
-       FROM (${receipt}) pr
-       WHERE pr.method = 'venmo' AND pr.venmo_txn_id IS NOT NULL
-         AND NOT EXISTS (SELECT 1 FROM inbound_payments i WHERE i.venmo_txn_id = pr.venmo_txn_id)`,
-    ).bind(rid),
-    c.env.DB.prepare("DELETE FROM payment_receipts WHERE id = ?").bind(rid),
+    ...back,
+    c.env.DB.prepare("DELETE FROM payment_receipts WHERE id = ?").bind(r.id),
     ...syncPayments(c.env.DB, "id = ?", r.payment_id),
   ]);
   return c.json({ ok: true });
@@ -589,6 +596,7 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
     method: "venmo",
     txnId: i.venmo_txn_id,
     payerName: i.payer_name,
+    inboundId: i.id,
   });
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });

@@ -331,7 +331,7 @@ describe("Owner review", () => {
     expect(await s.by("Alice")).toMatchObject({ status: "unpaid", amountPaidCents: 0 });
     const { open } = (await s.admin.call(`${s.base}/inbound`)).data;
     expect(open).toMatchObject([
-      { amountCents: 5600, txnId: "U1", payerName: "Alice W", reason: "从账单撤销的 Venmo 付款" },
+      { amountCents: 5600, txnId: "U1", payerName: "Alice W", note: s.aliceCode, reason: "从账单撤销的 Venmo 付款" },
     ]);
     // The same email again is still a duplicate, and the payment can be linked back.
     expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "U1" })).toBe("duplicate");

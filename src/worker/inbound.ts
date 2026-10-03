@@ -143,7 +143,13 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
   // Every payment counts toward the bill, however many there are; an archived (fully paid)
   // event can only gain an over-payment, which shows up under 需要退款.
   if (
-    !(await addReceipt(env, p.id, { amountCents: r.amountCents, method: "venmo", txnId: r.txnId, payerName: r.payer }))
+    !(await addReceipt(env, p.id, {
+      amountCents: r.amountCents,
+      method: "venmo",
+      txnId: r.txnId,
+      payerName: r.payer,
+      note: r.note,
+    }))
   ) {
     return "duplicate";
   }

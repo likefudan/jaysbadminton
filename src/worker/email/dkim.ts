@@ -218,6 +218,8 @@ export async function dohKey(selector: string, domain: string): Promise<string |
       });
       if (!res.ok) continue;
       const json = (await res.json()) as { Status?: number; Answer?: { type: number; data: string }[] };
+      // Only NOERROR (0) and NXDOMAIN (3) are answers; SERVFAIL and the like mean "ask the other one".
+      if (json.Status !== undefined && json.Status !== 0 && json.Status !== 3) continue;
       const record = json.Answer?.filter((a) => a.type === 16)
         .map((a) => a.data.replace(/^"|"$/g, "").replace(/"\s*"/g, ""))
         .find((t) => t.includes("p="));
