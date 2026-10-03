@@ -76,12 +76,14 @@ test("the Owner sets up the site and the payment details", async ({ page }) => {
 test("a newcomer applies and the Owner approves them", async ({ page }) => {
   await page.goto("/join");
   await field(page, "用户名").fill("小明");
-  await field(page, "微信昵称").fill("xiaoming");
+  await field(page, "微信名").fill("xiaoming");
+  await page.getByLabel("给管理员的留言（选填）").fill("小王介绍的");
   await page.getByRole("button", { name: "提交申请" }).click();
   await expect(page.getByRole("heading", { name: "申请已提交" })).toBeVisible();
 
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "待审核" }).click();
+  await expect(page.locator(".row", { hasText: "小明" })).toContainText("留言：小王介绍的");
   await page.getByRole("button", { name: "通过" }).click();
   await expect(page.getByText("小明 的专属链接")).toBeVisible();
   memberPath = pathOf(await page.locator("code.link").first().innerText());

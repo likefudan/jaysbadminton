@@ -209,7 +209,10 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
         {props.list.length === 0 && <Empty>没有待审核的申请</Empty>}
         {props.list.map((m) => (
           <div class="row" key={m.id}>
-            {who(m)}
+            <div>
+              {who(m)}
+              {m.applicationMessage && <p class="application-message">留言：{m.applicationMessage}</p>}
+            </div>
             <div class="actions">
               <button class="button" disabled={busy} onClick={() => approve(m)}>
                 通过

@@ -4,7 +4,7 @@ import { createMember } from "../src/worker/members";
 import { sendApprovalEmail, sendApplicationNotice } from "../src/worker/approvalEmail";
 
 const bindings = () => ({ ...env, RESEND_API_KEY: "test-email-key", EMAIL_FROM: "Badminton <members@example.com>", SITE_ORIGIN: "https://badminton.test" });
-const member = (status: "active" | "pending" = "active") => createMember(env, { username: "Alice", wechatNickname: "Alice微信", status, googleSub: "alice", googleEmail: "alice@gmail.com", applicantName: "Alice 身份", wechatAccount: "alice_wechat" });
+const member = (status: "active" | "pending" = "active", message?: string) => createMember(env, { username: "Alice", wechatNickname: "Alice微信", message, status, googleSub: "alice", googleEmail: "alice@gmail.com" });
 afterEach(() => vi.restoreAllMocks());
 
 it("sends an approval email to the verified Google address with a normal login link and deduplicates retries", async () => {
@@ -38,14 +38,15 @@ it("reports missing email configuration and does not email pending applicants", 
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it("notifies the bound administrator of the three application details", async () => {
-  const m = await member("pending");
+it("notifies the bound administrator of the username, WeChat name, Google email and note", async () => {
+  const m = await member("pending", "小明介绍的");
   await env.DB.prepare("INSERT INTO settings (key,value) VALUES ('telegram_chat_id','owner-chat')").run();
   const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ ok: true }));
   expect(await sendApplicationNotice({ ...bindings(), TELEGRAM_BOT_TOKEN: "test-bot" }, m)).toBe(true);
   const message = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body));
-  expect(message).toMatchObject({ chat_id: "owner-chat", text: expect.stringContaining("Alice 身份") });
-  expect(message.text).toContain("alice_wechat");
-  expect(message.text).toContain("Alice");
-  expect(message.text).toContain("alice@gmail.com");
+  expect(message.chat_id).toBe("owner-chat");
+  expect(message.text).toContain("用户名：Alice");
+  expect(message.text).toContain("微信名：Alice微信");
+  expect(message.text).toContain("Google 邮箱：alice@gmail.com");
+  expect(message.text).toContain("留言：小明介绍的");
 });

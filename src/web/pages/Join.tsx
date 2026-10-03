@@ -1,20 +1,22 @@
 import { useState } from "preact/hooks";
-import { checkNickname, checkUsername } from "../../shared/rules";
+import { checkMessage, checkNickname, checkUsername } from "../../shared/rules";
 import { api } from "../api";
-import { Card, Field, Page, useAction } from "../components";
+import { ApplicationFields } from "../ApplicationFields";
+import { Card, Page, useAction } from "../components";
 
 export function Join() {
   const [username, setUsername] = useState("");
   const [nickname, setNickname] = useState("");
+  const [message, setMessage] = useState("");
   const [website, setWebsite] = useState("");
   const [done, setDone] = useState(false);
   const { busy, error, run, setError } = useAction();
 
   async function submit(e: Event) {
     e.preventDefault();
-    const err = checkUsername(username) ?? checkNickname(nickname);
+    const err = checkUsername(username) ?? checkNickname(nickname) ?? checkMessage(message);
     if (err) return setError(err);
-    const ok = await run(() => api("/api/public/join", { username, wechatNickname: nickname, website }));
+    const ok = await run(() => api("/api/public/join", { username, wechatNickname: nickname, message, website }));
     if (ok) setDone(true);
   }
 
@@ -34,14 +36,13 @@ export function Join() {
   return (
     <Page title="申请加入">
       <Card title="使用 Google 账号加入">
-        <p>登录并完善资料后即可报名，无需等待管理员发送链接。</p>
+        <p>登录后填写申请，管理员通过后用 Google 登录就能报名，不用等管理员发链接。</p>
         <a class="button block" href="/login">使用 Google 登录</a>
       </Card>
       <Card>
         <p class="muted small">也可以使用原有方式提交申请，由管理员审核后发送成员链接。</p>
         <form onSubmit={submit}>
-          <Field label="用户名" value={username} onInput={setUsername} hint="会显示在报名名单上，不能和别人重复" autocomplete="nickname" />
-          <Field label="微信昵称" value={nickname} onInput={setNickname} hint="方便管理员在群里找到你" />
+          <ApplicationFields username={username} setUsername={setUsername} nickname={nickname} setNickname={setNickname} message={message} setMessage={setMessage} />
           <input class="hp" tabIndex={-1} autoComplete="off" value={website} onInput={(e) => setWebsite((e.target as HTMLInputElement).value)} aria-hidden="true" />
           {error && <p class="error">{error}</p>}
           <button class="button block" disabled={busy}>
