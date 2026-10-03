@@ -561,6 +561,9 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
     !((r.method === "venmo" || r.venmo_txn_id) && p.amount_paid_cents - r.amount_cents >= p.amount_due_cents)
   )
     throw badRequest("这个活动已收齐归档，只能撤销多付的 Venmo 付款");
+  // Only while it could be linked back again, so an undo can always be put right.
+  if (e.status === "settled" && (e.settled_at ?? "") < linkCutoff())
+    throw badRequest(`这个活动归档已超过 ${LINK_ARCHIVED_DAYS} 天，不能再撤销`);
   // The Owner's own bill is paid by itself, and every recompute redoes that receipt anyway.
   if (r.method === "manual" && !r.venmo_txn_id && (await isOwner(c.env, p.member_id)))
     throw badRequest("管理员本人的账单自动记为已付，不用撤销");
@@ -650,23 +653,32 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const paymentId = num((await readJson(c.req.raw)).paymentId);
   // Only what the list offers; a paid bill then gets an over-payment, listed for refund.
   const bill = await c.env.DB.prepare(
-    `SELECT e.id AS event_id, e.status, m.is_owner, m.deleted_at, ${LINKABLE} AS linkable
+    `SELECT e.id AS event_id, e.status, e.settled_at, m.is_owner, m.deleted_at, ${LINKABLE} AS linkable
      FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id WHERE p.id = ?2`,
   )
     .bind(linkCutoff(), paymentId)
-    .first<{ event_id: number; status: string; is_owner: number; deleted_at: string | null; linkable: number }>();
+    .first<{
+      event_id: number;
+      status: string;
+      settled_at: string | null;
+      is_owner: number;
+      deleted_at: string | null;
+      linkable: number;
+    }>();
   if (!bill) throw badRequest("找不到这笔应付款");
   if (!bill.linkable)
     throw badRequest(
       bill.is_owner
         ? "管理员本人的账单不用关联"
-        : bill.status === "settled"
-          ? `这个活动归档已超过 ${LINK_ARCHIVED_DAYS} 天，不能再关联`
-          : bill.status !== "finalized"
-            ? "这个活动还没结算"
-            : bill.deleted_at
-              ? "这个成员已删除，他付清的账单不能再关联"
-              : "这笔应付款不能关联",
+        : bill.deleted_at
+          ? "这个成员已删除，他付清的账单不能再关联"
+          : bill.status === "settled" && (bill.settled_at ?? "") < linkCutoff()
+            ? `这个活动归档已超过 ${LINK_ARCHIVED_DAYS} 天，不能再关联`
+            : bill.status === "cancelled"
+              ? "这个活动已取消"
+              : bill.status !== "finalized" && bill.status !== "settled"
+                ? "这个活动还没结算"
+                : "这笔应付款不能关联",
     );
   if (i.amount_cents === null) throw badRequest("这笔收款没有金额，请改用「标记已付」");
   // Only one request can move it out of 待确认, so a double click never adds the money twice; the

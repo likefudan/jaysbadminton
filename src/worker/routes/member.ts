@@ -128,6 +128,7 @@ memberRoutes.get("/:token/events", async (c) => {
     const rows = mine.results.filter((r) => r.event_id === e.id);
     const friends = rows.filter((r) => r.friend_index > 0).sort((a, b) => a.friend_index - b.friend_index);
     const pay = payOf(e.id);
+    const selfOn = rows.some((r) => r.friend_index === 0);
     // Events they are not on are only offered while open, and never to a disabled member.
     if (rows.length === 0 && !pay && (e.status !== "open" || m.status !== "active")) continue;
     const settled = e.status === "finalized" || e.status === "settled";
@@ -150,7 +151,7 @@ memberRoutes.get("/:token/events", async (c) => {
     }
     // Who else is coming: only for members on the list themselves (the public pages show a count).
     let names: MyRosterEntry[] | null = null;
-    if (rows.some((r) => r.friend_index === 0)) {
+    if (selfOn) {
       names = people.map((r) => ({
         name: r.name,
         friendOf: r.friendIndex > 0 ? r.memberName : null,
@@ -161,7 +162,7 @@ memberRoutes.get("/:token/events", async (c) => {
     events.push({
       ...e,
       myFriends: rows.length === 0 ? null : friends.map((f) => f.friend_name ?? ""),
-      selfSignedUp: rows.some((r) => r.friend_index === 0),
+      selfSignedUp: selfOn,
       canEdit: m.status === "active" && (e.status === "open" || (ownerRules(m) && e.status === "closed")),
       payment,
       roster: names,
