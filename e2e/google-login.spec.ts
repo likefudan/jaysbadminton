@@ -35,7 +35,7 @@ test("a signed-in account confirms the original member link before showing its a
   expect(linked).toBe(false);
   await page.getByRole("button", { name: "确认绑定，进入我的活动" }).click();
   await expect(page.getByRole("heading", { name: "你好，Dafei" })).toBeVisible();
-  await expect(page.getByText("M007 · 我的活动")).toBeVisible();
+  await expect(page.locator("main")).not.toContainText("M007"); // members never see their ID
   expect(linked).toBe(true);
   expect(await page.evaluate(() => sessionStorage.getItem("google-link-member"))).toBeNull();
 });

@@ -2744,3 +2744,13 @@ a.back {
   flex: none;
   font-variant-numeric: tabular-nums;
 }
+.page-links .button.on {
+  border-color: var(--acc-line);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+}
+[data-mode="dark"] .page-links .button.on {
+  border-color: var(--acc);
+  background: transparent;
+  color: var(--acc);
+}
