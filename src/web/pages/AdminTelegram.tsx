@@ -35,7 +35,7 @@ export function TelegramCard(props: { base: string }) {
     const r = await run(() => api<{ link: string }>(`${props.base}/telegram/connect`, {}));
     if (!r) return;
     setWaiting(true);
-    window.open(r.link, "_blank") ?? (location.href = r.link);
+    if (!window.open(r.link, "_blank")) location.href = r.link;
   }
   async function test() {
     setSent(false);

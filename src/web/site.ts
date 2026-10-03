@@ -37,7 +37,7 @@ let staging = false;
 const stagingListeners = new Set<(s: boolean) => void>();
 
 function load() {
-  loading ??= api<{ title: string; theme: string; staging?: boolean }>("/api/public/site")
+  if (!loading) loading = api<{ title: string; theme: string; staging?: boolean }>("/api/public/site")
     .then((r) => {
       setSiteTitle(r.title);
       setSiteTheme(r.theme);

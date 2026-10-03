@@ -251,5 +251,5 @@ export function toCsv(t: Table): string {
     const safe = String(asText(v));
     return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
   };
-  return "﻿" + [t.columns, ...t.rows].map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
+  return `﻿${[t.columns, ...t.rows].map((r) => r.map(cell).join(",")).join("\r\n")}\r\n`;
 }

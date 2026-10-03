@@ -1,5 +1,5 @@
 import { formatDateZh } from "../shared/time";
-import type { InboundKind, InboundRow, OpenPayment } from "../shared/types";
+import type { InboundRow, OpenPayment } from "../shared/types";
 import { addReceipt, checkCollected, receiptsFor, refundOf } from "./billing";
 import { getSettings, now, setSetting } from "./db";
 import { type KeyResolver, verifyDkim } from "./email/dkim";

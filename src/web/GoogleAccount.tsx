@@ -16,17 +16,17 @@ export function GoogleAccount() {
     function outside(e: PointerEvent) {
       if (!container.current?.contains(e.target as Node)) setOpen(false);
     }
-    function escape(e: KeyboardEvent) {
+    function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setOpen(false);
         trigger.current?.focus();
       }
     }
     document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
+      document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
   if (session.state !== "ok" || !session.data.signedIn || !session.data.email) return null;

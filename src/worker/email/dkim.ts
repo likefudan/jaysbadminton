@@ -131,7 +131,7 @@ const b64of = (b: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(b))
 export async function verifyDkim(raw: Uint8Array, domain: string, resolveKey: KeyResolver = dohKey): Promise<DkimResult> {
   const { headers, body } = splitMessage(raw);
   const sigs = headers.filter((h) => h.name === "dkim-signature");
-  let reason = "no DKIM-Signature for " + domain;
+  let reason = `no DKIM-Signature for ${domain}`;
   for (const sig of sigs) {
     const tags = parseTags(sig.raw.slice(sig.raw.indexOf(":") + 1));
     if (tags.get("d")?.toLowerCase() !== domain) continue;

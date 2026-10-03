@@ -89,5 +89,5 @@ export function icsFile(c: CalendarEntry, now: Date = new Date()): string {
     "END:VEVENT",
     "END:VCALENDAR",
   ];
-  return lines.map(fold).join("\r\n") + "\r\n";
+  return `${lines.map(fold).join("\r\n")}\r\n`;
 }

@@ -16,7 +16,7 @@ describe("creating events", () => {
     expect(e.code).toBe(date.slice(5, 7) + date.slice(8));
     expect(Date.parse(e.deadlineAt)).toBe(Date.parse(`${date}T19:00:00-07:00`) - 26 * 3600_000 + (date >= "2026-11-01" ? 3600_000 : 0));
     const second = await createTestEvent(ctx, { date });
-    expect(second.code).toBe(e.code + "B");
+    expect(second.code).toBe(`${e.code}B`);
   });
 
   it("remembers the last times, venue with its address, and deadline offset as defaults", async () => {

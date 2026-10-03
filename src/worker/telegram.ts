@@ -111,7 +111,7 @@ const ADMIN_LINK_WORDS = new Set(["管理页面", "管理页", "管理链接", "
 export async function handleUpdate(env: Env, update: Update): Promise<void> {
   const msg = update.message;
   const text = msg?.text?.trim() ?? "";
-  if (!msg?.chat || msg.chat.type !== "private") return;
+  if (msg?.chat?.type !== "private") return;
   if (ADMIN_LINK_WORDS.has(text)) return sendAdminLink(env, String(msg.chat.id));
   const m = /^\/start\s+([A-Za-z0-9_-]{20,64})$/.exec(text);
   if (!m) return;
