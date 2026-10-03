@@ -116,8 +116,8 @@ export async function digestText(env: Env, at: Date): Promise<string> {
     .first<{ n: number; cents: number }>();
   const refund = await db
     .prepare(
-      `SELECT COUNT(*) AS n, COALESCE(SUM(amount_paid_cents - amount_due_cents - refunded_cents), 0) AS cents
-       FROM payments WHERE amount_paid_cents - amount_due_cents - refunded_cents > 0`,
+      `SELECT COUNT(*) AS n, COALESCE(SUM(amount_paid_cents - amount_due_cents), 0) AS cents
+       FROM payments WHERE amount_paid_cents > amount_due_cents`,
     )
     .first<{ n: number; cents: number }>();
   const s = await getSettings(db, ["email_last_at", "cron_last_error_at", "cron_last_error", "venmo_username"]);

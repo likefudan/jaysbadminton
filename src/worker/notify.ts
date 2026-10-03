@@ -251,7 +251,7 @@ export async function notifyCollected(env: Env, eventId: number): Promise<void> 
       .first<{ court_total_cents: number; shuttle_count: number; shuttle_price_cents: number; registered_count: number; attended_count: number }>();
     const pay = await env.DB.prepare(
       `SELECT COUNT(*) AS n, SUM(amount_due_cents) AS due, SUM(amount_paid_cents) AS paid,
-         SUM(MAX(amount_paid_cents - amount_due_cents - refunded_cents, 0)) AS refund
+         SUM(MAX(amount_paid_cents - amount_due_cents, 0)) AS refund
        FROM payments WHERE event_id = ?`,
     )
       .bind(e.id)
@@ -303,7 +303,7 @@ export async function notifyPayment(
     text =
       kind === "partial"
         ? `💵 ${p.username} 付了 $${dollars(info.amountCents)}（${d}），还差 $${dollars(p.amount_due_cents - p.amount_paid_cents)}。`
-        : `↩️ ${p.username} 多付了 $${dollars(p.amount_paid_cents - p.amount_due_cents - p.refunded_cents)}（${d}，应付 $${dollars(p.amount_due_cents)}，共收到 $${dollars(p.amount_paid_cents)}），需要退款，见管理页「收款」。`;
+        : `↩️ ${p.username} 多付了 $${dollars(p.amount_paid_cents - p.amount_due_cents)}（${d}，应付 $${dollars(p.amount_due_cents)}，共收到 $${dollars(p.amount_paid_cents + p.refunded_cents)}），需要退款，见管理页「收款」。`;
   }
   await sendToOwner(env, message(text));
 }

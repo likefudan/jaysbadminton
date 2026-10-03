@@ -441,13 +441,15 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
 /** The Owner sent the over-payment back. Allowed on archived events too: it changes no bill. */
 adminEventRoutes.post("/payments/:pid/refunded", async (c) => {
   const id = Number(c.req.param("pid"));
-  const res = await c.env.DB.prepare(
-    `UPDATE payments SET refunded_cents = amount_paid_cents - amount_due_cents
-     WHERE id = ? AND amount_paid_cents > amount_due_cents + refunded_cents`,
-  )
-    .bind(id)
-    .run();
-  if (res.meta.changes === 0) throw badRequest("这笔没有需要退的钱");
+  // One refund record for the whole excess, worked out in the same transaction so a second click adds nothing.
+  const [res] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
+       SELECT id, amount_due_cents - amount_paid_cents, 'refund', ? FROM payments WHERE id = ? AND amount_paid_cents > amount_due_cents`,
+    ).bind(now(), id),
+    ...syncPayments(c.env.DB, "id = ?", id),
+  ]);
+  if ((res?.meta.changes ?? 0) === 0) throw badRequest("这笔没有需要退的钱");
   return c.json({ ok: true });
 });
 
