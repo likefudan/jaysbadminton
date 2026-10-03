@@ -223,6 +223,21 @@ describe("member links", () => {
     expect((await admin.call(`${base}/members/${id}/reactivate`, {})).status).toBe(400);
   });
 
+  it("keeps a disabled member who is still on a list not yet settled", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    const e = await createTestEvent(ctx);
+    await new Client().call(`${alice.base}/events/${e.id}/signup`, { friends: [] });
+    await expire(e.id); // closed: disabling keeps the sign-up
+    await ctx.admin.call(`${ctx.base}/members/${alice.id}/deactivate`, {});
+    const refused = await ctx.admin.call(`${ctx.base}/members/${alice.id}/delete`, {});
+    expect(refused.status).toBe(400);
+    expect(refused.data.error.message).toContain("还没结算");
+    const d = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data;
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/${d.roster[0].id}/remove`, {});
+    expect((await ctx.admin.call(`${ctx.base}/members/${alice.id}/delete`, {})).status).toBe(200);
+  });
+
   it("frees a deleted member's name; the old record keeps it with its ID so history never mixes them up", async () => {
     const ctx = await setUpAdmin();
     const remove = async (id: string) => {
@@ -233,6 +248,12 @@ describe("member links", () => {
     const e = await createTestEvent(ctx);
     await anon.call(`${first.base}/events/${e.id}/signup`, { friends: ["Tom"] });
     await expire(e.id); // past the deadline, so disabling keeps the sign-up
+    // Settled (nothing to pay here), so the list no longer needs a member who can be billed.
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/finalize`, {
+      courtTotal: "0",
+      shuttleCount: 0,
+      shuttlePrice: "0",
+    });
     await remove(first.id);
     // Two Alices deleted in turn, a third one active: each stays distinct.
     const second = await approveMember(ctx, "alice");

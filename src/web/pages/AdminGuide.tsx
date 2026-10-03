@@ -151,8 +151,9 @@ export function AdminGuide(props: { base: string }) {
             <b>忘记管理链接</b>：在 Telegram
             里给机器人发送「管理页面」，它会把链接发给你（只回复已连接的那个账号）。没连 Telegram 的话，请网站维护者在
             GitHub → Actions → CI → Run workflow，「Use workflow from」选最新的版本标签（v 开头），勾选 reset_admin_link
-            运行一次（测试环境则选 main，密码用 ADMIN_PASSWORD_STAGING），然后打开 <code>{location.origin}/admin</code>{" "}
-            用密码重新生成。
+            运行一次（测试环境则选 main），然后打开 <code>{location.origin}/admin</code>{" "}
+            用当前的管理密码重新生成（没在管理页改过密码的话，就是 GitHub 里的 ADMIN_PASSWORD，测试环境是
+            ADMIN_PASSWORD_STAGING）。
           </li>
           <li>
             <b>忘记密码</b>：网站维护者把 GitHub 仓库里的 ADMIN_PASSWORD 改成一个新密码，然后在 Actions → CI → Run

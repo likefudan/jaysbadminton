@@ -86,6 +86,29 @@ describe("creating events", () => {
   });
 });
 
+describe("the admin's event list", () => {
+  it("shows 30 past events at first and more on request", async () => {
+    const ctx = await setUpAdmin();
+    const stmts = Array.from({ length: 35 }, (_, i) => {
+      const at = new Date(Date.UTC(2025, 0, 1 + i, 20)).toISOString(); // 2025-01-01 … 2025-02-04
+      const day = at.slice(0, 10);
+      return env.DB.prepare(
+        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at)
+         VALUES (?, ?, ?, ?, ?, 'Gym', '', '', ?, 0, 'cancelled', ?)`,
+      ).bind(`jbm${day.replace(/-/g, "")}`, day.slice(5).replace("-", ""), day, at, at, at, at);
+    });
+    await env.DB.batch(stmts);
+    const first = (await ctx.admin.call(`${ctx.base}/events`)).data;
+    expect(first.past).toHaveLength(30);
+    expect(first.morePast).toBe(true);
+    expect(first.past[0].date).toBe("2025-02-04"); // newest first
+    const more = (await ctx.admin.call(`${ctx.base}/events?past=60`)).data;
+    expect(more.past).toHaveLength(35);
+    expect(more.morePast).toBe(false);
+    expect(more.past.at(-1).date).toBe("2025-01-01");
+  });
+});
+
 describe("member sign-up", () => {
   it("signs up with friends, edits, and cancels before the deadline", async () => {
     const ctx = await setUpAdmin();

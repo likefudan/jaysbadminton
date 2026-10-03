@@ -6,13 +6,13 @@ export { DeadlineAlarm } from "./deadlines";
 import { HttpError } from "./http";
 import { MAX_EMAIL_BYTES, handleEmail, purgeDeletedInbound, recordEmailOutcome } from "./inbound";
 import { exportAll } from "./export";
-import { emailProblemAlert, recordCronError } from "./health";
+import { emailProblemAlert, pruneEmailLog, recordCronError } from "./health";
 import { runScheduled } from "./notify";
 import { eventMeta, homeMeta, sharePage } from "./share";
 import { isStaging } from "./site";
 import { SECURITY_HEADERS } from "../shared/security";
 import { checkExportKey } from "./sheets";
-import { handleUpdate, webhookSecret } from "./telegram";
+import { handleUpdate, upgradeWebhookSecret, webhookSecret } from "./telegram";
 import { adminRoutes } from "./routes/admin";
 import { memberRoutes } from "./routes/member";
 import { publicRoutes } from "./routes/public";
@@ -114,6 +114,8 @@ export default {
       await syncAllDeadlines(env);
       await runScheduled(env);
       await purgeDeletedInbound(env); // 已删除 Venmo payments older than 30 days
+      await pruneEmailLog(env);
+      await upgradeWebhookSecret(env);
     } catch (err) {
       console.error("scheduled run failed:", err);
       await recordCronError(env, err);

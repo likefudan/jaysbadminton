@@ -49,9 +49,38 @@ export async function sendToOwner(env: Env, html: string): Promise<boolean> {
   return r.ok;
 }
 
-/** Telegram echoes this in X-Telegram-Bot-Api-Secret-Token, proving a webhook call is genuine. */
+/**
+ * Telegram echoes this in X-Telegram-Bot-Api-Secret-Token, proving a webhook call is genuine. A
+ * random one is stored when the webhook is set, so it survives a replaced TOKEN_KEY; webhooks set
+ * before that still use the one derived from TOKEN_KEY until the Owner connects again.
+ */
 export async function webhookSecret(env: Env): Promise<string> {
-  return (await hmac("telegram-webhook", env.TOKEN_KEY)).slice(0, 48);
+  const { telegram_webhook_secret: stored } = await getSettings(env.DB, ["telegram_webhook_secret"]);
+  return stored || (await hmac("telegram-webhook", env.TOKEN_KEY)).slice(0, 48);
+}
+
+/** Points the bot at our webhook with a new random secret, and keeps that secret once Telegram has it. */
+async function setWebhook(env: Env): Promise<TgResult<unknown>> {
+  const secret = randomToken();
+  const hook = await call(env, "setWebhook", {
+    url: `${env.SITE_ORIGIN}/api/telegram/webhook`,
+    secret_token: secret,
+    allowed_updates: ["message"],
+  });
+  if (hook.ok) await setSetting(env.DB, "telegram_webhook_secret", secret).run();
+  return hook;
+}
+
+/**
+ * From the cron: a chat connected before the secret was stored still has the one derived from
+ * TOKEN_KEY, so a replaced key would silence the bot. Moves it to a stored secret once.
+ */
+export async function upgradeWebhookSecret(env: Env): Promise<void> {
+  if (!env.TELEGRAM_BOT_TOKEN) return;
+  const s = await getSettings(env.DB, ["telegram_chat_id", "telegram_webhook_secret"]);
+  if (!s.telegram_chat_id || s.telegram_webhook_secret) return;
+  const hook = await setWebhook(env);
+  if (!hook.ok) console.error("telegram setWebhook failed:", hook.description);
 }
 
 export interface TelegramStatus {
@@ -80,11 +109,7 @@ export async function startBinding(env: Env): Promise<string> {
     throw new HttpError(400, "no_bot", "还没有配置 Telegram 机器人（GitHub secret TELEGRAM_BOT_TOKEN）");
   const me = await call<{ username: string }>(env, "getMe", {});
   if (!me.ok || !me.result) throw new HttpError(502, "telegram", `连接 Telegram 失败：${me.description ?? "未知错误"}`);
-  const hook = await call(env, "setWebhook", {
-    url: `${env.SITE_ORIGIN}/api/telegram/webhook`,
-    secret_token: await webhookSecret(env),
-    allowed_updates: ["message"],
-  });
+  const hook = await setWebhook(env);
   if (!hook.ok) throw new HttpError(502, "telegram", `设置 Telegram 回调失败：${hook.description ?? "未知错误"}`);
   // Shows /admin in the bot's menu; best effort.
   await call(env, "setMyCommands", { commands: [{ command: "admin", description: "获取管理页面链接" }] });

@@ -66,6 +66,13 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
   );
 }
 
+/** From every cron run, whether or not the weekly digest is on: email_log keeps 120 days. */
+export async function pruneEmailLog(env: Env, at: Date = new Date()): Promise<void> {
+  await env.DB.prepare("DELETE FROM email_log WHERE received_at < ?")
+    .bind(new Date(at.getTime() - 120 * DAY).toISOString())
+    .run();
+}
+
 /** Kept for the weekly digest: the last thing that went wrong in a scheduled run. */
 export async function recordCronError(env: Env, err: unknown): Promise<void> {
   try {
@@ -98,10 +105,6 @@ export async function weeklyDigest(env: Env, at: Date, cfg: NotifySettings): Pro
 export async function digestText(env: Env, at: Date): Promise<string> {
   const since = new Date(at.getTime() - 7 * DAY).toISOString();
   const db = env.DB;
-  await db
-    .prepare("DELETE FROM email_log WHERE received_at < ?")
-    .bind(new Date(at.getTime() - 120 * DAY).toISOString())
-    .run();
 
   const { results: mail } = await db
     .prepare("SELECT outcome, COUNT(*) AS n FROM email_log WHERE received_at >= ? GROUP BY outcome")

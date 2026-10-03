@@ -43,15 +43,14 @@ GOOGLE_CLIENT_SECRET="你的 Web Client Secret"
 
 不要将 Client Secret 提交到 Git 或发送到聊天。仓库的 `.dev.vars.example` 只是格式参考。
 
-在终端启动（先使用工作区的开发环境脚本，以加载 Node）：
+在终端启动（需要 Node 22）：
 
 ```sh
-source '/Users/dafeinmacair/Documents/ChatGPT/羽毛球社群/开发环境.sh'
 npm run db:migrate:local
 npm run dev -- --ip 127.0.0.1 --var SITE_ORIGIN:http://localhost:8787
 ```
 
-现有工作区的 `启动项目.command` 已包含上述 SITE_ORIGIN 参数。使用浏览器打开 **http://localhost:8787**，不要把 127.0.0.1 与 localhost 混用，否则登录状态 cookie 不属于同一个主机。修改 `.dev.vars` 后重启服务。
+使用浏览器打开 **http://localhost:8787**，不要把 127.0.0.1 与 localhost 混用，否则登录状态 cookie 不属于同一个主机。修改 `.dev.vars` 后重启服务。
 
 缺少 Client ID 或 Secret 时，登录页会说明 Google 登录尚未开通，原成员链接仍可用。
 
