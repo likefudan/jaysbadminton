@@ -148,8 +148,8 @@ describe("a long run of corrections after Finalize", () => {
       Object.fromEntries((await s.admin.call(`${s.eb}/settlement`)).data.payments.map((p: Pay) => [p.memberName, p]));
     const fees = (courtTotal: string, shuttleCount: number, shuttlePrice: string) =>
       s.admin.call(`${s.eb}/finalize`, { courtTotal, shuttleCount, shuttlePrice });
-    const markPaid = async (name: string) => s.admin.call(`${s.base}/payments/${(await pays())[name].id}/mark-paid`, {});
-    const refunded = async (name: string) => s.admin.call(`${s.base}/payments/${(await pays())[name].id}/refunded`, {});
+    const markPaid = async (name: string) => s.admin.call(`${s.base}/payments/${(await pays())[name]!.id}/mark-paid`, {});
+    const refunded = async (name: string) => s.admin.call(`${s.base}/payments/${(await pays())[name]!.id}/refunded`, {});
 
     /** Each bill is due what the split says, and its paid total and status follow from its own records. */
     async function expectBills(step: string, due: Record<string, number>, net: Record<string, number>) {
@@ -217,14 +217,14 @@ describe("a long run of corrections after Finalize", () => {
     for (const name of ["Alice", "Bob", "Carol"]) expect((await refunded(name)).status).toBe(200);
     await expectBills("refunds", { Jay: 2750, Alice: 1500, Bob: 0, Carol: 4250 }, { Jay: 2750, Alice: 1500, Bob: 0, Carol: 4250 });
     const p = await pays();
-    expect(p.Alice.receipts.map((r) => [r.method, r.amountCents])).toEqual([
+    expect(p.Alice!.receipts.map((r) => [r.method, r.amountCents])).toEqual([
       ["manual", 4600],
       ["refund", -1000],
       ["manual", 300],
       ["refund", -2400],
     ]);
-    expect(p.Bob.receipts.map((r) => [r.method, r.amountCents])).toEqual([["manual", 2600], ["refund", -2600]]);
-    expect(p.Carol.receipts.map((r) => [r.method, r.amountCents])).toEqual([["manual", 5000], ["refund", -750]]);
+    expect(p.Bob!.receipts.map((r) => [r.method, r.amountCents])).toEqual([["manual", 2600], ["refund", -2600]]);
+    expect(p.Carol!.receipts.map((r) => [r.method, r.amountCents])).toEqual([["manual", 5000], ["refund", -750]]);
     // After the refunds, what the group kept is exactly the 60.00 court and 25.00 shuttles.
     const kept = Object.values(p).reduce((t, x) => t + x.amountPaidCents, 0);
     expect(kept).toBe(6000 + 2500);
