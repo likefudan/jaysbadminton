@@ -40,14 +40,26 @@ const LOCK_MINUTES = 15;
 export async function checkPassword(env: Env, password: string): Promise<boolean> {
   await syncEnvPassword(env);
   const s = await getSettings(env.DB, ["admin_password_hash", "admin_login_locked_until"]);
-  if (s.admin_login_locked_until && s.admin_login_locked_until > now()) throw locked();
+  const lockedUntil = s.admin_login_locked_until;
+  if (lockedUntil && lockedUntil > now()) throw locked();
+  if (lockedUntil) {
+    // The lock ran out: whichever request removes it starts the count again.
+    const cleared = await env.DB.prepare(
+      "DELETE FROM settings WHERE key = 'admin_login_locked_until' AND value = ? RETURNING key",
+    )
+      .bind(lockedUntil)
+      .first();
+    if (cleared) await setSetting(env.DB, "admin_login_failures", "0").run();
+  }
   const attempt = await env.DB.prepare(
     `INSERT INTO settings (key, value) VALUES ('admin_login_failures', '1')
      ON CONFLICT (key) DO UPDATE SET value = CAST(value AS INTEGER) + 1 RETURNING value`,
   ).first<{ value: string }>();
   const n = Number(attempt!.value);
   if (n > MAX_FAILURES) {
-    await lock(env);
+    // Parallel attempts past the limit: refuse without checking, and make sure a lock exists
+    // (the attempt that reached the limit normally sets it) so the count can start over later.
+    await lock(env, "ON CONFLICT (key) DO NOTHING");
     throw locked();
   }
   const ok = !!s.admin_password_hash && (await verifyPassword(password, s.admin_password_hash, env.TOKEN_KEY));
@@ -55,7 +67,7 @@ export async function checkPassword(env: Env, password: string): Promise<boolean
     await setSetting(env.DB, "admin_login_failures", "0").run();
     return true;
   }
-  if (n === MAX_FAILURES) await lock(env);
+  if (n === MAX_FAILURES) await lock(env, "ON CONFLICT (key) DO UPDATE SET value = excluded.value");
   return false;
 }
 
@@ -63,11 +75,11 @@ function locked(): HttpError {
   return new HttpError(429, "locked", `密码错误次数过多，请 ${LOCK_MINUTES} 分钟后再试`);
 }
 
-async function lock(env: Env): Promise<void> {
-  await env.DB.batch([
-    setSetting(env.DB, "admin_login_failures", "0"),
-    setSetting(env.DB, "admin_login_locked_until", new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString()),
-  ]);
+async function lock(env: Env, onConflict: string): Promise<void> {
+  const until = new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString();
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('admin_login_locked_until', ?) ${onConflict}`)
+    .bind(until)
+    .run();
 }
 
 export async function setPassword(env: Env, password: string): Promise<void> {
@@ -142,6 +154,9 @@ export async function hasSession(c: Ctx): Promise<boolean> {
 
 export async function endSession(c: Ctx): Promise<void> {
   const raw = getCookie(c, SESSION_COOKIE);
-  if (raw) await c.env.DB.prepare("DELETE FROM admin_sessions WHERE id_hash = ?").bind(await sha256(raw)).run();
+  if (raw)
+    await c.env.DB.prepare("DELETE FROM admin_sessions WHERE id_hash = ?")
+      .bind(await sha256(raw))
+      .run();
   deleteCookie(c, SESSION_COOKIE, { path: "/api/admin" });
 }

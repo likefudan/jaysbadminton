@@ -29,7 +29,9 @@ describe("join requests", () => {
     expect(res.status).toBe(400);
     expect(res.data.error.message).toBe("请填写用户名");
     expect((await anon.call("/api/public/join", joinBody("Dan", " "))).data.error.message).toBe("请填写微信名");
-    expect((await anon.call("/api/public/join", joinBody("Dan", "d", { message: "长".repeat(201) }))).data.error.message).toBe("留言最多 200 个字");
+    expect(
+      (await anon.call("/api/public/join", joinBody("Dan", "d", { message: "长".repeat(201) }))).data.error.message,
+    ).toBe("留言最多 200 个字");
   });
 
   it("keeps the optional note to the admin and shows it in the queue", async () => {
@@ -37,7 +39,9 @@ describe("join requests", () => {
     await anon.call("/api/public/join", joinBody("Erin", "erin_wx", { message: "小明介绍的" }));
     await anon.call("/api/public/join", joinBody("Finn", "finn"));
     const pending = (await ctx.admin.call(`${ctx.base}/members`)).data.pending;
-    expect(pending.map((m: { username: string; applicationMessage: string }) => [m.username, m.applicationMessage])).toEqual([
+    expect(
+      pending.map((m: { username: string; applicationMessage: string }) => [m.username, m.applicationMessage]),
+    ).toEqual([
       ["Erin", "小明介绍的"],
       ["Finn", ""],
     ]);
@@ -52,7 +56,11 @@ describe("join requests", () => {
 
 describe("admin setup and login", () => {
   it("is only available once and needs the password", async () => {
-    const wrong = await new Client().call("/api/public/admin-setup", { password: "nope", username: "Jay", wechatNickname: "J" });
+    const wrong = await new Client().call("/api/public/admin-setup", {
+      password: "nope",
+      username: "Jay",
+      wechatNickname: "J",
+    });
     expect(wrong.status).toBe(401);
     expect((await anon.call("/api/public/admin-setup")).data.needed).toBe(true);
 
@@ -62,7 +70,11 @@ describe("admin setup and login", () => {
     const owner = (await admin.call(`${base}/members`)).data.active.find((m: { isOwner: boolean }) => m.isOwner);
     expect(owner).toMatchObject({ username: "Jay", status: "active", hasLink: false });
     expect((await anon.call("/api/public/admin-setup")).data.needed).toBe(false);
-    const again = await new Client().call("/api/public/admin-setup", { password: "initial-password", username: "X", wechatNickname: "X" });
+    const again = await new Client().call("/api/public/admin-setup", {
+      password: "initial-password",
+      username: "X",
+      wechatNickname: "X",
+    });
     expect(again.status).toBe(409);
   });
 
@@ -114,6 +126,17 @@ describe("admin setup and login", () => {
     expect((await c.call(`${base}/login`, { password: "initial-password" })).status).toBe(429);
   });
 
+  it("starts counting again once the lock runs out", async () => {
+    const { base } = await setUpAdmin();
+    const c = new Client();
+    for (let i = 0; i < 5; i++) await c.call(`${base}/login`, { password: "bad" });
+    await env.DB.prepare("UPDATE settings SET value = ? WHERE key = 'admin_login_locked_until'")
+      .bind(new Date(Date.now() - 1000).toISOString())
+      .run();
+    for (let i = 0; i < 4; i++) expect((await c.call(`${base}/login`, { password: "bad" })).status).toBe(401);
+    expect((await c.call(`${base}/login`, { password: "initial-password" })).status).toBe(200);
+  });
+
   it("rotating the admin link kills the old one", async () => {
     const { admin, base } = await setUpAdmin();
     const { data } = await admin.call(`${base}/settings/rotate-admin`, {});
@@ -140,7 +163,9 @@ describe("member links", () => {
 
   it("stores only a hash and ciphertext, never the raw token", async () => {
     const { token, id } = await approvedMember();
-    const row = await env.DB.prepare("SELECT token_hash, token_enc FROM members WHERE id = ?").bind(id).first<Record<string, string>>();
+    const row = await env.DB.prepare("SELECT token_hash, token_enc FROM members WHERE id = ?")
+      .bind(id)
+      .first<Record<string, string>>();
     expect(row!.token_hash).not.toContain(token);
     expect(row!.token_enc).not.toContain(token);
   });
@@ -158,7 +183,9 @@ describe("member links", () => {
     await admin.call(`${base}/members/${id}/deactivate`, {});
     const me = await anon.call(`/api/m/${token}/me`);
     expect(me.data.active).toBe(false);
-    expect((await anon.call(`/api/m/${token}/events/${e.id}/signup`, { friends: [] })).data.error.message).toContain("已停用");
+    expect((await anon.call(`/api/m/${token}/events/${e.id}/signup`, { friends: [] })).data.error.message).toContain(
+      "已停用",
+    );
     expect((await anon.call(`/api/m/${token}/events`)).data.events).toEqual([]); // only bills are shown
     expect((await admin.call(`${base}/members`)).data.inactive.map((m: { id: string }) => m.id)).toEqual([id]);
 
@@ -214,9 +241,14 @@ describe("member links", () => {
     expect((await new Client().call("/api/public/join", joinBody("ALICE", "x"))).status).toBe(409);
 
     const list = (await ctx.admin.call(`${ctx.base}/members`)).data;
-    expect(list.deleted.map((m: { username: string }) => m.username).sort()).toEqual([`Alice（${first.id}）`, `alice（${second.id}）`]);
+    expect(list.deleted.map((m: { username: string }) => m.username).sort()).toEqual([
+      `Alice（${first.id}）`,
+      `alice（${second.id}）`,
+    ]);
     expect(list.active.find((m: { id: string }) => m.id === third.id).username).toBe("Alice");
-    const roster = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.roster.map((r: { name: string }) => r.name);
+    const roster = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.roster.map(
+      (r: { name: string }) => r.name,
+    );
     expect(roster).toContain(`Alice（${first.id}）`);
     expect(roster).toContain("Tom");
   });
@@ -262,16 +294,27 @@ describe("reset all data", () => {
     const ctx = await setUpAdmin();
     await approveMember(ctx, "Alice");
     await createTestEvent(ctx, { joinSelf: true });
-    expect((await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空", password: "initial-password" })).status).toBe(400);
-    expect((await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空所有数据", password: "wrong" })).status).toBe(401);
-    expect((await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空所有数据", password: "initial-password" })).status).toBe(200);
+    expect(
+      (await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空", password: "initial-password" })).status,
+    ).toBe(400);
+    expect(
+      (await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空所有数据", password: "wrong" })).status,
+    ).toBe(401);
+    expect(
+      (await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空所有数据", password: "initial-password" }))
+        .status,
+    ).toBe(200);
 
     expect((await ctx.admin.call(`${ctx.base}/members`)).status).toBe(404);
     expect((await new Client().call("/api/public/admin-setup")).data).toEqual({ needed: true });
     expect((await new Client().call("/api/public/home")).data.currentEvents).toEqual([]);
 
     // The new Owner sets the site up again with the same password and starts at M001.
-    const again = await new Client().call("/api/public/admin-setup", { password: "initial-password", username: "Ming", wechatNickname: "Ming" });
+    const again = await new Client().call("/api/public/admin-setup", {
+      password: "initial-password",
+      username: "Ming",
+      wechatNickname: "Ming",
+    });
     expect(again.status).toBe(200);
     const members = (await new Client().call("/api/public/home")).status;
     expect(members).toBe(200);
@@ -301,7 +344,9 @@ describe("join form flood guard", () => {
   it("stops taking applications once 30 are waiting", async () => {
     await env.DB.batch(
       Array.from({ length: 30 }, (_, i) =>
-        env.DB.prepare("INSERT INTO members (id, username, wechat_nickname, status, requested_at) VALUES (?, ?, 'x', 'pending', 'x')").bind(`P${i}`, `bot${i}`),
+        env.DB.prepare(
+          "INSERT INTO members (id, username, wechat_nickname, status, requested_at) VALUES (?, ?, 'x', 'pending', 'x')",
+        ).bind(`P${i}`, `bot${i}`),
       ),
     );
     const res = await anon.call("/api/public/join", joinBody("Real", "Real"));
