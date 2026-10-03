@@ -68,6 +68,16 @@ describe("connecting Telegram", () => {
     expect(calls).toEqual([]);
   });
 
+  it("gives Telegram one secret when the cron upgrade and a reconnect overlap", async () => {
+    const ctx = await setUpAdmin();
+    await connectChat();
+    await Promise.all([upgradeWebhookSecret(env), ctx.admin.call(`${ctx.base}/telegram/connect`, {})]);
+    const given = calls.filter((c) => c.method === "setWebhook").map((c) => c.body.secret_token as string);
+    expect(given).toHaveLength(2);
+    expect(new Set(given).size).toBe(1);
+    expect(await webhookSecret(env)).toBe(given[0]);
+  });
+
   it("binds only the chat that opens the one-time link, and sends a test message", async () => {
     const ctx = await setUpAdmin();
     const { link } = (await ctx.admin.call(`${ctx.base}/telegram/connect`, {})).data;

@@ -59,9 +59,19 @@ export async function webhookSecret(env: Env): Promise<string> {
   return stored || (await hmac("telegram-webhook", env.TOKEN_KEY)).slice(0, 48);
 }
 
-/** Points the bot at our webhook with a new random secret, and keeps that secret once Telegram has it. */
+/**
+ * Points the bot at our webhook and keeps the secret once Telegram has it. Every call uses the same
+ * secret (the stored one, else one claimed once in telegram_webhook_secret_next), so a cron upgrade
+ * and an Owner reconnecting at the same moment can't leave Telegram and the database on different ones.
+ */
 async function setWebhook(env: Env): Promise<TgResult<unknown>> {
-  const secret = randomToken();
+  await env.DB.prepare(
+    "INSERT INTO settings (key, value) VALUES ('telegram_webhook_secret_next', ?) ON CONFLICT (key) DO NOTHING",
+  )
+    .bind(randomToken())
+    .run();
+  const s = await getSettings(env.DB, ["telegram_webhook_secret", "telegram_webhook_secret_next"]);
+  const secret = s.telegram_webhook_secret || s.telegram_webhook_secret_next!;
   const hook = await call(env, "setWebhook", {
     url: `${env.SITE_ORIGIN}/api/telegram/webhook`,
     secret_token: secret,
