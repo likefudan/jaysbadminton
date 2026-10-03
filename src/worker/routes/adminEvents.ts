@@ -519,17 +519,25 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
   const back: D1PreparedStatement[] = [];
   if (r.method === "venmo") {
     back.push(
-      // Linked from 待确认 (receipts from before the link was kept are found by their transaction).
+      // Linked from 待确认: that row reopens, whatever happened to it since. Receipts from before the
+      // link was kept find it by their transaction, or else by the bill and amount it was linked with.
+      // Each statement checks the receipt still exists, so a second click changes nothing.
       c.env.DB.prepare(
-        `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL
-         WHERE state = 'linked' AND (id = ?1 OR (?1 IS NULL AND ?2 IS NOT NULL AND venmo_txn_id = ?2))`,
-      ).bind(r.inbound_id, r.venmo_txn_id),
+        `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL, deleted_from = NULL, deleted_at = NULL
+         WHERE EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?5)
+           AND id = COALESCE(?1,
+             (SELECT id FROM inbound_payments WHERE ?2 IS NOT NULL AND venmo_txn_id = ?2 ORDER BY id LIMIT 1),
+             (SELECT id FROM inbound_payments WHERE ?2 IS NULL AND state = 'linked' AND linked_payment_id = ?3
+                AND amount_cents = ?4 ORDER BY id LIMIT 1))`,
+      ).bind(r.inbound_id, r.venmo_txn_id, r.payment_id, r.amount_cents, r.id),
       // Auto-matched: never in 待确认 before, so it gets a row now.
       c.env.DB.prepare(
         `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)
-         SELECT ?, ?, ?, ?, ?, 'unmatched', '从账单撤销的 Venmo 付款'
-         WHERE ? IS NULL AND NOT EXISTS (SELECT 1 FROM inbound_payments WHERE venmo_txn_id = ?)`,
-      ).bind(r.venmo_txn_id, r.payer_name, r.amount_cents, r.note, r.received_at, r.inbound_id, r.venmo_txn_id),
+         SELECT ?2, ?6, ?4, ?7, ?8, 'unmatched', '从账单撤销的 Venmo 付款'
+         WHERE ?1 IS NULL AND ?2 IS NOT NULL AND ?3 IS NOT NULL
+           AND EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?5)
+           AND NOT EXISTS (SELECT 1 FROM inbound_payments WHERE venmo_txn_id = ?2)`,
+      ).bind(r.inbound_id, r.venmo_txn_id, r.payment_id, r.amount_cents, r.id, r.payer_name, r.note, r.received_at),
     );
   }
   await c.env.DB.batch([

@@ -71,13 +71,8 @@ describe("已删除 Venmo payments", () => {
   });
 
   it("shows trashed payments as 已删除 in the export", async () => {
-    await setUpAdmin();
-    const id = await add("X1");
-    await env.DB.prepare(
-      "UPDATE inbound_payments SET deleted_from = state, state = 'deleted', deleted_at = ? WHERE id = ?",
-    )
-      .bind(new Date().toISOString(), id)
-      .run();
+    const ctx = await setUpAdmin();
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${await add("X1")}/delete`, {})).status).toBe(200);
     const table = await TABLES.inbound.build(env);
     expect(table.rows.find((r) => r.includes("X1"))).toContain("已删除");
   });

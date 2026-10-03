@@ -45,14 +45,17 @@ app.post("/api/csp-report", async (c) => {
   // Only the start is logged, so only the start is read: anyone can post here. Bytes, not text():
   // the body is application/csp-report, which text() warns about.
   const reader = c.req.raw.body?.getReader();
-  let bytes = new Uint8Array(0);
-  while (reader && bytes.length < 2000) {
+  const bytes = new Uint8Array(2000);
+  let n = 0;
+  while (reader && n < bytes.length) {
     const { done, value } = await reader.read();
     if (done) break;
-    bytes = new Uint8Array([...bytes, ...value]);
+    const part = value.subarray(0, bytes.length - n);
+    bytes.set(part, n);
+    n += part.length;
   }
   await reader?.cancel();
-  const report = new TextDecoder().decode(bytes.slice(0, 2000));
+  const report = new TextDecoder().decode(bytes.subarray(0, n));
   console.warn("csp report:", report);
   return c.body(null, 204);
 });
