@@ -159,6 +159,19 @@ describe("scheduled notifications", () => {
     expect(sent().filter((t) => t.includes("还没有结算"))).toHaveLength(2);
   });
 
+  it("tells the Owner once that an empty event needs no settling", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    await connectChat();
+    await env.DB.prepare("UPDATE events SET status = 'closed', end_at = '2000-01-01T00:00:00.000Z' WHERE id = ?")
+      .bind(e.id)
+      .run();
+    for (const t of ["14:05", "15:05", "16:05"]) await runScheduled(env, pacific(e.date, t));
+    const notes = sent().filter((t) => t.includes("活动已经结束"));
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain("没有人报名");
+  });
+
   it("announces Finalize once, then sends daily dunning from 24 h later until stopped", async () => {
     const s = await billingScenario();
     await connectChat();

@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { dollars, type Settlement } from "../../shared/settle";
+import { dollars, parseDollars, type Settlement } from "../../shared/settle";
 import type { EventDetail, PaymentRow, Receipt, SettlementView } from "../../shared/types";
 import { ReceiptList } from "./AdminInbound";
 import { api } from "../api";
@@ -22,10 +22,19 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
     const r = await run(() => api<Settlement>(`${eb}/preview`, body()));
     if (r) setPreview(r);
   }
+  // Nobody marked as attended: the shuttle cost has nobody to split it, so it is quietly dropped.
+  // Read from the roster, which reloads when attendance changes (a preview can be out of date).
+  const noShuttleShare =
+    props.e.roster.length > 0 &&
+    props.e.roster.every((r) => !r.attended) &&
+    Number(count) > 0 &&
+    (parseDollars(price) ?? 0) > 0;
   async function doFinalize() {
-    const msg = finalized
-      ? "保存后，所有人的金额都会按新数据重新计算；已付款的人会显示还差多少或多付多少。继续吗？"
-      : "Finalize 后，成员就能看到应付金额和付款链接。确定吗？";
+    const msg =
+      (noShuttleShare ? "所有人都标成了未出席，球费不会算进任何人的账单。\n" : "") +
+      (finalized
+        ? "保存后，所有人的金额都会按新数据重新计算；已付款的人会显示还差多少或多付多少。继续吗？"
+        : "Finalize 后，成员就能看到应付金额和付款链接。确定吗？");
     if (!confirm(msg)) return;
     if (await run(() => api(`${eb}/finalize`, body()))) {
       setPreview(null);
@@ -66,6 +75,7 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
             </tbody>
           </table>
           <p class="small">合计应收 ${dollars(preview.totalCents)}</p>
+          {noShuttleShare && <p class="error">所有人都标成了未出席，球费不会算进任何人的账单。</p>}
           <button type="button" class="button block" disabled={busy} onClick={doFinalize}>
             {finalized ? "保存修改" : "Finalize"}
           </button>

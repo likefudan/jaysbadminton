@@ -164,6 +164,16 @@ export async function friendCap(env: Env): Promise<number> {
   return Number.isInteger(n) && n >= 0 ? n : DEFAULT_FRIEND_CAP;
 }
 
+/** How many friends a member has on an event's list now. */
+export async function friendCount(env: Env, eventId: number, memberId: string): Promise<number> {
+  const r = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index > 0",
+  )
+    .bind(eventId, memberId)
+    .first<{ n: number }>();
+  return r?.n ?? 0;
+}
+
 export interface CreateEventInput {
   date: string;
   startTime: string;
@@ -347,10 +357,14 @@ export async function removeSignup(env: Env, eventId: number, memberId: string):
   await env.DB.prepare("DELETE FROM registrations WHERE event_id = ? AND member_id = ?").bind(eventId, memberId).run();
 }
 
-export function validateFriends(raw: unknown, cap: number | null): string[] {
+/** keep: friends already on the list, which may stay even above the cap (the Owner may have added them). */
+export function validateFriends(raw: unknown, cap: number | null, keep = 0): string[] {
   if (!Array.isArray(raw)) throw badRequest("朋友名单格式不对");
   const friends = raw.map((f) => (typeof f === "string" ? f : ""));
-  if (cap !== null && friends.length > cap) throw badRequest(`最多带 ${cap} 个朋友`);
-  if (friends.length > 20) throw badRequest("朋友太多了");
+  if (cap !== null && friends.length > Math.max(cap, keep))
+    throw badRequest(
+      keep > cap ? `最多带 ${cap} 个朋友；现在的 ${keep} 个可以保留，但不能再加` : `最多带 ${cap} 个朋友`,
+    );
+  if (friends.length > Math.max(20, keep)) throw badRequest("朋友太多了");
   return friends;
 }

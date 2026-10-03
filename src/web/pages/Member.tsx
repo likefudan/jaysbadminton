@@ -231,7 +231,7 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
       {!editing && <EventActions e={e} calendar={signedUp && !e.payment} />}
       {e.canEdit && editing && (
         <>
-          <FriendsEditor friends={friends} max={props.cap} onChange={setFriends} />
+          <FriendsEditor friends={friends} max={Math.max(props.cap, e.myFriends?.length ?? 0)} onChange={setFriends} />
           {error && <p class="error">{error}</p>}
           <button type="button" class="button block" disabled={busy} onClick={save}>
             {signedUp ? "保存修改" : "确认报名"}
