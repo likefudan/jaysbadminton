@@ -22,6 +22,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Unit tests and the browser tests run side by side; deploys wait for both.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -32,12 +33,33 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      # The runner has 2 CPUs, so Vitest would default to one worker and run the files one by one.
+      - run: npm test -- --maxWorkers=2
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: npm run build
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+      # Only the browser download is needed: the runner image already has Chromium's system
+      # libraries, and the extra fonts install-deps adds don't matter to tests that check text.
+      - uses: actions/cache@v6
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
       - name: Browser tests (main flows on a local Worker)
-        run: |
-          npx playwright install --with-deps chromium
-          npx playwright test
+        run: npx playwright test
         env:
           WRANGLER_SEND_METRICS: "false"
       - if: failure()
@@ -50,7 +72,7 @@ jobs:
           retention-days: 7
 
   deploy-staging:
-    needs: check
+    needs: [check, e2e]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency: deploy-staging
@@ -87,7 +109,7 @@ jobs:
           SITE_ORIGIN: https://staging.jaysbadminton.llmat.dev
 
   deploy-production:
-    needs: check
+    needs: [check, e2e]
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency: deploy-production
