@@ -1,10 +1,9 @@
 import type { MyEvent, PublicEvent } from "../../shared/types";
 import { formatDateZh } from "../../shared/time";
 import { Card, Load, Page } from "../components";
-import { CalendarLinks } from "../Calendar";
 import { EventInfo } from "../events";
 import { useApi, useMemberSession } from "../hooks";
-import { EventShareRow } from "../ShareCard";
+import { EventActions } from "../ShareCard";
 import { SignupCard } from "./Member";
 
 /**
@@ -24,8 +23,7 @@ export function EventPage(props: { code?: string }) {
             <>
               <Card>
                 <EventInfo e={e} publicView />
-                <CalendarLinks e={e} />
-                <EventShareRow e={e} />
+                <EventActions e={e} />
               </Card>
               {(member === "none" || member === "loading") && (
                 <p class="muted small">登录后即可报名；新朋友请先注册入群。</p>
@@ -55,8 +53,7 @@ function MemberView(props: { e: PublicEvent }) {
   return (
     <Card>
       <EventInfo e={props.e} publicView />
-      <CalendarLinks e={props.e} />
-      <EventShareRow e={props.e} />
+      <EventActions e={props.e} />
     </Card>
   );
 }

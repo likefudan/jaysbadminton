@@ -2462,7 +2462,7 @@ a.ev-meta {
   color: #ffffff;
 }
 
-/* ---- 加入日历 ---- */
+/* ---- 加入日历 · 分享名片: one row of pills on each event card ---- */
 .calendar {
   display: flex;
   flex-wrap: wrap;
@@ -2471,11 +2471,6 @@ a.ev-meta {
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
-}
-.calendar-label {
-  margin-right: auto;
-  font-size: 13px;
-  color: var(--muted);
 }
 .calendar-link {
   display: inline-flex;
@@ -2504,10 +2499,6 @@ a.ev-meta {
 button.calendar-link {
   font-family: inherit;
   cursor: pointer;
-}
-.calendar + .share-row {
-  margin-top: 10px;
-  padding-top: 10px;
 }
 
 /* ---- 名单 on the member's event card ---- */

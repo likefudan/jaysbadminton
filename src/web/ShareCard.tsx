@@ -1,6 +1,8 @@
+import { createPortal } from "preact/compat";
 import { useEffect, useState } from "preact/hooks";
 import { eventCardText, type CardText } from "../shared/shareCard";
 import type { EventSummary } from "../shared/types";
+import { CalendarButtons, canAddToCalendar } from "./Calendar";
 import { useSiteTitle } from "./site";
 
 const W = 1080;
@@ -214,22 +216,29 @@ export function ShareCardButton(props: { text: CardText; filename: string }) {
 }
 
 /**
- * 分享活动: a row inside every event card, public or the member's own, opening the same 名片.
- * Not on events already billed (结算中 / 已结清): nobody needs to be invited to those.
+ * The action row inside every event card, public or the member's own: 加入日历 (iPhone / Outlook,
+ * Google 日历) and 分享名片, side by side with no row title. Calendar buttons only where `calendar`
+ * allows and the event is still ahead; 分享名片 only while sign-up is open (报名中): a closed,
+ * cancelled or billed event has nobody left to invite.
  */
-export function EventShareRow(props: { e: EventSummary }) {
+export function EventActions(props: { e: EventSummary; calendar?: boolean }) {
+  const e = props.e;
   const [open, setOpen] = useState(false);
-  if (props.e.status === "finalized" || props.e.status === "settled") return null;
+  const calendar = (props.calendar ?? true) && canAddToCalendar(e);
+  const share = e.status === "open";
+  if (!calendar && !share) return null;
   return (
-    <div class="calendar share-row">
-      <span class="calendar-label">分享活动</span>
-      <button class="calendar-link" type="button" onClick={() => setOpen(true)}>
-        生成活动名片
-      </button>
+    <div class="calendar">
+      {calendar && <CalendarButtons e={e} />}
+      {share && (
+        <button class="calendar-link" type="button" onClick={() => setOpen(true)}>
+          分享名片
+        </button>
+      )}
       {open && (
         <ShareCardSheet
-          text={eventCardText(location.origin, props.e)}
-          filename={`event-${props.e.code}.png`}
+          text={eventCardText(location.origin, e)}
+          filename={`event-${e.code}.png`}
           onClose={() => setOpen(false)}
         />
       )}
@@ -252,7 +261,9 @@ function ShareCardSheet(props: { text: CardText; filename: string; onClose: () =
     return () => removeEventListener("keydown", onKey);
   }, []);
 
-  return (
+  // Rendered into <body>: event cards use backdrop-filter, which would otherwise trap this fixed
+  // sheet inside the card instead of covering the screen.
+  return createPortal(
     <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
       <div class="sheet" role="dialog" aria-label="分享名片">
         <div class="sheet-head">
@@ -273,6 +284,7 @@ function ShareCardSheet(props: { text: CardText; filename: string; onClose: () =
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
