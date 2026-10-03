@@ -34,16 +34,25 @@ export async function notifySettings(env: Env): Promise<NotifySettings> {
 
 /**
  * Sends at most once per (event, type, key). The log row is written first so overlapping cron
- * runs cannot both send; if Telegram fails the row is removed and the next run tries again.
+ * runs cannot both send; if Telegram fails (or building the message throws) the row is removed
+ * and the next run tries again.
  */
 export async function once(env: Env, eventId: number, type: string, key: string, send: () => Promise<boolean>): Promise<void> {
   const claim = await env.DB.prepare("INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, ?, ?, ?)")
     .bind(eventId, type, key, now())
     .run();
   if (claim.meta.changes === 0) return;
-  if (!(await send())) {
-    await env.DB.prepare("DELETE FROM notification_log WHERE event_id = ? AND type = ? AND sent_on = ?").bind(eventId, type, key).run();
+  const release = () =>
+    env.DB.prepare("DELETE FROM notification_log WHERE event_id = ? AND type = ? AND sent_on = ?").bind(eventId, type, key).run();
+  let ok: boolean;
+  try {
+    ok = await send();
+  } catch (err) {
+    // A failure while building the message must not leave the claim behind, or it is never sent.
+    await release();
+    throw err;
   }
+  if (!ok) await release();
 }
 
 /** "HappyTuesday 比赛 2026年10月7日 周三", or just the date when there is no title. */

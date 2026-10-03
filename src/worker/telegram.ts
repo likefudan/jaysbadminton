@@ -25,6 +25,7 @@ async function call<T>(env: Env, method: string, body: unknown): Promise<TgResul
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
     });
     return (await res.json()) as TgResult<T>;
   } catch (err) {

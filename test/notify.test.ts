@@ -6,7 +6,7 @@ import { pacificToUtc } from "../src/shared/time";
 import { handleEmail, recordEmailOutcome } from "../src/worker/inbound";
 import { digestText, emailProblemAlert } from "../src/worker/health";
 import worker from "../src/worker/index";
-import { runScheduled } from "../src/worker/notify";
+import { once, runScheduled } from "../src/worker/notify";
 import { webhookSecret } from "../src/worker/telegram";
 import { Client, ORIGIN, billingScenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
 import { type ReceiptFields, testKey, venmoEmail } from "./venmoMail";
@@ -178,6 +178,14 @@ describe("scheduled notifications", () => {
     calls = [];
     await runScheduled(env, pacific(s.e.date, "14:15"));
     expect(sent()).toHaveLength(1);
+  });
+
+  it("tries again next time when building a notice throws, instead of dropping it", async () => {
+    const send = vi.fn<() => Promise<boolean>>().mockRejectedValueOnce(new Error("D1 hiccup")).mockResolvedValue(true);
+    await expect(once(env, 1, "test", "k", send)).rejects.toThrow("D1 hiccup");
+    await once(env, 1, "test", "k", send);
+    await once(env, 1, "test", "k", send);
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });
 

