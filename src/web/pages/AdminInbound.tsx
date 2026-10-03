@@ -33,8 +33,8 @@ export function InboundTab(props: { base: string }) {
                   </small>
                   {i.state === "ignored" && (
                     <div class="link-row">
-                      <UnignoreButton base={props.base} item={i} onDone={reload} />
-                      <DeleteButton base={props.base} item={i} onDone={reload} />
+                      <InboundAction base={props.base} item={i} action="unignore" label="移回待确认" onDone={reload} />
+                      <InboundAction base={props.base} item={i} action="delete" label="删除" onDone={reload} />
                     </div>
                   )}
                 </div>
@@ -140,40 +140,33 @@ function Item(props: { base: string; item: InboundRow; groups: [string, OpenPaym
         <button type="button" class="button secondary" disabled={busy} onClick={ignore}>
           忽略
         </button>
-        <DeleteButton base={props.base} item={i} onDone={props.onDone} />
+        <InboundAction base={props.base} item={i} action="delete" label="删除" onDone={props.onDone} />
       </div>
     </div>
   );
 }
 
-/** Undoes 忽略: the payment goes back to 待确认, where it can be linked to a bill. */
-function UnignoreButton(props: { base: string; item: InboundRow; onDone: () => void }) {
+/**
+ * 移回待确认 (undoes 忽略) or 删除 (to 已删除; no confirmation, it can be restored for 30 days).
+ * The error sits on its own line below the buttons.
+ */
+function InboundAction(props: {
+  base: string;
+  item: InboundRow;
+  action: "unignore" | "delete";
+  label: string;
+  onDone: () => void;
+}) {
   const { busy, error, run } = useAction();
-  async function back() {
-    if (await run(() => api(`${props.base}/inbound/${props.item.id}/unignore`, {}))) props.onDone();
+  async function go() {
+    if (await run(() => api(`${props.base}/inbound/${props.item.id}/${props.action}`, {}))) props.onDone();
   }
   return (
     <>
-      <button type="button" class="button secondary" disabled={busy} onClick={back}>
-        移回待确认
+      <button type="button" class="button secondary" disabled={busy} onClick={go}>
+        {props.label}
       </button>
-      {error && <p class="error">{error}</p>}
-    </>
-  );
-}
-
-/** Moves a payment to 已删除. No confirmation: it can be restored from there for 30 days. */
-function DeleteButton(props: { base: string; item: InboundRow; onDone: () => void }) {
-  const { busy, error, run } = useAction();
-  async function remove() {
-    if (await run(() => api(`${props.base}/inbound/${props.item.id}/delete`, {}))) props.onDone();
-  }
-  return (
-    <>
-      <button type="button" class="button secondary" disabled={busy} onClick={remove}>
-        删除
-      </button>
-      {error && <p class="error">{error}</p>}
+      {error && <p class="error full-row">{error}</p>}
     </>
   );
 }

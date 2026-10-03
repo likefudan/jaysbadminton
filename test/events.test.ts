@@ -398,7 +398,7 @@ describe("emergency controls", () => {
     expect((await anon.call(`/api/public/events/${e.code}`)).data.location).toBe("New Gym");
   });
 
-  it("keeps a reopened deadline when an edit leaves the start alone", async () => {
+  it("moves a reopened deadline with the start, and keeps it when only the venue changes", async () => {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx, { deadlineDays: 1, deadlineHours: 0 });
     await expire(e.id);
@@ -421,17 +421,15 @@ describe("emergency controls", () => {
     });
     expect(shorter.data.status).toBe("open");
     expect(Date.parse(shorter.data.deadlineAt)).toBe(Date.parse(reopened) - 30 * 60_000);
-    // Moving the start goes back to the usual offset, which (say it was 20 days) has passed: closed.
-    await env.DB.prepare("UPDATE events SET deadline_offset_min = ? WHERE id = ?")
-      .bind(20 * 1440, e.id)
-      .run();
+    // Moving the start an hour later moves the deadline with it, past the old end.
     const moved = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
       date: e.date,
-      startTime: "18:00",
-      endTime: "21:00",
+      startTime: "20:00",
+      endTime: "22:00",
       location: "Fixed Gym",
     });
-    expect(moved.data.status).toBe("closed");
+    expect(moved.data.status).toBe("open");
+    expect(Date.parse(moved.data.deadlineAt)).toBe(Date.parse(reopened) + 30 * 60_000);
   });
 
   it("closes sign-up when an edit moves the deadline into the past, and works after Finalize", async () => {

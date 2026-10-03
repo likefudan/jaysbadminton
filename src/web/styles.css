@@ -849,9 +849,16 @@ table.bills td:last-child {
   min-width: 0;
   min-height: 44px;
 }
+.link-row {
+  flex-wrap: wrap;
+}
 .link-row .button {
   min-height: 44px;
   padding: 0 14px;
+}
+.link-row .full-row {
+  flex-basis: 100%;
+  margin: 0;
 }
 .inbound .reason {
   margin: 6px 0 0;

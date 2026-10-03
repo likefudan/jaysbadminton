@@ -659,7 +659,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
       />
       {props.e.status === "open" && (
         <p class="muted small">
-          改了日期或开始时间的话，报名截止时间会按原来的提前量重新计算；如果已经过了，报名会立即截止。只改标题、地点或结束时间不影响截止时间。
+          报名截止时间会跟着开始时间一起移动（间隔不变），但不晚于活动结束；如果已经过了，报名会立即截止。只改标题或地点不影响截止时间。
         </p>
       )}
       {error && <p class="error">{error}</p>}
