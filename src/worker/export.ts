@@ -2,7 +2,6 @@ import { toPacific } from "../shared/time";
 import { STATUS_ZH, type EventStatus } from "../shared/types";
 import type { Env } from "./env";
 import { friendLabel } from "./events";
-import { eventNumber } from "./paymentCode";
 
 /**
  * Every table the Owner can export, shaped for people: Chinese headers, dollars, Pacific times.
@@ -85,7 +84,7 @@ export const TABLES = {
           "收齐时间",
         ],
         rows: rows.map((e) => [
-          eventNumber(e.date, e.code),
+          e.number,
           e.title ?? "",
           e.date,
           toPacific(e.start_at).time,
@@ -107,7 +106,7 @@ export const TABLES = {
     async build(env: Env): Promise<Table> {
       const rows = await all(
         env,
-        `SELECT r.*, e.date, e.code, m.username FROM registrations r
+        `SELECT r.*, e.date, e.number, m.username FROM registrations r
          JOIN events e ON e.id = r.event_id JOIN members m ON m.id = r.member_id
          ORDER BY e.start_at, r.member_id, r.friend_index`,
       );
@@ -115,7 +114,7 @@ export const TABLES = {
         title: this.title,
         columns: ["活动编号", "日期", "成员编号", "成员", "名字", "是朋友", "到场", "管理员添加", "报名时间"],
         rows: rows.map((r) => [
-          eventNumber(r.date, r.code),
+          r.number,
           r.date,
           r.member_id,
           r.username,
@@ -133,7 +132,7 @@ export const TABLES = {
     async build(env: Env): Promise<Table> {
       const rows = await all(
         env,
-        "SELECT s.*, e.date, e.code FROM settlements s JOIN events e ON e.id = s.event_id ORDER BY e.start_at",
+        "SELECT s.*, e.date, e.number FROM settlements s JOIN events e ON e.id = s.event_id ORDER BY e.start_at",
       );
       return {
         title: this.title,
@@ -154,7 +153,7 @@ export const TABLES = {
         rows: rows.map((s) => {
           const shuttle = s.shuttle_count * s.shuttle_price_cents;
           return [
-            eventNumber(s.date, s.code),
+            s.number,
             s.date,
             money(s.court_total_cents),
             s.shuttle_count,
@@ -176,14 +175,14 @@ export const TABLES = {
     async build(env: Env): Promise<Table> {
       const rows = await all(
         env,
-        `SELECT p.*, e.date, e.code, m.username FROM payments p
+        `SELECT p.*, e.date, e.number, m.username FROM payments p
          JOIN events e ON e.id = p.event_id JOIN members m ON m.id = p.member_id ORDER BY e.start_at, m.username`,
       );
       return {
         title: this.title,
         columns: ["活动编号", "日期", "成员编号", "成员", "付款编号", "应付", "已收", "已退", "状态", "付清时间"],
         rows: rows.map((p) => [
-          eventNumber(p.date, p.code),
+          p.number,
           p.date,
           p.member_id,
           p.username,
@@ -202,7 +201,7 @@ export const TABLES = {
     async build(env: Env): Promise<Table> {
       const rows = await all(
         env,
-        `SELECT pr.*, e.date, e.code, m.username FROM payment_receipts pr JOIN payments p ON p.id = pr.payment_id
+        `SELECT pr.*, e.date, e.number, m.username FROM payment_receipts pr JOIN payments p ON p.id = pr.payment_id
          JOIN events e ON e.id = p.event_id JOIN members m ON m.id = p.member_id ORDER BY pr.received_at`,
       );
       return {
@@ -210,7 +209,7 @@ export const TABLES = {
         columns: ["时间", "活动编号", "日期", "成员", "金额", "方式", "Venmo 付款人", "Venmo 交易编号"],
         rows: rows.map((r) => [
           at(r.received_at),
-          eventNumber(r.date, r.code),
+          r.number,
           r.date,
           r.username,
           money(r.amount_cents),

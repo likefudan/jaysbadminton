@@ -2,11 +2,14 @@ import type { EventDetail, EventStatus, EventSummary, RosterEntry } from "../sha
 import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
 import { getSettings, now, setSetting } from "./db";
 import { syncDeadline } from "./deadlines";
+import { codeOf, eventNumberBase, nextEventNumber, parsePaymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 
 export interface EventRow {
   id: number;
+  /** 活动编号, e.g. jbm20261006b: fixed at creation, never changed or reused; payment codes carry it. */
+  number: string;
   code: string;
   date: string;
   start_at: string;
@@ -133,7 +136,7 @@ export const isDeletable = (e: EventRow): boolean => e.status === "settled" || e
  * first, for the foreign keys). Venmo payments matched to its bills go with it, both auto-matched
  * receipts and 待确认 rows the Owner linked by hand. Leaderboard, member spending and the Sheets
  * export are all computed from these tables, so the event simply stops counting everywhere.
- * Only its date and code are kept (deleted_events), so the code is never reused.
+ * Only its number, date and code are kept (deleted_events), so the number is never reused.
  */
 export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
   const bills = "SELECT id FROM payments WHERE event_id = ?1";
@@ -145,8 +148,9 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM events WHERE id = ?").bind(e.id),
-    env.DB.prepare("INSERT INTO deleted_events (id, code, date, deleted_at) VALUES (?, ?, ?, ?)").bind(
+    env.DB.prepare("INSERT INTO deleted_events (id, number, code, date, deleted_at) VALUES (?, ?, ?, ?, ?)").bind(
       e.id,
+      e.number,
       e.code,
       e.date,
       now(),
@@ -222,33 +226,57 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const v = validateEventInput(input);
   const location = input.location.trim();
   const address = input.address.trim();
-  // Deleted events still count, so their codes are never handed out again.
-  const sameDay = await env.DB.prepare(
-    "SELECT (SELECT COUNT(*) FROM events WHERE date = ?1) + (SELECT COUNT(*) FROM deleted_events WHERE date = ?1) AS n",
-  )
-    .bind(input.date)
-    .first<{ n: number }>();
-  const n = sameDay?.n ?? 0;
-  if (n >= 26) throw badRequest("同一天的活动太多了");
-  const code = input.date.slice(5, 7) + input.date.slice(8, 10) + (n === 0 ? "" : String.fromCharCode(65 + n)); // 1006, 1006B, 1006C
+  const title = cleanTitle(input.title);
   const ts = now();
-  const res = await env.DB.prepare(
-    `INSERT INTO events (code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?) RETURNING id`,
-  )
-    .bind(
-      code,
-      input.date,
-      v.startAt,
-      v.endAt,
-      location,
-      address,
-      cleanTitle(input.title),
-      v.deadlineAt,
-      v.offsetMin,
-      ts,
+  // The 活动编号 skips every number an event created on this date has ever had (including events
+  // since moved to another date or deleted), so no number is handed out twice. If two requests race
+  // for the same one, the unique index refuses the second insert and it takes the next letter.
+  // From before numbers existed, codes of moved events and the numbers printed on bills count too:
+  // either may be one this day's number would otherwise repeat.
+  const base = eventNumberBase(input.date);
+  let id: number | undefined;
+  for (let attempt = 0; id === undefined; attempt++) {
+    const { results } = await env.DB.prepare(
+      `SELECT number FROM events WHERE number GLOB ?1 UNION SELECT number FROM deleted_events WHERE number GLOB ?1
+       UNION SELECT 'jbm' || ?2 || lower(code) FROM events WHERE code GLOB ?3 AND substr(date, 1, 4) = ?2
+       UNION SELECT 'jbm' || ?2 || lower(code) FROM deleted_events WHERE code GLOB ?3 AND substr(date, 1, 4) = ?2`,
     )
-    .first<{ id: number }>();
+      .bind(`${base}*`, input.date.slice(0, 4), `${base.slice(7)}*`)
+      .all<{ number: string }>();
+    const billed = await env.DB.prepare("SELECT payment_code FROM payments WHERE lower(payment_code) GLOB ?")
+      .bind(`*-${base}*`)
+      .all<{ payment_code: string }>();
+    const taken = new Set([
+      ...results.map((r) => r.number),
+      ...billed.results.map((r) => parsePaymentCode(r.payment_code)?.number ?? ""),
+    ]);
+    const number = nextEventNumber(input.date, taken);
+    if (!number) throw badRequest("同一天的活动太多了");
+    try {
+      const res = await env.DB.prepare(
+        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?) RETURNING id`,
+      )
+        .bind(
+          number,
+          codeOf(number),
+          input.date,
+          v.startAt,
+          v.endAt,
+          location,
+          address,
+          title,
+          v.deadlineAt,
+          v.offsetMin,
+          ts,
+        )
+        .first<{ id: number }>();
+      id = res!.id;
+    } catch (err) {
+      if (!String(err).includes("UNIQUE")) throw err;
+      if (attempt >= 2) throw badRequest("同时创建的活动太多，请稍后再试");
+    }
+  }
   await env.DB.batch([
     saveVenue(env, location, address, ts),
     setSetting(env.DB, "last_start_time", input.startTime),
@@ -256,8 +284,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     setSetting(env.DB, "last_location", location),
     setSetting(env.DB, "last_deadline_offset_min", String(v.offsetMin)),
   ]);
-  await syncDeadline(env, res!.id);
-  return getEvent(env, res!.id);
+  await syncDeadline(env, id);
+  return getEvent(env, id);
 }
 
 /** Statuses in which the roster may still change (by the Owner). */

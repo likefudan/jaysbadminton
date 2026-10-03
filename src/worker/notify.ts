@@ -290,7 +290,7 @@ export async function notifyCollected(env: Env, eventId: number): Promise<void> 
       "",
       ...(e.title ? [`活动：${e.title}`] : []),
       `日期：${formatDateZh(e.date)} ${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`,
-      `活动编号：jbm${e.date.replace(/-/g, "")}${e.code.slice(4).toLowerCase()}`,
+      `活动编号：${e.number}`,
       `场馆：${e.location}`,
       ...(e.address ? [`地址：${e.address}`] : []),
     ];

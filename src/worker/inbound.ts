@@ -96,15 +96,22 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
 
   const code = parsePaymentCode(r.note);
   if (!code?.name || !(await isGroupName(env, code.name))) return "ignored";
-  const e = await env.DB.prepare("SELECT * FROM events WHERE date = ? AND code = ?")
-    .bind(code.date, code.eventCode)
-    .first<EventRow>();
+  // First the bill whose printed code has this event number and member (bills made before event
+  // numbers existed may carry another date than their event's number); then the event by its
+  // fixed number, which a date edit never changes.
+  const billed = await env.DB.prepare(
+    `SELECT p.id, p.payment_code, p.event_id FROM payments p JOIN events e ON e.id = p.event_id
+     WHERE p.member_id = ?1 AND instr(lower(p.payment_code), ?2) > 0
+     ORDER BY '-' || e.number || '-' = ?2 DESC, p.id DESC LIMIT 1`,
+  )
+    .bind(code.memberId, `-${code.number}-`)
+    .first<{ id: number; payment_code: string; event_id: number }>();
+  const e = billed
+    ? await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(billed.event_id).first<EventRow>()
+    : await env.DB.prepare("SELECT * FROM events WHERE number = ?").bind(code.number).first<EventRow>();
   // A payment for an event the Owner deleted is still a group member's money: 待确认, not ignored.
   const deleted =
-    !e &&
-    (await env.DB.prepare("SELECT 1 FROM deleted_events WHERE date = ? AND code = ?")
-      .bind(code.date, code.eventCode)
-      .first());
+    !e && (await env.DB.prepare("SELECT 1 FROM deleted_events WHERE number = ?").bind(code.number).first());
   if (!e && !deleted) return "ignored";
 
   const seen = await env.DB.prepare(
@@ -116,9 +123,11 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
 
   const review = (reason: string) => record(env, r, mail.messageId, reason);
   if (!e) return review("这次活动已从数据库永久删除");
-  const p = await env.DB.prepare("SELECT id, payment_code FROM payments WHERE event_id = ? AND member_id = ?")
-    .bind(e.id, code.memberId)
-    .first<{ id: number; payment_code: string }>();
+  const p =
+    billed ??
+    (await env.DB.prepare("SELECT id, payment_code FROM payments WHERE event_id = ? AND member_id = ?")
+      .bind(e.id, code.memberId)
+      .first<{ id: number; payment_code: string }>());
 
   if (!p) {
     if (e.status === "open" || e.status === "closed") return review("这次活动还没结算");

@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { KeyLookupError, verifyDkim } from "../src/worker/email/dkim";
 import { htmlLines, parseEmail } from "../src/worker/email/parse";
 import { handleEmail } from "../src/worker/inbound";
-import { Client, billingScenario, createTestEvent } from "./helpers";
+import { Client, billingScenario, createTestEvent, futureDate } from "./helpers";
 import { receiptHtml, testKey, venmoEmail, type ReceiptFields } from "./venmoMail";
 
 let resolveKey: Awaited<ReturnType<typeof testKey>>["resolveKey"];
@@ -208,6 +208,75 @@ describe("matching", () => {
     const s = await finalized();
     expect((await new Client().call(`${s.alice.base}/rename`, { username: "Alicia" })).status).toBe(200);
     expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "N1" })).toBe("paid");
+  });
+
+  const numberOf = (id: number) =>
+    env.DB.prepare("SELECT number FROM events WHERE id = ?").bind(id).first<string>("number");
+
+  /** The Owner moves the event to another day, as the requirements allow at any point before archive. */
+  const moveTo = async (s: Awaited<ReturnType<typeof billingScenario>>, days: number) => {
+    const d = (await s.admin.call(s.eb)).data;
+    const res = await s.admin.call(`${s.eb}/edit`, {
+      date: futureDate(days),
+      startTime: d.startTime,
+      endTime: d.endTime,
+      location: d.location,
+    });
+    expect(res.status).toBe(200);
+    return d.code as string;
+  };
+
+  it("still matches after the event's date is edited after Finalize", async () => {
+    const s = await finalized();
+    await moveTo(s, 8);
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "E1" })).toBe("paid");
+  });
+
+  it("still matches after the event's date is edited before Finalize", async () => {
+    const s = await billingScenario();
+    const number = await numberOf(s.e.id);
+    const code = await moveTo(s, 8);
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const { payments } = (await s.admin.call(`${s.eb}/settlement`)).data;
+    const alice = payments.find((p: { memberName: string }) => p.memberName === "Alice").paymentCode as string;
+    // The bill carries the number the event was created with, not its new date.
+    expect(alice).toBe(`alice-${number}-m002`);
+    expect(await numberOf(s.e.id)).toBe(number);
+    expect((await s.admin.call(s.eb)).data.code).toBe(code);
+    expect(await deliver({ amount: "56.00", note: alice, txnId: "E2" })).toBe("paid");
+  });
+
+  it("matches a bill made before event numbers existed by the code printed on it", async () => {
+    const s = await finalized();
+    // A date edit before this change left the bill with another date than the event's number.
+    await env.DB.prepare("UPDATE events SET number = 'jbm20991231' WHERE id = ?").bind(s.e.id).run();
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "E4" })).toBe("paid");
+  });
+
+  it("never gives a new event a number still printed on an older bill", async () => {
+    const s = await finalized();
+    const day = futureDate(20);
+    const printed = `jbm${day.replace(/-/g, "")}`;
+    // A bill made before event numbers existed, after its event was moved to that day.
+    await env.DB.prepare("UPDATE payments SET payment_code = ? WHERE event_id = ? AND member_id = 'M002'")
+      .bind(`alice-${printed}-m002`, s.e.id)
+      .run();
+    const next = await createTestEvent(s, { date: day });
+    expect(await numberOf(next.id)).toBe(`${printed}b`);
+  });
+
+  it("never gives a moved event's number to a new event on its old date", async () => {
+    const s = await finalized();
+    const oldCode = await moveTo(s, 8);
+    const next = await createTestEvent(s, { date: futureDate(7) });
+    expect(next.code).not.toBe(oldCode);
+    expect(next.code.slice(0, 4)).toBe(oldCode.slice(0, 4));
+    expect(await numberOf(next.id)).not.toBe(await numberOf(s.e.id));
+    // Paying the moved event's bill still lands there, not on the new event.
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "E3" })).toBe("paid");
+    expect(await s.by("Alice")).toMatchObject({ status: "paid" });
+    // And its public link still opens it.
+    expect((await new Client().call(`/api/public/events/${oldCode}`)).data.id).toBe(s.e.id);
   });
 });
 
