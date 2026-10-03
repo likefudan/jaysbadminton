@@ -17,13 +17,13 @@ export function TelegramCard(props: { base: string }) {
   const { busy, error, run } = useAction();
   const [sent, setSent] = useState(false);
 
-  // After opening Telegram, check every few seconds until Start has been tapped (up to 3 minutes).
+  // After opening Telegram, check every few seconds until Start has been tapped (up to the 10 minutes the link is valid).
   useEffect(() => {
     if (!waiting) return;
     const started = Date.now();
     const t = setInterval(async () => {
       const s = await api<TelegramStatus>(`${props.base}/telegram`).catch(() => null);
-      if (s?.connected || Date.now() - started > 180_000) {
+      if (s?.connected || Date.now() - started > 600_000) {
         setWaiting(false);
         reload();
       }
@@ -65,7 +65,7 @@ export function TelegramCard(props: { base: string }) {
                   开始」即可。所有提醒和账单通知只发给连接的这一个账号。
                 </p>
               )}
-              {waiting && <p class="hint">等待你在 Telegram 里点 Start…（3 分钟内有效）</p>}
+              {waiting && <p class="hint">等待你在 Telegram 里点 Start…（10 分钟内有效）</p>}
               {error && <p class="error">{error}</p>}
               {sent && <p class="muted small">已发送，请在 Telegram 里查看。</p>}
               <button

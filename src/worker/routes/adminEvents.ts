@@ -53,14 +53,26 @@ export const adminEventRoutes = new Hono<{ Bindings: Env }>();
 
 const num = (v: unknown) => (typeof v === "number" ? v : Number(v));
 
+/** 已结束 shows this many at first; 显示更早的活动 asks for more (?past=60, 90, …). */
+const PAST_PAGE = 30;
+
 adminEventRoutes.get("/events", async (c) => {
+  const want = Math.floor(Number(c.req.query("past") ?? PAST_PAGE));
+  const limit = Number.isFinite(want) ? Math.min(Math.max(want, PAST_PAGE), 2000) : PAST_PAGE;
   const current = await c.env.DB.prepare(
     "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at",
   ).all<EventRow>();
+  // One more than shown, to know whether there are older ones.
   const past = await c.env.DB.prepare(
-    "SELECT * FROM events WHERE status IN ('settled', 'cancelled') ORDER BY start_at DESC LIMIT 30",
-  ).all<EventRow>();
-  return c.json({ current: await summaries(c.env, current.results), past: await summaries(c.env, past.results) });
+    "SELECT * FROM events WHERE status IN ('settled', 'cancelled') ORDER BY start_at DESC LIMIT ?",
+  )
+    .bind(limit + 1)
+    .all<EventRow>();
+  return c.json({
+    current: await summaries(c.env, current.results),
+    past: await summaries(c.env, past.results.slice(0, limit)),
+    morePast: past.results.length > limit,
+  });
 });
 
 adminEventRoutes.get("/events/defaults", async (c) => {
@@ -482,6 +494,7 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
 async function paymentEvent(env: Env, paymentId: number) {
   const p = await env.DB.prepare("SELECT * FROM payments WHERE id = ?").bind(paymentId).first<{
     event_id: number;
+    member_id: string;
     status: string;
     amount_due_cents: number;
     amount_paid_cents: number;
@@ -492,6 +505,9 @@ async function paymentEvent(env: Env, paymentId: number) {
   if (e.status !== "finalized") throw badRequest("这个活动已收齐归档，不能再修改");
   return { p, e };
 }
+
+const isOwner = async (env: Env, memberId: string) =>
+  !!(await env.DB.prepare("SELECT 1 FROM members WHERE id = ? AND is_owner = 1").bind(memberId).first());
 
 /** Cash, Zelle or anything else: a manual receipt for whatever is still owed. */
 adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
@@ -522,7 +538,10 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
       inbound_id: number | null;
     }>();
   if (!r) throw badRequest("找不到这笔付款记录");
-  await paymentEvent(c.env, r.payment_id);
+  const { p } = await paymentEvent(c.env, r.payment_id);
+  // The Owner's own bill is paid by itself, and every recompute redoes that receipt anyway.
+  if (r.method === "manual" && !r.venmo_txn_id && (await isOwner(c.env, p.member_id)))
+    throw badRequest("管理员本人的账单自动记为已付，不用撤销");
   const back: D1PreparedStatement[] = [];
   // Venmo receipts, and older linked ones saved as 'manual' that still carry their transaction.
   if (r.method === "venmo" || r.venmo_txn_id) {

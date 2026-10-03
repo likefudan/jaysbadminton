@@ -4,10 +4,10 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pacificToUtc } from "../src/shared/time";
 import { handleEmail, recordEmailOutcome } from "../src/worker/inbound";
-import { digestText, emailProblemAlert } from "../src/worker/health";
+import { digestText, emailProblemAlert, pruneEmailLog } from "../src/worker/health";
 import worker from "../src/worker/index";
 import { once, runScheduled } from "../src/worker/notify";
-import { webhookSecret } from "../src/worker/telegram";
+import { upgradeWebhookSecret, webhookSecret } from "../src/worker/telegram";
 import { Client, ORIGIN, billingScenario, createTestEvent, futureDate, setUpAdmin } from "./helpers";
 import { type ReceiptFields, testKey, venmoEmail } from "./venmoMail";
 
@@ -47,6 +47,27 @@ async function webhook(text: string, chatId = 42, secret?: string) {
 }
 
 describe("connecting Telegram", () => {
+  it("keeps the webhook secret it gave Telegram, even if TOKEN_KEY is replaced later", async () => {
+    const ctx = await setUpAdmin();
+    await ctx.admin.call(`${ctx.base}/telegram/connect`, {});
+    const given = calls.find((c) => c.method === "setWebhook")!.body.secret_token as string;
+    expect(given).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(await webhookSecret({ ...env, TOKEN_KEY: "a-replaced-key" })).toBe(given);
+    expect((await webhook("hello", 42, given)).status).toBe(200);
+  });
+
+  it("moves a chat connected before secrets were stored onto a stored one, once", async () => {
+    await connectChat();
+    const derived = await webhookSecret(env);
+    await upgradeWebhookSecret(env);
+    const given = calls.find((c) => c.method === "setWebhook")!.body.secret_token as string;
+    expect(given).not.toBe(derived);
+    expect(await webhookSecret(env)).toBe(given);
+    calls = [];
+    await upgradeWebhookSecret(env);
+    expect(calls).toEqual([]);
+  });
+
   it("binds only the chat that opens the one-time link, and sends a test message", async () => {
     const ctx = await setUpAdmin();
     const { link } = (await ctx.admin.call(`${ctx.base}/telegram/connect`, {})).data;
@@ -432,7 +453,8 @@ describe("health alerts", () => {
     expect(text).toContain("✓ 邮件转发");
     expect(text).toContain("✓ 定时任务：正常");
     expect(text).toContain("Google 表格同步：没有开启");
-    // Old rows are pruned.
+    // Old rows are pruned by every cron run, digest or not.
+    await pruneEmailLog(env, at);
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM email_log").first("n")).toBe(4);
 
     calls = [];

@@ -9,8 +9,13 @@ import { FriendsEditor } from "../FriendsEditor";
 import { useApi } from "../hooks";
 import { Billing } from "./AdminSettle";
 
+const PAST_PAGE = 30;
+
 export function EventsTab(props: { base: string; members: MemberSummary[] }) {
-  const [list, reload] = useApi<{ current: EventSummary[]; past: EventSummary[] }>(`${props.base}/events`);
+  const [pastShown, setPastShown] = useState(PAST_PAGE);
+  const [list, reload] = useApi<{ current: EventSummary[]; past: EventSummary[]; morePast: boolean }>(
+    `${props.base}/events?past=${pastShown}`,
+  );
   const [mode, setMode] = useState<"list" | "create" | number>("list");
 
   if (mode === "create") {
@@ -56,6 +61,15 @@ export function EventsTab(props: { base: string; members: MemberSummary[] }) {
                 {l.past.map((e) => (
                   <EventRow key={e.id} e={e} onOpen={() => setMode(e.id)} />
                 ))}
+                {l.morePast && (
+                  <button
+                    type="button"
+                    class="button secondary block"
+                    onClick={() => setPastShown((n) => n + PAST_PAGE)}
+                  >
+                    显示更早的活动
+                  </button>
+                )}
               </Card>
             )}
           </>

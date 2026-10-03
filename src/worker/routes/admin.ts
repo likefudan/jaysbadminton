@@ -192,6 +192,17 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能删除已停用的成员");
   const owing = (await owingByMember(c.env)).get(m.id) ?? 0;
   if (owing > 0) throw badRequest(`${m.username} 还有 $${(owing / 100).toFixed(2)} 没付清，付清或标记已付后才能删除`);
+  // Still on a list that hasn't been settled: Finalize would bill someone who no longer has a link.
+  const pending = await c.env.DB.prepare(
+    `SELECT e.date FROM registrations r JOIN events e ON e.id = r.event_id
+     WHERE r.member_id = ? AND e.status IN ('open', 'closed') ORDER BY e.start_at LIMIT 1`,
+  )
+    .bind(m.id)
+    .first<{ date: string }>();
+  if (pending)
+    throw badRequest(
+      `${m.username} 还在 ${pending.date} 活动的名单上，这场还没结算。请先结算这场，或者把这个人从名单上删掉，再删除成员`,
+    );
   // History stays; the link, the Google account and the name are released, so the person (or
   // someone else with that name) can apply again. The old record keeps the name with its ID
   // appended, e.g. "Alice（M004）", so rosters and rankings never mix the two up.

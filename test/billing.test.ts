@@ -93,6 +93,10 @@ describe("settlement", () => {
     const jay = await payment(s, "Jay");
     expect(jay).toMatchObject({ amountDueCents: 3100, status: "paid", amountPaidCents: 3100, refundCents: 0 });
     expect(jay.receipts).toMatchObject([{ method: "manual", amountCents: 3100 }]);
+    // That receipt is the system's, not a payment to take back.
+    const undo = await s.admin.call(`${s.base}/receipts/${jay.receipts[0].id}/remove`, {});
+    expect(undo).toMatchObject({ status: 400 });
+    expect(await payment(s, "Jay")).toMatchObject({ status: "paid", amountPaidCents: 3100 });
     expect((await payment(s, "Bob")).amountDueCents).toBe(3100);
     expect((await payment(s, "Alice")).amountDueCents).toBe(3100 + 2500);
 
