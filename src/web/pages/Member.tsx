@@ -214,7 +214,9 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
     }
   }
   async function cancel() {
-    if (!confirm("确定取消报名吗？")) return;
+    // Friends hung under them go too, the ones the Owner added included (Ke Li's call).
+    const n = e.myFriends?.length ?? 0;
+    if (!confirm(n ? `取消你自己和名下 ${n} 个朋友的报名？` : "确定取消报名吗？")) return;
     if (await run(() => api(`${props.base}/events/${e.id}/cancel`, {}))) props.onChange();
   }
 
