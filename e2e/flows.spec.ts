@@ -73,19 +73,30 @@ test("the Owner sets up the site and the payment details", async ({ page }) => {
   await expect(google.getByRole("button", { name: "先登录 Google" })).toBeVisible();
 });
 
-test("a newcomer applies and the Owner approves them", async ({ page }) => {
-  await page.goto("/join");
+test("a newcomer registers with email and the Owner approves them", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "登录 / 注册" }).click();
+  await page.getByRole("link", { name: "用邮箱注册" }).click();
   await field(page, "用户名").fill("小明");
   await field(page, "微信名").fill("xiaoming");
   await page.getByLabel("给管理员的留言（选填）").fill("小王介绍的");
+  await field(page, "邮箱").fill("ming.reg@example.com");
+  await field(page, "再输一次邮箱").fill("ming.reg@exampel.com");
+  await page.getByRole("button", { name: "提交申请" }).click();
+  await expect(page.getByText("两次输入的邮箱不一致")).toBeVisible();
+  await field(page, "再输一次邮箱").fill("Ming.Reg@example.com");
   await page.getByRole("button", { name: "提交申请" }).click();
   await expect(page.getByRole("heading", { name: "申请已提交" })).toBeVisible();
+  await expect(page.locator("main")).toContainText("ming.reg@example.com");
 
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "待审核" }).click();
   await expect(page.locator(".row", { hasText: "小明" })).toContainText("留言：小王介绍的");
+  await expect(page.locator(".row", { hasText: "小明" })).toContainText("邮箱：ming.reg@example.com");
   await page.getByRole("button", { name: "通过" }).click();
   await expect(page.getByText("小明 的专属链接")).toBeVisible();
+  await expect(page.getByText("已自动发到 ming.reg@example.com")).toBeVisible();
+  await expect(page.getByText(/邮件服务尚未配置/)).toBeVisible(); // the test server has no Resend key
   memberPath = pathOf(await page.locator("code.link").first().innerText());
   expect(memberPath).toMatch(/^\/m\/[\w-]{20,}$/);
 });
@@ -166,7 +177,8 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await profile.locator(".heatmap-grid .upcoming").click();
   await expect(profile.locator(".heatmap-detail")).toContainText(VENUE);
 
-  await profile.getByRole("button", { name: "填写" }).click();
+  await expect(profile.locator(".profile-info")).toContainText("ming.reg@example.com");
+  await profile.getByRole("button", { name: "修改" }).click();
   await field(page, "邮箱").fill("xm@example.com");
   await profile.getByRole("button", { name: "保存" }).click();
   await expect(profile.locator(".profile-info")).toContainText("xm@example.com");
@@ -218,7 +230,7 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
   await page.goto("/");
   await expect(page.getByRole("link", { name: "我的活动", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "申请加入" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(0);
 
   // The Owner binds their Google account in 设置, then gets in with it alone.
   const jay = googleSession("google-jay", "jay@example.com");

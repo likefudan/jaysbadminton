@@ -5,11 +5,12 @@ import { closeExpired, summaries, type EventRow } from "../events";
 import { getSettings } from "../db";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
-import { HttpError, readJson, str } from "../http";
+import { HttpError, badRequest, readJson, str } from "../http";
+import { checkEmail } from "../../shared/rules";
 import { isStaging, siteTheme, siteTitle } from "../site";
 import { leaderboard } from "../stats";
 import { assertPendingRoom, createMember } from "../members";
-import { sendApplicationNotice } from "../approvalEmail";
+import { sendApplicationNotice, sendLinkRecovery } from "../approvalEmail";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
@@ -61,14 +62,31 @@ publicRoutes.post("/join", async (c) => {
   // Honeypot: real people never see this field, bots fill it in.
   if (str(body.website)) return c.json({ ok: true });
   await assertPendingRoom(c.env);
+  // 用邮箱注册: the link is emailed on approval, so the address must be typed twice and match.
+  const email = str(body.email).trim();
+  if (email.toLowerCase() !== str(body.emailConfirm).trim().toLowerCase()) throw badRequest("两次输入的邮箱不一致");
   const m = await createMember(c.env, {
     username: str(body.username),
     wechatNickname: str(body.wechatNickname),
     message: str(body.message),
+    email,
     status: "pending",
   });
   try { await sendApplicationNotice(c.env, m); } catch { /* The admin queue remains authoritative if Telegram is unavailable. */ }
   return c.json({ ok: true, id: m.id });
+});
+
+/**
+ * 找回我的专属链接. Always the same answer, whether or not the address belongs to a member, so it
+ * can't be used to find out who is in the group; at most one email an hour per member.
+ */
+publicRoutes.post("/recover-link", async (c) => {
+  const body = await readJson(c.req.raw);
+  if (str(body.website)) return c.json({ ok: true });
+  const err = checkEmail(str(body.email));
+  if (err) throw badRequest(err);
+  await sendLinkRecovery(c.env, str(body.email));
+  return c.json({ ok: true });
 });
 
 /** First-time setup: only available while no admin link exists. */

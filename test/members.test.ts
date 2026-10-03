@@ -1,41 +1,41 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { Client, approveMember, createTestEvent, expire, setUpAdmin, tokenOf } from "./helpers";
+import { Client, approveMember, createTestEvent, expire, joinBody, setUpAdmin, tokenOf } from "./helpers";
 
 const anon = new Client();
 
 describe("join requests", () => {
   it("assigns increasing member IDs that are never reused", async () => {
-    const a = await anon.call("/api/public/join", { username: "Alice", wechatNickname: "爱丽丝" });
-    const b = await anon.call("/api/public/join", { username: "Bob", wechatNickname: "小鲍" });
+    const a = await anon.call("/api/public/join", joinBody("Alice", "爱丽丝"));
+    const b = await anon.call("/api/public/join", joinBody("Bob", "小鲍"));
     expect(a.data.id).toBe("M001");
     expect(b.data.id).toBe("M002");
 
     const { admin, base } = await setUpAdmin(); // the Owner becomes M003
     await admin.call(`${base}/members/M002/reject`, {});
-    const c = await anon.call("/api/public/join", { username: "Carol", wechatNickname: "卡罗" });
+    const c = await anon.call("/api/public/join", joinBody("Carol", "卡罗"));
     expect(c.data.id).toBe("M004");
   });
 
   it("rejects duplicate usernames case-insensitively", async () => {
-    await anon.call("/api/public/join", { username: "Alice", wechatNickname: "a" });
-    const dup = await anon.call("/api/public/join", { username: "alice", wechatNickname: "b" });
+    await anon.call("/api/public/join", joinBody("Alice", "a"));
+    const dup = await anon.call("/api/public/join", joinBody("alice", "b"));
     expect(dup.status).toBe(409);
     expect(dup.data.error.message).toBe("这个用户名已被使用，请换一个");
   });
 
   it("validates fields with Chinese messages", async () => {
-    const res = await anon.call("/api/public/join", { username: "  ", wechatNickname: "x" });
+    const res = await anon.call("/api/public/join", joinBody("  ", "x"));
     expect(res.status).toBe(400);
     expect(res.data.error.message).toBe("请填写用户名");
-    expect((await anon.call("/api/public/join", { username: "Dan", wechatNickname: " " })).data.error.message).toBe("请填写微信名");
-    expect((await anon.call("/api/public/join", { username: "Dan", wechatNickname: "d", message: "长".repeat(201) })).data.error.message).toBe("留言最多 200 个字");
+    expect((await anon.call("/api/public/join", joinBody("Dan", " "))).data.error.message).toBe("请填写微信名");
+    expect((await anon.call("/api/public/join", joinBody("Dan", "d", { message: "长".repeat(201) }))).data.error.message).toBe("留言最多 200 个字");
   });
 
   it("keeps the optional note to the admin and shows it in the queue", async () => {
     const ctx = await setUpAdmin();
-    await anon.call("/api/public/join", { username: "Erin", wechatNickname: "erin_wx", message: "小明介绍的" });
-    await anon.call("/api/public/join", { username: "Finn", wechatNickname: "finn" });
+    await anon.call("/api/public/join", joinBody("Erin", "erin_wx", { message: "小明介绍的" }));
+    await anon.call("/api/public/join", joinBody("Finn", "finn"));
     const pending = (await ctx.admin.call(`${ctx.base}/members`)).data.pending;
     expect(pending.map((m: { username: string; applicationMessage: string }) => [m.username, m.applicationMessage])).toEqual([
       ["Erin", "小明介绍的"],
@@ -44,7 +44,7 @@ describe("join requests", () => {
   });
 
   it("silently drops honeypot submissions", async () => {
-    const res = await anon.call("/api/public/join", { username: "Bot", wechatNickname: "bot", website: "spam" });
+    const res = await anon.call("/api/public/join", joinBody("Bot", "bot", { website: "spam" }));
     expect(res.data).toEqual({ ok: true });
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM members").first("n")).toBe(0);
   });
@@ -115,7 +115,7 @@ describe("admin setup and login", () => {
 describe("member links", () => {
   async function approvedMember() {
     const ctx = await setUpAdmin();
-    const { data: joined } = await anon.call("/api/public/join", { username: "Dan", wechatNickname: "阿丹" });
+    const { data: joined } = await anon.call("/api/public/join", joinBody("Dan", "阿丹"));
     const { data } = await ctx.admin.call(`${ctx.base}/members/${joined.id}/approve`, {});
     return { ...ctx, id: joined.id as string, token: tokenOf(data.link) };
   }
@@ -201,7 +201,7 @@ describe("member links", () => {
     const second = await approveMember(ctx, "alice");
     await remove(second.id);
     const third = await approveMember(ctx, "Alice");
-    expect((await new Client().call("/api/public/join", { username: "ALICE", wechatNickname: "x" })).status).toBe(409);
+    expect((await new Client().call("/api/public/join", joinBody("ALICE", "x"))).status).toBe(409);
 
     const list = (await ctx.admin.call(`${ctx.base}/members`)).data;
     expect(list.deleted.map((m: { username: string }) => m.username).sort()).toEqual([`Alice（${first.id}）`, `alice（${second.id}）`]);
@@ -294,7 +294,7 @@ describe("join form flood guard", () => {
         env.DB.prepare("INSERT INTO members (id, username, wechat_nickname, status, requested_at) VALUES (?, ?, 'x', 'pending', 'x')").bind(`P${i}`, `bot${i}`),
       ),
     );
-    const res = await anon.call("/api/public/join", { username: "Real", wechatNickname: "Real" });
+    const res = await anon.call("/api/public/join", joinBody("Real", "Real"));
     expect(res.status).toBe(429);
     expect(res.data.error.message).toContain("待审核的申请太多");
   });

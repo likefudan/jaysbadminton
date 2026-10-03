@@ -20,6 +20,17 @@ export function checkNickname(raw: string): string | null {
   return null;
 }
 
+export const EMAIL_MAX = 100;
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
+
+/** An email address someone types in (registering, 找回链接, 个人信息). */
+export function checkEmail(raw: string): string | null {
+  const email = raw.trim();
+  if (!email) return "请填写邮箱";
+  if (email.length > EMAIL_MAX || !EMAIL_RE.test(email)) return "邮箱格式不对";
+  return null;
+}
+
 /** 给管理员的留言: optional. */
 export function checkMessage(raw: string): string | null {
   return [...raw.trim()].length > MESSAGE_MAX ? `留言最多 ${MESSAGE_MAX} 个字` : null;

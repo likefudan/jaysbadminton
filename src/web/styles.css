@@ -2769,3 +2769,11 @@ a.back {
   font: inherit;
   resize: vertical;
 }
+
+/* ---- 登录 / 注册 ---- */
+.center {
+  text-align: center;
+}
+p.center a {
+  color: var(--acc-ink);
+}

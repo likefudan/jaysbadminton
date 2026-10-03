@@ -129,6 +129,7 @@ const who = (m: MemberSummary, onOpen?: (m: MemberSummary) => void) => {
         {m.id} · 微信：{m.wechatAccount || m.wechatNickname}
         {m.applicantName && ` · 身份：${m.applicantName}`}
         {m.googleEmail && ` · Google：${m.googleEmail}`}
+        {!m.googleEmail && m.email && ` · 邮箱：${m.email}`}
       </small>
     </div>
   );
@@ -160,15 +161,17 @@ function MemberDetail(props: { base: string; id: string; onBack: () => void; onC
   );
 }
 
-function approvalEmailMessage(status?: ApprovalEmailStatus): string {
-  if (status === "sent") return "审核通知已发送至对方的 Google 邮箱。";
-  if (status === "not_configured") return "成员已通过审核，但邮件服务尚未配置，通知未发送。配置后可在成员列表重试审核邮件。";
-  if (status === "failed") return "成员已通过审核，但邮件发送失败，可在成员列表重试审核邮件。";
+/** What happened to the email sent on approval: Google applicants get a note, email applicants their link. */
+function approvalEmailMessage(status?: ApprovalEmailStatus, byEmail = false): string {
+  const what = byEmail ? "专属链接" : "审核通知";
+  if (status === "sent") return byEmail ? "专属链接已发到对方的邮箱。" : "审核通知已发送至对方的 Google 邮箱。";
+  if (status === "not_configured") return `成员已通过审核，但邮件服务尚未配置，${what}没有发出。配置后可在成员列表重试，或者把链接私发给对方。`;
+  if (status === "failed") return `成员已通过审核，但${what}邮件发送失败。可以在成员列表重试，或者把链接私发给对方。`;
   return "成员已通过审核，可以使用 Google 账号登录。";
 }
 
 function Pending(props: { base: string; list: MemberSummary[]; onChange: () => void }) {
-  const [issued, setIssued] = useState<{ name: string; link: string | null; googleEmail: string | null; emailStatus?: ApprovalEmailStatus } | null>(null);
+  const [issued, setIssued] = useState<{ name: string; link: string | null; googleEmail: string | null; email?: string | null; emailStatus?: ApprovalEmailStatus } | null>(null);
   const { busy, error, run } = useAction();
 
   async function approve(m: MemberSummary) {
@@ -188,7 +191,14 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
       {issued && (
         <Card>
           {issued.link ? (
-            <LinkCard title={`${issued.name} 的专属链接`} link={issued.link} note="通过微信私聊发给对方（链接或二维码都可以）。" />
+            <>
+              <LinkCard
+                title={`${issued.name} 的专属链接`}
+                link={issued.link}
+                note={issued.email ? `已自动发到 ${issued.email}；对方没收到时，可以把链接或二维码私发给对方。` : "通过微信私聊发给对方（链接或二维码都可以）。"}
+              />
+              {issued.email && <p role="status">{approvalEmailMessage(issued.emailStatus, true)}</p>}
+            </>
           ) : (
             <>
               <h2>已通过 {issued.name}</h2>
@@ -235,7 +245,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
   const [emailMessage, setEmailMessage] = useState("");
   async function retryEmail(m: MemberSummary) {
     const r = await run(() => api<{ emailStatus: ApprovalEmailStatus }>(`${props.base}/members/${m.id}/approval-email`, {}));
-    if (r) { setEmailMessage(approvalEmailMessage(r.emailStatus)); props.onChange(); }
+    if (r) { setEmailMessage(approvalEmailMessage(r.emailStatus, !m.googleEmail)); props.onChange(); }
   }
   const openMember = (m: MemberSummary) => setOpen(m.id);
 
@@ -295,7 +305,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
           <div class="row" key={m.id}>
             {who(m, openMember)}
             <div class="actions">
-              {m.googleEmail && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && <button class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>重试审核邮件</button>}
+              {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && <button class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>重试审核邮件</button>}
               {m.hasLink && <button class="button secondary" disabled={busy} onClick={() => view(m)}>
                 链接
               </button>}

@@ -65,12 +65,14 @@ adminRoutes.post("/:token/members/:id/approve", async (c) => {
   // be made from the members list).
   if (m.google_sub) return c.json<ApproveResponse>({ link: null, googleEmail: m.google_email, emailStatus: await sendApprovalEmail(c.env, m.id) });
   const token = await issueMemberToken(c.env, m.id);
-  return c.json<ApproveResponse>({ link: memberLink(origin(c.req.url), token), googleEmail: null });
+  // Registered with email: the link goes out by email right away (the admin can still copy it).
+  const emailStatus = m.email ? await sendApprovalEmail(c.env, m.id) : undefined;
+  return c.json<ApproveResponse>({ link: memberLink(origin(c.req.url), token), googleEmail: null, email: m.email, emailStatus });
 });
 
 adminRoutes.post("/:token/members/:id/approval-email", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
-  if (!m.google_sub || m.status !== "active" || m.deleted_at || !m.approved_at) throw badRequest("只能向已通过审核的 Google 成员发送通知");
+  if (!(m.google_sub || m.email) || m.status !== "active" || m.deleted_at || !m.approved_at) throw badRequest("只能向已通过审核、留了邮箱的成员发送通知");
   return c.json({ emailStatus: await sendApprovalEmail(c.env, m.id) });
 });
 

@@ -36,10 +36,11 @@ One Worker answers everything on `https://jaysbadminton.llmat.dev`: page paths r
 
 | Path | Audience | What it shows |
 | --- | --- | --- |
-| `/` | Public | Open and recent events, past events, attendance leaderboard, link to join |
-| `/join` | Public | Join request form (username, WeChat nickname) |
+| `/` | Public | Open and recent events, past events, attendance leaderboard, 登录 / 注册 |
+| `/join` | Public | 用邮箱注册: username, WeChat name, optional note, email typed twice; the link is emailed on approval |
+| `/recover` | Public | 找回我的专属链接: emails the link again to a member's address |
 | `/e/{code}` | Public | One event: time, place, deadline, headcount, calendar links; never names. A member signed in with Google sees their own card instead (roster, sign-up, bill) |
-| `/login`, `/me`, `/me/profile` | Member (Google) | Google sign-in; first time: apply (pending) or link an existing member; then 我的活动 and 个人信息, also reachable from the avatar menu |
+| `/login`, `/me`, `/me/profile` | Member (Google) | 登录 / 注册 (Google, or a link to `/join` and `/recover`) and Google sign-in; first time: apply (pending) or link an existing member; then 我的活动 and 个人信息, also reachable from the avatar menu |
 | `/m/{memberToken}`, `/m/{memberToken}/profile` | Member (link) | 我的活动: their own events newest first (sign-up with friends, roster, amounts owed + Venmo button), events open to join, and 历史活动 (over and paid up, folded). 个人信息: spending chart, profile (email, join time, activity heatmap), rename, link Google |
 | `/admin` | Public | First-time setup while no admin link exists; afterwards a pointer to the link and the Google way in |
 | `/admin/{adminToken}`, `/admin/google` | Owner | Approvals, members (profiles, 备注名), events, roster edits, 我的报名, settlement, payment board, 待确认 Venmo payments, settings, exports |
@@ -65,6 +66,7 @@ Nobody has a site password except the Owner. A member is identified either by th
 - **Member IDs**: `M001`, `M002`, … assigned on join request, never reused or changed. Used in payment codes and as the stable key everywhere.
 - **Authorization**: every member handler resolves the token (or Google session) first and only reads or writes rows for that member; the admin link or bound Google session unlocks admin endpoints. A deactivated member's link (and Google) still opens their page so they can pay what they owe, but cannot sign up; a deleted member's link stops working.
 - **Abuse limits**: the join form has a hidden honeypot field, and at most 30 requests can wait for approval at once (more are refused until the Owner clears some), so a flood cannot grow without bound. There is no per-IP rate limit; if the site is ever flooded, add Cloudflare's free rate-limiting rule for `/api/public/join` and `/api/auth/register`. Usernames are unique case-insensitively and limited to 20 characters. Deleting a member frees their name: the old record keeps it with the member ID appended (`Alice（M004）`), so history and rankings never mix two people up.
+- **Links by email**: approving a member who registered with email sends their link through Resend (`RESEND_API_KEY`, `EMAIL_FROM`; Idempotency-Key `member-approval/{id}/{approved_at}`), recorded in `approval_email_status`; the Owner can retry or still copy the link. `POST /api/public/recover-link` mails an approved member's link again (Google-only members get sign-in instructions), at most once an hour per member (`link_resent_at`), and answers `{ ok: true }` whether or not the address is known, so it cannot be used to find members. Addresses are unique case-insensitively across `email` and Google members' `google_email`.
 - **Secrets** (Telegram bot token, export key hash, etc.) live in D1 settings or Worker secrets (`wrangler secret put`), never in the repository.
 - **Known accepted risk**: anyone holding a member link can act as that member (as stated in the requirements).
 
@@ -74,7 +76,7 @@ D1 (SQLite) holds the tables below. Money is stored as integer cents, times as U
 
 | Table | Key columns | Notes |
 | --- | --- | --- |
-| `members` | `id` (M001), `username` (unique, NOCASE), `wechat_nickname`, `status` (pending / active / inactive), `token_hash`, `token_enc`, `is_owner`, `requested_at`, `approved_at`, `deleted_at`, `google_sub` (unique), `google_email`, `email` (their own contact email), `admin_note` (备注名, Owner only) | Rejected requests are deleted; the next ID is never reused; deleted members keep their history under `name（ID）` |
+| `members` | `id` (M001), `username` (unique, NOCASE), `wechat_nickname`, `status` (pending / active / inactive), `token_hash`, `token_enc`, `is_owner`, `requested_at`, `approved_at`, `deleted_at`, `google_sub` (unique), `google_email`, `email` (their own contact email; set at 用邮箱注册, one member per address), `approval_email_status`, `approval_email_sent_at`, `link_resent_at` (last 找回 email), `admin_note` (备注名, Owner only) | Rejected requests are deleted; the next ID is never reused; deleted members keep their history under `name（ID）` |
 | `events` | `id`, `code` (1006, 1006B), `title`, `date`, `start_at`, `end_at`, `location`, `address`, `deadline_at`, `deadline_offset_min`, `status` (open / closed / finalized / settled / cancelled), `finalized_at`, `settled_at`, `dunning_stopped`, `created_at` | `settled` = all paid and archived; read-only from then on |
 | `registrations` | `id`, `event_id`, `member_id`, `friend_index` (0 = the member), `friend_name`, `attended` (default 1), `added_by_owner`, `created_at`, `updated_at` | Friends hang off the member who pays for them; Owner-added walk-ins ignore the friend cap |
 | `settlements` | `event_id`, `court_total_cents`, `shuttle_count`, `shuttle_price_cents`, `registered_count`, `attended_count`, `court_share_cents`, `shuttle_share_cents`, `finalized_at` | One row per event; recomputed on every edit before archive |
@@ -97,7 +99,7 @@ JSON over HTTPS under `/api`, grouped by who may call it. Tokens travel in the p
 
 | Audience | Endpoints |
 | --- | --- |
-| Public | `GET /api/public/site`, `home` (open events, past events, leaderboard), `events/{code}`, `events/{code}/calendar.ics` · `POST /api/public/join` · `GET/POST /api/public/admin-setup` |
+| Public | `GET /api/public/site`, `home` (open events, past events, leaderboard), `events/{code}`, `events/{code}/calendar.ics` · `POST /api/public/join`, `recover-link` · `GET/POST /api/public/admin-setup` |
 | Google (`/api/auth/…`) | `GET session`, `google` (start, optional `next`), `google/callback` · `POST register` (apply, pending), `link` (bind an existing member's link), `logout` |
 | Member (`/api/m/{token}/…`, or `/api/m/session/…` for Google) | `GET me`, `events` (my events with roster, bill and payment), `stats`, `profile` · `POST rename`, `email`, `events/{id}/signup` (friend names), `events/{id}/cancel` |
 | Owner (`/api/admin/{token}/…`, or `/api/admin/google/…`) | Members: `GET members`, `members/{id}/link`, `members/{id}/profile` · `POST members/{id}/approve`, `reject`, `regenerate`, `deactivate`, `reactivate`, `delete`, `note` · Events: `GET/POST events`, `GET events/{id}`, `POST events/{id}/edit`, `close-now`, `cancel`, `reopen`, `self-signup`, `self-cancel`, roster add / update / remove · Settlement: `POST events/{id}/preview`, `finalize`, attendance · Payments: mark paid, refunds, receipts, dunning, `GET inbound`, `POST inbound/{id}/link`, `ignore` · Telegram: `GET telegram`, `POST telegram/connect`, `test`, `disconnect` · Settings: `GET/POST settings`, `POST settings/password`, `rotate-admin`, `reset`, `rotate-export`, `GET settings/google`, `POST settings/google/bind`, `unbind` · `GET places?q=` |
