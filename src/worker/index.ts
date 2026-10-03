@@ -42,7 +42,8 @@ app.get("/api/health", async (c) => {
 
 // Browsers report what the content policy would have blocked; read them in the Worker logs.
 app.post("/api/csp-report", async (c) => {
-  const report = (await c.req.text()).slice(0, 2000);
+  // Sent as application/csp-report, which Workers won't read with text() without a warning.
+  const report = new TextDecoder().decode(await c.req.arrayBuffer()).slice(0, 2000);
   console.warn("csp report:", report);
   return c.body(null, 204);
 });

@@ -11,6 +11,9 @@ import type { Env } from "./env";
 const NORCAL = { south: 36.0, west: -124.5, north: 42.0, east: -119.0 };
 const US = { south: 24, west: -125, north: 50, east: -66 };
 
+/** A slow lookup service never holds up the form: give up and fall back (or show nothing). */
+const TIMEOUT_MS = 5_000;
+
 const stripUsa = (s: string) => s.replace(/,\s*(USA|United States)$/, "");
 
 export async function suggestAddresses(env: Env, q: string, session: string): Promise<AddressSuggestion[]> {
@@ -25,22 +28,29 @@ interface GooglePrediction {
 }
 
 async function google(key: string, q: string, session: string): Promise<AddressSuggestion[]> {
-  const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key },
-    body: JSON.stringify({
-      input: q,
-      sessionToken: session || undefined,
-      includedRegionCodes: ["us"],
-      languageCode: "en",
-      locationBias: {
-        rectangle: {
-          low: { latitude: NORCAL.south, longitude: NORCAL.west },
-          high: { latitude: NORCAL.north, longitude: NORCAL.east },
+  let res: Response;
+  try {
+    res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key },
+      body: JSON.stringify({
+        input: q,
+        sessionToken: session || undefined,
+        includedRegionCodes: ["us"],
+        languageCode: "en",
+        locationBias: {
+          rectangle: {
+            low: { latitude: NORCAL.south, longitude: NORCAL.west },
+            high: { latitude: NORCAL.north, longitude: NORCAL.east },
+          },
         },
-      },
-    }),
-  });
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (err) {
+    console.error("places autocomplete failed:", err);
+    return photon(q);
+  }
   if (!res.ok) {
     console.error("places autocomplete failed:", res.status, (await res.text()).slice(0, 200));
     return photon(q); // quota hit or key problem: still offer something
@@ -64,12 +74,18 @@ async function google(key: string, q: string, session: string): Promise<AddressS
 export async function resolveAddress(env: Env, id: string, session: string): Promise<string | null> {
   if (!env.GOOGLE_MAPS_API_KEY || !/^[A-Za-z0-9_-]{10,300}$/.test(id)) return null;
   const url = `https://places.googleapis.com/v1/places/${id}${session ? `?sessionToken=${encodeURIComponent(session)}` : ""}`;
-  const res = await fetch(url, {
-    headers: { "X-Goog-Api-Key": env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "formattedAddress" },
-  });
-  if (!res.ok) return null;
-  const json = (await res.json()) as { formattedAddress?: string };
-  return json.formattedAddress ? stripUsa(json.formattedAddress) : null;
+  try {
+    const res = await fetch(url, {
+      headers: { "X-Goog-Api-Key": env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "formattedAddress" },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { formattedAddress?: string };
+    return json.formattedAddress ? stripUsa(json.formattedAddress) : null;
+  } catch (err) {
+    console.error("place details failed:", err);
+    return null;
+  }
 }
 
 // ---- Photon (OpenStreetMap), free and keyless but slower ----
@@ -100,7 +116,7 @@ function fromPhoton(f: PhotonFeature): AddressSuggestion | null {
 async function photonIn(q: string, box: typeof US): Promise<AddressSuggestion[]> {
   const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=en&bbox=${box.west},${box.south},${box.east},${box.north}`;
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (!res.ok) return [];
     const json = (await res.json()) as { features: PhotonFeature[] };
     const seen = new Set<string>();

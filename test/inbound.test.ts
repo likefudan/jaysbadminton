@@ -322,6 +322,37 @@ describe("Owner review", () => {
     await s.admin.call(`${s.base}/payments/${alice.id}/mark-paid`, {});
     expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 5600 });
   });
+
+  it("undoing an auto-matched Venmo payment puts it in 待确认 instead of losing it", async () => {
+    const s = await finalized();
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "U1", payer: "Alice W" })).toBe("paid");
+    const receipt = (await s.by("Alice")).receipts[0];
+    expect((await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {})).status).toBe(200);
+    expect(await s.by("Alice")).toMatchObject({ status: "unpaid", amountPaidCents: 0 });
+    const { open } = (await s.admin.call(`${s.base}/inbound`)).data;
+    expect(open).toMatchObject([
+      { amountCents: 5600, txnId: "U1", payerName: "Alice W", reason: "从账单撤销的 Venmo 付款" },
+    ]);
+    // The same email again is still a duplicate, and the payment can be linked back.
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "U1" })).toBe("duplicate");
+    await s.admin.call(`${s.base}/inbound/${open[0].id}/link`, { paymentId: (await s.by("Alice")).id });
+    expect(await s.by("Alice")).toMatchObject({ status: "paid" });
+  });
+
+  it("undoing a linked payment without a transaction ID returns that row to 待确认", async () => {
+    const s = await finalized();
+    const row = (await env.DB.prepare(
+      `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, received_at, kind, reason)
+       VALUES (NULL, 'Cash', 1000, ?, 'unmatched', 'x') RETURNING id`,
+    )
+      .bind(new Date().toISOString())
+      .first<{ id: number }>())!;
+    const alice = await s.by("Alice");
+    await s.admin.call(`${s.base}/inbound/${row.id}/link`, { paymentId: alice.id });
+    const receipt = (await s.by("Alice")).receipts[0];
+    await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {});
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toMatchObject([{ id: row.id }]);
+  });
 });
 
 describe("DNS trouble", () => {
