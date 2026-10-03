@@ -42,7 +42,24 @@ app.get("/api/health", async (c) => {
 
 // Browsers report what the content policy would have blocked; read them in the Worker logs.
 app.post("/api/csp-report", async (c) => {
-  const report = (await c.req.text()).slice(0, 2000);
+  // Only the start is logged, so only the start is read: anyone can post here. Bytes, not text():
+  // the body is application/csp-report, which text() warns about.
+  const reader = c.req.raw.body?.getReader();
+  const bytes = new Uint8Array(2000);
+  let n = 0;
+  try {
+    while (reader && n < bytes.length) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const part = value.subarray(0, bytes.length - n);
+      bytes.set(part, n);
+      n += part.length;
+    }
+    await reader?.cancel();
+  } catch {
+    // The sender went away mid-report: log what arrived.
+  }
+  const report = new TextDecoder().decode(bytes.subarray(0, n));
   console.warn("csp report:", report);
   return c.body(null, 204);
 });

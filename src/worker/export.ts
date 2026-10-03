@@ -29,7 +29,12 @@ const MEMBER_STATUS: Record<string, string> = {
   rejected: "已拒绝",
 };
 const PAY_STATUS: Record<string, string> = { unpaid: "未付", partial: "部分付款", paid: "已付" };
-const INBOUND_STATE: Record<string, string> = { open: "待确认", linked: "已关联", ignored: "已忽略" };
+const INBOUND_STATE: Record<string, string> = {
+  open: "待确认",
+  linked: "已关联",
+  ignored: "已忽略",
+  deleted: "已删除",
+};
 
 async function all(env: Env, sql: string): Promise<R[]> {
   return (await env.DB.prepare(sql).all<R>()).results;

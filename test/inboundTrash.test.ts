@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { TABLES } from "../src/worker/export";
 import { purgeDeletedInbound } from "../src/worker/inbound";
 import { setUpAdmin } from "./helpers";
 
@@ -67,5 +68,12 @@ describe("已删除 Venmo payments", () => {
     expect((await ctx.admin.call(`${ctx.base}/inbound`)).data.deleted.map((i: { id: number }) => i.id)).toEqual([
       recent,
     ]);
+  });
+
+  it("shows trashed payments as 已删除 in the export", async () => {
+    const ctx = await setUpAdmin();
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${await add("X1")}/delete`, {})).status).toBe(200);
+    const table = await TABLES.inbound.build(env);
+    expect(table.rows.find((r) => r.includes("X1"))).toContain("已删除");
   });
 });

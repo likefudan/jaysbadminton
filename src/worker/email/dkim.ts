@@ -213,9 +213,14 @@ export async function dohKey(selector: string, domain: string): Promise<string |
     try {
       const res = await fetch(`${url}?name=${encodeURIComponent(name)}&type=TXT`, {
         headers: { accept: "application/dns-json" },
+        // A provider that hangs must not use up the email handler's time: move on to the next one.
+        signal: AbortSignal.timeout(5_000),
       });
       if (!res.ok) continue;
       const json = (await res.json()) as { Status?: number; Answer?: { type: number; data: string }[] };
+      // SERVFAIL (2) is the resolver's trouble: ask the other one. Any other status is an answer
+      // (no key), so a forged selector is still rejected rather than held for review.
+      if (json.Status === 2) continue;
       const record = json.Answer?.filter((a) => a.type === 16)
         .map((a) => a.data.replace(/^"|"$/g, "").replace(/"\s*"/g, ""))
         .find((t) => t.includes("p="));

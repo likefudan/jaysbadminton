@@ -226,13 +226,31 @@ export function syncPayments(db: D1Database, where: string, ...args: unknown[]):
 export async function addReceipt(
   env: Env,
   paymentId: number,
-  r: { amountCents: number; method: "venmo" | "manual"; txnId?: string | null; payerName?: string | null },
+  r: {
+    amountCents: number;
+    method: "venmo" | "manual";
+    txnId?: string | null;
+    payerName?: string | null;
+    /** A Venmo payment's note, kept so undoing it can show it again in 待确认. */
+    note?: string | null;
+    /** The 待确认 row it was linked from, which undoing it reopens. */
+    inboundId?: number | null;
+  },
 ): Promise<boolean> {
   const [ins] = await env.DB.batch([
     env.DB.prepare(
-      `INSERT OR IGNORE INTO payment_receipts (payment_id, amount_cents, method, venmo_txn_id, payer_name, received_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    ).bind(paymentId, r.amountCents, r.method, r.txnId ?? null, r.payerName ?? null, now()),
+      `INSERT OR IGNORE INTO payment_receipts (payment_id, amount_cents, method, venmo_txn_id, payer_name, received_at, note, inbound_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      paymentId,
+      r.amountCents,
+      r.method,
+      r.txnId ?? null,
+      r.payerName ?? null,
+      now(),
+      r.note ?? null,
+      r.inboundId ?? null,
+    ),
     ...syncPayments(env.DB, "id = ?", paymentId),
   ]);
   return (ins?.meta.changes ?? 0) > 0;
@@ -268,7 +286,8 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
     list.push({
       id: r.id,
       amountCents: r.amount_cents,
-      method: r.method,
+      // Linked Venmo payments saved before receipts had a method of their own are 'manual' with a transaction.
+      method: r.method === "manual" && r.venmo_txn_id ? "venmo" : r.method,
       payerName: r.payer_name,
       receivedAt: r.received_at,
     });

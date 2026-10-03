@@ -87,7 +87,8 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
   }
   async function remove(p: PaymentRow, r: Receipt) {
     const what = r.amountCents < 0 ? `退款 $${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`;
-    if (!confirm(`撤销 ${p.memberName} 的这笔${what}？`)) return;
+    const back = r.method === "venmo" ? "这笔 Venmo 付款会回到待确认，可以再关联到正确的账单。" : "";
+    if (!confirm(`撤销 ${p.memberName} 的这笔${what}？${back}`)) return;
     if (await run(() => api(`${props.base}/receipts/${r.id}/remove`, {}))) props.onDone();
   }
 

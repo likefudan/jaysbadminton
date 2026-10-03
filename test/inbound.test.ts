@@ -322,6 +322,99 @@ describe("Owner review", () => {
     await s.admin.call(`${s.base}/payments/${alice.id}/mark-paid`, {});
     expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 5600 });
   });
+
+  it("undoing an auto-matched Venmo payment puts it in 待确认 instead of losing it", async () => {
+    const s = await finalized();
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "U1", payer: "Alice W" })).toBe("paid");
+    const receipt = (await s.by("Alice")).receipts[0];
+    expect((await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {})).status).toBe(200);
+    expect(await s.by("Alice")).toMatchObject({ status: "unpaid", amountPaidCents: 0 });
+    const { open } = (await s.admin.call(`${s.base}/inbound`)).data;
+    expect(open).toMatchObject([
+      { amountCents: 5600, txnId: "U1", payerName: "Alice W", note: s.aliceCode, reason: "从账单撤销的 Venmo 付款" },
+    ]);
+    // The same email again is still a duplicate, and the payment can be linked back.
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "U1" })).toBe("duplicate");
+    await s.admin.call(`${s.base}/inbound/${open[0].id}/link`, { paymentId: (await s.by("Alice")).id });
+    expect(await s.by("Alice")).toMatchObject({ status: "paid" });
+  });
+
+  it("undoing a linked payment without a transaction ID returns that row to 待确认", async () => {
+    const s = await finalized();
+    const row = (await env.DB.prepare(
+      `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, received_at, kind, reason)
+       VALUES (NULL, 'Cash', 1000, ?, 'unmatched', 'x') RETURNING id`,
+    )
+      .bind(new Date().toISOString())
+      .first<{ id: number }>())!;
+    const alice = await s.by("Alice");
+    await s.admin.call(`${s.base}/inbound/${row.id}/link`, { paymentId: alice.id });
+    const receipt = (await s.by("Alice")).receipts[0];
+    await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {});
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toMatchObject([{ id: row.id }]);
+    expect((await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {})).status).toBe(400); // second click
+  });
+
+  it("undoing an older linked receipt finds its 待确认 row by transaction", async () => {
+    const s = await finalized();
+    await deliver({ amount: "10.00", note: `alice-${s.aliceCode.split("-")[1]}-m099`, txnId: "O1" });
+    const { open } = (await s.admin.call(`${s.base}/inbound`)).data;
+    const alice = await s.by("Alice");
+    await s.admin.call(`${s.base}/inbound/${open[0].id}/link`, { paymentId: alice.id });
+    // As saved before receipts kept their source (and before 0004, as 'manual').
+    await env.DB.prepare("UPDATE payment_receipts SET inbound_id = NULL, method = 'manual' WHERE payment_id = ?")
+      .bind(alice.id)
+      .run();
+    const receipt = (await s.by("Alice")).receipts[0];
+    await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {});
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toMatchObject([{ id: open[0].id, txnId: "O1" }]);
+  });
+
+  it("undoing reopens a trashed row but never one that counts on another bill", async () => {
+    const s = await finalized();
+    const day = s.aliceCode.split("-")[1];
+    await deliver({ amount: "10.00", note: `alice-${day}-m098`, txnId: "T1" });
+    await deliver({ amount: "11.00", note: `alice-${day}-m097`, txnId: "T2" });
+    const { open, payments } = (await s.admin.call(`${s.base}/inbound`)).data;
+    const [alice, bob] = ["Alice", "Bob"].map((n) => payments.find((p: { memberName: string }) => p.memberName === n));
+    for (const i of open) await s.admin.call(`${s.base}/inbound/${i.id}/link`, { paymentId: alice.id });
+    const [t1, t2] = ["T1", "T2"].map((t) => open.find((i: { txnId: string }) => i.txnId === t).id);
+    // Neither can happen through the app, but a receipt must never take a row that counts elsewhere.
+    await env.DB.prepare(
+      "UPDATE inbound_payments SET state = 'deleted', deleted_from = 'open', deleted_at = ? WHERE id = ?",
+    )
+      .bind(new Date().toISOString(), t1)
+      .run();
+    await env.DB.batch([
+      env.DB.prepare("UPDATE inbound_payments SET linked_payment_id = ? WHERE id = ?").bind(bob.id, t2),
+      env.DB.prepare(
+        "INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at, inbound_id) VALUES (?, 1100, 'venmo', ?, ?)",
+      ).bind(bob.id, new Date().toISOString(), t2),
+    ]);
+    for (const r of (await s.by("Alice")).receipts) await s.admin.call(`${s.base}/receipts/${r.id}/remove`, {});
+    // Undone again after relinking, the reason doesn't pile up.
+    await s.admin.call(`${s.base}/inbound/${t1}/link`, { paymentId: alice.id });
+    await s.admin.call(`${s.base}/receipts/${(await s.by("Alice")).receipts[0].id}/remove`, {});
+    const d = (await s.admin.call(`${s.base}/inbound`)).data;
+    expect(d.open).toMatchObject([
+      { id: t1, deletedAt: null, reason: "从账单撤销的 Venmo 付款（原先：编号里的成员没有这次活动的应付款）" },
+    ]);
+    expect(d.done).toMatchObject([{ id: t2, state: "linked" }]);
+    expect(d.deleted).toEqual([]);
+  });
+
+  it("undoing a linked payment whose 待确认 row is gone still puts it back in 待确认", async () => {
+    const s = await finalized();
+    await deliver({ amount: "10.00", note: `alice-${s.aliceCode.split("-")[1]}-m099`, txnId: "G1", payer: "Carol" });
+    const { open } = (await s.admin.call(`${s.base}/inbound`)).data;
+    await s.admin.call(`${s.base}/inbound/${open[0].id}/link`, { paymentId: (await s.by("Alice")).id });
+    await env.DB.prepare("DELETE FROM inbound_payments WHERE id = ?").bind(open[0].id).run();
+    const receipt = (await s.by("Alice")).receipts[0];
+    await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {});
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toMatchObject([
+      { amountCents: 1000, txnId: "G1", payerName: "Carol", reason: "从账单撤销的 Venmo 付款" },
+    ]);
+  });
 });
 
 describe("DNS trouble", () => {

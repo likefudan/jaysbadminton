@@ -495,20 +495,56 @@ adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
   return c.json({ ok: true, settled });
 });
 
-/** Takes back one payment (a mistaken manual mark, or a Venmo payment linked to the wrong bill). */
+/**
+ * Takes back one payment (a mistaken manual mark, or a Venmo payment on the wrong bill). A Venmo
+ * payment goes to 待确认 rather than vanishing, so the Owner can put it on the right bill: the
+ * 待确认 row it was linked from is reopened, and an auto-matched one gets a new row with its note.
+ */
 adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
-  const r = await c.env.DB.prepare("SELECT payment_id FROM payment_receipts WHERE id = ?")
+  const r = await c.env.DB.prepare("SELECT * FROM payment_receipts WHERE id = ?")
     .bind(Number(c.req.param("rid")))
-    .first<{ payment_id: number }>();
+    .first<{
+      id: number;
+      payment_id: number;
+      amount_cents: number;
+      method: string;
+      venmo_txn_id: string | null;
+      payer_name: string | null;
+      received_at: string;
+      note: string | null;
+      inbound_id: number | null;
+    }>();
   if (!r) throw badRequest("找不到这笔付款记录");
   await paymentEvent(c.env, r.payment_id);
+  const back: D1PreparedStatement[] = [];
+  // Venmo receipts, and older linked ones saved as 'manual' that still carry their transaction.
+  if (r.method === "venmo" || r.venmo_txn_id) {
+    back.push(
+      // The 待确认 row it came from (older receipts find it by transaction) reopens from any state,
+      // unless another receipt still counts it. Each statement checks the receipt still exists, so a
+      // second click changes nothing.
+      c.env.DB.prepare(
+        `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL, deleted_from = NULL, deleted_at = NULL,
+           reason = CASE WHEN COALESCE(reason, '') = '' OR reason LIKE '从账单撤销的 Venmo 付款%' THEN COALESCE(NULLIF(reason, ''), '从账单撤销的 Venmo 付款')
+                         ELSE '从账单撤销的 Venmo 付款（原先：' || reason || '）' END
+         WHERE id = COALESCE((SELECT id FROM inbound_payments WHERE id = ?1),
+                             (SELECT id FROM inbound_payments WHERE venmo_txn_id = ?3))
+           AND NOT EXISTS (SELECT 1 FROM payment_receipts o WHERE o.id != ?2
+             AND (o.inbound_id = inbound_payments.id OR o.venmo_txn_id = inbound_payments.venmo_txn_id))
+           AND EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)`,
+      ).bind(r.inbound_id, r.id, r.venmo_txn_id),
+      // Auto-matched, or its 待确认 row is gone: it gets a row now, so the payment is never lost.
+      c.env.DB.prepare(
+        `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)
+         SELECT ?3, ?4, ?5, ?6, ?7, 'unmatched', '从账单撤销的 Venmo 付款'
+         WHERE EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)
+           AND NOT EXISTS (SELECT 1 FROM inbound_payments WHERE id = ?1 OR venmo_txn_id = ?3)`,
+      ).bind(r.inbound_id, r.id, r.venmo_txn_id, r.payer_name, r.amount_cents, r.note, r.received_at),
+    );
+  }
   await c.env.DB.batch([
-    // A linked 待确认 row goes back to the list so the money is not forgotten.
-    c.env.DB.prepare(
-      `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL
-       WHERE state = 'linked' AND venmo_txn_id = (SELECT venmo_txn_id FROM payment_receipts WHERE id = ?)`,
-    ).bind(Number(c.req.param("rid"))),
-    c.env.DB.prepare("DELETE FROM payment_receipts WHERE id = ?").bind(Number(c.req.param("rid"))),
+    ...back,
+    c.env.DB.prepare("DELETE FROM payment_receipts WHERE id = ?").bind(r.id),
     ...syncPayments(c.env.DB, "id = ?", r.payment_id),
   ]);
   return c.json({ ok: true });
@@ -546,6 +582,7 @@ async function openInbound(env: Env, id: number) {
     amount_cents: number | null;
     venmo_txn_id: string | null;
     payer_name: string | null;
+    note: string | null;
   }>();
   if (!i) throw badRequest("找不到这笔收款");
   if (i.state !== "open") throw badRequest("这笔收款已经处理过了");
@@ -570,6 +607,8 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
     method: "venmo",
     txnId: i.venmo_txn_id,
     payerName: i.payer_name,
+    note: i.note,
+    inboundId: i.id,
   });
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });
