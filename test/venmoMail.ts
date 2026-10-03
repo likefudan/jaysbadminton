@@ -28,7 +28,11 @@ export async function testKey() {
     const spki = (await crypto.subtle.exportKey("spki", keys.publicKey)) as ArrayBuffer;
     publicRecord = `v=DKIM1; k=rsa; p=${b64(spki)}`;
   }
-  return { keys, resolveKey: async (s: string, d: string) => (s === "test" && (d === "venmo.com" || d === "google.com") ? publicRecord : null) };
+  return {
+    keys,
+    resolveKey: async (s: string, d: string) =>
+      s === "test" && (d === "venmo.com" || d === "google.com") ? publicRecord : null,
+  };
 }
 
 const b64 = (b: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(b)));
@@ -52,12 +56,22 @@ export function receiptHtml(f: Required<ReceiptFields>): string {
 }
 
 /** A complete raw message, DKIM-signed for venmo.com unless `sign` is false. */
-export async function venmoEmail(fields: ReceiptFields = {}, opts: { sign?: boolean; tamper?: (raw: string) => string; html?: (html: string) => string; domain?: string; subject?: string; body?: string } = {}) {
+export async function venmoEmail(
+  fields: ReceiptFields = {},
+  opts: {
+    sign?: boolean;
+    tamper?: (raw: string) => string;
+    html?: (html: string) => string;
+    domain?: string;
+    subject?: string;
+    body?: string;
+  } = {},
+) {
   const f: Required<ReceiptFields> = {
     payer: "Alice W",
     amount: "56.00",
     note: "Badminton",
-    txnId: "TXN" + Math.random().toString(36).slice(2, 12).toUpperCase(),
+    txnId: `TXN${Math.random().toString(36).slice(2, 12).toUpperCase()}`,
     sentTo: "KeLi8916",
     from: "Venmo <venmo@venmo.com>",
     to: "owner@example.com",
@@ -85,8 +99,11 @@ export async function venmoEmail(fields: ReceiptFields = {}, opts: { sign?: bool
     const unsigned = `DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;${CRLF}\ts=test; d=${opts.domain ?? "venmo.com"}; t=1790579195;${CRLF}\th=From:To:Subject:MIME-Version:Content-Type:Message-ID:Date;${CRLF}\tbh=${bh};${CRLF}\tb=`;
     const { headers } = splitMessage(new TextEncoder().encode(`${head}${CRLF}${CRLF}`));
     const data =
-      signedHeaderBlock(headers, ["from", "to", "subject", "mime-version", "content-type", "message-id", "date"], "relaxed") +
-      signatureInput(unsigned, "relaxed");
+      signedHeaderBlock(
+        headers,
+        ["from", "to", "subject", "mime-version", "content-type", "message-id", "date"],
+        "relaxed",
+      ) + signatureInput(unsigned, "relaxed");
     const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", keys.privateKey, new TextEncoder().encode(data));
     head = `${unsigned}${b64(sig).replace(/(.{64})/g, `$1${CRLF}\t`)}${CRLF}${head}`;
   }

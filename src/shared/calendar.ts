@@ -21,7 +21,12 @@ export function calendarEntry(e: EventSummary, origin: string): CalendarEntry {
     startUtc: pacificToUtc(e.date, e.startTime),
     endUtc: pacificToUtc(e.date, e.endTime),
     location: e.address ? `${e.location}, ${e.address}` : e.location,
-    details: [`场馆：${e.location}`, ...(e.address ? [`地址：${e.address}`] : []), `报名截止：${formatInstantZh(e.deadlineAt)}`, url].join("\n"),
+    details: [
+      `场馆：${e.location}`,
+      ...(e.address ? [`地址：${e.address}`] : []),
+      `报名截止：${formatInstantZh(e.deadlineAt)}`,
+      url,
+    ].join("\n"),
     url,
   };
 }
@@ -89,5 +94,5 @@ export function icsFile(c: CalendarEntry, now: Date = new Date()): string {
     "END:VEVENT",
     "END:VCALENDAR",
   ];
-  return lines.map(fold).join("\r\n") + "\r\n";
+  return `${lines.map(fold).join("\r\n")}\r\n`;
 }

@@ -23,7 +23,9 @@ export function CalendarButtons(props: { e: EventSummary }) {
       <a class="calendar-link" href={googleCalendarUrl(entry)} target="_blank" rel="noreferrer">
         Google 日历
       </a>
-      {inWeChat() && <p class="muted small calendar-note">微信里打不开日历的话，点右上角「···」选择「在浏览器中打开」。</p>}
+      {inWeChat() && (
+        <p class="muted small calendar-note">微信里打不开日历的话，点右上角「···」选择「在浏览器中打开」。</p>
+      )}
     </>
   );
 }

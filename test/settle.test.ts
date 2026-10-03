@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { parseDollars, settle, venmoLink } from "../src/shared/settle";
 
-const row = (memberId: string, friendIndex: number, attended = true) => ({ memberId, friendIndex, name: `${memberId}-${friendIndex}`, attended });
+const row = (memberId: string, friendIndex: number, attended = true) => ({
+  memberId,
+  friendIndex,
+  name: `${memberId}-${friendIndex}`,
+  attended,
+});
 
 describe("settle", () => {
   it("matches the requirements example: 24 registered, 22 attended, $240 courts, 20 × $3", () => {

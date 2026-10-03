@@ -28,7 +28,8 @@ publicRoutes.get("/home", async (c) => {
   return c.json<HomeResponse>({
     currentEvents: await summaries(c.env, current.results),
     pastEvents: await summaries(c.env, past.results),
-    leaderboard: (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard === "0" ? null : await leaderboard(c.env),
+    leaderboard:
+      (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard === "0" ? null : await leaderboard(c.env),
   });
 });
 
@@ -70,7 +71,11 @@ publicRoutes.post("/join", async (c) => {
     email,
     status: "pending",
   });
-  try { await sendApplicationNotice(c.env, m); } catch { /* The admin queue remains authoritative if Telegram is unavailable. */ }
+  try {
+    await sendApplicationNotice(c.env, m);
+  } catch {
+    /* The admin queue remains authoritative if Telegram is unavailable. */
+  }
   return c.json({ ok: true, id: m.id });
 });
 

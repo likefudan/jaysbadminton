@@ -16,7 +16,8 @@ describe("个人信息", () => {
     const alice = await approveMember(ctx, "Alice");
     const events = [];
     for (let i = 0; i < 5; i++) events.push(await createTestEvent(ctx, { date: futureDate(7 + i) }));
-    for (const [i, e] of events.entries()) await anon.call(`${alice.base}/events/${e.id}/signup`, { friends: i === 0 ? ["Tom"] : [] });
+    for (const [i, e] of events.entries())
+      await anon.call(`${alice.base}/events/${e.id}/signup`, { friends: i === 0 ? ["Tom"] : [] });
     await past(events[0].id, daysAgo(10)); // came (friends don't add entries)
     await past(events[1].id, daysAgo(3)); // marked absent
     await env.DB.prepare("UPDATE registrations SET attended = 0 WHERE event_id = ?").bind(events[1].id).run();
@@ -40,15 +41,26 @@ describe("个人信息", () => {
   it("lets the member set their own email, falling back to the Google one when cleared", async () => {
     const ctx = await setUpAdmin();
     const alice = await approveMember(ctx, "Alice");
-    await env.DB.prepare("UPDATE members SET email = NULL, google_email = 'alice@gmail.com' WHERE id = ?").bind(alice.id).run();
-    expect((await anon.call(`${alice.base}/profile`)).data).toMatchObject({ email: "alice@gmail.com", emailFromGoogle: true });
+    await env.DB.prepare("UPDATE members SET email = NULL, google_email = 'alice@gmail.com' WHERE id = ?")
+      .bind(alice.id)
+      .run();
+    expect((await anon.call(`${alice.base}/profile`)).data).toMatchObject({
+      email: "alice@gmail.com",
+      emailFromGoogle: true,
+    });
 
     expect((await anon.call(`${alice.base}/email`, { email: "not-an-email" })).status).toBe(400);
     expect((await anon.call(`${alice.base}/email`, { email: " alice@work.com " })).status).toBe(200);
-    expect((await anon.call(`${alice.base}/profile`)).data).toMatchObject({ email: "alice@work.com", emailFromGoogle: false });
+    expect((await anon.call(`${alice.base}/profile`)).data).toMatchObject({
+      email: "alice@work.com",
+      emailFromGoogle: false,
+    });
 
     await anon.call(`${alice.base}/email`, { email: "" });
-    expect((await anon.call(`${alice.base}/profile`)).data).toMatchObject({ email: "alice@gmail.com", emailFromGoogle: true });
+    expect((await anon.call(`${alice.base}/profile`)).data).toMatchObject({
+      email: "alice@gmail.com",
+      emailFromGoogle: true,
+    });
   });
 
   it("keeps each email to one person", async () => {

@@ -66,9 +66,9 @@ export function AddressInput(props: {
     if (s.place) props.onPlace?.(s.place);
     props.onInput(s.label);
     if (s.id) {
-      const r = await api<{ address: string | null }>(`${props.base}/places/${encodeURIComponent(s.id)}?s=${session.current}`).catch(
-        () => null,
-      );
+      const r = await api<{ address: string | null }>(
+        `${props.base}/places/${encodeURIComponent(s.id)}?s=${session.current}`,
+      ).catch(() => null);
       if (r?.address) props.onInput(r.address);
     }
     session.current = newSession();
@@ -76,9 +76,7 @@ export function AddressInput(props: {
 
   return (
     <label class="field suggest">
-      <span>
-        地址{searching && <em class="searching">搜索中…</em>}
-      </span>
+      <span>地址{searching && <em class="searching">搜索中…</em>}</span>
       <input
         value={props.value}
         placeholder="输入地址或球馆名，会自动联想"

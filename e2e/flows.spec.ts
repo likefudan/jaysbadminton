@@ -16,7 +16,8 @@ let memberPath = "";
 let eventCode = "";
 
 const pathOf = (link: string) => new URL(link).pathname;
-const field = (page: Page, label: string) => page.locator("label.field", { has: page.getByText(label, { exact: true }) }).locator("input, select");
+const field = (page: Page, label: string) =>
+  page.locator("label.field", { has: page.getByText(label, { exact: true }) }).locator("input, select");
 const acceptDialogs = (page: Page) => page.on("dialog", (d) => d.accept());
 
 /** Opens the admin page, logging in with the password when this browser has no session yet. */
@@ -45,7 +46,9 @@ function googleSession(sub: string, email: string, extraSql = ""): string {
 
 /** Seven days from today in Pacific time, as the date input wants it. */
 function inAWeek(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(Date.now() + 7 * 86400e3));
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(
+    new Date(Date.now() + 7 * 86400e3),
+  );
 }
 
 test("the Owner sets up the site and the payment details", async ({ page }) => {
@@ -176,7 +179,10 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await expect(card.getByText("加入日历", { exact: true })).toHaveCount(0);
   // The same 活动名片 as on the public page, from inside their own event card.
   await card.getByRole("button", { name: "分享名片", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "分享名片" }).locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
+  await expect(page.getByRole("dialog", { name: "分享名片" }).locator("img.sharecard")).toHaveAttribute(
+    "src",
+    /^data:image\/png;base64,/,
+  );
   await page.getByRole("button", { name: "关闭" }).click();
 });
 
@@ -231,7 +237,9 @@ test("public pages show the headcount and a link preview, never names", async ({
 
   // What WeChat sees when the link is pasted: tags in the raw HTML, no script needed.
   const html = await (await page.request.get(`/e/${eventCode}`)).text();
-  expect(html).toMatch(/<meta property="og:description" content="19:00–21:00 · Test Gym · 已报名 3 人 · 报名截止 [^"]+"/);
+  expect(html).toMatch(
+    /<meta property="og:description" content="19:00–21:00 · Test Gym · 已报名 3 人 · 报名截止 [^"]+"/,
+  );
   expect(html).toContain('/og-image.jpg"');
   expect(html).not.toContain("小明");
 
@@ -251,9 +259,17 @@ test("public pages show the headcount and a link preview, never names", async ({
   expect((await png).suggestedFilename()).toBe(`event-${eventCode}.png`);
 });
 
-test("signed in with Google: the member sees the roster on shared pages; the Owner binds Google for the admin page", async ({ page, context, baseURL }) => {
+test("signed in with Google: the member sees the roster on shared pages; the Owner binds Google for the admin page", async ({
+  page,
+  context,
+  baseURL,
+}) => {
   acceptDialogs(page);
-  const ming = googleSession("google-ming", "ming@example.com", "UPDATE members SET google_sub = 'google-ming' WHERE username = '小明'; ");
+  const ming = googleSession(
+    "google-ming",
+    "ming@example.com",
+    "UPDATE members SET google_sub = 'google-ming' WHERE username = '小明'; ",
+  );
   await context.addCookies([{ name: "jb_member", value: ming, url: baseURL! }]);
   await page.goto(`/e/${eventCode}`);
   await expect(page.getByText("✓ 已报名，带 1 个朋友")).toBeVisible();
@@ -310,7 +326,12 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   expect(code).toMatch(/^xiaoming-jbm\d{8}-m002$/);
   const venmo = new URL((await bill.getByRole("link", { name: "用 Venmo 付 $48.00" }).getAttribute("href"))!);
   expect(venmo.hostname).toBe("venmo.com");
-  expect(Object.fromEntries(venmo.searchParams)).toMatchObject({ txn: "pay", recipients: "Jays-Badminton", amount: "48.00", note: code });
+  expect(Object.fromEntries(venmo.searchParams)).toMatchObject({
+    txn: "pay",
+    recipients: "Jays-Badminton",
+    amount: "48.00",
+    note: code,
+  });
 });
 
 test("a visitor's appearance choice survives a reload", async ({ page }) => {

@@ -13,7 +13,10 @@ export function useApi<T>(path: string): [Loaded<T>, () => void] {
     let alive = true;
     api<T>(path)
       .then((data) => alive && setResult({ state: "ok", data }))
-      .catch((e: Error) => alive && setResult({ state: "error", message: e.message, code: e instanceof ApiError ? e.code : "" }));
+      .catch(
+        (e: Error) =>
+          alive && setResult({ state: "error", message: e.message, code: e instanceof ApiError ? e.code : "" }),
+      );
     return () => {
       alive = false;
     };

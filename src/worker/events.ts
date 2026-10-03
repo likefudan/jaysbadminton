@@ -42,7 +42,8 @@ export const friendLabel = (memberName: string, index: number, name: string | nu
  * An open event past its deadline reads as closed straight away; its deadline alarm (or the cron) or the
  * next write stores it. Read paths use this instead of writing to the database themselves.
  */
-export const liveStatus = (e: EventRow): EventStatus => (e.status === "open" && e.deadline_at <= now() ? "closed" : e.status);
+export const liveStatus = (e: EventRow): EventStatus =>
+  e.status === "open" && e.deadline_at <= now() ? "closed" : e.status;
 
 export function toSummary(e: EventRow, headcount: number): EventSummary {
   return {
@@ -62,7 +63,9 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
 
 /** Moves open events past their deadline to closed: from the cron, and before any write that depends on it. */
 export async function closeExpired(env: Env): Promise<void> {
-  await env.DB.prepare("UPDATE events SET status = 'closed' WHERE status = 'open' AND deadline_at <= ?").bind(now()).run();
+  await env.DB.prepare("UPDATE events SET status = 'closed' WHERE status = 'open' AND deadline_at <= ?")
+    .bind(now())
+    .run();
 }
 
 export async function getEvent(env: Env, id: number): Promise<EventRow> {
@@ -82,7 +85,10 @@ export async function headcounts(env: Env, ids: number[]): Promise<Map<number, n
 }
 
 export async function summaries(env: Env, rows: EventRow[]): Promise<EventSummary[]> {
-  const counts = await headcounts(env, rows.map((r) => r.id));
+  const counts = await headcounts(
+    env,
+    rows.map((r) => r.id),
+  );
   return rows.map((r) => toSummary(r, counts.get(r.id) ?? 0));
 }
 
@@ -111,7 +117,12 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
 
 export async function detail(env: Env, e: EventRow): Promise<EventDetail> {
   const list = await roster(env, e.id);
-  return { ...toSummary(e, list.length), roster: list, dunningStopped: e.dunning_stopped === 1, deletable: isDeletable(e) };
+  return {
+    ...toSummary(e, list.length),
+    roster: list,
+    dunningStopped: e.dunning_stopped === 1,
+    deletable: isDeletable(e),
+  };
 }
 
 /** Only history can be deleted for good: events that are archived (all paid) or cancelled. */
@@ -134,7 +145,12 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM events WHERE id = ?").bind(e.id),
-    env.DB.prepare("INSERT INTO deleted_events (id, code, date, deleted_at) VALUES (?, ?, ?, ?)").bind(e.id, e.code, e.date, now()),
+    env.DB.prepare("INSERT INTO deleted_events (id, code, date, deleted_at) VALUES (?, ?, ?, ?)").bind(
+      e.id,
+      e.code,
+      e.date,
+      now(),
+    ),
   ]);
 }
 
@@ -155,13 +171,19 @@ export interface CreateEventInput {
   deadlineHours: number;
 }
 
-export function validateEventInput(i: CreateEventInput): { startAt: string; endAt: string; deadlineAt: string; offsetMin: number } {
+export function validateEventInput(i: CreateEventInput): {
+  startAt: string;
+  endAt: string;
+  deadlineAt: string;
+  offsetMin: number;
+} {
   if (!isDate(i.date)) throw badRequest("请选择日期");
   if (!isTime(i.startTime) || !isTime(i.endTime)) throw badRequest("请填写开始和结束时间");
   checkVenue(i.location, i.address);
   const days = Math.floor(i.deadlineDays);
   const hours = Math.floor(i.deadlineHours);
-  if (!(days >= 0 && days <= 14 && hours >= 0 && hours <= 23)) throw badRequest("截止时间请选择提前 0–14 天、0–23 小时");
+  if (!(days >= 0 && days <= 14 && hours >= 0 && hours <= 23))
+    throw badRequest("截止时间请选择提前 0–14 天、0–23 小时");
   const startAt = pacificToUtc(i.date, i.startTime);
   let endAt = pacificToUtc(i.date, i.endTime);
   // An end time earlier than the start means the session runs past midnight.
@@ -214,7 +236,18 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     `INSERT INTO events (code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?) RETURNING id`,
   )
-    .bind(code, input.date, v.startAt, v.endAt, location, address, cleanTitle(input.title), v.deadlineAt, v.offsetMin, ts)
+    .bind(
+      code,
+      input.date,
+      v.startAt,
+      v.endAt,
+      location,
+      address,
+      cleanTitle(input.title),
+      v.deadlineAt,
+      v.offsetMin,
+      ts,
+    )
     .first<{ id: number }>();
   await env.DB.batch([
     saveVenue(env, location, address, ts),
@@ -253,7 +286,10 @@ export async function setSignup(
     .bind(eventId, memberId)
     .all<{ friend_index: number; attended: number; created_at: string; added_by_owner: number }>();
   const prev = new Map(existing.results.map((r) => [r.friend_index, r]));
-  const rows = [null, ...friends].map((name, i) => ({ i, name: name === null ? null : name.trim().slice(0, 20) || null }));
+  const rows = [null, ...friends].map((name, i) => ({
+    i,
+    name: name === null ? null : name.trim().slice(0, 20) || null,
+  }));
   await env.DB.batch([
     env.DB.prepare("DELETE FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index > ?").bind(
       eventId,

@@ -55,4 +55,5 @@ export function parsePaymentCode(note: string): ParsedCode | null {
 export const codeName = (code: string) => code.slice(0, code.lastIndexOf("-jbm"));
 
 /** "jbm20261007" or "jbm20261007b": how an event is named in notes, messages and exports. */
-export const eventNumber = (eventDate: string, eventCode: string) => `jbm${eventDate.replace(/-/g, "")}${suffixOf(eventCode)}`;
+export const eventNumber = (eventDate: string, eventCode: string) =>
+  `jbm${eventDate.replace(/-/g, "")}${suffixOf(eventCode)}`;

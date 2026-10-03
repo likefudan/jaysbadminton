@@ -27,7 +27,9 @@ export function Home() {
   const member = useMemberSession();
   return (
     <Page title={useSiteTitle()} subtitle="登录后报名、查看活动和账单。">
-      <a class="button block" href="/me">{member === "member" || member === "pending" ? "我的活动" : "登录 / 注册"}</a>
+      <a class="button block" href="/me">
+        {member === "member" || member === "pending" ? "我的活动" : "登录 / 注册"}
+      </a>
       <Load result={home}>
         {(data) => {
           const tiles = overview(data.currentEvents);

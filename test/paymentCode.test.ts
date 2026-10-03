@@ -16,9 +16,24 @@ describe("payment codes", () => {
   });
 
   it("parses codes from notes, ignoring case and stray spaces", () => {
-    expect(parsePaymentCode("xiaoming-jbm20261007-m002")).toEqual({ name: "xiaoming", date: "2026-10-07", eventCode: "1007", memberId: "M002" });
-    expect(parsePaymentCode("Thanks! XiaoMing-JBM20261007B-M002 🏸")).toEqual({ name: "xiaoming", date: "2026-10-07", eventCode: "1007B", memberId: "M002" });
-    expect(parsePaymentCode("alice_wang - jbm 20261007 - m2")).toEqual({ name: "alice_wang", date: "2026-10-07", eventCode: "1007", memberId: "M002" });
+    expect(parsePaymentCode("xiaoming-jbm20261007-m002")).toEqual({
+      name: "xiaoming",
+      date: "2026-10-07",
+      eventCode: "1007",
+      memberId: "M002",
+    });
+    expect(parsePaymentCode("Thanks! XiaoMing-JBM20261007B-M002 🏸")).toEqual({
+      name: "xiaoming",
+      date: "2026-10-07",
+      eventCode: "1007B",
+      memberId: "M002",
+    });
+    expect(parsePaymentCode("alice_wang - jbm 20261007 - m2")).toEqual({
+      name: "alice_wang",
+      date: "2026-10-07",
+      eventCode: "1007",
+      memberId: "M002",
+    });
     expect(parsePaymentCode("jbm20261007-m002")).toMatchObject({ name: null, memberId: "M002" });
   });
 

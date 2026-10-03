@@ -38,7 +38,10 @@ export function AppearanceSheet(props: { onClose: () => void }) {
   // Switching style keeps the accent in the same position (珊瑚橙 ↔ 紫青, 海蓝 ↔ 日落 …).
   function pickStyle(id: string) {
     const s = STYLES.find((x) => x.id === id)!;
-    const i = Math.max(0, style.accents.findIndex((x) => x.id === now.accent));
+    const i = Math.max(
+      0,
+      style.accents.findIndex((x) => x.id === now.accent),
+    );
     setMyTheme(`${s.id}-${s.accents[i]!.id}` as ThemeId);
   }
 

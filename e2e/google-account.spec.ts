@@ -1,9 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 test("signed-in users can inspect their Google account from the header and sign out", async ({ page }) => {
-  let signedIn = true, failLogout = true;
+  let signedIn = true,
+    failLogout = true;
   const email = "demo.member@gmail.com";
-  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn, email: signedIn ? email : null, hasMember: true } }));
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { enabled: true, signedIn, email: signedIn ? email : null, hasMember: true } }),
+  );
   await page.route("**/api/auth/logout", async (route) => {
     if (failLogout) return route.fulfill({ status: 503, json: { error: { message: "暂时无法退出，请重试" } } });
     signedIn = false;
@@ -35,7 +38,9 @@ test("signed-in users can inspect their Google account from the header and sign 
 });
 
 test("signed-out users do not see a Google account badge", async ({ page }) => {
-  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn: false, email: null } }));
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { enabled: true, signedIn: false, email: null } }),
+  );
   await page.goto("/login");
   await expect(page.getByRole("button", { name: "用 Google 登录 / 注册" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Google 账号：/ })).toHaveCount(0);
@@ -43,7 +48,9 @@ test("signed-out users do not see a Google account badge", async ({ page }) => {
 
 test("the account panel fits a narrow screen with a long email in light and dark modes", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 700 });
-  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: true, email: "a.long.google.account.address@example.com" } }));
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { signedIn: true, email: "a.long.google.account.address@example.com" } }),
+  );
   await page.goto("/privacy");
   await page.getByRole("button", { name: /^Google 账号：/ }).click();
   const panel = page.getByRole("region", { name: "Google 账号信息" });
@@ -58,15 +65,22 @@ test("the account panel fits a narrow screen with a long email in light and dark
 
 test("shows the Google profile avatar and falls back when the image fails", async ({ page }) => {
   const picture = "https://lh3.googleusercontent.com/a/test-avatar";
-  await page.route("**/api/auth/session", route => route.fulfill({ json: { signedIn: true, email: "avatar@gmail.com", picture } }));
-  await page.route(picture, route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="green"/></svg>' }));
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { signedIn: true, email: "avatar@gmail.com", picture } }),
+  );
+  await page.route(picture, (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="green"/></svg>',
+    }),
+  );
   await page.goto("/privacy");
   const trigger = page.getByRole("button", { name: "Google 账号：avatar@gmail.com", exact: true });
   const avatar = trigger.getByRole("img", { name: "Google 账号头像" });
   await expect(avatar).toBeVisible();
   await expect.poll(() => avatar.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
   await expect(avatar).toHaveAttribute("referrerpolicy", "no-referrer");
-  await page.route(picture, route => route.fulfill({ status: 404, body: "" }));
+  await page.route(picture, (route) => route.fulfill({ status: 404, body: "" }));
   await page.reload();
   await expect(trigger).toBeVisible();
   await expect(trigger.locator("svg")).toBeVisible();

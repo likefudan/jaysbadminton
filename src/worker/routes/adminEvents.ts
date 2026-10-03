@@ -1,7 +1,17 @@
 import { Hono } from "hono";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
 import type { EventDefaults, InboundResponse, SettlementView } from "../../shared/types";
-import { addReceipt, checkCollected, finalize, markPaid, paymentRows, recomputeIfFinalized, savedInput, settleRows, syncPayments } from "../billing";
+import {
+  addReceipt,
+  checkCollected,
+  finalize,
+  markPaid,
+  paymentRows,
+  recomputeIfFinalized,
+  savedInput,
+  settleRows,
+  syncPayments,
+} from "../billing";
 import { isDate, isTime, pacificToUtc } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
 import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
@@ -52,9 +62,16 @@ adminEventRoutes.get("/events", async (c) => {
 });
 
 adminEventRoutes.get("/events/defaults", async (c) => {
-  const s = await getSettings(c.env.DB, ["last_start_time", "last_end_time", "last_location", "last_deadline_offset_min"]);
+  const s = await getSettings(c.env.DB, [
+    "last_start_time",
+    "last_end_time",
+    "last_location",
+    "last_deadline_offset_min",
+  ]);
   const offset = Number(s.last_deadline_offset_min ?? 1440);
-  const { results } = await c.env.DB.prepare("SELECT name, address FROM locations ORDER BY last_used_at DESC LIMIT 10").all<{
+  const { results } = await c.env.DB.prepare(
+    "SELECT name, address FROM locations ORDER BY last_used_at DESC LIMIT 10",
+  ).all<{
     name: string;
     address: string;
   }>();
@@ -95,7 +112,9 @@ adminEventRoutes.post("/events", async (c) => {
   });
   // "我自己也报名": the Owner signs up as a normal player (ticked by default in the form).
   if (b.joinSelf === true) {
-    const owner = await c.env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{ id: string }>();
+    const owner = await c.env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{
+      id: string;
+    }>();
     if (owner) await setSignup(c.env, e.id, owner.id, [], false);
   }
   return c.json(await detail(c.env, e));
@@ -108,8 +127,11 @@ adminEventRoutes.post("/events", async (c) => {
 async function ownerSignupEvent(env: Env, id: string) {
   await closeExpired(env);
   const e = await getEvent(env, Number(id));
-  if (e.status !== "open" && e.status !== "closed") throw badRequest("已经结算，不能再改自己的报名；需要调整请直接改名单");
-  const owner = await env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{ id: string }>();
+  if (e.status !== "open" && e.status !== "closed")
+    throw badRequest("已经结算，不能再改自己的报名；需要调整请直接改名单");
+  const owner = await env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{
+    id: string;
+  }>();
   if (!owner) throw badRequest("找不到管理员本人的成员记录");
   return { e, ownerId: owner.id };
 }
@@ -146,12 +168,18 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
  */
 adminEventRoutes.post("/events/:id/delete", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
-  if (!(await checkPassword(c.env, str((await readJson(c.req.raw)).password)))) throw new HttpError(401, "wrong_password", "管理密码不正确");
+  if (!(await checkPassword(c.env, str((await readJson(c.req.raw)).password))))
+    throw new HttpError(401, "wrong_password", "管理密码不正确");
   if (!isDeletable(e)) throw badRequest("只能删除已收齐归档或已取消的活动");
   await deleteEvent(c.env, e);
   await clearDeadline(c.env, e.id);
   const label = `${e.date} ${e.code}${e.title ? ` ${e.title}` : ""}`;
-  await sendToOwner(c.env, message(`🗑 活动 ${label} 已从数据库永久删除（报名、账单和付款记录一并删除）。\n\n如果不是你本人操作，请立刻修改管理密码。`));
+  await sendToOwner(
+    c.env,
+    message(
+      `🗑 活动 ${label} 已从数据库永久删除（报名、账单和付款记录一并删除）。\n\n如果不是你本人操作，请立刻修改管理密码。`,
+    ),
+  );
   return c.json({ ok: true });
 });
 
@@ -199,7 +227,17 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare(
       "UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, deadline_at = ?, status = ? WHERE id = ?",
-    ).bind(date, startAt, endAt, location, address, b.title === undefined ? e.title : cleanTitle(str(b.title)), deadline, status, e.id),
+    ).bind(
+      date,
+      startAt,
+      endAt,
+      location,
+      address,
+      b.title === undefined ? e.title : cleanTitle(str(b.title)),
+      deadline,
+      status,
+      e.id,
+    ),
     saveVenue(c.env, location, address, ts),
   ]);
   await syncDeadline(c.env, e.id);
@@ -273,7 +311,9 @@ adminEventRoutes.post("/events/:id/roster/:rid/rename", async (c) => {
 adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   assertRosterEditable(e);
-  await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?").bind(Number(c.req.param("rid")), e.id).run();
+  await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?")
+    .bind(Number(c.req.param("rid")), e.id)
+    .run();
   await recomputeIfFinalized(c.env, e);
   return c.json(await detail(c.env, e));
 });
@@ -306,12 +346,14 @@ adminEventRoutes.post("/settings", async (c) => {
     if ([...t].length > SITE_TITLE_MAX) throw badRequest(`网站标题最多 ${SITE_TITLE_MAX} 个字`);
     writes.push(setSetting(c.env.DB, "site_title", t));
   }
-  if (b.showLeaderboard !== undefined) writes.push(setSetting(c.env.DB, "show_leaderboard", b.showLeaderboard === false ? "0" : "1"));
+  if (b.showLeaderboard !== undefined)
+    writes.push(setSetting(c.env.DB, "show_leaderboard", b.showLeaderboard === false ? "0" : "1"));
   if (b.theme !== undefined) {
     if (!isTheme(b.theme)) throw badRequest("没有这个配色");
     writes.push(setSetting(c.env.DB, "theme", b.theme));
   }
-  if (b.reminderEnabled !== undefined) writes.push(setSetting(c.env.DB, "reminder_enabled", b.reminderEnabled === false ? "0" : "1"));
+  if (b.reminderEnabled !== undefined)
+    writes.push(setSetting(c.env.DB, "reminder_enabled", b.reminderEnabled === false ? "0" : "1"));
   if (b.reminderHours !== undefined) {
     const h = num(b.reminderHours);
     if (!Number.isInteger(h) || h < 1 || h > 72) throw badRequest("截止前提醒请填 1–72 小时");
@@ -322,7 +364,8 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!Number.isInteger(h) || h < 0 || h > 23) throw badRequest("账单提醒时间请选 0–23 点");
     writes.push(setSetting(c.env.DB, "dunning_hour", String(h)));
   }
-  if (b.weeklyDigest !== undefined) writes.push(setSetting(c.env.DB, "weekly_digest", b.weeklyDigest === false ? "0" : "1"));
+  if (b.weeklyDigest !== undefined)
+    writes.push(setSetting(c.env.DB, "weekly_digest", b.weeklyDigest === false ? "0" : "1"));
   if (writes.length) await c.env.DB.batch(writes);
   if (b.reminderEnabled !== undefined || b.reminderHours !== undefined) await syncAllDeadlines(c.env);
   return c.json({ ok: true });
@@ -430,9 +473,13 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
 });
 
 async function paymentEvent(env: Env, paymentId: number) {
-  const p = await env.DB.prepare("SELECT * FROM payments WHERE id = ?")
-    .bind(paymentId)
-    .first<{ event_id: number; status: string; amount_due_cents: number; amount_paid_cents: number; refunded_cents: number }>();
+  const p = await env.DB.prepare("SELECT * FROM payments WHERE id = ?").bind(paymentId).first<{
+    event_id: number;
+    status: string;
+    amount_due_cents: number;
+    amount_paid_cents: number;
+    refunded_cents: number;
+  }>();
   if (!p) throw badRequest("找不到这笔应付款");
   const e = await getEvent(env, p.event_id);
   if (e.status !== "finalized") throw badRequest("这个活动已收齐归档，不能再修改");
@@ -492,9 +539,13 @@ adminEventRoutes.get("/inbound", async (c) =>
 );
 
 async function openInbound(env: Env, id: number) {
-  const i = await env.DB.prepare("SELECT * FROM inbound_payments WHERE id = ?")
-    .bind(id)
-    .first<{ id: number; state: string; amount_cents: number | null; venmo_txn_id: string | null; payer_name: string | null }>();
+  const i = await env.DB.prepare("SELECT * FROM inbound_payments WHERE id = ?").bind(id).first<{
+    id: number;
+    state: string;
+    amount_cents: number | null;
+    venmo_txn_id: string | null;
+    payer_name: string | null;
+  }>();
   if (!i) throw badRequest("找不到这笔收款");
   if (i.state !== "open") throw badRequest("这笔收款已经处理过了");
   return i;
@@ -507,11 +558,18 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const { e } = await paymentEvent(c.env, paymentId);
   if (i.amount_cents === null) throw badRequest("这笔收款没有金额，请改用「标记已付」");
   // Only one request can move it out of 待确认, so a double click never adds the money twice.
-  const claimed = await c.env.DB.prepare("UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ? AND state = 'open'")
+  const claimed = await c.env.DB.prepare(
+    "UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ? AND state = 'open'",
+  )
     .bind(paymentId, i.id)
     .run();
   if (!claimed.meta.changes) throw badRequest("这笔收款已经处理过了");
-  await addReceipt(c.env, paymentId, { amountCents: i.amount_cents, method: "venmo", txnId: i.venmo_txn_id, payerName: i.payer_name });
+  await addReceipt(c.env, paymentId, {
+    amountCents: i.amount_cents,
+    method: "venmo",
+    txnId: i.venmo_txn_id,
+    payerName: i.payer_name,
+  });
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });
 });
@@ -545,7 +603,9 @@ adminEventRoutes.post("/events/:id/dunning", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   if (e.status !== "finalized") throw badRequest("只有已结算、还没收齐的活动才能停止账单提醒");
   const stop = (await readJson(c.req.raw)).stop === true;
-  await c.env.DB.prepare("UPDATE events SET dunning_stopped = ? WHERE id = ?").bind(stop ? 1 : 0, e.id).run();
+  await c.env.DB.prepare("UPDATE events SET dunning_stopped = ? WHERE id = ?")
+    .bind(stop ? 1 : 0, e.id)
+    .run();
   return c.json({ ok: true, dunningStopped: stop });
 });
 
@@ -564,7 +624,9 @@ adminEventRoutes.get("/export/:file", async (c) => {
   });
 });
 
-adminEventRoutes.get("/sheets", async (c) => c.json({ ...(await sheetsStatus(c.env)), script: await currentScript(c.env) }));
+adminEventRoutes.get("/sheets", async (c) =>
+  c.json({ ...(await sheetsStatus(c.env)), script: await currentScript(c.env) }),
+);
 
 /** 开启同步 / 重新生成密钥: either way a fresh key, so a leaked script stops working. */
 adminEventRoutes.post("/sheets/enable", async (c) => c.json({ script: await rotateExportKey(c.env) }));

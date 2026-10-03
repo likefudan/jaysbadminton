@@ -49,7 +49,8 @@ app.post("/api/csp-report", async (c) => {
 
 // Telegram delivers bot messages here; only the binding code in "/start <code>" is acted on.
 app.post("/api/telegram/webhook", async (c) => {
-  if (c.req.header("X-Telegram-Bot-Api-Secret-Token") !== (await webhookSecret(c.env))) return c.json({ ok: false }, 403);
+  if (c.req.header("X-Telegram-Bot-Api-Secret-Token") !== (await webhookSecret(c.env)))
+    return c.json({ ok: false }, 403);
   try {
     await handleUpdate(c.env, await c.req.json());
   } catch (err) {
@@ -60,13 +61,18 @@ app.post("/api/telegram/webhook", async (c) => {
 
 // Pulled once a day by the Apps Script in the Owner's Google Sheet; the key is the only credential.
 app.get("/export/:key/all.json", async (c) => {
-  if (!(await checkExportKey(c.env, c.req.param("key")))) return c.json({ error: { code: "invalid_key", message: "同步密钥无效" } }, 403);
+  if (!(await checkExportKey(c.env, c.req.param("key"))))
+    return c.json({ error: { code: "invalid_key", message: "同步密钥无效" } }, 403);
   return c.json(await exportAll(c.env));
 });
 
 // Search engines may index the real site, never the test site.
 app.get("/robots.txt", (c) =>
-  c.text(isStaging(c.env) ? "User-agent: *\nDisallow: /\n" : "User-agent: *\nDisallow: /m/\nDisallow: /admin\nDisallow: /api/\n"),
+  c.text(
+    isStaging(c.env)
+      ? "User-agent: *\nDisallow: /\n"
+      : "User-agent: *\nDisallow: /m/\nDisallow: /admin\nDisallow: /api/\n",
+  ),
 );
 
 // Link previews for WeChat and friends: the app shell with this page's title and summary.

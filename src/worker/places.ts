@@ -34,7 +34,10 @@ async function google(key: string, q: string, session: string): Promise<AddressS
       includedRegionCodes: ["us"],
       languageCode: "en",
       locationBias: {
-        rectangle: { low: { latitude: NORCAL.south, longitude: NORCAL.west }, high: { latitude: NORCAL.north, longitude: NORCAL.east } },
+        rectangle: {
+          low: { latitude: NORCAL.south, longitude: NORCAL.west },
+          high: { latitude: NORCAL.north, longitude: NORCAL.east },
+        },
       },
     }),
   });
@@ -61,7 +64,9 @@ async function google(key: string, q: string, session: string): Promise<AddressS
 export async function resolveAddress(env: Env, id: string, session: string): Promise<string | null> {
   if (!env.GOOGLE_MAPS_API_KEY || !/^[A-Za-z0-9_-]{10,300}$/.test(id)) return null;
   const url = `https://places.googleapis.com/v1/places/${id}${session ? `?sessionToken=${encodeURIComponent(session)}` : ""}`;
-  const res = await fetch(url, { headers: { "X-Goog-Api-Key": env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "formattedAddress" } });
+  const res = await fetch(url, {
+    headers: { "X-Goog-Api-Key": env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "formattedAddress" },
+  });
   if (!res.ok) return null;
   const json = (await res.json()) as { formattedAddress?: string };
   return json.formattedAddress ? stripUsa(json.formattedAddress) : null;
@@ -73,7 +78,13 @@ interface PhotonFeature {
   properties: Record<string, string | undefined>;
 }
 
-const STATES: Record<string, string> = { California: "CA", Oregon: "OR", Nevada: "NV", Washington: "WA", Arizona: "AZ" };
+const STATES: Record<string, string> = {
+  California: "CA",
+  Oregon: "OR",
+  Nevada: "NV",
+  Washington: "WA",
+  Arizona: "AZ",
+};
 
 function fromPhoton(f: PhotonFeature): AddressSuggestion | null {
   const p = f.properties;

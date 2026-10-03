@@ -39,7 +39,13 @@ export interface Theme {
 }
 
 export const THEMES: Theme[] = STYLES.flatMap((s) =>
-  s.accents.map((a) => ({ id: `${s.id}-${a.id}` as ThemeId, style: s.id, accent: a.id, name: a.name, swatch: a.swatch })),
+  s.accents.map((a) => ({
+    id: `${s.id}-${a.id}` as ThemeId,
+    style: s.id,
+    accent: a.id,
+    name: a.name,
+    swatch: a.swatch,
+  })),
 );
 
 export const DEFAULT_THEME: ThemeId = "minimal-coral";

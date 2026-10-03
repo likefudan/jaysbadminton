@@ -50,11 +50,15 @@ export async function setMemberEmail(env: Env, m: MemberRow, raw: string): Promi
     if (err) throw badRequest(err);
     if (await emailTaken(env, email, m.id)) throw new HttpError(409, "email_taken", "这个邮箱已经被其他成员使用了");
   }
-  await env.DB.prepare("UPDATE members SET email = ? WHERE id = ?").bind(email || null, m.id).run();
+  await env.DB.prepare("UPDATE members SET email = ? WHERE id = ?")
+    .bind(email || null, m.id)
+    .run();
 }
 
 export async function setAdminNote(env: Env, m: MemberRow, raw: string): Promise<void> {
   const note = raw.trim();
   if ([...note].length > NOTE_MAX) throw badRequest(`备注最多 ${NOTE_MAX} 个字`);
-  await env.DB.prepare("UPDATE members SET admin_note = ? WHERE id = ?").bind(note || null, m.id).run();
+  await env.DB.prepare("UPDATE members SET admin_note = ? WHERE id = ?")
+    .bind(note || null, m.id)
+    .run();
 }

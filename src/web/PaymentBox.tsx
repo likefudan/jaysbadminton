@@ -62,11 +62,7 @@ export function PaymentBox(props: { p: MyPayment }) {
               <dt>备注</dt>
               <dd>同上</dd>
             </dl>
-            {p.zelleAccount && (
-              <p class="muted small">
-                也可以用 Zelle 转到 {p.zelleAccount}，但需要管理员手动确认。
-              </p>
-            )}
+            {p.zelleAccount && <p class="muted small">也可以用 Zelle 转到 {p.zelleAccount}，但需要管理员手动确认。</p>}
           </div>
         </>
       )}

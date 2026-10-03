@@ -48,7 +48,7 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
   }, []);
 
   const count = (s: ActivityDay["status"]) => props.activity.filter((a) => a.status === s).length;
-  const pickedList = picked ? byDate.get(picked) ?? [] : [];
+  const pickedList = picked ? (byDate.get(picked) ?? []) : [];
 
   return (
     <div class="heatmap">
@@ -66,7 +66,9 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
           <div class="heatmap-months" aria-hidden="true">
             {weeks.map((w, i) => {
               const firstOfMonth = w.find((d) => d.endsWith("-01"));
-              return <span key={i}>{firstOfMonth || i === 0 ? `${Number((firstOfMonth ?? w[0]!).slice(5, 7))}月` : ""}</span>;
+              return (
+                <span key={i}>{firstOfMonth || i === 0 ? `${Number((firstOfMonth ?? w[0]!).slice(5, 7))}月` : ""}</span>
+              );
             })}
           </div>
           <div class="heatmap-grid" role="grid" aria-label="活动热力图">
@@ -95,9 +97,18 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
         </div>
       </div>
       <div class="heatmap-legend">
-        <span><i class="heatmap-cell done" />已参加</span>
-        <span><i class="heatmap-cell absent" />缺席</span>
-        <span><i class="heatmap-cell upcoming" />已报名</span>
+        <span>
+          <i class="heatmap-cell done" />
+          已参加
+        </span>
+        <span>
+          <i class="heatmap-cell absent" />
+          缺席
+        </span>
+        <span>
+          <i class="heatmap-cell upcoming" />
+          已报名
+        </span>
       </div>
       {pickedList.length > 0 && (
         <div class="heatmap-detail">
@@ -120,7 +131,12 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
  * 个人信息: the basics and the activity map. On the member's own page the email is editable; in the
  * admin's view the 备注名 is (the member never sees it).
  */
-export function ProfileCard(props: { profile: MemberProfile; base: string; mode: "member" | "admin"; onChange: () => void }) {
+export function ProfileCard(props: {
+  profile: MemberProfile;
+  base: string;
+  mode: "member" | "admin";
+  onChange: () => void;
+}) {
   const p = props.profile;
   return (
     <Card title="个人信息" class="profile">
@@ -174,8 +190,12 @@ function EmailRow(props: { base: string; email: string | null; fromGoogle: boole
         <p class="muted small">留空保存会改回 Google 账号的邮箱（如果有）。</p>
         {error && <p class="error">{error}</p>}
         <div class="inline">
-          <button class="button" disabled={busy}>保存</button>
-          <button class="button secondary" type="button" onClick={() => setEditing(false)}>取消</button>
+          <button class="button" disabled={busy}>
+            保存
+          </button>
+          <button class="button secondary" type="button" onClick={() => setEditing(false)}>
+            取消
+          </button>
         </div>
       </form>
     );
@@ -186,7 +206,13 @@ function EmailRow(props: { base: string; email: string | null; fromGoogle: boole
       <dd>
         {props.email ?? <span class="muted">未填写</span>}
         {props.fromGoogle && <small class="muted"> （Google）</small>}
-        <button class="profile-action" onClick={() => { setValue(props.fromGoogle ? "" : props.email ?? ""); setEditing(true); }}>
+        <button
+          class="profile-action"
+          onClick={() => {
+            setValue(props.fromGoogle ? "" : (props.email ?? ""));
+            setEditing(true);
+          }}
+        >
           {props.email ? "修改" : "填写"}
         </button>
       </dd>
@@ -211,8 +237,12 @@ function NoteRow(props: { base: string; note: string; onChange: () => void }) {
         <Field label="备注名（只有管理员能看到）" value={value} onInput={setValue} />
         {error && <p class="error">{error}</p>}
         <div class="inline">
-          <button class="button" disabled={busy}>保存</button>
-          <button class="button secondary" type="button" onClick={() => setEditing(false)}>取消</button>
+          <button class="button" disabled={busy}>
+            保存
+          </button>
+          <button class="button secondary" type="button" onClick={() => setEditing(false)}>
+            取消
+          </button>
         </div>
       </form>
     );
@@ -222,7 +252,13 @@ function NoteRow(props: { base: string; note: string; onChange: () => void }) {
       <dt>备注名</dt>
       <dd>
         {props.note || <span class="muted">未填写</span>}
-        <button class="profile-action" onClick={() => { setValue(props.note); setEditing(true); }}>
+        <button
+          class="profile-action"
+          onClick={() => {
+            setValue(props.note);
+            setEditing(true);
+          }}
+        >
           {props.note ? "修改" : "添加"}
         </button>
       </dd>

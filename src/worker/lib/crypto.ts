@@ -36,7 +36,9 @@ async function aesKey(secret: string): Promise<CryptoKey> {
 /** Encrypts a token so the Owner can view a member's link again. Output: base64url(iv || ciphertext). */
 export async function encryptToken(token: string, secret: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await aesKey(secret), enc.encode(token)));
+  const ct = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await aesKey(secret), enc.encode(token)),
+  );
   const out = new Uint8Array(iv.length + ct.length);
   out.set(iv);
   out.set(ct, iv.length);
@@ -45,12 +47,22 @@ export async function encryptToken(token: string, secret: string): Promise<strin
 
 export async function decryptToken(blob: string, secret: string): Promise<string> {
   const bytes = fromBase64Url(blob);
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.slice(0, 12) }, await aesKey(secret), bytes.slice(12));
+  const pt = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: bytes.slice(0, 12) },
+    await aesKey(secret),
+    bytes.slice(12),
+  );
   return new TextDecoder().decode(pt);
 }
 
 export async function hmac(text: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", await keyMaterial(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    await keyMaterial(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
   return toHex(await crypto.subtle.sign("HMAC", key, enc.encode(text)));
 }
 
@@ -60,7 +72,9 @@ const PBKDF2_ITERATIONS = 5000;
 
 export async function hashPassword(password: string, pepper: string, saltHex?: string): Promise<string> {
   const salt = saltHex ?? toHex(crypto.getRandomValues(new Uint8Array(16)).buffer);
-  const base = await crypto.subtle.importKey("raw", enc.encode(await hmac(password, pepper)), "PBKDF2", false, ["deriveBits"]);
+  const base = await crypto.subtle.importKey("raw", enc.encode(await hmac(password, pepper)), "PBKDF2", false, [
+    "deriveBits",
+  ]);
   const bits = await crypto.subtle.deriveBits(
     { name: "PBKDF2", hash: "SHA-256", salt: enc.encode(salt), iterations: PBKDF2_ITERATIONS },
     base,
