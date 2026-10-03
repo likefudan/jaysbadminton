@@ -253,6 +253,18 @@ describe("matching", () => {
     expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "E4" })).toBe("paid");
   });
 
+  it("never gives a new event a number still printed on an older bill", async () => {
+    const s = await finalized();
+    const day = futureDate(20);
+    const printed = `jbm${day.replace(/-/g, "")}`;
+    // A bill made before event numbers existed, after its event was moved to that day.
+    await env.DB.prepare("UPDATE payments SET payment_code = ? WHERE event_id = ? AND member_id = 'M002'")
+      .bind(`alice-${printed}-m002`, s.e.id)
+      .run();
+    const next = await createTestEvent(s, { date: day });
+    expect(await numberOf(next.id)).toBe(`${printed}b`);
+  });
+
   it("never gives a moved event's number to a new event on its old date", async () => {
     const s = await finalized();
     const oldCode = await moveTo(s, 8);

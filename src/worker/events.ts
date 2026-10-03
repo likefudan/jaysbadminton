@@ -2,7 +2,7 @@ import type { EventDetail, EventStatus, EventSummary, RosterEntry } from "../sha
 import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
 import { getSettings, now, setSetting } from "./db";
 import { syncDeadline } from "./deadlines";
-import { codeOf, eventNumberBase, nextEventNumber } from "./paymentCode";
+import { codeOf, eventNumberBase, nextEventNumber, parsePaymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 
@@ -231,8 +231,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   // The 活动编号 skips every number an event created on this date has ever had (including events
   // since moved to another date or deleted), so no number is handed out twice. If two requests race
   // for the same one, the unique index refuses the second insert and it takes the next letter.
-  // Codes of events from before numbers existed count too: one moved to another date may hold
-  // this day's code under a number from its new date.
+  // From before numbers existed, codes of moved events and the numbers printed on bills count too:
+  // either may be one this day's number would otherwise repeat.
   const base = eventNumberBase(input.date);
   let id: number | undefined;
   for (let attempt = 0; id === undefined; attempt++) {
@@ -243,7 +243,14 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     )
       .bind(`${base}*`, input.date.slice(0, 4), `${base.slice(7)}*`)
       .all<{ number: string }>();
-    const number = nextEventNumber(input.date, new Set(results.map((r) => r.number)));
+    const billed = await env.DB.prepare("SELECT payment_code FROM payments WHERE lower(payment_code) GLOB ?")
+      .bind(`*-${base}*`)
+      .all<{ payment_code: string }>();
+    const taken = new Set([
+      ...results.map((r) => r.number),
+      ...billed.results.map((r) => parsePaymentCode(r.payment_code)?.number ?? ""),
+    ]);
+    const number = nextEventNumber(input.date, taken);
     if (!number) throw badRequest("同一天的活动太多了");
     try {
       const res = await env.DB.prepare(
@@ -266,7 +273,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
         .first<{ id: number }>();
       id = res!.id;
     } catch (err) {
-      if (attempt >= 2 || !String(err).includes("UNIQUE")) throw err;
+      if (!String(err).includes("UNIQUE")) throw err;
+      if (attempt >= 2) throw badRequest("同时创建的活动太多，请稍后再试");
     }
   }
   await env.DB.batch([

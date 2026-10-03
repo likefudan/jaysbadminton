@@ -100,8 +100,9 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
   // numbers existed may carry another date than their event's number); then the event by its
   // fixed number, which a date edit never changes.
   const billed = await env.DB.prepare(
-    `SELECT id, payment_code, event_id FROM payments
-     WHERE member_id = ? AND instr(lower(payment_code), ?) > 0 ORDER BY id DESC LIMIT 1`,
+    `SELECT p.id, p.payment_code, p.event_id FROM payments p JOIN events e ON e.id = p.event_id
+     WHERE p.member_id = ?1 AND instr(lower(p.payment_code), ?2) > 0
+     ORDER BY '-' || e.number || '-' = ?2 DESC, p.id DESC LIMIT 1`,
   )
     .bind(code.memberId, `-${code.number}-`)
     .first<{ id: number; payment_code: string; event_id: number }>();
