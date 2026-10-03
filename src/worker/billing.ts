@@ -128,6 +128,13 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
     } else {
       // Paid something but no longer on the roster: owes nothing, so whatever is kept is a refund.
       // "Unpaid" is not enough to drop it: a payment refunded in full nets to unpaid too.
+      if (ownerIds.has(memberId))
+        // The Owner's own manual receipts only ever matched their share, which is now nothing.
+        stmts.push(
+          env.DB.prepare(
+            "DELETE FROM payment_receipts WHERE method = 'manual' AND payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
+          ).bind(e.id, memberId),
+        );
       stmts.push(
         env.DB.prepare("UPDATE payments SET amount_due_cents = 0 WHERE event_id = ? AND member_id = ?").bind(
           e.id,

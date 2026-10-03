@@ -158,6 +158,23 @@ describe("settlement", () => {
     ]);
   });
 
+  it("leaves only the Owner's Venmo payment to refund when the Owner leaves", async () => {
+    const s = await scenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const jay = await payment(s, "Jay");
+    await env.DB.prepare(
+      `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)
+       VALUES ('txn-jay', 'Jay', 500, 'badminton', ?, 'unmatched', 'test')`,
+    )
+      .bind(new Date().toISOString())
+      .run();
+    const inbound = (await s.admin.call(`${s.base}/inbound`)).data.open[0];
+    await s.admin.call(`${s.base}/inbound/${inbound.id}/link`, { paymentId: jay.id });
+    const row = (await s.admin.call(s.eb)).data.roster.find((r: { name: string }) => r.name === "Jay").id;
+    expect((await s.admin.call(`${s.eb}/roster/${row}/remove`, {})).status).toBe(200);
+    expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 0, amountPaidCents: 500, refundCents: 500 });
+  });
+
   it("refuses roster changes after Finalize that would leave the fees unshared", async () => {
     const s = await scenario();
     await s.admin.call(`${s.eb}/finalize`, s.fees);
