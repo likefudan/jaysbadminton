@@ -5,6 +5,7 @@ import { EventPage } from "./pages/EventPage";
 import { AdminSetup } from "./pages/AdminSetup";
 import { Home } from "./pages/Home";
 import { Join } from "./pages/Join";
+import { Recover } from "./pages/Recover";
 import { Member, MemberProfilePage } from "./pages/Member";
 import { Account, AccountProfile } from "./pages/Account";
 import { Privacy, Terms } from "./pages/Legal";
@@ -19,6 +20,7 @@ function App() {
       <Router>
         <Route path="/" component={Home} />
         <Route path="/join" component={Join} />
+        <Route path="/recover" component={Recover} />
         <Route path="/login" component={Account} />
         <Route path="/me" component={Account} />
         <Route path="/me/profile" component={AccountProfile} />

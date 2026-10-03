@@ -41,8 +41,14 @@ export function futureDate(days: number): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(Date.now() + days * 86400_000));
 }
 
+/** A 用邮箱注册 body: the two names plus a fresh email, typed twice as the form requires. */
+export function joinBody(username: string, wechatNickname: string, extra: Record<string, unknown> = {}) {
+  const email = `${crypto.randomUUID().slice(0, 8)}@example.com`;
+  return { username, wechatNickname, email, emailConfirm: email, ...extra };
+}
+
 export async function approveMember(ctx: { admin: Client; base: string }, username: string) {
-  const { data: joined } = await new Client().call("/api/public/join", { username, wechatNickname: username });
+  const { data: joined } = await new Client().call("/api/public/join", joinBody(username, username));
   const { data } = await ctx.admin.call(`${ctx.base}/members/${joined.id}/approve`, {});
   return { id: joined.id as string, base: `/api/m/${tokenOf(data.link)}` };
 }

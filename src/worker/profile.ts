@@ -1,13 +1,13 @@
 import type { ActivityDay, MemberProfile } from "../shared/types";
 import { toPacific } from "../shared/time";
 import type { Env } from "./env";
-import { badRequest } from "./http";
-import type { MemberRow } from "./members";
+import { HttpError, badRequest } from "./http";
+import { emailTaken, type MemberRow } from "./members";
+import { checkEmail } from "../shared/rules";
 
 /** How far back the activity map goes (GitHub-style: about a year). */
 export const ACTIVITY_DAYS = 371;
 export const NOTE_MAX = 40;
-const EMAIL = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
 
 /**
  * 个人信息: the basics plus one entry per event the member signed up for themselves (friends
@@ -45,7 +45,11 @@ export async function memberProfile(env: Env, m: MemberRow, at: Date = new Date(
 /** Empty clears it (the Google email shows again, if there is one). */
 export async function setMemberEmail(env: Env, m: MemberRow, raw: string): Promise<void> {
   const email = raw.trim();
-  if (email && (email.length > 100 || !EMAIL.test(email))) throw badRequest("邮箱格式不对");
+  if (email) {
+    const err = checkEmail(email);
+    if (err) throw badRequest(err);
+    if (await emailTaken(env, email, m.id)) throw new HttpError(409, "email_taken", "这个邮箱已经被其他成员使用了");
+  }
   await env.DB.prepare("UPDATE members SET email = ? WHERE id = ?").bind(email || null, m.id).run();
 }
 

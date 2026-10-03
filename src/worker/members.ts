@@ -1,5 +1,5 @@
 import type { MemberStatus, MemberSummary } from "../shared/types";
-import { checkMessage, checkNickname, checkUsername } from "../shared/rules";
+import { checkEmail, checkMessage, checkNickname, checkUsername } from "../shared/rules";
 import { decryptToken, encryptToken, randomToken, sha256 } from "./lib/crypto";
 import { now } from "./db";
 import type { Env } from "./env";
@@ -25,6 +25,7 @@ export interface MemberRow {
   approval_email_sent_at: string | null;
   email: string | null;
   admin_note: string | null;
+  link_resent_at: string | null;
 }
 
 export const toSummary = (m: MemberRow): MemberSummary => ({
@@ -38,6 +39,7 @@ export const toSummary = (m: MemberRow): MemberSummary => ({
   deletedAt: m.deleted_at,
   hasLink: !!m.token_enc,
   googleEmail: m.google_sub ? m.google_email : null,
+  email: m.email,
   adminNote: m.admin_note ?? "",
   applicantName: m.applicant_name ?? "",
   wechatAccount: m.wechat_account ?? "",
@@ -70,16 +72,35 @@ export async function assertPendingRoom(env: Env): Promise<void> {
   }
 }
 
+/**
+ * One email address is one person, like one Google account: no other live member (pending
+ * included) may hold it as their email or Google email. Case doesn't matter.
+ */
+export async function emailTaken(env: Env, email: string, exceptId?: string): Promise<boolean> {
+  const row = await env.DB.prepare(
+    `SELECT id FROM members WHERE deleted_at IS NULL AND id IS NOT ?
+       AND (lower(email) = lower(?) OR (google_sub IS NOT NULL AND lower(google_email) = lower(?))) LIMIT 1`,
+  )
+    .bind(exceptId ?? null, email.trim(), email.trim())
+    .first();
+  return !!row;
+}
+
 const takenError = () => new HttpError(409, "username_taken", "这个用户名已被使用，请换一个");
 
 /** Inserts a member with the next never-reused ID. */
 export async function createMember(
   env: Env,
-  input: { username: string; wechatNickname: string; status: MemberStatus; isOwner?: boolean; googleSub?: string; googleEmail?: string; message?: string },
+  input: { username: string; wechatNickname: string; status: MemberStatus; isOwner?: boolean; googleSub?: string; googleEmail?: string; message?: string; email?: string },
 ): Promise<MemberRow> {
   validateNames(input.username, input.wechatNickname);
   const messageError = checkMessage(input.message ?? "");
   if (messageError) throw badRequest(messageError);
+  if (input.email !== undefined) {
+    const emailError = checkEmail(input.email);
+    if (emailError) throw badRequest(emailError);
+    if (await emailTaken(env, input.email)) throw new HttpError(409, "email_taken", "这个邮箱已经注册过了。已经是成员的话，可以用「找回我的专属链接」");
+  }
   if (await usernameTaken(env, input.username)) throw takenError();
   const seq = await env.DB.prepare(
     "UPDATE settings SET value = CAST(value AS INTEGER) + 1 WHERE key = 'next_member_seq' RETURNING value",
@@ -89,10 +110,10 @@ export async function createMember(
   const ts = now();
   try {
     await env.DB.prepare(
-      `INSERT INTO members (id, username, wechat_nickname, status, is_owner, requested_at, approved_at, google_sub, google_email, application_message)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO members (id, username, wechat_nickname, status, is_owner, requested_at, approved_at, google_sub, google_email, application_message, email)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(id, input.username.trim(), input.wechatNickname.trim(), input.status, input.isOwner ? 1 : 0, ts, input.status === "active" ? ts : null, input.googleSub ?? null, input.googleEmail ?? null, input.message?.trim() || null)
+      .bind(id, input.username.trim(), input.wechatNickname.trim(), input.status, input.isOwner ? 1 : 0, ts, input.status === "active" ? ts : null, input.googleSub ?? null, input.googleEmail ?? null, input.message?.trim() || null, input.email?.trim() || null)
       .run();
   } catch (e) {
     if (String(e).includes("UNIQUE")) throw takenError();

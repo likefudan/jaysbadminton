@@ -52,16 +52,31 @@ export function GoogleLink(props: { token: string }) {
 /** /me/profile: 个人信息 for the Google-signed-in member (the sign-in steps otherwise, as on /me). */
 export const AccountProfile = () => <Account page="profile" />;
 
+const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
+
+/** 登录 / 注册: the one way in for everyone — Google, or email (the link comes by email). */
+function SignIn(props: { googleEnabled: boolean }) {
+  const error = ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""];
+  return <Page title="登录 / 注册" subtitle="已经是成员就登录；新朋友在这里申请入群，管理员审核后就能报名。">
+    {error && <p class="error" role="alert">{error}</p>}
+    {props.googleEnabled && <Card title="用 Google 账号">
+      <p>第一次用 Google 登录时填写申请，审核通过后用同一个账号登录即可。</p>
+      {inWeChat() && <p class="hint">微信里可能无法使用 Google 登录：请点右上角「···」选择「在浏览器打开」，或者用下面的邮箱注册。</p>}
+      <button class="button block" onClick={() => window.location.assign("/api/auth/google")}>用 Google 登录 / 注册</button>
+      <p class="muted small">仅使用 Google 账号身份、邮箱和头像，不读取你的 Gmail 邮件。</p>
+    </Card>}
+    <Card title="用邮箱注册">
+      <p>审核通过后，专属链接会发到你的邮箱，以后用这个链接登录（在微信里也能直接打开）。</p>
+      <a class="button block" href="/join">用邮箱注册</a>
+    </Card>
+    <p class="center"><a href="/recover">已经是成员？找回我的专属链接</a></p>
+  </Page>;
+}
+
 export function Account(props: { page?: "profile" }) {
   const [session, reload] = useApi<Session>("/api/auth/session");
   return <Load result={session}>{(s) => {
-    if (!s.signedIn) return <Page title="登录" subtitle="使用 Google 账号报名，随时查看自己的活动和账单。">
-      <Card>
-        {ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""] && <p class="error" role="alert">{ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""]}</p>}
-        {s.enabled ? <button class="button block" onClick={() => window.location.assign("/api/auth/google")}>使用 Google 登录</button> : <p class="hint">网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。</p>}
-        <p class="muted small">仅使用 Google 账号身份、邮箱和头像，不读取你的 Gmail 邮件。</p>
-      </Card>
-    </Page>;
+    if (!s.signedIn) return <SignIn googleEnabled={s.enabled} />;
     if (s.pending) return <Page title="申请已提交" subtitle={`Google 账号：${s.email}`}>
       <Card>
         <p>管理员审核通过后，用这个 Google 账号登录就能报名活动、查看账单。</p>

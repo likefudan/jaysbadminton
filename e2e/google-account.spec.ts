@@ -37,7 +37,7 @@ test("signed-in users can inspect their Google account from the header and sign 
 test("signed-out users do not see a Google account badge", async ({ page }) => {
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: true, signedIn: false, email: null } }));
   await page.goto("/login");
-  await expect(page.getByRole("button", { name: "使用 Google 登录" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "用 Google 登录 / 注册" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Google 账号：/ })).toHaveCount(0);
 });
 

@@ -51,7 +51,7 @@ export function AdminGuide(props: { base: string }) {
   const s = useStatus(props.base);
   const host = location.hostname;
   const forward = `venmo@${host}`;
-  const join = `${location.origin}/join`;
+  const join = `${location.origin}/login`; // 登录 / 注册: Google or email
 
   return (
     <Card title="管理员指南">
@@ -79,7 +79,7 @@ export function AdminGuide(props: { base: string }) {
             <b>外观</b>：网站标题和配色。
           </Step>
           <Step>
-            <b>邀请成员</b>：把网站首页发到微信群，大家点「登录 / 我的活动」用 Google 账号申请（不用 Google 的人可以用「申请加入」）。在「待审核」里通过后：用 Google 申请的人直接登录就能报名；用「申请加入」的人，把专属链接或二维码私发给对方。
+            <b>邀请成员</b>：把网站首页发到微信群，大家点「登录 / 注册」，用 Google 账号或邮箱申请。在「待审核」里通过后：用 Google 申请的人直接登录就能报名；用邮箱注册的人会自动收到专属链接的邮件（没收到可以在成员列表重试，或者把链接私发给对方；成员自己也能在「找回我的专属链接」里再要一次）。
             <div class="inline-copy">
               <code>{join}</code> <CopyButton text={join} label="复制" />
             </div>

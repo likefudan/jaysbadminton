@@ -25,12 +25,12 @@ export function EventPage(props: { code?: string }) {
                 <EventInfo e={e} publicView />
                 <CalendarLinks e={e} />
               </Card>
-              {(member === "none" || member === "loading") && <p class="muted small">使用 Google 账号登录后即可报名。</p>}
+              {(member === "none" || member === "loading") && <p class="muted small">登录后即可报名；新朋友请先注册入群。</p>}
               {member === "pending" && <p class="muted small">你的入群申请正在等待管理员审核，通过后就能报名。</p>}
             </>
           )}
           <a class="button block" href="/me">
-            {member === "member" || member === "pending" ? "我的活动" : "登录 / 我的活动"}
+            {member === "member" || member === "pending" ? "我的活动" : "登录 / 注册"}
           </a>
           <a class="button secondary block" href="/">
             所有活动

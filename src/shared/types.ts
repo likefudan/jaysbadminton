@@ -13,6 +13,8 @@ export interface MemberSummary {
   hasLink: boolean;
   /** The Google account a member signs in with, if any (shown so the admin knows who applied). */
   googleEmail: string | null;
+  /** The email they registered with or entered in 个人信息; links are sent here. */
+  email?: string | null;
   applicantName?: string;
   wechatAccount?: string;
   /** 给管理员的留言, written with the application; "" when none. */
@@ -42,6 +44,8 @@ export interface ApproveResponse {
   emailStatus?: ApprovalEmailStatus;
   link: string | null;
   googleEmail: string | null;
+  /** Registered with email: where the link was sent. */
+  email?: string | null;
 }
 
 /** One event on the 个人信息 activity map (the member's own sign-up, not friends). */

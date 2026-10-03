@@ -25,7 +25,8 @@ describe("个人信息", () => {
 
     const { status, data } = await anon.call(`${alice.base}/profile`);
     expect(status).toBe(200);
-    expect(data).toMatchObject({ id: alice.id, username: "Alice", wechatNickname: "Alice", email: null, emailFromGoogle: false });
+    expect(data).toMatchObject({ id: alice.id, username: "Alice", wechatNickname: "Alice", emailFromGoogle: false });
+    expect(data.email).toMatch(/@example\.com$/); // the address she registered with
     expect(Date.parse(data.joinedAt)).toBeGreaterThan(Date.now() - 60_000);
     expect(data).not.toHaveProperty("adminNote");
     expect(data.activity.map((a: { date: string; status: string }) => [a.date, a.status])).toEqual([
@@ -39,7 +40,7 @@ describe("个人信息", () => {
   it("lets the member set their own email, falling back to the Google one when cleared", async () => {
     const ctx = await setUpAdmin();
     const alice = await approveMember(ctx, "Alice");
-    await env.DB.prepare("UPDATE members SET google_email = 'alice@gmail.com' WHERE id = ?").bind(alice.id).run();
+    await env.DB.prepare("UPDATE members SET email = NULL, google_email = 'alice@gmail.com' WHERE id = ?").bind(alice.id).run();
     expect((await anon.call(`${alice.base}/profile`)).data).toMatchObject({ email: "alice@gmail.com", emailFromGoogle: true });
 
     expect((await anon.call(`${alice.base}/email`, { email: "not-an-email" })).status).toBe(400);
@@ -48,6 +49,17 @@ describe("个人信息", () => {
 
     await anon.call(`${alice.base}/email`, { email: "" });
     expect((await anon.call(`${alice.base}/profile`)).data).toMatchObject({ email: "alice@gmail.com", emailFromGoogle: true });
+  });
+
+  it("keeps each email to one person", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    const bob = await approveMember(ctx, "Bob");
+    expect((await anon.call(`${alice.base}/email`, { email: "shared@work.com" })).status).toBe(200);
+    const taken = await anon.call(`${bob.base}/email`, { email: "Shared@Work.com" });
+    expect(taken.status).toBe(409);
+    expect(taken.data.error.code).toBe("email_taken");
+    expect((await anon.call(`${alice.base}/email`, { email: "SHARED@work.com" })).status).toBe(200); // her own, any case
   });
 
   it("gives the admin the same view plus a private 备注名", async () => {
