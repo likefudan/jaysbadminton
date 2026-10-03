@@ -53,15 +53,16 @@ jobs:
       - name: Playwright version
         id: pw
         run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
-      # Only the browser download is needed: the runner image already has Chromium's system
-      # libraries, and the extra fonts install-deps adds don't matter to tests that check text.
+      # A cached browser needs no system packages (12s of apt): the runner image already has
+      # Chromium's libraries, and the extra fonts don't matter to tests that check text.
+      # A cache miss (new Playwright version) installs both, so it never depends on that.
       - uses: actions/cache@v6
         id: pw-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium
+        run: npx playwright install --with-deps chromium
       - name: Browser tests (main flows on a local Worker)
         run: npx playwright test
         env:
