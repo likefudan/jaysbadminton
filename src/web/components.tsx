@@ -1,4 +1,4 @@
-import type { ComponentChildren } from "preact";
+import type { AccessibleInputHTMLAttributes, ComponentChildren, HTMLInputTypeAttribute } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import type { Loaded } from "./hooks";
 import { AppearanceButton, AppearanceSheet } from "./Appearance";
@@ -122,7 +122,7 @@ export function Field(props: {
   label: string;
   value: string;
   onInput: (v: string) => void;
-  type?: string;
+  type?: HTMLInputTypeAttribute;
   hint?: string;
   autocomplete?: string;
 }) {
@@ -130,7 +130,8 @@ export function Field(props: {
     <label class="field">
       <span>{props.label}</span>
       <input
-        type={props.type ?? "text"}
+        // Preact 11 types <input> as a union keyed on `type`, which a variable `type` can't satisfy.
+        {...({ type: props.type ?? "text" } as AccessibleInputHTMLAttributes)}
         value={props.value}
         autocomplete={props.autocomplete}
         onInput={(e) => props.onInput((e.target as HTMLInputElement).value)}
