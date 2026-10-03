@@ -5,14 +5,13 @@ import { formatDateZh } from "../../shared/time";
 import type { MeResponse, MemberProfile, MyEvent, MyEventsResponse, MyHistoryEvent, PaymentStatus } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, Load, Page, SectionTitle, useAction } from "../components";
-import { CalendarLinks } from "../Calendar";
 import { EventInfo } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { ProfileCard } from "../Profile";
 import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
-import { EventShareRow } from "../ShareCard";
+import { EventActions } from "../ShareCard";
 import { MyStatsCard } from "../Stats";
 import { GoogleLink } from "./Account";
 
@@ -212,10 +211,10 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
           <p class="ok">
             ✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}
           </p>
-          <CalendarLinks e={e} />
         </>
       )}
       {!signedUp && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
+      {!editing && <EventActions e={e} calendar={signedUp && !e.payment} />}
       {e.canEdit && editing && (
         <>
           <FriendsEditor friends={friends} max={props.cap} onChange={setFriends} />
@@ -249,7 +248,6 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
       )}
       {!e.canEdit && e.status === "closed" && signedUp && <p class="muted small">报名已截止，需要修改请联系管理员。费用会在活动后公布。</p>}
       {e.payment && <PaymentBox p={e.payment} />}
-      <EventShareRow e={e} />
     </Card>
   );
 }
