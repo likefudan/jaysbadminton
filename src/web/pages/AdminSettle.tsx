@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { dollars, type Settlement } from "../../shared/settle";
+import { dollars, parseDollars, type Settlement } from "../../shared/settle";
 import type { EventDetail, PaymentRow, Receipt, SettlementView } from "../../shared/types";
 import { ReceiptList } from "./AdminInbound";
 import { api } from "../api";
@@ -23,7 +23,12 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
     if (r) setPreview(r);
   }
   // Nobody marked as attended: the shuttle cost has nobody to split it, so it is quietly dropped.
-  const noShuttleShare = !!preview && preview.attended === 0 && Number(count) > 0 && Number(price) > 0;
+  // Read from the roster, which reloads when attendance changes (a preview can be out of date).
+  const noShuttleShare =
+    props.e.roster.length > 0 &&
+    props.e.roster.every((r) => !r.attended) &&
+    Number(count) > 0 &&
+    (parseDollars(price) ?? 0) > 0;
   async function doFinalize() {
     const msg =
       (noShuttleShare ? "所有人都标成了未出席，球费不会算进任何人的账单。\n" : "") +

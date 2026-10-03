@@ -196,11 +196,9 @@ async function openEventFor(c: { env: import("../env").Env; get: (k: "member") =
 memberRoutes.post("/:token/events/:id/signup", async (c) => {
   const e = await openEventFor(c, c.req.param("id"));
   const body = await readJson(c.req.raw);
-  // Friends already on the list stay even above the cap (the Owner may have added them); only adding more is refused.
-  const cap = ownerRules(c.get("member"))
-    ? null
-    : Math.max(await friendCap(c.env), await friendCount(c.env, e.id, c.get("member").id));
-  const friends = validateFriends(body.friends ?? [], cap);
+  const m = c.get("member");
+  const [cap, keep] = ownerRules(m) ? [null, 0] : await Promise.all([friendCap(c.env), friendCount(c.env, e.id, m.id)]);
+  const friends = validateFriends(body.friends ?? [], cap, keep);
   await setSignup(c.env, e.id, c.get("member").id, friends, false);
   return c.json({ ok: true });
 });

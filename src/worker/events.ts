@@ -357,10 +357,14 @@ export async function removeSignup(env: Env, eventId: number, memberId: string):
   await env.DB.prepare("DELETE FROM registrations WHERE event_id = ? AND member_id = ?").bind(eventId, memberId).run();
 }
 
-export function validateFriends(raw: unknown, cap: number | null): string[] {
+/** keep: friends already on the list, which may stay even above the cap (the Owner may have added them). */
+export function validateFriends(raw: unknown, cap: number | null, keep = 0): string[] {
   if (!Array.isArray(raw)) throw badRequest("朋友名单格式不对");
   const friends = raw.map((f) => (typeof f === "string" ? f : ""));
-  if (cap !== null && friends.length > cap) throw badRequest(`最多带 ${cap} 个朋友`);
-  if (friends.length > 20) throw badRequest("朋友太多了");
+  if (cap !== null && friends.length > Math.max(cap, keep))
+    throw badRequest(
+      keep > cap ? `最多带 ${cap} 个朋友；现在的 ${keep} 个可以保留，但不能再加` : `最多带 ${cap} 个朋友`,
+    );
+  if (friends.length > Math.max(20, keep)) throw badRequest("朋友太多了");
   return friends;
 }

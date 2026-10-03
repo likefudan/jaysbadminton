@@ -134,6 +134,9 @@ describe("member sign-up", () => {
     expect((await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["a", "b", "c"] })).status).toBe(200);
     const more = await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["a", "b", "c", "d"] });
     expect(more.data.error.message).toBe("最多带 3 个朋友");
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: bob.id, friends: ["d"] });
+    const six = await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["a", "b", "c", "d", "e"] });
+    expect(six.data.error.message).toBe("最多带 3 个朋友；现在的 4 个可以保留，但不能再加");
   });
 
   it("locks members out after the deadline, until the Owner reopens", async () => {
