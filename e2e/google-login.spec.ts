@@ -62,7 +62,7 @@ test("a Google newcomer applies, waits for approval, then gets in and can sign o
     route.fulfill({ json: { enabled: true, signedIn, email: "alice@gmail.com", hasMember: approved, pending: applied && !approved } }),
   );
   await page.route("**/api/auth/register", async (route) => {
-    expect(route.request().postDataJSON()).toEqual({ username: "Alice", applicantName: "Alice 身份", wechatAccount: "alice_wechat" });
+    expect(route.request().postDataJSON()).toEqual({ username: "Alice", wechatNickname: "alice_wx", message: "" });
     applied = true;
     await route.fulfill({ json: { id: "M999", pending: true } });
   });
@@ -72,9 +72,9 @@ test("a Google newcomer applies, waits for approval, then gets in and can sign o
   await page.route("**/api/auth/logout", async (route) => { signedIn = false; await route.fulfill({ json: { ok: true } }); });
   await page.goto("/me");
   await expect(page.getByRole("heading", { name: "申请加入" })).toBeVisible();
-  await page.getByLabel(/^群内用户名/).fill("Alice");
-  await page.getByLabel(/^你是谁/).fill("Alice 身份");
-  await page.getByLabel(/^微信账号/).fill("alice_wechat");
+  // Same form as 申请加入: two names, the note is optional.
+  await page.getByLabel(/^用户名/).fill("Alice");
+  await page.getByLabel(/^微信名/).fill("alice_wx");
   await page.getByRole("button", { name: "提交入群申请" }).click();
 
   // Not in yet: the Owner has to approve first.

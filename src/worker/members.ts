@@ -1,5 +1,5 @@
 import type { MemberStatus, MemberSummary } from "../shared/types";
-import { checkNickname, checkUsername } from "../shared/rules";
+import { checkMessage, checkNickname, checkUsername } from "../shared/rules";
 import { decryptToken, encryptToken, randomToken, sha256 } from "./lib/crypto";
 import { now } from "./db";
 import type { Env } from "./env";
@@ -20,6 +20,7 @@ export interface MemberRow {
   google_email: string | null;
   applicant_name: string | null;
   wechat_account: string | null;
+  application_message: string | null;
   approval_email_status: string | null;
   approval_email_sent_at: string | null;
   email: string | null;
@@ -40,6 +41,7 @@ export const toSummary = (m: MemberRow): MemberSummary => ({
   adminNote: m.admin_note ?? "",
   applicantName: m.applicant_name ?? "",
   wechatAccount: m.wechat_account ?? "",
+  applicationMessage: m.application_message ?? "",
   approvalEmailStatus: m.approval_email_status ?? null,
   owingCents: 0,
 });
@@ -73,9 +75,11 @@ const takenError = () => new HttpError(409, "username_taken", "这个用户名�
 /** Inserts a member with the next never-reused ID. */
 export async function createMember(
   env: Env,
-  input: { username: string; wechatNickname: string; status: MemberStatus; isOwner?: boolean; googleSub?: string; googleEmail?: string; applicantName?: string; wechatAccount?: string },
+  input: { username: string; wechatNickname: string; status: MemberStatus; isOwner?: boolean; googleSub?: string; googleEmail?: string; message?: string },
 ): Promise<MemberRow> {
   validateNames(input.username, input.wechatNickname);
+  const messageError = checkMessage(input.message ?? "");
+  if (messageError) throw badRequest(messageError);
   if (await usernameTaken(env, input.username)) throw takenError();
   const seq = await env.DB.prepare(
     "UPDATE settings SET value = CAST(value AS INTEGER) + 1 WHERE key = 'next_member_seq' RETURNING value",
@@ -85,10 +89,10 @@ export async function createMember(
   const ts = now();
   try {
     await env.DB.prepare(
-      `INSERT INTO members (id, username, wechat_nickname, status, is_owner, requested_at, approved_at, google_sub, google_email, applicant_name, wechat_account)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO members (id, username, wechat_nickname, status, is_owner, requested_at, approved_at, google_sub, google_email, application_message)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(id, input.username.trim(), input.wechatNickname.trim(), input.status, input.isOwner ? 1 : 0, ts, input.status === "active" ? ts : null, input.googleSub ?? null, input.googleEmail ?? null, input.applicantName ?? null, input.wechatAccount ?? null)
+      .bind(id, input.username.trim(), input.wechatNickname.trim(), input.status, input.isOwner ? 1 : 0, ts, input.status === "active" ? ts : null, input.googleSub ?? null, input.googleEmail ?? null, input.message?.trim() || null)
       .run();
   } catch (e) {
     if (String(e).includes("UNIQUE")) throw takenError();

@@ -5,7 +5,15 @@ import { requireMember, type MemberRow } from "./members";
 import { escapeHtml, sendToOwner } from "./telegram";
 
 export async function sendApplicationNotice(env: Env, m: MemberRow): Promise<boolean> {
-  return sendToOwner(env, escapeHtml(`新成员申请待审核\n你是谁：${m.applicant_name}\n微信账号：${m.wechat_account}\n群内用户名：${m.username}\nGoogle 邮箱：${m.google_email}\n请在管理页「待审核」处理。`));
+  const lines = [
+    "新成员申请待审核",
+    `用户名：${m.username}`,
+    `微信名：${m.wechat_nickname}`,
+    m.google_email ? `Google 邮箱：${m.google_email}` : "",
+    m.application_message ? `留言：${m.application_message}` : "",
+    "请在管理页「待审核」处理。",
+  ];
+  return sendToOwner(env, escapeHtml(lines.filter(Boolean).join("\n")));
 }
 
 /** Approval remains effective even if the email provider is unavailable. Admins can retry. */

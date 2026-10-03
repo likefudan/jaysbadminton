@@ -9,6 +9,7 @@ import { HttpError, readJson, str } from "../http";
 import { isStaging, siteTheme, siteTitle } from "../site";
 import { leaderboard } from "../stats";
 import { assertPendingRoom, createMember } from "../members";
+import { sendApplicationNotice } from "../approvalEmail";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
@@ -63,8 +64,10 @@ publicRoutes.post("/join", async (c) => {
   const m = await createMember(c.env, {
     username: str(body.username),
     wechatNickname: str(body.wechatNickname),
+    message: str(body.message),
     status: "pending",
   });
+  try { await sendApplicationNotice(c.env, m); } catch { /* The admin queue remains authoritative if Telegram is unavailable. */ }
   return c.json({ ok: true, id: m.id });
 });
 

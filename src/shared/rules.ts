@@ -2,6 +2,7 @@
 
 export const USERNAME_MAX = 20;
 export const NICKNAME_MAX = 30;
+export const MESSAGE_MAX = 200;
 export const PASSWORD_MIN = 8;
 
 export function checkUsername(raw: string): string | null {
@@ -14,9 +15,14 @@ export function checkUsername(raw: string): string | null {
 
 export function checkNickname(raw: string): string | null {
   const name = raw.trim();
-  if (!name) return "请填写微信昵称";
-  if ([...name].length > NICKNAME_MAX) return `微信昵称最多 ${NICKNAME_MAX} 个字`;
+  if (!name) return "请填写微信名";
+  if ([...name].length > NICKNAME_MAX) return `微信名最多 ${NICKNAME_MAX} 个字`;
   return null;
+}
+
+/** 给管理员的留言: optional. */
+export function checkMessage(raw: string): string | null {
+  return [...raw.trim()].length > MESSAGE_MAX ? `留言最多 ${MESSAGE_MAX} 个字` : null;
 }
 
 export function checkPassword(raw: string): string | null {

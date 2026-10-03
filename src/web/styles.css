@@ -224,6 +224,7 @@ h2 {
   }
 }
 .field input,
+.field textarea,
 select,
 .field select {
   display: block;
@@ -241,6 +242,7 @@ select,
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .field input:focus,
+.field textarea:focus,
 select:focus {
   border-color: var(--acc);
   box-shadow: 0 0 0 3px var(--acc-soft);
@@ -2753,4 +2755,17 @@ a.back {
   border-color: var(--acc);
   background: transparent;
   color: var(--acc);
+}
+.application-message {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.field textarea {
+  min-height: 76px;
+  padding: 10px 14px;
+  font: inherit;
+  resize: vertical;
 }

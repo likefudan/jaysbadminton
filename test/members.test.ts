@@ -28,6 +28,19 @@ describe("join requests", () => {
     const res = await anon.call("/api/public/join", { username: "  ", wechatNickname: "x" });
     expect(res.status).toBe(400);
     expect(res.data.error.message).toBe("请填写用户名");
+    expect((await anon.call("/api/public/join", { username: "Dan", wechatNickname: " " })).data.error.message).toBe("请填写微信名");
+    expect((await anon.call("/api/public/join", { username: "Dan", wechatNickname: "d", message: "长".repeat(201) })).data.error.message).toBe("留言最多 200 个字");
+  });
+
+  it("keeps the optional note to the admin and shows it in the queue", async () => {
+    const ctx = await setUpAdmin();
+    await anon.call("/api/public/join", { username: "Erin", wechatNickname: "erin_wx", message: "小明介绍的" });
+    await anon.call("/api/public/join", { username: "Finn", wechatNickname: "finn" });
+    const pending = (await ctx.admin.call(`${ctx.base}/members`)).data.pending;
+    expect(pending.map((m: { username: string; applicationMessage: string }) => [m.username, m.applicationMessage])).toEqual([
+      ["Erin", "小明介绍的"],
+      ["Finn", ""],
+    ]);
   });
 
   it("silently drops honeypot submissions", async () => {
