@@ -199,6 +199,23 @@ export async function addReceipt(
   return (ins?.meta.changes ?? 0) > 0;
 }
 
+/**
+ * 标记已付: a manual receipt for whatever is still owed, worked out inside the same transaction,
+ * so a second click (another tab, a retried request) finds nothing owed and adds nothing.
+ * Returns false when the bill was already paid.
+ */
+export async function markPaid(env: Env, paymentId: number): Promise<boolean> {
+  const [ins] = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
+       SELECT id, amount_due_cents - amount_paid_cents, 'manual', ? FROM payments
+       WHERE id = ? AND amount_paid_cents < amount_due_cents`,
+    ).bind(now(), paymentId),
+    ...syncPayments(env.DB, "id = ?", paymentId),
+  ]);
+  return (ins?.meta.changes ?? 0) > 0;
+}
+
 export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<number, Receipt[]>> {
   const out = new Map<number, Receipt[]>();
   if (paymentIds.length === 0) return out;
