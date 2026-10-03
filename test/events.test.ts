@@ -139,6 +139,51 @@ describe("member sign-up", () => {
     expect(six.data.error.message).toBe("最多带 3 个朋友；现在的 4 个可以保留，但不能再加");
   });
 
+  it("keeps each friend on their own row when the Owner removed one in the middle", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    const eb = `${ctx.base}/events/${e.id}`;
+    const bob = await approveMember(ctx, "Bob");
+    await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["a", "", ""] });
+    const rows = () =>
+      env.DB.prepare(
+        "SELECT friend_index, friend_name, attended FROM registrations WHERE event_id = ? AND member_id = ? ORDER BY friend_index",
+      )
+        .bind(e.id, bob.id)
+        .all<{ friend_index: number; friend_name: string | null; attended: number }>()
+        .then((r) => r.results);
+    const [, , second, third] = await rows();
+    await ctx.admin.call(
+      `${eb}/roster/${(await env.DB.prepare("SELECT id FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index = ?").bind(e.id, bob.id, second!.friend_index).first<{ id: number }>())!.id}/remove`,
+      {},
+    );
+    await ctx.admin.call(`${eb}/attendance`, {
+      registrationId: (await env.DB.prepare(
+        "SELECT id FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index = ?",
+      )
+        .bind(e.id, bob.id, third!.friend_index)
+        .first<{ id: number }>())!.id,
+      attended: false,
+    });
+    // Bob renames his first friend; the third keeps number 3 and its 未到 mark.
+    await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["Amy", ""] });
+    expect(await rows()).toEqual([
+      { friend_index: 0, friend_name: null, attended: 1 },
+      { friend_index: 1, friend_name: "Amy", attended: 1 },
+      { friend_index: 3, friend_name: null, attended: 0 },
+    ]);
+    // A new friend goes after the last one; dropping one removes the last.
+    await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["Amy", "", "Cat"] });
+    expect((await rows()).map((r) => [r.friend_index, r.friend_name])).toEqual([
+      [0, null],
+      [1, "Amy"],
+      [3, null],
+      [4, "Cat"],
+    ]);
+    await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["Amy"] });
+    expect((await rows()).map((r) => r.friend_index)).toEqual([0, 1]);
+  });
+
   it("locks members out after the deadline, until the Owner reopens", async () => {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx);
@@ -466,6 +511,18 @@ describe("我的报名 (the Owner signs up from the admin page)", () => {
     ).toBe(200);
     expect((await ctx.admin.call(`${eb}/self-signup`, { friends: ["x"] })).status).toBe(400);
     expect((await ctx.admin.call(`${eb}/self-cancel`, {})).status).toBe(400);
+  });
+
+  it("keeps more than 20 friends the Owner added from 添加人员", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx); // 我自己也报名 is ticked by default
+    const eb = `${ctx.base}/events/${e.id}`;
+    const owner = (await ctx.admin.call(`${ctx.base}/members`)).data.active[0].id;
+    const names = Array.from({ length: 22 }, (_, i) => `f${i + 1}`);
+    await ctx.admin.call(`${eb}/roster/add`, { memberId: owner, friends: names.slice(0, 20) });
+    await ctx.admin.call(`${eb}/roster/add`, { memberId: owner, friends: names.slice(20) });
+    expect((await ctx.admin.call(`${eb}/self-signup`, { friends: names })).status).toBe(200);
+    expect((await ctx.admin.call(`${eb}/self-signup`, { friends: [...names, "f23"] })).status).toBe(400);
   });
 
   it("has the same rules when the Owner signs up from their own member page (Google)", async () => {

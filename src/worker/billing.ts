@@ -5,6 +5,7 @@ import { notifyCollected, notifyFinalized } from "./notify";
 import { paymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
+import { badRequest } from "./http";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
   return toSettleRows(await roster(env, eventId));
@@ -29,14 +30,20 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
  * amounts, paid ones included, so a corrected fee is shared by everyone: a member who already paid
  * the old amount ends up owing the difference (partial) or due a refund. The Owner's own bill is
  * always paid in full with one manual receipt that tracks the amount. A member who left the roster
- * loses a row that has received nothing.
+ * loses a bill that never received anything; one with payments on it (even if all refunded) is
+ * kept at nothing owed, so its history stays and linked Venmo payments still point at it.
  */
 export async function applySettlement(env: Env, e: EventRow, input: SettleInput): Promise<Settlement> {
   const result = settle(await settleRows(env, e.id), input);
   const ts = now();
-  const { results: existing } = await env.DB.prepare("SELECT member_id, status FROM payments WHERE event_id = ?")
+  const { results: existing } = await env.DB.prepare(
+    `SELECT member_id, status,
+       EXISTS (SELECT 1 FROM payment_receipts r WHERE r.payment_id = payments.id) AS has_receipts,
+       EXISTS (SELECT 1 FROM payment_receipts r WHERE r.payment_id = payments.id AND r.method != 'manual') AS has_others
+     FROM payments WHERE event_id = ?`,
+  )
     .bind(e.id)
-    .all<{ member_id: string; status: string }>();
+    .all<{ member_id: string; status: string; has_receipts: number; has_others: number }>();
   const people = await env.DB.prepare(
     `SELECT id, username, is_owner FROM members WHERE is_owner = 1 OR id IN (SELECT member_id FROM registrations WHERE event_id = ?)`,
   )
@@ -45,6 +52,7 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   const ownerIds = new Set(people.results.filter((p) => p.is_owner === 1).map((p) => p.id));
   const usernames = new Map(people.results.map((p) => [p.id, p.username]));
   const prev = new Map(existing.map((p) => [p.member_id, p.status]));
+  const history = new Map(existing.map((p) => [p.member_id, p]));
   const billed = new Set(result.bills.map((b) => b.memberId));
 
   const stmts: D1PreparedStatement[] = [
@@ -93,23 +101,28 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
         ),
       );
       if (ownerIds.has(b.memberId)) {
-        // The Owner pays themselves, so their receipt is redone at the new amount.
+        // The Owner pays themselves, so their manual receipt is redone at the new amount, less
+        // anything else on the bill (a Venmo payment linked to it stays, with its refunds).
         stmts.push(
           env.DB.prepare(
-            "DELETE FROM payment_receipts WHERE payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
+            "DELETE FROM payment_receipts WHERE method = 'manual' AND payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
           ).bind(e.id, b.memberId),
           env.DB.prepare(
             `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
-             SELECT id, amount_due_cents, 'manual', ? FROM payments WHERE event_id = ? AND member_id = ?`,
+             SELECT id, amount_due_cents - (SELECT COALESCE(SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id),
+               'manual', ?
+             FROM payments WHERE event_id = ? AND member_id = ?
+               AND amount_due_cents > (SELECT COALESCE(SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id)`,
           ).bind(ts, e.id, b.memberId),
         );
       }
     }
   }
-  for (const [memberId, status] of prev) {
+  for (const memberId of prev.keys()) {
     if (billed.has(memberId)) continue;
-    if (status === "unpaid" || ownerIds.has(memberId)) {
-      // Unpaid means no receipts, and the Owner's are their own, so nothing is lost.
+    const h = history.get(memberId)!;
+    if (!h.has_receipts || (ownerIds.has(memberId) && !h.has_others)) {
+      // Nothing was ever received, or only the Owner's own manual receipts: nothing is lost.
       stmts.push(
         env.DB.prepare(
           "DELETE FROM payment_receipts WHERE payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
@@ -117,7 +130,15 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
         env.DB.prepare("DELETE FROM payments WHERE event_id = ? AND member_id = ?").bind(e.id, memberId),
       );
     } else {
-      // Paid something but no longer on the roster: owes nothing, so all of it is a refund.
+      // Paid something but no longer on the roster: owes nothing, so whatever is kept is a refund.
+      // "Unpaid" is not enough to drop it: a payment refunded in full nets to unpaid too.
+      if (ownerIds.has(memberId))
+        // The Owner's own manual receipts only ever matched their share, which is now nothing.
+        stmts.push(
+          env.DB.prepare(
+            "DELETE FROM payment_receipts WHERE method = 'manual' AND payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
+          ).bind(e.id, memberId),
+        );
       stmts.push(
         env.DB.prepare("UPDATE payments SET amount_due_cents = 0 WHERE event_id = ? AND member_id = ?").bind(
           e.id,
@@ -142,6 +163,31 @@ export async function finalize(env: Env, e: EventRow, input: SettleInput): Promi
   ]);
   if (first) await notifyFinalized(env, e);
   await checkCollected(env, e.id);
+}
+
+/**
+ * After Finalize the fees are fixed, so a roster or attendance change must still leave someone to
+ * share them. Refused when the change would leave nobody to split the shuttles, or empty a list
+ * that has a court fee; recomputing would otherwise quietly drop that cost (and an emptied event
+ * would archive itself). If that is really what happened, the fees are corrected first.
+ */
+export async function assertCostsShared(
+  env: Env,
+  e: EventRow,
+  change: (list: RosterEntry[]) => RosterEntry[],
+): Promise<void> {
+  if (e.status !== "finalized") return;
+  const input = await savedInput(env, e.id);
+  if (!input) return;
+  const before = await roster(env, e.id);
+  const after = change(before);
+  const shuttles = input.shuttleCount * input.shuttlePriceCents;
+  if (before.length > 0 && after.length === 0 && (input.courtTotalCents > 0 || shuttles > 0))
+    throw badRequest(
+      "已经结算的活动不能把名单删空，否则费用没人分摊。如果活动其实没办成，请先在下面把费用都改成 0 并保存",
+    );
+  if (shuttles > 0 && before.some((r) => r.attended) && after.length > 0 && !after.some((r) => r.attended))
+    throw badRequest("这样就没有人到场了，球费没人分摊。如果确实没人用球，请先在下面把用球个数改成 0 并保存");
 }
 
 /** After any roster, attendance or fee change on a finalized event, refresh the amounts. */
