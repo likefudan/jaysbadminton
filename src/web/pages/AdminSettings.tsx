@@ -44,7 +44,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
   if (sub === "sheets") {
     return (
       <>
-        <button class="back" onClick={() => setSub(null)}>
+        <button type="button" class="back" onClick={() => setSub(null)}>
           ‹ 设置
         </button>
         <SheetsCard base={props.base} />
@@ -61,7 +61,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
       <RemindersCard base={props.base} />
       <ExportCard base={props.base} />
       <Card>
-        <button class="menu-row" onClick={() => setSub("sheets")}>
+        <button type="button" class="menu-row" onClick={() => setSub("sheets")}>
           <span>
             <strong>Google 表格同步</strong>
             <small>每天把数据备份到你自己的 Google 表格</small>
@@ -82,7 +82,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
           <Field label="新密码" type="password" value={next} onInput={setNext} autocomplete="new-password" />
           <Field label="再输一次新密码" type="password" value={again} onInput={setAgain} autocomplete="new-password" />
           {pw.error && <p class="error">{pw.error}</p>}
-          <button class="button block" disabled={pw.busy}>
+          <button type="submit" class="button block" disabled={pw.busy}>
             保存新密码
           </button>
           <p class="muted small">
@@ -102,14 +102,14 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
           <>
             <p class="muted">怀疑管理链接泄露时，重新生成一个。</p>
             {link.error && <p class="error">{link.error}</p>}
-            <button class="button secondary block" disabled={link.busy} onClick={rotate}>
+            <button type="button" class="button secondary block" disabled={link.busy} onClick={rotate}>
               重新生成管理链接
             </button>
           </>
         )}
       </Card>
       <BackupKey base={props.base} />
-      <button class="button secondary block" onClick={logout}>
+      <button type="button" class="button secondary block" onClick={logout}>
         退出登录
       </button>
       <AdminGuide base={props.base} />
@@ -150,7 +150,7 @@ function BackupKey(props: { base: string }) {
             autocomplete="current-password"
           />
           {error && <p class="error">{error}</p>}
-          <button class="button secondary block" disabled={busy || !password}>
+          <button type="submit" class="button secondary block" disabled={busy || !password}>
             发送到 Telegram
           </button>
         </form>
@@ -183,7 +183,7 @@ function ResetAll(props: { base: string }) {
       {!open ? (
         <>
           <p class="muted small">把网站重置成全新状态。只保留管理密码，清空后用它在 /admin 重新做初次设置。</p>
-          <button class="button danger block" onClick={start}>
+          <button type="button" class="button danger block" onClick={start}>
             清空所有数据
           </button>
         </>
@@ -199,7 +199,7 @@ function ResetAll(props: { base: string }) {
             autocomplete="current-password"
           />
           {error && <p class="error">{error}</p>}
-          <button class="button danger block" disabled={busy || phrase !== RESET_PHRASE || !password}>
+          <button type="submit" class="button danger block" disabled={busy || phrase !== RESET_PHRASE || !password}>
             确认清空
           </button>
           <button class="button secondary block" type="button" onClick={() => setOpen(false)}>
@@ -256,6 +256,7 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
         hint="显示在每个页面顶部和浏览器标签上"
       />
       <button
+        type="button"
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
@@ -275,6 +276,7 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
         <input
           type="checkbox"
           role="switch"
+          aria-checked={board}
           checked={board}
           disabled={busy}
           onChange={(e) => toggleBoard((e.target as HTMLInputElement).checked)}
@@ -303,6 +305,7 @@ function SignupCard(props: { base: string; initial: GeneralSettings }) {
       />
       {error && <p class="error">{error}</p>}
       <button
+        type="button"
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
@@ -350,7 +353,7 @@ function PaymentCard(props: { base: string }) {
               <dt>Zelle</dt>
               <dd>{v.zelleAccount || "（未填）"}</dd>
             </dl>
-            <button class="link-button" onClick={() => setEditing(true)}>
+            <button type="button" class="link-button" onClick={() => setEditing(true)}>
               🔒 修改收款设置（需要管理密码）
             </button>
           </Card>
@@ -405,7 +408,7 @@ function PaymentForm(props: {
           hint="为防止误改，保存收款设置需要输入管理密码"
         />
         {error && <p class="error">{error}</p>}
-        <button class="button block" disabled={busy || !password}>
+        <button type="submit" class="button block" disabled={busy || !password}>
           保存收款设置
         </button>
         {props.onCancel && (
@@ -487,7 +490,7 @@ function GoogleAdminCard(props: { base: string; viaGoogle: boolean }) {
                 就能直接进入管理页，不用链接和密码。
               </p>
               {error && <p class="error">{error}</p>}
-              <button class="button secondary block" disabled={busy} onClick={unbind}>
+              <button type="button" class="button secondary block" disabled={busy} onClick={unbind}>
                 解除绑定
               </button>
             </>
@@ -506,11 +509,11 @@ function GoogleAdminCard(props: { base: string; viaGoogle: boolean }) {
               ) : null}
               {error && <p class="error">{error}</p>}
               {g.current && !g.current.holder ? (
-                <button class="button block" disabled={busy} onClick={bind}>
+                <button type="button" class="button block" disabled={busy} onClick={bind}>
                   绑定 {g.current.email}
                 </button>
               ) : (
-                <button class="button secondary block" onClick={signIn}>
+                <button type="button" class="button secondary block" onClick={signIn}>
                   {g.current ? "换一个 Google 账号" : "先登录 Google"}
                 </button>
               )}

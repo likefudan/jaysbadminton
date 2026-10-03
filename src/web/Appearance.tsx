@@ -11,7 +11,7 @@ const MODES: { id: Mode; label: string }[] = [
 /** The 「外观」 button in the top bar. */
 export function AppearanceButton(props: { onClick: () => void }) {
   return (
-    <button class="appearance-btn" aria-label="外观" onClick={props.onClick}>
+    <button type="button" class="appearance-btn" aria-label="外观" onClick={props.onClick}>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
         <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6" />
         <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" />
@@ -46,18 +46,20 @@ export function AppearanceSheet(props: { onClose: () => void }) {
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
+    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
     <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
       <div class="sheet" role="dialog" aria-label="外观">
         <div class="sheet-head">
           <strong>外观</strong>
-          <button class="sheet-close" aria-label="关闭" onClick={props.onClose}>
+          <button type="button" class="sheet-close" aria-label="关闭" onClick={props.onClose}>
             ✕
           </button>
         </div>
         <p class="sheet-label">风格</p>
         <div class="seg">
           {STYLES.map((s) => (
-            <button key={s.id} class={s.id === now.style ? "on" : ""} onClick={() => pickStyle(s.id)}>
+            <button type="button" key={s.id} class={s.id === now.style ? "on" : ""} onClick={() => pickStyle(s.id)}>
               {s.name}
             </button>
           ))}
@@ -66,6 +68,7 @@ export function AppearanceSheet(props: { onClose: () => void }) {
         <div class="accents">
           {style.accents.map((x) => (
             <button
+              type="button"
               key={x.id}
               class={x.id === now.accent ? "accent-pick on" : "accent-pick"}
               onClick={() => setMyTheme(`${style.id}-${x.id}` as ThemeId)}
@@ -78,7 +81,7 @@ export function AppearanceSheet(props: { onClose: () => void }) {
         <p class="sheet-label">模式</p>
         <div class="seg">
           {MODES.map((m) => (
-            <button key={m.id} class={m.id === a.mode ? "on" : ""} onClick={() => setMyMode(m.id)}>
+            <button type="button" key={m.id} class={m.id === a.mode ? "on" : ""} onClick={() => setMyMode(m.id)}>
               {m.label}
             </button>
           ))}
@@ -86,7 +89,7 @@ export function AppearanceSheet(props: { onClose: () => void }) {
         <p class="muted small sheet-note">
           只对这台手机生效。
           {a.mine && (
-            <button class="text-button" onClick={() => setMyTheme(null)}>
+            <button type="button" class="text-button" onClick={() => setMyTheme(null)}>
               恢复网站默认
             </button>
           )}

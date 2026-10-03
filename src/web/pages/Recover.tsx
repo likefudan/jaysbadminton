@@ -42,7 +42,7 @@ export function Recover() {
               aria-hidden="true"
             />
             {error && <p class="error">{error}</p>}
-            <button class="button block" disabled={busy}>
+            <button type="submit" class="button block" disabled={busy}>
               {busy ? "发送中…" : "发送专属链接"}
             </button>
           </form>

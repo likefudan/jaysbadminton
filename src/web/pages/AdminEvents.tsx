@@ -39,7 +39,7 @@ export function EventsTab(props: { base: string; members: MemberSummary[] }) {
   }
   return (
     <>
-      <button class="button block" onClick={() => setMode("create")}>
+      <button type="button" class="button block" onClick={() => setMode("create")}>
         ＋ 新建活动
       </button>
       <Load result={list}>
@@ -67,17 +67,10 @@ export function EventsTab(props: { base: string; members: MemberSummary[] }) {
 
 function EventRow(props: { e: EventSummary; onOpen: () => void }) {
   return (
-    <a
-      class="event-link"
-      href="#"
-      onClick={(ev) => {
-        ev.preventDefault();
-        props.onOpen();
-      }}
-    >
+    <button type="button" class="event-link" onClick={props.onOpen}>
       <EventInfo e={props.e} />
       <span class="chevron">›</span>
-    </a>
+    </button>
   );
 }
 
@@ -127,6 +120,7 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
           <input
             type="checkbox"
             role="switch"
+            aria-checked={joinSelf}
             checked={joinSelf}
             onChange={(e) => setJoinSelf((e.target as HTMLInputElement).checked)}
           />
@@ -174,7 +168,7 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
           </label>
         </div>
         {error && <p class="error">{error}</p>}
-        <button class="button block" disabled={busy || !date}>
+        <button type="submit" class="button block" disabled={busy || !date}>
           创建活动
         </button>
         <button class="button secondary block" type="button" onClick={() => props.onDone()}>
@@ -255,7 +249,7 @@ function EventAdmin(props: { base: string; id: number; members: MemberSummary[];
   const [ev, reload] = useApi<EventDetail>(`${props.base}/events/${props.id}`);
   return (
     <>
-      <button class="back" onClick={props.onBack}>
+      <button type="button" class="back" onClick={props.onBack}>
         ‹ 所有活动
       </button>
       <Load result={ev}>
@@ -329,6 +323,7 @@ function EventAdminBody(props: {
               <div class="actions">
                 {e.status !== "open" && (
                   <button
+                    type="button"
                     class={`toggle ${r.attended ? "" : "off"}`}
                     disabled={busy}
                     onClick={() => toggleAttendance(r)}
@@ -337,11 +332,11 @@ function EventAdminBody(props: {
                   </button>
                 )}
                 {r.friendIndex > 0 && (
-                  <button class="button secondary" disabled={busy} onClick={() => rename(r)}>
+                  <button type="button" class="button secondary" disabled={busy} onClick={() => rename(r)}>
                     改名
                   </button>
                 )}
-                <button class="button danger" disabled={busy} onClick={() => remove(r)}>
+                <button type="button" class="button danger" disabled={busy} onClick={() => remove(r)}>
                   删除
                 </button>
               </div>
@@ -355,7 +350,7 @@ function EventAdminBody(props: {
       {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
 
       {(e.status === "open" || e.status === "closed") && (
-        <button class="button danger block" disabled={busy} onClick={cancelEvent}>
+        <button type="button" class="button danger block" disabled={busy} onClick={cancelEvent}>
           取消这次活动
         </button>
       )}
@@ -386,7 +381,7 @@ function DeleteEvent(props: { eb: string; e: EventDetail; onDone: () => void }) 
             比如测试用的活动。只有已收齐归档或已取消的活动可以删除。删除后不再计入排行榜、成员花费和 Google Sheets
             同步。
           </p>
-          <button class="button danger block" onClick={() => setOpen(true)}>
+          <button type="button" class="button danger block" onClick={() => setOpen(true)}>
             从数据库永久删除
           </button>
         </>
@@ -401,7 +396,7 @@ function DeleteEvent(props: { eb: string; e: EventDetail; onDone: () => void }) 
             autocomplete="current-password"
           />
           {error && <p class="error">{error}</p>}
-          <button class="button danger block" disabled={busy || !password}>
+          <button type="submit" class="button danger block" disabled={busy || !password}>
             永久删除
           </button>
           <button class="button secondary block" type="button" onClick={() => setOpen(false)}>
@@ -455,10 +450,10 @@ function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | un
         <>
           <FriendsEditor friends={friends} max={null} onChange={setFriends} />
           {error && <p class="error">{error}</p>}
-          <button class="button block" disabled={busy} onClick={save}>
+          <button type="button" class="button block" disabled={busy} onClick={save}>
             {signedUp ? "保存修改" : "确认报名"}
           </button>
-          <button class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
+          <button type="button" class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
             返回
           </button>
         </>
@@ -469,6 +464,7 @@ function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | un
           {signedUp ? (
             <div class="inline">
               <button
+                type="button"
                 class="button secondary"
                 onClick={() => {
                   setFriends(current());
@@ -477,12 +473,13 @@ function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | un
               >
                 修改
               </button>
-              <button class="button danger" disabled={busy} onClick={cancel}>
+              <button type="button" class="button danger" disabled={busy} onClick={cancel}>
                 取消报名
               </button>
             </div>
           ) : (
             <button
+              type="button"
               class="button block"
               onClick={() => {
                 setFriends(current());
@@ -514,6 +511,7 @@ function Reopen(props: { eb: string; e: EventDetail; onDone: () => void }) {
       </div>
       {error && <p class="error">{error}</p>}
       <button
+        type="button"
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
@@ -574,6 +572,7 @@ function AddPeople(props: { eb: string; members: MemberSummary[]; roster: Roster
       <FriendsEditor friends={friends} max={null} onChange={setFriends} label="挂在他名下的朋友" />
       {error && <p class="error">{error}</p>}
       <button
+        type="button"
         class="button block"
         disabled={busy || !memberId || (!(includeSelf && selfAvailable) && friends.length === 0)}
         onClick={add}
@@ -593,7 +592,7 @@ function CloseNow(props: { eb: string; onDone: () => void }) {
   return (
     <div class="spaced">
       {error && <p class="error">{error}</p>}
-      <button class="button secondary block" disabled={busy} onClick={close}>
+      <button type="button" class="button secondary block" disabled={busy} onClick={close}>
         立即截止报名
       </button>
     </div>
@@ -613,7 +612,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
 
   if (!open) {
     return (
-      <button class="link-button" onClick={() => setOpen(true)}>
+      <button type="button" class="link-button" onClick={() => setOpen(true)}>
         修改活动标题、时间或地点（仅限紧急情况）
       </button>
     );
@@ -648,10 +647,10 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
         <p class="muted small">报名截止时间会按原来的提前量重新计算；如果已经过了，报名会立即截止。</p>
       )}
       {error && <p class="error">{error}</p>}
-      <button class="button block" disabled={busy} onClick={save}>
+      <button type="button" class="button block" disabled={busy} onClick={save}>
         保存修改
       </button>
-      <button class="button secondary block" disabled={busy} onClick={() => setOpen(false)}>
+      <button type="button" class="button secondary block" disabled={busy} onClick={() => setOpen(false)}>
         取消
       </button>
     </Card>

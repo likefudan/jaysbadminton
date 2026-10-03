@@ -21,7 +21,7 @@ export function LeaderboardCard(props: { board: Leaderboard }) {
     <Card title={`${props.board.year} 年排行榜`}>
       <div class="seg">
         {BOARDS.map((x) => (
-          <button key={x.key} class={x.key === tab ? "on" : ""} onClick={() => setTab(x.key)}>
+          <button type="button" key={x.key} class={x.key === tab ? "on" : ""} onClick={() => setTab(x.key)}>
             {x.label}
           </button>
         ))}
@@ -106,6 +106,7 @@ function SpendingCard(props: { stats: MyStats }) {
         <div class="seg spend-ranges" role="group" aria-label="时间范围">
           {RANGES.map((r) => (
             <button
+              type="button"
               key={r}
               class={r === range ? "on" : ""}
               aria-pressed={r === range}
@@ -157,6 +158,7 @@ function SpendingCard(props: { stats: MyStats }) {
             <div class="spend-cols" onPointerLeave={(e) => e.pointerType === "mouse" && setPicked(null)}>
               {sum.buckets.map((b, i) => (
                 <button
+                  type="button"
                   key={b.start}
                   class={`spend-col${picked === i ? " on" : ""}${picked !== null && picked !== i ? " dim" : ""}`}
                   aria-label={`${bucketTitle(b, sum.unit)}：花费 $${dollars(b.cents)}，打球 ${b.count} 次`}

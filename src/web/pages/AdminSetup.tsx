@@ -44,7 +44,11 @@ function GoogleEntry() {
           进入管理页
         </a>
       ) : (
-        <button class="button block" onClick={() => location.assign("/api/auth/google?next=/admin/google")}>
+        <button
+          type="button"
+          class="button block"
+          onClick={() => location.assign("/api/auth/google?next=/admin/google")}
+        >
           用 Google 登录管理页
         </button>
       )}
@@ -95,7 +99,7 @@ function SetupForm() {
           <Field label="你的用户名" value={username} onInput={setUsername} hint="你作为成员报名时显示的名字" />
           <Field label="你的微信昵称" value={nickname} onInput={setNickname} />
           {error && <p class="error">{error}</p>}
-          <button class="button block" disabled={busy}>
+          <button type="submit" class="button block" disabled={busy}>
             {busy ? "设置中…" : "生成管理链接"}
           </button>
         </form>

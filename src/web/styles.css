@@ -604,6 +604,15 @@ select:focus {
 .event-link:first-child {
   border-top: 0;
 }
+button.event-link {
+  width: 100%;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .event-link .event-info {
   flex: 1;
 }

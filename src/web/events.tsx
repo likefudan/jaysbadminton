@@ -28,7 +28,7 @@ export function DateTile(props: { date: string }) {
   const [y, m, d] = props.date.split("-").map(Number) as [number, number, number];
   const weekday = WEEKDAY_ZH[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()];
   return (
-    <div class="date-tile" aria-label={formatDateZh(props.date)}>
+    <div class="date-tile" role="img" aria-label={formatDateZh(props.date)}>
       <span class="dt-year">{y}</span>
       <span class="dt-day">
         {m}/{d}

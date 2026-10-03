@@ -71,9 +71,9 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
               );
             })}
           </div>
-          <div class="heatmap-grid" role="grid" aria-label="活动热力图">
+          <div class="heatmap-grid" role="group" aria-label="活动热力图">
             {weeks.map((w, i) => (
-              <div class="heatmap-week" key={i} role="row">
+              <div class="heatmap-week" key={i}>
                 {w.map((d) => {
                   const list = byDate.get(d);
                   const status = list ? cellStatus(list) : null;
@@ -82,7 +82,6 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
                     <button
                       key={d}
                       type="button"
-                      role="gridcell"
                       class={`heatmap-cell${status ? ` ${status}` : ""}${d > today && !list ? " future" : ""}${picked === d ? " picked" : ""}`}
                       title={label}
                       aria-label={label}
@@ -190,7 +189,7 @@ function EmailRow(props: { base: string; email: string | null; fromGoogle: boole
         <p class="muted small">留空保存会改回 Google 账号的邮箱（如果有）。</p>
         {error && <p class="error">{error}</p>}
         <div class="inline">
-          <button class="button" disabled={busy}>
+          <button type="submit" class="button" disabled={busy}>
             保存
           </button>
           <button class="button secondary" type="button" onClick={() => setEditing(false)}>
@@ -207,6 +206,7 @@ function EmailRow(props: { base: string; email: string | null; fromGoogle: boole
         {props.email ?? <span class="muted">未填写</span>}
         {props.fromGoogle && <small class="muted"> （Google）</small>}
         <button
+          type="button"
           class="profile-action"
           onClick={() => {
             setValue(props.fromGoogle ? "" : (props.email ?? ""));
@@ -237,7 +237,7 @@ function NoteRow(props: { base: string; note: string; onChange: () => void }) {
         <Field label="备注名（只有管理员能看到）" value={value} onInput={setValue} />
         {error && <p class="error">{error}</p>}
         <div class="inline">
-          <button class="button" disabled={busy}>
+          <button type="submit" class="button" disabled={busy}>
             保存
           </button>
           <button class="button secondary" type="button" onClick={() => setEditing(false)}>
@@ -253,6 +253,7 @@ function NoteRow(props: { base: string; note: string; onChange: () => void }) {
       <dd>
         {props.note || <span class="muted">未填写</span>}
         <button
+          type="button"
           class="profile-action"
           onClick={() => {
             setValue(props.note);

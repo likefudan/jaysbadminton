@@ -100,12 +100,12 @@ function Item(props: { base: string; item: InboundRow; payments: OpenPayment[]; 
                 </option>
               ))}
             </select>
-            <button class="button" disabled={busy || !target} onClick={link}>
+            <button type="button" class="button" disabled={busy || !target} onClick={link}>
               关联
             </button>
           </>
         )}
-        <button class="button secondary" disabled={busy} onClick={ignore}>
+        <button type="button" class="button secondary" disabled={busy} onClick={ignore}>
           忽略
         </button>
         <DeleteButton base={props.base} item={i} onDone={props.onDone} />
@@ -122,7 +122,7 @@ function DeleteButton(props: { base: string; item: InboundRow; onDone: () => voi
   }
   return (
     <>
-      <button class="button secondary" disabled={busy} onClick={remove}>
+      <button type="button" class="button secondary" disabled={busy} onClick={remove}>
         删除
       </button>
       {error && <p class="error">{error}</p>}
@@ -169,17 +169,17 @@ function Trash(props: { base: string; list: InboundRow[]; onDone: () => void }) 
           <Summary item={i} />
           <small class="muted">{daysLeft(i)} 天后永久删除</small>
           <div class="link-row">
-            <button class="button secondary" disabled={busy} onClick={() => restore(i)}>
+            <button type="button" class="button secondary" disabled={busy} onClick={() => restore(i)}>
               恢复
             </button>
-            <button class="button danger" disabled={busy} onClick={() => purge(i)}>
+            <button type="button" class="button danger" disabled={busy} onClick={() => purge(i)}>
               永久删除
             </button>
           </div>
         </div>
       ))}
       {!clearing ? (
-        <button class="button danger block" disabled={busy} onClick={() => setClearing(true)}>
+        <button type="button" class="button danger block" disabled={busy} onClick={() => setClearing(true)}>
           清空
         </button>
       ) : (
@@ -191,7 +191,7 @@ function Trash(props: { base: string; list: InboundRow[]; onDone: () => void }) 
             onInput={setPassword}
             autocomplete="current-password"
           />
-          <button class="button danger block" disabled={busy || !password}>
+          <button type="submit" class="button danger block" disabled={busy || !password}>
             永久删除全部 {props.list.length} 笔
           </button>
           <button class="button secondary block" type="button" onClick={() => setClearing(false)}>
@@ -224,7 +224,7 @@ function Refunds(props: { base: string; list: RefundRow[]; onDone: () => void })
           </div>
           <ReceiptList receipts={r.receipts} />
           <div class="link-row">
-            <button class="button" disabled={busy} onClick={() => done(r)}>
+            <button type="button" class="button" disabled={busy} onClick={() => done(r)}>
               已退款
             </button>
           </div>
@@ -252,7 +252,7 @@ export function ReceiptList(props: { receipts: Receipt[]; onRemove?: (r: Receipt
           <span>
             {r.amountCents < 0 ? `−$${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`}
             {props.onRemove && (
-              <button class="undo" disabled={props.busy} onClick={() => props.onRemove!(r)}>
+              <button type="button" class="undo" disabled={props.busy} onClick={() => props.onRemove!(r)}>
                 撤销
               </button>
             )}

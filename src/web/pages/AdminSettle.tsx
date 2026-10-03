@@ -43,7 +43,7 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
         <Field label="球单价（美元）" type="text" value={price} onInput={setPrice} />
       </div>
       {error && <p class="error">{error}</p>}
-      <button class="button secondary block" disabled={busy} onClick={doPreview}>
+      <button type="button" class="button secondary block" disabled={busy} onClick={doPreview}>
         预览每人金额
       </button>
       {preview && (
@@ -66,7 +66,7 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
             </tbody>
           </table>
           <p class="small">合计应收 ${dollars(preview.totalCents)}</p>
-          <button class="button block" disabled={busy} onClick={doFinalize}>
+          <button type="button" class="button block" disabled={busy} onClick={doFinalize}>
             {finalized ? "保存修改" : "Finalize"}
           </button>
         </>
@@ -137,7 +137,7 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
               </div>
               {!settled && !p.isOwner && p.status !== "paid" && (
                 <div class="actions">
-                  <button class="button" disabled={busy} onClick={() => mark(p)}>
+                  <button type="button" class="button" disabled={busy} onClick={() => mark(p)}>
                     {p.status === "partial" ? "补齐已付" : "标记已付"}
                   </button>
                 </div>
@@ -149,7 +149,7 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
           </div>
         ))}
         {!settled && v.totals.unpaidCount > 0 && (
-          <button class="link-button" disabled={busy} onClick={toggleDunning}>
+          <button type="button" class="link-button" disabled={busy} onClick={toggleDunning}>
             {props.e.dunningStopped ? "已停止账单提醒 · 点此恢复" : "停止账单提醒"}
           </button>
         )}

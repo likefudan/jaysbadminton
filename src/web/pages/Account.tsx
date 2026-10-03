@@ -31,7 +31,7 @@ export function Logout() {
   }
   return (
     <>
-      <button class="button secondary block" disabled={busy} onClick={logout}>
+      <button type="button" class="button secondary block" disabled={busy} onClick={logout}>
         退出 Google 登录
       </button>
       {error && <p class="error">{error}</p>}
@@ -60,12 +60,12 @@ export function GoogleLink(props: { token: string }) {
           <p class="hint">
             网站尚未启用 Google 绑定。你可以继续在这里报名和查看账单；开通后可自行绑定，无需管理员审批。
           </p>
-          <button class="button secondary block" onClick={reload}>
+          <button type="button" class="button secondary block" onClick={reload}>
             重新检查绑定是否可用
           </button>
         </>
       ) : (
-        <button class="button secondary block" disabled={busy || session.state !== "ok"} onClick={link}>
+        <button type="button" class="button secondary block" disabled={busy || session.state !== "ok"} onClick={link}>
           {busy ? "正在连接…" : "绑定 Google 账号"}
         </button>
       )}
@@ -74,7 +74,7 @@ export function GoogleLink(props: { token: string }) {
           <p class="error" role="alert">
             {session.message}
           </p>
-          <button class="button secondary block" onClick={reload}>
+          <button type="button" class="button secondary block" onClick={reload}>
             重试
           </button>
         </>
@@ -111,7 +111,7 @@ function SignIn(props: { googleEnabled: boolean }) {
               微信里可能无法使用 Google 登录：请点右上角「···」选择「在浏览器打开」，或者用下面的邮箱注册。
             </p>
           )}
-          <button class="button block" onClick={() => window.location.assign("/api/auth/google")}>
+          <button type="button" class="button block" onClick={() => window.location.assign("/api/auth/google")}>
             用 Google 登录 / 注册
           </button>
           <p class="muted small">仅使用 Google 账号身份、邮箱和头像，不读取你的 Gmail 邮件。</p>
@@ -145,7 +145,7 @@ export function Account(props: { page?: "profile" }) {
                 {s.emailNotificationsEnabled && (
                   <p class="muted small">审核通过后会向你的 Google 邮箱发送通知，请留意收件箱和垃圾邮件。</p>
                 )}
-                <button class="button secondary block" onClick={reload}>
+                <button type="button" class="button secondary block" onClick={reload}>
                   刷新审核状态
                 </button>
               </Card>
@@ -220,7 +220,7 @@ function Profile(props: { email: string; onDone: () => void }) {
               {error}
             </p>
           )}
-          <button class="button block" disabled={busy}>
+          <button type="submit" class="button block" disabled={busy}>
             {busy ? "保存中…" : linkExisting ? "确认绑定，进入我的活动" : "提交入群申请"}
           </button>
           <button
