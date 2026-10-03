@@ -10,6 +10,8 @@ import { adminEventRoutes } from "./adminEvents";
 import { type MemberRow, issueMemberToken, memberLink, requireMember, revealMemberToken, toSummary } from "../members";
 import { memberProfile, setAdminNote } from "../profile";
 import { googleOwner, googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
+import { isStaging } from "../site";
+import { escapeHtml, sendToOwner } from "../telegram";
 
 /** /admin/google: the admin page reached through the Owner's own Google account instead of the link. */
 export const GOOGLE_ADMIN = "google";
@@ -129,6 +131,24 @@ adminRoutes.post("/:token/settings/password", async (c) => {
   const err = checkPasswordRule(next);
   if (err) throw badRequest(err);
   await setPassword(c.env, next);
+  return c.json({ ok: true });
+});
+
+/**
+ * 备份 TOKEN_KEY: Cloudflare secrets can't be read back, so the Worker itself sends the key to the
+ * Owner's Telegram, never to the browser. Needs the password like other rare, sensitive settings.
+ */
+adminRoutes.post("/:token/settings/backup-key", async (c) => {
+  const body = await readJson(c.req.raw);
+  if (!(await checkPassword(c.env, str(body.password)))) throw new HttpError(401, "wrong_password", "密码不正确");
+  const site = isStaging(c.env) ? "测试站" : "正式网站";
+  const sent = await sendToOwner(
+    c.env,
+    `🔑 ${site}的 TOKEN_KEY（${escapeHtml(c.env.SITE_ORIGIN)}）：\n<pre>${escapeHtml(c.env.TOKEN_KEY)}</pre>\n` +
+      "请存进密码管理器，然后删除这条消息。万一 Worker 的 secret 丢了，用 " +
+      `<code>npx wrangler secret put TOKEN_KEY${isStaging(c.env) ? " --env staging" : ""}</code> 填回去即可。`,
+  );
+  if (!sent) throw badRequest("发送失败：请先在设置里连接 Telegram");
   return c.json({ ok: true });
 });
 
