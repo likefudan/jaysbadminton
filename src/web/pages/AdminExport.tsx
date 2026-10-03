@@ -72,7 +72,7 @@ export function SheetsCard(props: { base: string }) {
                   表格，作为备份和存档。网站不需要你的 Google 账号；表格只读取，不会改动网站的数据。
                 </p>
                 {error && <p class="error">{error}</p>}
-                <button class="button block" disabled={busy} onClick={() => enable(false)}>
+                <button type="button" class="button block" disabled={busy} onClick={() => enable(false)}>
                   开启同步
                 </button>
               </>
@@ -107,10 +107,10 @@ export function SheetsCard(props: { base: string }) {
                 脚本里含有同步密钥，请不要发给别人。万一泄露，点「重新生成密钥」后粘贴新脚本即可。
               </p>
               {error && <p class="error">{error}</p>}
-              <button class="button secondary block" disabled={busy} onClick={() => enable(true)}>
+              <button type="button" class="button secondary block" disabled={busy} onClick={() => enable(true)}>
                 重新生成密钥
               </button>
-              <button class="link-button" disabled={busy} onClick={disable}>
+              <button type="button" class="link-button" disabled={busy} onClick={disable}>
                 关闭同步
               </button>
             </>

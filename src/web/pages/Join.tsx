@@ -78,7 +78,7 @@ export function Join() {
             aria-hidden="true"
           />
           {error && <p class="error">{error}</p>}
-          <button class="button block" disabled={busy}>
+          <button type="submit" class="button block" disabled={busy}>
             {busy ? "提交中…" : "提交申请"}
           </button>
         </form>

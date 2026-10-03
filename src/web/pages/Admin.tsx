@@ -41,13 +41,14 @@ export function Admin(props: { token?: string }) {
         {(m) => (
           <>
             <div class="tabs">
-              <button class={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>
+              <button type="button" class={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>
                 活动
               </button>
-              <button class={tab === "inbound" ? "active" : ""} onClick={() => setTab("inbound")}>
+              <button type="button" class={tab === "inbound" ? "active" : ""} onClick={() => setTab("inbound")}>
                 收款
               </button>
               <button
+                type="button"
                 class={tab === "pending" ? "active" : ""}
                 onClick={() => {
                   setTab("pending");
@@ -57,6 +58,7 @@ export function Admin(props: { token?: string }) {
                 待审核{m.pending.length > 0 && ` (${m.pending.length})`}
               </button>
               <button
+                type="button"
                 class={tab === "members" ? "active" : ""}
                 onClick={() => {
                   setTab("members");
@@ -65,7 +67,7 @@ export function Admin(props: { token?: string }) {
               >
                 成员
               </button>
-              <button class={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>
+              <button type="button" class={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>
                 设置
               </button>
             </div>
@@ -89,7 +91,11 @@ function GoogleAdminLogin() {
     <Page title="管理员登录">
       <Card>
         {other && <p class="error">当前登录的 Google 账号 {other} 不是管理员绑定的账号。</p>}
-        <button class="button block" onClick={() => location.assign("/api/auth/google?next=/admin/google")}>
+        <button
+          type="button"
+          class="button block"
+          onClick={() => location.assign("/api/auth/google?next=/admin/google")}
+        >
           {other ? "换一个 Google 账号登录" : "使用 Google 登录"}
         </button>
         <p class="muted small">
@@ -119,7 +125,7 @@ function Login(props: { base: string; onDone: () => void }) {
             autocomplete="current-password"
           />
           {error && <p class="error">{error}</p>}
-          <button class="button block" disabled={busy}>
+          <button type="submit" class="button block" disabled={busy}>
             {busy ? "登录中…" : "登录"}
           </button>
           <p class="muted small">登录后这台设备 30 天内不用再输密码。</p>
@@ -140,7 +146,7 @@ const who = (m: MemberSummary, onOpen?: (m: MemberSummary) => void) => {
   return (
     <div class="who">
       {onOpen ? (
-        <button class="who-link" onClick={() => onOpen(m)}>
+        <button type="button" class="who-link" onClick={() => onOpen(m)}>
           {name}
         </button>
       ) : (
@@ -163,7 +169,7 @@ function MemberDetail(props: { base: string; id: string; onBack: () => void; onC
   const [res, reload] = useApi<MemberProfile>(`${base}/profile`);
   return (
     <>
-      <button class="back" onClick={props.onBack}>
+      <button type="button" class="back" onClick={props.onBack}>
         ‹ 成员
       </button>
       <Load result={res}>
@@ -240,7 +246,7 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
               <p class="muted small">需要备用链接的话，可以在「成员」里生成。</p>
             </>
           )}
-          <button class="button secondary block" onClick={() => setIssued(null)}>
+          <button type="button" class="button secondary block" onClick={() => setIssued(null)}>
             完成
           </button>
         </Card>
@@ -255,10 +261,10 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
               {m.applicationMessage && <p class="application-message">留言：{m.applicationMessage}</p>}
             </div>
             <div class="actions">
-              <button class="button" disabled={busy} onClick={() => approve(m)}>
+              <button type="button" class="button" disabled={busy} onClick={() => approve(m)}>
                 通过
               </button>
-              <button class="button danger" disabled={busy} onClick={() => reject(m)}>
+              <button type="button" class="button danger" disabled={busy} onClick={() => reject(m)}>
                 拒绝
               </button>
             </div>
@@ -329,7 +335,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
             link={shown.link}
             note={shown.fresh ? "已生成新链接，旧链接已失效。请重新发给对方。" : undefined}
           />
-          <button class="button secondary block" onClick={() => setShown(null)}>
+          <button type="button" class="button secondary block" onClick={() => setShown(null)}>
             关闭
           </button>
         </Card>
@@ -343,20 +349,20 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
             {who(m, openMember)}
             <div class="actions">
               {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && (
-                <button class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>
+                <button type="button" class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>
                   重试审核邮件
                 </button>
               )}
               {m.hasLink && (
-                <button class="button secondary" disabled={busy} onClick={() => view(m)}>
+                <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
                   链接
                 </button>
               )}
-              <button class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
+              <button type="button" class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
                 {m.hasLink ? "重新生成" : "生成备用链接"}
               </button>
               {!m.isOwner && (
-                <button class="button danger" disabled={busy} onClick={() => deactivate(m)}>
+                <button type="button" class="button danger" disabled={busy} onClick={() => deactivate(m)}>
                   停用
                 </button>
               )}
@@ -372,7 +378,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
             {props.data.inactive.map((m) => (
               <div class="row" key={m.id}>
                 <div class="who">
-                  <button class="who-link" onClick={() => openMember(m)}>
+                  <button type="button" class="who-link" onClick={() => openMember(m)}>
                     <span class="who-name">{m.username}</span>
                     {m.adminNote && <span class="note">备注：{m.adminNote}</span>}
                   </button>
@@ -383,18 +389,23 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
                 </div>
                 <div class="actions">
                   {m.hasLink ? (
-                    <button class="button secondary" disabled={busy} onClick={() => view(m)}>
+                    <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
                       链接
                     </button>
                   ) : (
-                    <button class="button secondary" disabled={busy} onClick={() => newLink(m)}>
+                    <button type="button" class="button secondary" disabled={busy} onClick={() => newLink(m)}>
                       生成链接
                     </button>
                   )}
-                  <button class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
+                  <button type="button" class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
                     恢复
                   </button>
-                  <button class="button danger" disabled={busy || m.owingCents > 0} onClick={() => remove(m)}>
+                  <button
+                    type="button"
+                    class="button danger"
+                    disabled={busy || m.owingCents > 0}
+                    onClick={() => remove(m)}
+                  >
                     删除
                   </button>
                 </div>

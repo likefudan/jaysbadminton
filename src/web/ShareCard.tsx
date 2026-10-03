@@ -264,11 +264,13 @@ function ShareCardSheet(props: { text: CardText; filename: string; onClose: () =
   // Rendered into <body>: event cards use backdrop-filter, which would otherwise trap this fixed
   // sheet inside the card instead of covering the screen.
   return createPortal(
+    // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
+    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
     <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
       <div class="sheet" role="dialog" aria-label="分享名片">
         <div class="sheet-head">
           <strong>分享名片</strong>
-          <button class="sheet-close" aria-label="关闭" onClick={props.onClose}>
+          <button type="button" class="sheet-close" aria-label="关闭" onClick={props.onClose}>
             ✕
           </button>
         </div>

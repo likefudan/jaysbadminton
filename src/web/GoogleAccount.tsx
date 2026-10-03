@@ -48,6 +48,7 @@ export function GoogleAccount() {
   return (
     <div class="google-account" ref={container}>
       <button
+        type="button"
         ref={trigger}
         class="google-account-trigger"
         aria-label={`Google 账号：${email}`}
@@ -100,7 +101,7 @@ export function GoogleAccount() {
           <a class="button secondary block" href="/me/profile" onClick={() => setOpen(false)}>
             个人信息
           </a>
-          <button class="button secondary block" disabled={busy} onClick={logout}>
+          <button type="button" class="button secondary block" disabled={busy} onClick={logout}>
             {busy ? "正在退出…" : "退出登录"}
           </button>
           {error && (

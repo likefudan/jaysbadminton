@@ -42,7 +42,9 @@
       "correctness": {
         "noUnusedFunctionParameters": "off"
       },
-      "a11y": "off"
+      "a11y": {
+        "useSemanticElements": "off"
+      }
     }
   },
   "overrides": [

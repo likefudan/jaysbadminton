@@ -109,7 +109,7 @@ function Rename(props: { base: string; current: string; onDone: () => void }) {
   const { busy, error, run, setError } = useAction();
   if (!open) {
     return (
-      <button class="button secondary block" onClick={() => setOpen(true)}>
+      <button type="button" class="button secondary block" onClick={() => setOpen(true)}>
         修改用户名
       </button>
     );
@@ -128,7 +128,7 @@ function Rename(props: { base: string; current: string; onDone: () => void }) {
       <form onSubmit={save}>
         <Field label="新用户名" value={name} onInput={setName} />
         {error && <p class="error">{error}</p>}
-        <button class="button block" disabled={busy}>
+        <button type="submit" class="button block" disabled={busy}>
           保存
         </button>
         <button class="button secondary block" type="button" onClick={() => setOpen(false)}>
@@ -225,9 +225,7 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
         <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
       )}
       {signedUp && !editing && !e.payment && (
-        <>
-          <p class="ok">✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}</p>
-        </>
+        <p class="ok">✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}</p>
       )}
       {!signedUp && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
       {!editing && <EventActions e={e} calendar={signedUp && !e.payment} />}
@@ -235,10 +233,10 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
         <>
           <FriendsEditor friends={friends} max={props.cap} onChange={setFriends} />
           {error && <p class="error">{error}</p>}
-          <button class="button block" disabled={busy} onClick={save}>
+          <button type="button" class="button block" disabled={busy} onClick={save}>
             {signedUp ? "保存修改" : "确认报名"}
           </button>
-          <button class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
+          <button type="button" class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
             返回
           </button>
         </>
@@ -249,6 +247,7 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
           {signedUp ? (
             <div class="inline">
               <button
+                type="button"
                 class="button secondary"
                 onClick={() => {
                   setFriends(e.myFriends ?? []);
@@ -257,12 +256,13 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
               >
                 修改
               </button>
-              <button class="button danger" disabled={busy} onClick={cancel}>
+              <button type="button" class="button danger" disabled={busy} onClick={cancel}>
                 取消报名
               </button>
             </div>
           ) : (
             <button
+              type="button"
               class="button block"
               onClick={() => {
                 setFriends([]);

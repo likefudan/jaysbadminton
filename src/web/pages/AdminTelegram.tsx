@@ -68,15 +68,20 @@ export function TelegramCard(props: { base: string }) {
               {waiting && <p class="hint">等待你在 Telegram 里点 Start…（3 分钟内有效）</p>}
               {error && <p class="error">{error}</p>}
               {sent && <p class="muted small">已发送，请在 Telegram 里查看。</p>}
-              <button class={`button block ${s.connected ? "secondary" : ""}`} disabled={busy} onClick={connect}>
+              <button
+                type="button"
+                class={`button block ${s.connected ? "secondary" : ""}`}
+                disabled={busy}
+                onClick={connect}
+              >
                 {s.connected ? "换一个 Telegram 账号" : "连接 Telegram"}
               </button>
               {s.connected && (
                 <>
-                  <button class="button secondary block" disabled={busy} onClick={test}>
+                  <button type="button" class="button secondary block" disabled={busy} onClick={test}>
                     发送测试消息
                   </button>
-                  <button class="link-button" disabled={busy} onClick={unlink}>
+                  <button type="button" class="link-button" disabled={busy} onClick={unlink}>
                     断开连接
                   </button>
                 </>
@@ -171,7 +176,7 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
         表格同步是否正常。另外，Venmo 邮件读不懂、或者有欠款却好几天没收到任何 Venmo 邮件时，会立即提醒你。
       </p>
       {error && <p class="error">{error}</p>}
-      <button class="button secondary block" disabled={busy} onClick={save}>
+      <button type="button" class="button secondary block" disabled={busy} onClick={save}>
         {saved ? "已保存" : "保存"}
       </button>
     </Card>
