@@ -42,7 +42,8 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
  */
 export async function drawShareCard(siteTitle: string, text: CardText): Promise<string> {
   const [QRCode, logo] = await Promise.all([import("qrcode"), loadImage("/icon.svg")]);
-  const qr = await loadImage(await QRCode.toDataURL(text.url, { width: 520, margin: 0, errorCorrectionLevel: "M" }));
+  // Level H survives the logo covering the middle.
+  const qr = QRCode.create(text.url, { errorCorrectionLevel: "H" }).modules;
   await document.fonts?.ready;
 
   const canvas = document.createElement("canvas");
@@ -113,7 +114,7 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
 
   const Q = Math.min(500, pBottom - pTop - 230);
   const qy = pTop + 50;
-  ctx.drawImage(qr, (W - Q) / 2, qy, Q, Q);
+  drawQr(ctx, qr, logo, (W - Q) / 2, qy, Q);
 
   ctx.fillStyle = "#222";
   ctx.font = `600 42px ${SANS}`;
@@ -123,6 +124,76 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
   ctx.fillText(fit(ctx, text.url.replace(/^https?:\/\//, "").replace(/\/$/, ""), pw - 80), W / 2, qy + Q + 140);
 
   return canvas.toDataURL("image/png");
+}
+
+/**
+ * The QR code in the card's style: round dots shading outward from a deep brown centre to the
+ * brand coral, rounded finder eyes, and the logo in the middle. Every colour stays dark enough on
+ * white for phone cameras.
+ */
+function drawQr(
+  ctx: CanvasRenderingContext2D,
+  m: { size: number; get(row: number, col: number): number },
+  logo: HTMLImageElement,
+  x: number,
+  y: number,
+  size: number,
+) {
+  const n = m.size;
+  const cell = size / n;
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const ink = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.72);
+  ink.addColorStop(0, "#5a2214");
+  ink.addColorStop(0.55, "#7e3a24");
+  ink.addColorStop(1, "#9c4a2c");
+  ctx.fillStyle = ink;
+
+  const inEye = (r: number, c: number) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
+  const hole = Math.ceil(n * 0.24) | 1; // odd, so it centres on a module
+  const h0 = (n - hole) / 2;
+  const inHole = (r: number, c: number) => r >= h0 && r < h0 + hole && c >= h0 && c < h0 + hole;
+
+  const dark = (r: number, c: number) => !!m.get(r, c) && !inEye(r, c) && !inHole(r, c);
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (!dark(r, c)) continue;
+      const mx = x + (c + 0.5) * cell;
+      const my = y + (r + 0.5) * cell;
+      // Round dots, a little larger toward the centre: the radial look. Each dot slightly
+      // overlaps its neighbours so runs stay solid, which is what phone scanners need.
+      const d = Math.hypot(mx - cx, my - cy) / (size / 2);
+      const radius = cell * (0.6 - 0.08 * Math.min(1, d));
+      ctx.beginPath();
+      ctx.arc(mx, my, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  for (const [r, c] of [[0, 0], [0, n - 7], [n - 7, 0]] as const) {
+    const ex = x + c * cell;
+    const ey = y + r * cell;
+    roundRect(ctx, ex, ey, 7 * cell, 7 * cell, 2.2 * cell);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    roundRect(ctx, ex + cell, ey + cell, 5 * cell, 5 * cell, 1.5 * cell);
+    ctx.fill();
+    ctx.fillStyle = ink;
+    roundRect(ctx, ex + 2 * cell, ey + 2 * cell, 3 * cell, 3 * cell, 1 * cell);
+    ctx.fill();
+  }
+
+  const L = (hole - 1) * cell;
+  const lx = cx - L / 2;
+  const ly = cy - L / 2;
+  ctx.save();
+  ctx.fillStyle = "#fff";
+  roundRect(ctx, lx - cell * 0.4, ly - cell * 0.4, L + cell * 0.8, L + cell * 0.8, L * 0.26);
+  ctx.fill();
+  roundRect(ctx, lx, ly, L, L, L * 0.22);
+  ctx.clip();
+  ctx.drawImage(logo, lx, ly, L, L);
+  ctx.restore();
 }
 
 /** A button that opens the 分享名片: an image to long-press and save, or download. */
