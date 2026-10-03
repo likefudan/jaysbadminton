@@ -174,6 +174,7 @@ GitHub 仓库需要的 secrets：
 | `ADMIN_PASSWORD_STAGING` | 测试网站的管理密码（不设置时沿用 `ADMIN_PASSWORD`） |
 | `TELEGRAM_BOT_TOKEN`、`TELEGRAM_BOT_TOKEN_STAGING` | 两个 Telegram 机器人（一个机器人只能有一个 webhook），可选 |
 | `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` | Google 登录，可选；配置方法见 [docs/google-login.zh.md](docs/google-login.zh.md) |
+| `TELEGRAM_DEV_BOT_TOKEN`、`TELEGRAM_DEV_CHAT_ID` | 可选：开发群通知。每个 PR 合并、每次正式发布（成功或失败）都发一条消息到开发者的 Telegram 群。用一个单独的机器人，不要用网站的机器人 |
 | `GOOGLE_MAPS_API_KEY` | 地址联想，可选；没有时使用免费的 Photon |
 
 每个网站的 `TOKEN_KEY` 由 CI 在第一次部署时自动生成，之后不再更换。
