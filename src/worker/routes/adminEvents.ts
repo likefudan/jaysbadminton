@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
 import type { EventDefaults, InboundResponse, SettlementView } from "../../shared/types";
-import { addReceipt, checkCollected, finalize, paymentRows, recomputeIfFinalized, savedInput, settleRows, syncPayments } from "../billing";
+import { addReceipt, checkCollected, finalize, markPaid, paymentRows, recomputeIfFinalized, savedInput, settleRows, syncPayments } from "../billing";
 import { isDate, isTime, pacificToUtc } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
 import type { Env } from "../env";
@@ -39,7 +39,6 @@ export const adminEventRoutes = new Hono<{ Bindings: Env }>();
 const num = (v: unknown) => (typeof v === "number" ? v : Number(v));
 
 adminEventRoutes.get("/events", async (c) => {
-  await closeExpired(c.env);
   const current = await c.env.DB.prepare(
     "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at",
   ).all<EventRow>();
@@ -115,7 +114,6 @@ adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
 });
 
 adminEventRoutes.get("/events/:id", async (c) => {
-  await closeExpired(c.env);
   return c.json(await detail(c.env, await getEvent(c.env, Number(c.req.param("id")))));
 });
 
@@ -379,6 +377,7 @@ adminEventRoutes.get("/events/:id/settlement", async (c) => {
 });
 
 adminEventRoutes.post("/events/:id/preview", async (c) => {
+  await closeExpired(c.env);
   const e = await getEvent(c.env, Number(c.req.param("id")));
   assertSettleable(e);
   const input = readInput(await readJson(c.req.raw));
@@ -408,10 +407,8 @@ async function paymentEvent(env: Env, paymentId: number) {
 /** Cash, Zelle or anything else: a manual receipt for whatever is still owed. */
 adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
   const id = Number(c.req.param("pid"));
-  const { p, e } = await paymentEvent(c.env, id);
-  const owed = p.amount_due_cents - p.amount_paid_cents;
-  if (owed <= 0) throw badRequest("这笔已经付清了");
-  await addReceipt(c.env, id, { amountCents: owed, method: "manual" });
+  const { e } = await paymentEvent(c.env, id);
+  if (!(await markPaid(c.env, id))) throw badRequest("这笔已经付清了");
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });
 });
@@ -472,7 +469,11 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const paymentId = num((await readJson(c.req.raw)).paymentId);
   const { e } = await paymentEvent(c.env, paymentId);
   if (i.amount_cents === null) throw badRequest("这笔收款没有金额，请改用「标记已付」");
-  await c.env.DB.prepare("UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ?").bind(paymentId, i.id).run();
+  // Only one request can move it out of 待确认, so a double click never adds the money twice.
+  const claimed = await c.env.DB.prepare("UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ? AND state = 'open'")
+    .bind(paymentId, i.id)
+    .run();
+  if (!claimed.meta.changes) throw badRequest("这笔收款已经处理过了");
   await addReceipt(c.env, paymentId, { amountCents: i.amount_cents, method: "venmo", txnId: i.venmo_txn_id, payerName: i.payer_name });
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });

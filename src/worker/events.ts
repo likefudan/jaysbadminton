@@ -37,6 +37,12 @@ export const DEFAULT_FRIEND_CAP = 3;
 export const friendLabel = (memberName: string, index: number, name: string | null) =>
   name?.trim() || `${memberName}的朋友${index}`;
 
+/**
+ * An open event past its deadline reads as closed straight away; the cron (every minute) or the
+ * next write stores it. Read paths use this instead of writing to the database themselves.
+ */
+export const liveStatus = (e: EventRow): EventStatus => (e.status === "open" && e.deadline_at <= now() ? "closed" : e.status);
+
 export function toSummary(e: EventRow, headcount: number): EventSummary {
   return {
     id: e.id,
@@ -48,12 +54,12 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
     address: e.address,
     title: e.title,
     deadlineAt: e.deadline_at,
-    status: e.status,
+    status: liveStatus(e),
     headcount,
   };
 }
 
-/** Moves open events past their deadline to closed. Cheap enough to run before any event read. */
+/** Moves open events past their deadline to closed: from the cron, and before any write that depends on it. */
 export async function closeExpired(env: Env): Promise<void> {
   await env.DB.prepare("UPDATE events SET status = 'closed' WHERE status = 'open' AND deadline_at <= ?").bind(now()).run();
 }

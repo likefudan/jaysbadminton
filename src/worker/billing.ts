@@ -1,5 +1,5 @@
 import { settle, type SettleInput, type Settlement, type SettleRow } from "../shared/settle";
-import type { PaymentRow, Receipt } from "../shared/types";
+import type { PaymentRow, Receipt, RosterEntry } from "../shared/types";
 import { now, setSetting } from "./db";
 import { notifyCollected, notifyFinalized } from "./notify";
 import { paymentCode } from "./paymentCode";
@@ -7,13 +7,11 @@ import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
-  return (await roster(env, eventId)).map((r) => ({
-    memberId: r.memberId,
-    friendIndex: r.friendIndex,
-    name: r.name,
-    attended: r.attended,
-  }));
+  return toSettleRows(await roster(env, eventId));
 }
+
+export const toSettleRows = (list: RosterEntry[]): SettleRow[] =>
+  list.map((r) => ({ memberId: r.memberId, friendIndex: r.friendIndex, name: r.name, attended: r.attended }));
 
 export async function savedInput(env: Env, eventId: number): Promise<SettleInput | null> {
   const s = await env.DB.prepare(
@@ -196,6 +194,23 @@ export async function addReceipt(
       `INSERT OR IGNORE INTO payment_receipts (payment_id, amount_cents, method, venmo_txn_id, payer_name, received_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
     ).bind(paymentId, r.amountCents, r.method, r.txnId ?? null, r.payerName ?? null, now()),
+    ...syncPayments(env.DB, "id = ?", paymentId),
+  ]);
+  return (ins?.meta.changes ?? 0) > 0;
+}
+
+/**
+ * 标记已付: a manual receipt for whatever is still owed, worked out inside the same transaction,
+ * so a second click (another tab, a retried request) finds nothing owed and adds nothing.
+ * Returns false when the bill was already paid.
+ */
+export async function markPaid(env: Env, paymentId: number): Promise<boolean> {
+  const [ins] = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
+       SELECT id, amount_due_cents - amount_paid_cents, 'manual', ? FROM payments
+       WHERE id = ? AND amount_paid_cents < amount_due_cents`,
+    ).bind(now(), paymentId),
     ...syncPayments(env.DB, "id = ?", paymentId),
   ]);
   return (ins?.meta.changes ?? 0) > 0;

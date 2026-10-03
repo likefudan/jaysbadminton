@@ -161,11 +161,23 @@ describe("Owner roster edits", () => {
     const fay = await approveMember(ctx, "Fay");
     await anon.call(`${fay.base}/events/${open.id}/signup`, { friends: [] });
     await anon.call(`${fay.base}/events/${closed.id}/signup`, { friends: [] });
-    await expire(closed.id);
-    await anon.call("/api/public/home"); // closes the expired event
+    await expire(closed.id); // past its deadline, not yet closed by the cron
     await ctx.admin.call(`${ctx.base}/members/${fay.id}/deactivate`, {});
     expect((await ctx.admin.call(`${ctx.base}/events/${open.id}`)).data.headcount).toBe(0);
     expect((await ctx.admin.call(`${ctx.base}/events/${closed.id}`)).data.headcount).toBe(1);
+  });
+});
+
+describe("deadlines on read", () => {
+  it("shows an event past its deadline as closed without writing to the database", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    await expire(e.id);
+    expect((await anon.call(`/api/public/events/${e.code}`)).data.status).toBe("closed");
+    expect((await anon.call("/api/public/home")).data.currentEvents[0].status).toBe("closed");
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.status).toBe("closed");
+    const row = await env.DB.prepare("SELECT status FROM events WHERE id = ?").bind(e.id).first<{ status: string }>();
+    expect(row!.status).toBe("open"); // the cron stores it
   });
 });
 

@@ -17,6 +17,10 @@ on:
         type: boolean
         default: false
 
+# Read-only token: nothing here writes to the repository (deploys use the Cloudflare token).
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -34,9 +38,22 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+      # The browser download is the slow part; the system packages are quick and always installed.
+      - uses: actions/cache@v6
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - name: Browser tests (main flows on a local Worker)
         run: |
-          npx playwright install --with-deps chromium
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = true ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
           npx playwright test
         env:
           WRANGLER_SEND_METRICS: "false"
@@ -71,6 +88,8 @@ jobs:
       - run: node scripts/sync-secrets.mjs staging
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD_STAGING || secrets.ADMIN_PASSWORD }}
+          # Backup of the test site's own TOKEN_KEY (never production's): checked, and put back if lost.
+          LINK_ENCRYPTION_KEY: ${{ secrets.LINK_ENCRYPTION_KEY_STAGING }}
           # Its own bot: a bot has one webhook, so sharing production's would steal its replies.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN_STAGING }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
@@ -126,6 +145,8 @@ jobs:
       - run: node scripts/sync-secrets.mjs production
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          # Backup of TOKEN_KEY: checked, and put back if lost.
+          LINK_ENCRYPTION_KEY: ${{ secrets.LINK_ENCRYPTION_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}

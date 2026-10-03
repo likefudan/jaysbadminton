@@ -226,18 +226,29 @@ export const TABLES = {
 export type TableName = keyof typeof TABLES;
 export const isTable = (n: string): n is TableName => n in TABLES;
 
+/**
+ * Text a spreadsheet would run as a formula (a leading = + - @, tab or return) gets a leading '
+ * so it stays text; names and notes come from anyone who applies or pays. Numbers pass through.
+ */
+export function asText(v: string | number): string | number {
+  return typeof v === "string" && /^[=+\-@\t\r]/.test(v) && !/^-?\d+(\.\d+)?$/.test(v) ? `'${v}` : v;
+}
+
+/** For the Google Sheet, which writes every cell with setValues: the same guard as the CSV. */
 export async function exportAll(env: Env): Promise<{ generatedAt: string; tables: Record<TableName, Table> }> {
   const tables = {} as Record<TableName, Table>;
-  for (const name of Object.keys(TABLES) as TableName[]) tables[name] = await TABLES[name].build(env);
+  for (const name of Object.keys(TABLES) as TableName[]) {
+    const t = await TABLES[name].build(env);
+    tables[name] = { ...t, rows: t.rows.map((r) => r.map(asText)) };
+  }
   return { generatedAt: at(new Date().toISOString()), tables };
 }
 
 /** CSV with a BOM so Excel opens the Chinese text correctly. */
 export function toCsv(t: Table): string {
   const cell = (v: string | number) => {
-    const s = String(v);
-    // A leading = + - @ would run as a formula in Excel; quote it as text.
-    const safe = /^[=+\-@]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s) ? `'${s}` : s;
+    // A leading = + - @ would run as a formula in Excel; asText marks it as text.
+    const safe = String(asText(v));
     return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
   };
   return "﻿" + [t.columns, ...t.rows].map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";

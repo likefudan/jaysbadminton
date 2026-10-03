@@ -1,6 +1,6 @@
 import { formatDateZh, formatInstantZh } from "../shared/time";
 import type { Env } from "./env";
-import { closeExpired, summaries, type EventRow } from "./events";
+import { summaries, type EventRow } from "./events";
 import { isStaging, siteTitle } from "./site";
 
 /**
@@ -22,7 +22,6 @@ export async function homeMeta(env: Env): Promise<ShareMeta> {
 
 /** "HappyTuesday 比赛 · 10月6日 周二" / "19:00–21:00 · Bay Badminton Center · 已报名 8 人 · 截止 …". */
 export async function eventMeta(env: Env, code: string): Promise<ShareMeta | null> {
-  await closeExpired(env);
   const row = await env.DB.prepare("SELECT * FROM events WHERE code = ? ORDER BY start_at DESC LIMIT 1")
     .bind(code.toUpperCase())
     .first<EventRow>();

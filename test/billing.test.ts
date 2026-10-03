@@ -64,6 +64,16 @@ describe("settlement", () => {
 });
 
 describe("collection and archive", () => {
+  it("a repeated 标记已付 (two tabs, a retry) records the money once", async () => {
+    const s = await scenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const a = await payment(s, "Alice");
+    const results = await Promise.all([1, 2].map(() => s.admin.call(`${s.base}/payments/${a.id}/mark-paid`, {})));
+    expect(results.map((r) => r.status).sort()).toEqual([200, 400]);
+    expect(await payment(s, "Alice")).toMatchObject({ status: "paid", amountPaidCents: a.amountDueCents });
+    expect((await payment(s, "Alice")).receipts).toHaveLength(1);
+  });
+
   it("archives the moment everyone is paid, then locks the event", async () => {
     const s = await scenario();
     await s.admin.call(`${s.eb}/finalize`, s.fees);
