@@ -205,7 +205,9 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
   const [editing, setEditing] = useState(false);
   const [friends, setFriends] = useState<string[]>(e.myFriends ?? []);
   const { busy, error, run } = useAction();
-  const signedUp = e.myFriends !== null;
+  const signedUp = e.selfSignedUp;
+  // The Owner may hang friends under a member who isn't coming: they are on the bill, not the list.
+  const friendsOnly = !signedUp && (e.myFriends?.length ?? 0) > 0;
 
   async function save() {
     if (await run(() => api(`${props.base}/events/${e.id}/signup`, { friends }))) {
@@ -216,7 +218,12 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
   async function cancel() {
     // Friends hung under them go too, the ones the Owner added included (Ke Li's call).
     const n = e.myFriends?.length ?? 0;
-    if (!confirm(n ? `取消你自己和名下 ${n} 个朋友的报名？` : "确定取消报名吗？")) return;
+    const question = friendsOnly
+      ? `把名下的 ${n} 个朋友从名单上去掉？`
+      : n
+        ? `取消你自己和名下 ${n} 个朋友的报名？`
+        : "确定取消报名吗？";
+    if (!confirm(question)) return;
     if (await run(() => api(`${props.base}/events/${e.id}/cancel`, {}))) props.onChange();
   }
 
@@ -229,7 +236,10 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
       {signedUp && !editing && !e.payment && (
         <p class="ok">✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}</p>
       )}
-      {!signedUp && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
+      {friendsOnly && !editing && (
+        <p class="muted">你本人没有报名；管理员在你名下加了 {e.myFriends!.length} 个朋友，费用算在你的账单上。</p>
+      )}
+      {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
       {!editing && <EventActions e={e} calendar={signedUp && !e.payment} />}
       {e.canEdit && editing && (
         <>
@@ -262,6 +272,23 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
                 取消报名
               </button>
             </div>
+          ) : friendsOnly ? (
+            <div class="inline">
+              <button
+                type="button"
+                class="button"
+                onClick={() => {
+                  // Signing up keeps the friends already under them.
+                  setFriends(e.myFriends ?? []);
+                  setEditing(true);
+                }}
+              >
+                我也报名
+              </button>
+              <button type="button" class="button danger" disabled={busy} onClick={cancel}>
+                去掉这些朋友
+              </button>
+            </div>
           ) : (
             <button
               type="button"
@@ -276,7 +303,7 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
           )}
         </>
       )}
-      {!e.canEdit && e.status === "closed" && signedUp && (
+      {!e.canEdit && e.status === "closed" && (signedUp || friendsOnly) && (
         <p class="muted small">报名已截止，需要修改请联系管理员。费用会在活动后公布。</p>
       )}
       {e.payment && <PaymentBox p={e.payment} />}

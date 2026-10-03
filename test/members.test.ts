@@ -1,6 +1,15 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { Client, approveMember, createTestEvent, expire, joinBody, setUpAdmin, tokenOf } from "./helpers";
+import {
+  Client,
+  approveMember,
+  billingScenario,
+  createTestEvent,
+  expire,
+  joinBody,
+  setUpAdmin,
+  tokenOf,
+} from "./helpers";
 
 const anon = new Client();
 
@@ -236,6 +245,24 @@ describe("member links", () => {
     const d = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data;
     await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/${d.roster[0].id}/remove`, {});
     expect((await ctx.admin.call(`${ctx.base}/members/${alice.id}/delete`, {})).status).toBe(200);
+  });
+
+  it("keeps a disabled member who is on a settled list that is not collected yet", async () => {
+    const s = await billingScenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const bob = (await s.admin.call(`${s.eb}/settlement`)).data.payments.find(
+      (p: { memberName: string }) => p.memberName === "Bob",
+    );
+    await s.admin.call(`${s.base}/payments/${bob.id}/mark-paid`, {});
+    await s.admin.call(`${s.base}/members/${s.bob.id}/deactivate`, {});
+    // Paid up, but a fee change could still bill him: refused until the event is collected.
+    const refused = await s.admin.call(`${s.base}/members/${s.bob.id}/delete`, {});
+    expect(refused.status).toBe(400);
+    expect(refused.data.error.message).toContain("还没收齐");
+    for (const p of (await s.admin.call(`${s.eb}/settlement`)).data.payments)
+      if (p.status !== "paid") await s.admin.call(`${s.base}/payments/${p.id}/mark-paid`, {});
+    expect((await s.admin.call(`${s.eb}`)).data.status).toBe("settled");
+    expect((await s.admin.call(`${s.base}/members/${s.bob.id}/delete`, {})).status).toBe(200);
   });
 
   it("frees a deleted member's name; the old record keeps it with its ID so history never mixes them up", async () => {

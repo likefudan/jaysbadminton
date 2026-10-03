@@ -18,12 +18,7 @@ export function InboundTab(props: { base: string }) {
             收款邮件自动对账：编号和名字对上的自动记到这个人的账上：付够了标记已付，不够的显示「部分付款」等补付，多付的列在「需要退款」里；备注里没有本群付款编号的收款直接忽略，不会出现在这里。
           </p>
           <Refunds base={props.base} list={d.refunds} onDone={reload} />
-          <Card title={`待确认${d.open.length ? ` (${d.open.length})` : ""}`}>
-            {d.open.length === 0 && <Empty>没有需要确认的付款</Empty>}
-            {d.open.map((i) => (
-              <Item key={i.id} base={props.base} item={i} payments={d.payments} onDone={reload} />
-            ))}
-          </Card>
+          <OpenList base={props.base} open={d.open} payments={d.payments} onDone={reload} />
           {d.done.length > 0 && (
             <Card title="最近处理过的">
               {d.done.map((i) => (
@@ -63,16 +58,40 @@ function Summary(props: { item: InboundRow }) {
   );
 }
 
-function Item(props: { base: string; item: InboundRow; payments: OpenPayment[]; onDone: () => void }) {
+function OpenList(props: { base: string; open: InboundRow[]; payments: OpenPayment[]; onDone: () => void }) {
+  const groups = groupPayments(props.payments);
+  return (
+    <Card title={`待确认${props.open.length ? ` (${props.open.length})` : ""}`}>
+      {props.open.length === 0 && <Empty>没有需要确认的付款</Empty>}
+      {props.open.map((i) => (
+        <Item key={i.id} base={props.base} item={i} groups={groups} onDone={props.onDone} />
+      ))}
+    </Card>
+  );
+}
+
+/** Someone who pays twice (a Venmo payment on top of cash, say) can only be put on a paid bill. */
+const groupPayments = (payments: OpenPayment[]): [string, OpenPayment[]][] => [
+  ["未付清", payments.filter((p) => p.status !== "paid")],
+  ["已付清（多付的钱列入需要退款）", payments.filter((p) => p.status === "paid")],
+];
+
+function Item(props: { base: string; item: InboundRow; groups: [string, OpenPayment[]][]; onDone: () => void }) {
   const i = props.item;
   const [target, setTarget] = useState("");
   const { busy, error, run } = useAction();
 
   async function link() {
-    const p = props.payments.find((x) => String(x.id) === target);
+    const p = props.groups.flatMap(([, list]) => list).find((x) => String(x.id) === target);
     if (!p) return;
     const amount = i.amountCents === null ? "" : ` $${dollars(i.amountCents)}`;
-    if (!confirm(`把这笔${amount}算作 ${p.memberName}（${p.eventLabel}）的付款，标记为已付？`)) return;
+    const what =
+      p.status === "paid"
+        ? "这笔已经付清，多出的钱会列入「需要退款」。"
+        : p.amountPaidCents + (i.amountCents ?? 0) > p.amountDueCents
+          ? "多出的钱会列入「需要退款」。"
+          : "";
+    if (!confirm(`把这笔${amount}算作 ${p.memberName}（${p.eventLabel}）的付款？${what}`)) return;
     if (await run(() => api(`${props.base}/inbound/${i.id}/link`, { paymentId: p.id }))) props.onDone();
   }
   async function ignore() {
@@ -86,19 +105,27 @@ function Item(props: { base: string; item: InboundRow; payments: OpenPayment[]; 
       {i.reason && <p class="small reason">{i.reason}</p>}
       {error && <p class="error">{error}</p>}
       <div class="link-row">
-        {props.payments.length > 0 && (
+        {props.groups.some(([, list]) => list.length > 0) && (
           <>
             <select value={target} onChange={(e) => setTarget((e.target as HTMLSelectElement).value)}>
               <option value="">关联到谁的应付款…</option>
-              {props.payments.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.memberName} ·{" "}
-                  {p.status === "partial"
-                    ? `还差 $${dollars(p.amountDueCents - p.amountPaidCents)}`
-                    : `$${dollars(p.amountDueCents)}`}{" "}
-                  · {p.eventLabel}
-                </option>
-              ))}
+              {props.groups.map(([label, list]) =>
+                list.length === 0 ? null : (
+                  <optgroup key={label} label={label}>
+                    {list.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.memberName} ·{" "}
+                        {p.status === "partial"
+                          ? `还差 $${dollars(p.amountDueCents - p.amountPaidCents)}`
+                          : p.status === "paid"
+                            ? `已付 $${dollars(p.amountPaidCents)}${p.amountPaidCents > p.amountDueCents ? `（应付 $${dollars(p.amountDueCents)}，已多付）` : ""}`
+                            : `$${dollars(p.amountDueCents)}`}{" "}
+                        · {p.eventLabel}
+                      </option>
+                    ))}
+                  </optgroup>
+                ),
+              )}
             </select>
             <button type="button" class="button" disabled={busy || !target} onClick={link}>
               关联
@@ -234,7 +261,13 @@ function Refunds(props: { base: string; list: RefundRow[]; onDone: () => void })
   );
 }
 
-export function ReceiptList(props: { receipts: Receipt[]; onRemove?: (r: Receipt) => void; busy?: boolean }) {
+export function ReceiptList(props: {
+  receipts: Receipt[];
+  onRemove?: (r: Receipt) => void;
+  /** Which receipts get 撤销; all of them when left out. */
+  canRemove?: (r: Receipt) => boolean;
+  busy?: boolean;
+}) {
   if (props.receipts.length === 0) return null;
   return (
     <ul class="receipts">
@@ -251,7 +284,7 @@ export function ReceiptList(props: { receipts: Receipt[]; onRemove?: (r: Receipt
           </span>
           <span>
             {r.amountCents < 0 ? `−$${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`}
-            {props.onRemove && (
+            {props.onRemove && (props.canRemove?.(r) ?? true) && (
               <button type="button" class="undo" disabled={props.busy} onClick={() => props.onRemove!(r)}>
                 撤销
               </button>

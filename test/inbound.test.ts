@@ -302,6 +302,36 @@ describe("Owner review", () => {
     expect(after.done.map((i: { state: string }) => i.state).sort()).toEqual(["ignored", "linked"]);
   });
 
+  it("links a second payment to a paid bill, archived ones included, as an over-payment to refund", async () => {
+    const s = await finalized();
+    const day = s.aliceCode.split("-")[1];
+    await s.admin.call(`${s.base}/payments/${(await s.by("Alice")).id}/mark-paid`, {});
+    const bob = await s.by("Bob");
+    await s.admin.call(`${s.base}/payments/${bob.id}/mark-paid`, {}); // the last one pays cash: archived
+    expect((await s.admin.call(`${s.eb}`)).data.status).toBe("settled");
+    await deliver({ amount: "31.00", note: `bob-${day}-m099`, txnId: "D1" }); // and by Venmo, mistyped
+    const d = (await s.admin.call(`${s.base}/inbound`)).data;
+    expect(d.payments.map((p: { memberName: string; status: string }) => [p.memberName, p.status])).toEqual([
+      ["Alice", "paid"],
+      ["Bob", "paid"],
+    ]); // never the Owner's own bill
+    const owner = (await s.admin.call(`${s.eb}/settlement`)).data.payments.find((p: { isOwner: boolean }) => p.isOwner);
+    expect((await s.admin.call(`${s.base}/inbound/${d.open[0].id}/link`, { paymentId: owner.id })).status).toBe(400);
+
+    expect((await s.admin.call(`${s.base}/inbound/${d.open[0].id}/link`, { paymentId: bob.id })).status).toBe(200);
+    const after = await s.by("Bob");
+    expect(after).toMatchObject({ status: "paid", amountPaidCents: 6200, refundCents: 3100 });
+    expect((await s.admin.call(`${s.base}/inbound`)).data.refunds).toHaveLength(1);
+
+    // Archived: the cash receipt can't come off (the bill would be unpaid), the extra Venmo one can.
+    const [cash, venmo] = after.receipts;
+    expect((await s.admin.call(`${s.base}/receipts/${cash.id}/remove`, {})).status).toBe(400);
+    expect((await s.admin.call(`${s.base}/receipts/${venmo.id}/remove`, {})).status).toBe(200);
+    expect(await s.by("Bob")).toMatchObject({ status: "paid", amountPaidCents: 3100 });
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toHaveLength(1);
+    expect((await s.admin.call(`${s.eb}`)).data.status).toBe("settled");
+  });
+
   it("tops up a partly paid bill from a linked payment, and undoing it puts the payment back", async () => {
     const s = await finalized();
     const day = s.aliceCode.split("-")[1];

@@ -212,7 +212,8 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
   if (Number(p.time.slice(0, 2)) !== cfg.dunningHour) return;
   await once(env, e.id, "dunning", p.date, async () => {
     const { results: pays } = await env.DB.prepare(
-      `SELECT p.amount_due_cents, p.amount_paid_cents, p.status, m.username, m.wechat_nickname
+      `SELECT p.amount_due_cents, p.amount_paid_cents, p.status, m.username, m.wechat_nickname,
+         m.token_enc IS NOT NULL AS has_link, m.google_sub IS NOT NULL AS has_google
        FROM payments p JOIN members m ON m.id = p.member_id WHERE p.event_id = ? ORDER BY m.username`,
     )
       .bind(e.id)
@@ -222,6 +223,8 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
         status: string;
         username: string;
         wechat_nickname: string;
+        has_link: number;
+        has_google: number;
       }>();
     const owing = pays.filter((x) => x.status !== "paid");
     if (owing.length === 0) return true;
@@ -239,10 +242,13 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
     if (!ok) return false;
     for (const x of owing) {
       const owed = dollars(x.amount_due_cents - x.amount_paid_cents);
+      // Members who joined with Google have no link: they sign in instead. With neither, the
+      // Owner sends them a new link anyway, so the text doesn't name one.
+      const via = x.has_link ? "通过你的专属链接" : x.has_google ? "用 Google 登录网站" : "";
       const text =
         x.status === "partial"
-          ? `${x.username}，${day(e)}羽毛球的费用还差 $${owed} 没付哦，麻烦通过你的专属链接补一下，谢谢！`
-          : `${x.username}，${day(e)}羽毛球的费用 $${owed} 还没付哦，麻烦通过你的专属链接付一下，谢谢！`;
+          ? `${x.username}，${day(e)}羽毛球的费用还差 $${owed} 没付哦，麻烦${via}补一下，谢谢！`
+          : `${x.username}，${day(e)}羽毛球的费用 $${owed} 还没付哦，麻烦${via}付一下，谢谢！`;
       await sendToOwner(env, message(`账单提醒：${x.username}（微信：${x.wechat_nickname}）`, text));
     }
     return true;
@@ -266,7 +272,7 @@ export async function notifyFinalized(env: Env, e: EventRow): Promise<void> {
       env,
       message(
         `✅ ${day(e)} 已结算，应收合计 $${dollars(total)}：\n${lines}`,
-        `${day(e)}羽毛球的费用已经出来了，请打开自己的专属链接查看金额并付款，谢谢！`,
+        `${day(e)}羽毛球的费用已经出来了，请打开自己的专属链接（或用 Google 登录网站）查看金额并付款，谢谢！`,
       ),
     );
   });

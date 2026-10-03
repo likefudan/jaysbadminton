@@ -117,6 +117,8 @@ export interface EventDetail extends EventSummary {
 export interface MyEvent extends EventSummary {
   /** null when not signed up; otherwise the names entered for each friend ("" = unnamed). */
   myFriends: string[] | null;
+  /** On the list themselves; false with myFriends set when the Owner hung friends under them without them. */
+  selfSignedUp: boolean;
   canEdit: boolean;
   /** Present once the event is finalized and the member owes something. */
   payment: MyPayment | null;

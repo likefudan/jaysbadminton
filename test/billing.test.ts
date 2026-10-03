@@ -166,14 +166,13 @@ describe("settlement", () => {
     const s = await scenario();
     await s.admin.call(`${s.eb}/finalize`, s.fees);
     const jay = await payment(s, "Jay");
+    // The Owner paid their own bill by Venmo with its code, so it was matched automatically.
     await env.DB.prepare(
-      `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)
-       VALUES ('txn-jay', 'Jay', 500, 'badminton', ?, 'unmatched', 'test')`,
+      `INSERT INTO payment_receipts (payment_id, amount_cents, method, venmo_txn_id, payer_name, received_at)
+       VALUES (?, 500, 'venmo', 'txn-jay', 'Jay', ?)`,
     )
-      .bind(new Date().toISOString())
+      .bind(jay.id, new Date().toISOString())
       .run();
-    const inbound = (await s.admin.call(`${s.base}/inbound`)).data.open[0];
-    await s.admin.call(`${s.base}/inbound/${inbound.id}/link`, { paymentId: jay.id });
     const row = (await s.admin.call(s.eb)).data.roster.find((r: { name: string }) => r.name === "Jay").id;
     expect((await s.admin.call(`${s.eb}/roster/${row}/remove`, {})).status).toBe(200);
     expect(await payment(s, "Jay")).toMatchObject({ amountDueCents: 0, amountPaidCents: 500, refundCents: 500 });
@@ -449,7 +448,7 @@ describe("collection and archive", () => {
     expect(add.data.error.message).toBe("这个活动已收齐归档，不能再修改");
     const paid = (await payment(s, "Alice")).receipts[0];
     expect((await s.admin.call(`${s.base}/receipts/${paid.id}/remove`, {})).data.error.message).toBe(
-      "这个活动已收齐归档，不能再修改",
+      "这个活动已收齐归档，只能撤销多付的 Venmo 付款",
     );
     expect((await s.admin.call(`${s.eb}/finalize`, s.fees)).data.error.message).toBe("这个活动已收齐归档，不能再修改");
 

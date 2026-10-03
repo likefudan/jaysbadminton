@@ -155,7 +155,17 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
               )}
             </div>
             {!p.isOwner && (
-              <ReceiptList receipts={p.receipts} busy={busy} onRemove={settled ? undefined : (r) => remove(p, r)} />
+              <ReceiptList
+                receipts={p.receipts}
+                busy={busy}
+                onRemove={(r) => remove(p, r)}
+                // Archived: only an extra Venmo payment can come off, so the bill stays paid.
+                canRemove={
+                  settled
+                    ? (r) => r.method === "venmo" && p.amountPaidCents - r.amountCents >= p.amountDueCents
+                    : undefined
+                }
+              />
             )}
           </div>
         ))}
