@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import type { Env } from "./env";
 import { closeExpired } from "./events";
+import { syncAllDeadlines } from "./deadlines";
+export { DeadlineAlarm } from "./deadlines";
 import { HttpError } from "./http";
 import { MAX_EMAIL_BYTES, handleEmail, recordEmailOutcome } from "./inbound";
 import { exportAll } from "./export";
@@ -89,6 +91,9 @@ export default {
   async scheduled(_controller, env, _ctx) {
     try {
       await closeExpired(env);
+      // Re-aims every open event's alarm, so events created before alarms existed (or whose
+      // sync failed) still get theirs.
+      await syncAllDeadlines(env);
       await runScheduled(env);
     } catch (err) {
       console.error("scheduled run failed:", err);

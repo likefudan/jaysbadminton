@@ -20,9 +20,12 @@
     }
   ],
   "vars": { "SITE_ORIGIN": "https://jaysbadminton.llmat.dev", "ENVIRONMENT": "production" },
-  // Every minute: deadlines fall on whole minutes, so 报名截止 goes out within seconds of the deadline.
-  // Every job is logged in notification_log, so running often never sends anything twice.
-  "triggers": { "crons": ["* * * * *"] },
+  // 截止前提醒 and 报名截止 go out on time from each event's alarm (src/worker/deadlines.ts).
+  "durable_objects": { "bindings": [{ "name": "DEADLINES", "class_name": "DeadlineAlarm" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DeadlineAlarm"] }],
+  // Every 15 minutes: the hourly and daily jobs (settle reminder, dunning, digest) and a backstop
+  // for any alarm that failed. Every job is logged in notification_log, so nothing is sent twice.
+  "triggers": { "crons": ["*/15 * * * *"] },
   "routes": [{ "pattern": "jaysbadminton.llmat.dev", "custom_domain": true }],
   "observability": { "enabled": true },
 
@@ -47,7 +50,8 @@
         }
       ],
       "vars": { "SITE_ORIGIN": "https://staging.jaysbadminton.llmat.dev", "ENVIRONMENT": "staging" },
-      "triggers": { "crons": ["* * * * *"] },
+      "durable_objects": { "bindings": [{ "name": "DEADLINES", "class_name": "DeadlineAlarm" }] },
+      "triggers": { "crons": ["*/15 * * * *"] },
       "routes": [{ "pattern": "staging.jaysbadminton.llmat.dev", "custom_domain": true }],
       "observability": { "enabled": true }
     }

@@ -95,7 +95,7 @@ describe("scheduled notifications", () => {
     expect(sent()[1]).toContain("1. Jay");
   });
 
-  it("closes sign-up and posts the roster in the run right after the deadline (the cron runs every minute)", async () => {
+  it("closes sign-up and posts the roster in the next cron run, as a backstop for the alarm", async () => {
     const ctx = await setUpAdmin();
     await connectChat();
     const e = await createTestEvent(ctx, { joinSelf: true });

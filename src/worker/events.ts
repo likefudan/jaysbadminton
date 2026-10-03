@@ -1,6 +1,7 @@
 import type { EventDetail, EventStatus, EventSummary, RosterEntry } from "../shared/types";
 import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
 import { getSettings, now, setSetting } from "./db";
+import { syncDeadline } from "./deadlines";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 
@@ -38,7 +39,7 @@ export const friendLabel = (memberName: string, index: number, name: string | nu
   name?.trim() || `${memberName}的朋友${index}`;
 
 /**
- * An open event past its deadline reads as closed straight away; the cron (every minute) or the
+ * An open event past its deadline reads as closed straight away; its deadline alarm (or the cron) or the
  * next write stores it. Read paths use this instead of writing to the database themselves.
  */
 export const liveStatus = (e: EventRow): EventStatus => (e.status === "open" && e.deadline_at <= now() ? "closed" : e.status);
@@ -193,6 +194,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     setSetting(env.DB, "last_location", location),
     setSetting(env.DB, "last_deadline_offset_min", String(v.offsetMin)),
   ]);
+  await syncDeadline(env, res!.id);
   return getEvent(env, res!.id);
 }
 

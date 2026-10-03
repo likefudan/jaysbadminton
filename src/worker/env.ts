@@ -1,5 +1,9 @@
+import type { DeadlineAlarm } from "./deadlines";
+
 export interface Env {
   DB: D1Database;
+  /** One alarm per event for its reminder and deadline (see deadlines.ts). */
+  DEADLINES: DurableObjectNamespace<DeadlineAlarm>;
   ASSETS: Fetcher;
   /** Encrypts member link tokens and peppers the admin password hash. Generated once by CI. */
   TOKEN_KEY: string;

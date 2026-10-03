@@ -4,6 +4,7 @@ import type { EventDefaults, InboundResponse, SettlementView } from "../../share
 import { addReceipt, checkCollected, finalize, markPaid, paymentRows, recomputeIfFinalized, savedInput, settleRows, syncPayments } from "../billing";
 import { isDate, isTime, pacificToUtc } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
+import { syncAllDeadlines, syncDeadline } from "../deadlines";
 import type { Env } from "../env";
 import {
   assertRosterEditable,
@@ -121,6 +122,7 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   if (e.status !== "open" && e.status !== "closed") throw badRequest("只能在 Finalize 之前取消活动");
   await c.env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e.id).run();
+  await syncDeadline(c.env, e.id);
   return c.json({ ok: true });
 });
 
@@ -132,6 +134,7 @@ adminEventRoutes.post("/events/:id/close-now", async (c) => {
   await c.env.DB.prepare("UPDATE events SET status = 'closed', deadline_at = ? WHERE id = ? AND status = 'open'")
     .bind(now(), e.id)
     .run();
+  await syncDeadline(c.env, e.id); // 报名截止 goes out right away
   return c.json({ ok: true });
 });
 
@@ -170,6 +173,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
     ).bind(date, startAt, endAt, location, address, b.title === undefined ? e.title : cleanTitle(str(b.title)), deadline, status, e.id),
     saveVenue(c.env, location, address, ts),
   ]);
+  await syncDeadline(c.env, e.id);
   return c.json(await detail(c.env, await getEvent(c.env, e.id)));
 });
 
@@ -186,6 +190,7 @@ adminEventRoutes.post("/events/:id/reopen", async (c) => {
   if (deadline <= now()) throw badRequest("新的截止时间必须晚于现在");
   if (deadline > e.end_at) throw badRequest("截止时间最晚只能到活动结束");
   await c.env.DB.prepare("UPDATE events SET status = 'open', deadline_at = ? WHERE id = ?").bind(deadline, e.id).run();
+  await syncDeadline(c.env, e.id);
   return c.json({ ok: true });
 });
 
@@ -290,6 +295,7 @@ adminEventRoutes.post("/settings", async (c) => {
   }
   if (b.weeklyDigest !== undefined) writes.push(setSetting(c.env.DB, "weekly_digest", b.weeklyDigest === false ? "0" : "1"));
   if (writes.length) await c.env.DB.batch(writes);
+  if (b.reminderEnabled !== undefined || b.reminderHours !== undefined) await syncAllDeadlines(c.env);
   return c.json({ ok: true });
 });
 
