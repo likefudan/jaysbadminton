@@ -104,6 +104,16 @@ describe("admin setup and login", () => {
     expect(locked.data.error.message).toBe("密码错误次数过多，请 15 分钟后再试");
   });
 
+  it("parallel wrong attempts can't get past the 5-attempt limit", async () => {
+    const { base } = await setUpAdmin();
+    const c = new Client();
+    const statuses = (
+      await Promise.all(Array.from({ length: 12 }, () => c.call(`${base}/login`, { password: "bad" })))
+    ).map((r) => r.status);
+    expect(statuses.filter((s) => s === 401).length).toBeLessThanOrEqual(5);
+    expect((await c.call(`${base}/login`, { password: "initial-password" })).status).toBe(429);
+  });
+
   it("rotating the admin link kills the old one", async () => {
     const { admin, base } = await setUpAdmin();
     const { data } = await admin.call(`${base}/settings/rotate-admin`, {});

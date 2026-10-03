@@ -33,25 +33,41 @@ const LOCK_MINUTES = 15;
 /**
  * Verifies the admin password. After 5 wrong attempts, all password checks are refused for
  * 15 minutes, which keeps the login and first-time setup forms from being brute-forced.
+ *
+ * Each attempt is counted with one atomic increment before the password is checked, so a burst
+ * of parallel requests can't all read the same count and slip past the limit.
  */
 export async function checkPassword(env: Env, password: string): Promise<boolean> {
   await syncEnvPassword(env);
-  const s = await getSettings(env.DB, ["admin_password_hash", "admin_login_failures", "admin_login_locked_until"]);
-  if (s.admin_login_locked_until && s.admin_login_locked_until > now()) {
-    throw new HttpError(429, "locked", `密码错误次数过多，请 ${LOCK_MINUTES} 分钟后再试`);
+  const s = await getSettings(env.DB, ["admin_password_hash", "admin_login_locked_until"]);
+  if (s.admin_login_locked_until && s.admin_login_locked_until > now()) throw locked();
+  const attempt = await env.DB.prepare(
+    `INSERT INTO settings (key, value) VALUES ('admin_login_failures', '1')
+     ON CONFLICT (key) DO UPDATE SET value = CAST(value AS INTEGER) + 1 RETURNING value`,
+  ).first<{ value: string }>();
+  const n = Number(attempt!.value);
+  if (n > MAX_FAILURES) {
+    await lock(env);
+    throw locked();
   }
   const ok = !!s.admin_password_hash && (await verifyPassword(password, s.admin_password_hash, env.TOKEN_KEY));
   if (ok) {
     await setSetting(env.DB, "admin_login_failures", "0").run();
     return true;
   }
-  const failures = Number(s.admin_login_failures ?? "0") + 1;
-  const writes = [setSetting(env.DB, "admin_login_failures", failures >= MAX_FAILURES ? "0" : String(failures))];
-  if (failures >= MAX_FAILURES) {
-    writes.push(setSetting(env.DB, "admin_login_locked_until", new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString()));
-  }
-  await env.DB.batch(writes);
+  if (n === MAX_FAILURES) await lock(env);
   return false;
+}
+
+function locked(): HttpError {
+  return new HttpError(429, "locked", `密码错误次数过多，请 ${LOCK_MINUTES} 分钟后再试`);
+}
+
+async function lock(env: Env): Promise<void> {
+  await env.DB.batch([
+    setSetting(env.DB, "admin_login_failures", "0"),
+    setSetting(env.DB, "admin_login_locked_until", new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString()),
+  ]);
 }
 
 export async function setPassword(env: Env, password: string): Promise<void> {
