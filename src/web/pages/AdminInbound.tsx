@@ -3,7 +3,7 @@ import { dollars } from "../../shared/settle";
 import { formatInstantZh } from "../../shared/time";
 import type { InboundResponse, InboundRow, OpenPayment, Receipt, RefundRow } from "../../shared/types";
 import { api } from "../api";
-import { Card, Empty, Load, useAction } from "../components";
+import { Card, Empty, Field, Load, useAction } from "../components";
 import { useApi } from "../hooks";
 
 /** Forwarded Venmo payments that carry our code but could not be pinned to one bill. */
@@ -36,10 +36,12 @@ export function InboundTab(props: { base: string }) {
                         ? `已关联到 ${i.linked.memberName}（${i.linked.eventLabel}）`
                         : ""}
                   </small>
+                  {i.state === "ignored" && <DeleteButton base={props.base} item={i} onDone={reload} />}
                 </div>
               ))}
             </Card>
           )}
+          {d.deleted.length > 0 && <Trash base={props.base} list={d.deleted} onDone={reload} />}
         </>
       )}
     </Load>
@@ -106,8 +108,98 @@ function Item(props: { base: string; item: InboundRow; payments: OpenPayment[]; 
         <button class="button secondary" disabled={busy} onClick={ignore}>
           忽略
         </button>
+        <DeleteButton base={props.base} item={i} onDone={props.onDone} />
       </div>
     </div>
+  );
+}
+
+/** Moves a payment to 已删除. No confirmation: it can be restored from there for 30 days. */
+function DeleteButton(props: { base: string; item: InboundRow; onDone: () => void }) {
+  const { busy, error, run } = useAction();
+  async function remove() {
+    if (await run(() => api(`${props.base}/inbound/${props.item.id}/delete`, {}))) props.onDone();
+  }
+  return (
+    <>
+      <button class="button secondary" disabled={busy} onClick={remove}>
+        删除
+      </button>
+      {error && <p class="error">{error}</p>}
+    </>
+  );
+}
+
+const TRASH_DAYS = 30;
+
+/** 已删除: restore or delete for good, one at a time; 清空 needs the admin password. */
+function Trash(props: { base: string; list: InboundRow[]; onDone: () => void }) {
+  const [clearing, setClearing] = useState(false);
+  const [password, setPassword] = useState("");
+  const { busy, error, run } = useAction();
+  const what = (i: InboundRow) =>
+    `${i.payerName ?? "未知付款人"}${i.amountCents !== null ? ` $${dollars(i.amountCents)}` : ""}`;
+  const daysLeft = (i: InboundRow) =>
+    Math.max(0, Math.ceil((Date.parse(i.deletedAt ?? "") + TRASH_DAYS * 86400_000 - Date.now()) / 86400_000));
+
+  async function restore(i: InboundRow) {
+    if (!confirm(`恢复 ${what(i)} 这笔收款？它会回到原来的列表。`)) return;
+    if (await run(() => api(`${props.base}/inbound/${i.id}/restore`, {}))) props.onDone();
+  }
+  async function purge(i: InboundRow) {
+    if (!confirm(`永久删除 ${what(i)} 这笔收款？删除后无法恢复。`)) return;
+    if (await run(() => api(`${props.base}/inbound/${i.id}/purge`, {}))) props.onDone();
+  }
+  async function clear(ev: Event) {
+    ev.preventDefault();
+    if (!confirm(`永久删除「已删除」里的全部 ${props.list.length} 笔收款？删除后无法恢复。`)) return;
+    if (await run(() => api(`${props.base}/inbound/trash/clear`, { password }))) {
+      setClearing(false);
+      setPassword("");
+      props.onDone();
+    }
+  }
+
+  return (
+    <Card title={`已删除 (${props.list.length})`}>
+      <p class="muted small">删除的收款保留 {TRASH_DAYS} 天，之后自动永久删除。</p>
+      {error && <p class="error">{error}</p>}
+      {props.list.map((i) => (
+        <div class="inbound" key={i.id}>
+          <Summary item={i} />
+          <small class="muted">{daysLeft(i)} 天后永久删除</small>
+          <div class="link-row">
+            <button class="button secondary" disabled={busy} onClick={() => restore(i)}>
+              恢复
+            </button>
+            <button class="button danger" disabled={busy} onClick={() => purge(i)}>
+              永久删除
+            </button>
+          </div>
+        </div>
+      ))}
+      {!clearing ? (
+        <button class="button danger block" disabled={busy} onClick={() => setClearing(true)}>
+          清空
+        </button>
+      ) : (
+        <form onSubmit={clear}>
+          <Field
+            label="管理密码"
+            type="password"
+            value={password}
+            onInput={setPassword}
+            autocomplete="current-password"
+          />
+          <button class="button danger block" disabled={busy || !password}>
+            永久删除全部 {props.list.length} 笔
+          </button>
+          <button class="button secondary block" type="button" onClick={() => setClearing(false)}>
+            取消
+          </button>
+        </form>
+      )}
+    </Card>
   );
 }
 

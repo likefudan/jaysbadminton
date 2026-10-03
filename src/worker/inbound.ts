@@ -179,14 +179,28 @@ async function record(env: Env, r: VenmoReceipt, emailId: string, reason: string
 const eventLabel = (date: string, code: string) =>
   formatDateZh(date) + (code.length > 4 ? ` 第${code.charCodeAt(4) - 64}场` : "");
 
-export async function inboundRows(env: Env, state: "open" | "done"): Promise<InboundRow[]> {
+const ROW_FILTER = {
+  open: "i.state = 'open' ORDER BY i.received_at DESC LIMIT 200",
+  done: "i.state IN ('linked', 'ignored') ORDER BY i.received_at DESC LIMIT 30",
+  deleted: "i.state = 'deleted' ORDER BY i.deleted_at DESC",
+};
+
+/** 已删除 keeps a payment this long; then the cron removes it for good. */
+export const TRASH_DAYS = 30;
+
+export async function purgeDeletedInbound(env: Env, at: Date = new Date()): Promise<void> {
+  await env.DB.prepare("DELETE FROM inbound_payments WHERE state = 'deleted' AND deleted_at < ?")
+    .bind(new Date(at.getTime() - TRASH_DAYS * 86400_000).toISOString())
+    .run();
+}
+
+export async function inboundRows(env: Env, state: keyof typeof ROW_FILTER): Promise<InboundRow[]> {
   const { results } = await env.DB.prepare(
     `SELECT i.*, m.username, e.date, e.code FROM inbound_payments i
      LEFT JOIN payments p ON p.id = i.linked_payment_id
      LEFT JOIN members m ON m.id = p.member_id
      LEFT JOIN events e ON e.id = p.event_id
-     WHERE ${state === "open" ? "i.state = 'open'" : "i.state != 'open'"}
-     ORDER BY i.received_at DESC LIMIT ${state === "open" ? 200 : 30}`,
+     WHERE ${ROW_FILTER[state]}`,
   ).all<Record<string, any>>();
   return results.map((i) => ({
     id: i.id,
@@ -201,6 +215,7 @@ export async function inboundRows(env: Env, state: "open" | "done"): Promise<Inb
     linked: i.linked_payment_id
       ? { paymentId: i.linked_payment_id, memberName: i.username, eventLabel: eventLabel(i.date, i.code) }
       : null,
+    deletedAt: i.deleted_at,
   }));
 }
 

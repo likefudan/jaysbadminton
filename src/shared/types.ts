@@ -275,7 +275,7 @@ export type InboundKind = "unmatched"; // older rows may hold "anomaly" / "other
 export interface InboundRow {
   id: number;
   kind: InboundKind;
-  state: "open" | "linked" | "ignored";
+  state: "open" | "linked" | "ignored" | "deleted";
   payerName: string | null;
   amountCents: number | null;
   note: string | null;
@@ -284,6 +284,8 @@ export interface InboundRow {
   /** Why it needs review, or what was done with it. */
   reason: string | null;
   linked: { paymentId: number; memberName: string; eventLabel: string } | null;
+  /** In 已删除: when it was deleted (UTC ISO); it is removed for good 30 days later. */
+  deletedAt: string | null;
 }
 
 /** A payment still waiting for money, offered as a link target for an inbound row. */
@@ -311,6 +313,7 @@ export interface RefundRow {
 export interface InboundResponse {
   open: InboundRow[];
   done: InboundRow[];
+  deleted: InboundRow[];
   payments: OpenPayment[];
   refunds: RefundRow[];
 }
