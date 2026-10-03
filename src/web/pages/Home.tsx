@@ -3,6 +3,8 @@ import { Empty, Load, Page, SectionTitle, Tiles } from "../components";
 import { EventLink } from "../events";
 import { useApi, useMemberSession } from "../hooks";
 import { useSiteTitle } from "../site";
+import { siteCardText } from "../../shared/shareCard";
+import { ShareCardButton } from "../ShareCard";
 import { LeaderboardCard } from "../Stats";
 
 const WEEKDAY_ZH = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -47,6 +49,7 @@ export function Home() {
                   <EventLink key={e.id} e={e} href={`/e/${e.code}`} publicView />
                 ))}
               </div>
+              <ShareCardButton text={siteCardText(location.origin)} filename="share-card.png" />
             </>
           );
         }}
