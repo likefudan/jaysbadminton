@@ -214,14 +214,14 @@ export function ShareCardButton(props: { text: CardText; filename: string }) {
 /**
  * The action row inside every event card, public or the member's own: 加入日历 (iPhone / Outlook,
  * Google 日历) and 分享名片, side by side with no row title. Calendar buttons only where `calendar`
- * allows and the event is still ahead; 分享名片 not on events already billed (结算中 / 已结清),
- * since nobody needs to be invited to those.
+ * allows and the event is still ahead; 分享名片 only while sign-up is open (报名中): a closed,
+ * cancelled or billed event has nobody left to invite.
  */
 export function EventActions(props: { e: EventSummary; calendar?: boolean }) {
   const e = props.e;
   const [open, setOpen] = useState(false);
   const calendar = (props.calendar ?? true) && canAddToCalendar(e);
-  const share = e.status !== "finalized" && e.status !== "settled";
+  const share = e.status === "open";
   if (!calendar && !share) return null;
   return (
     <div class="calendar">

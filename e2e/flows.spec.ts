@@ -284,6 +284,15 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   await openAdmin(page);
   await page.locator(".event-link", { hasText: VENUE }).click();
   await page.getByRole("button", { name: "立即截止报名" }).click();
+  await expect(field(page, "场地总费用（美元）")).toBeVisible();
+
+  // Sign-up closed: the public card keeps 加入日历 but no longer offers 分享名片.
+  const pub = await page.context().newPage();
+  await pub.goto(`/e/${eventCode}`);
+  await expect(pub.getByRole("link", { name: "Google 日历" })).toBeVisible();
+  await expect(pub.getByRole("button", { name: "分享名片", exact: true })).toHaveCount(0);
+  await pub.close();
+
   await field(page, "场地总费用（美元）").fill("60");
   await field(page, "用球个数").fill("4");
   await field(page, "球单价（美元）").fill("3");
@@ -296,7 +305,7 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   const bill = page.locator(".card", { hasText: "本次应付" });
   await expect(bill.locator(".amount")).toHaveText("$48.00"); // 小明 + 阿强
   await expect(bill.locator(".status")).toHaveText("待付款");
-  await expect(bill.getByRole("button", { name: "分享名片", exact: true })).toHaveCount(0); // a billed event isn't shared
+  await expect(bill.getByRole("button", { name: "分享名片", exact: true })).toHaveCount(0); // only 报名中 events are shared
   const code = await bill.locator(".memo code").innerText();
   expect(code).toMatch(/^xiaoming-jbm\d{8}-m002$/);
   const venmo = new URL((await bill.getByRole("link", { name: "用 Venmo 付 $48.00" }).getAttribute("href"))!);
