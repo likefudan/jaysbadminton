@@ -70,6 +70,17 @@ adminEventRoutes.get("/events/defaults", async (c) => {
   });
 });
 
+/** 最近的场馆 ✕: forgets a venue. Events keep their own copy of the venue and address. */
+adminEventRoutes.post("/locations/remove", async (c) => {
+  const name = str((await readJson(c.req.raw)).name);
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM locations WHERE name = ?").bind(name),
+    // Otherwise the next new event would still start with it filled in.
+    c.env.DB.prepare("DELETE FROM settings WHERE key = 'last_location' AND value = ?").bind(name),
+  ]);
+  return c.json({ ok: true });
+});
+
 adminEventRoutes.post("/events", async (c) => {
   const b = await readJson(c.req.raw);
   const e = await createEvent(c.env, {

@@ -874,6 +874,35 @@ input[role="switch"]:checked::after {
   color: var(--accent-text);
   border-color: transparent;
 }
+.chips:has(.chip-remove) {
+  padding-top: 8px; /* room for the ✕, which the scrolling row would otherwise clip */
+  padding-right: 8px;
+}
+.chip-wrap {
+  position: relative;
+  flex: none;
+}
+.chip-remove {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg, #fff);
+  font-size: 10px;
+  line-height: 20px;
+  text-align: center;
+  opacity: 0.55;
+  cursor: pointer;
+}
+.chip-remove:hover,
+.chip-remove:focus-visible {
+  opacity: 0.9;
+}
 .suggest {
   position: relative;
 }

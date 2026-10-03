@@ -153,20 +153,35 @@ function VenueFields(props: {
   onVenue: (v: string) => void;
   onAddress: (v: string) => void;
 }) {
+  const [venues, setVenues] = useState(props.venues);
   const pick = (v: { name: string; address: string }) => {
     props.onVenue(v.name);
     props.onAddress(v.address);
   };
+  // No confirmation: it only forgets a shortcut, and typing the venue again brings it back.
+  async function forget(name: string) {
+    setVenues((list) => list.filter((v) => v.name !== name));
+    try {
+      await api(`${props.base}/locations/remove`, { name });
+    } catch {
+      setVenues(props.venues);
+    }
+  }
   return (
     <>
-      {props.venues.length > 0 && (
+      {venues.length > 0 && (
         <div class="field">
           <span>最近的场馆</span>
           <div class="chips">
-            {props.venues.map((v) => (
-              <button type="button" key={v.name} class={v.name === props.venue ? "chip on" : "chip"} onClick={() => pick(v)}>
-                {v.name}
-              </button>
+            {venues.map((v) => (
+              <span class="chip-wrap" key={v.name}>
+                <button type="button" class={v.name === props.venue ? "chip on" : "chip"} onClick={() => pick(v)}>
+                  {v.name}
+                </button>
+                <button type="button" class="chip-remove" aria-label={`从最近的场馆中删除「${v.name}」`} onClick={() => forget(v.name)}>
+                  ✕
+                </button>
+              </span>
             ))}
           </div>
         </div>
