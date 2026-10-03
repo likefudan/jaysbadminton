@@ -237,6 +237,9 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
       {e.status === "open" && <CloseNow eb={eb} onDone={props.onChange} />}
       {e.status === "closed" && <Reopen eb={eb} e={e} onDone={props.onChange} />}
 
+      {/* Workflow order: add walk-ins, check the roster, then fill in the costs. */}
+      {editable && <AddPeople eb={eb} members={props.members} roster={e.roster} onDone={props.onChange} />}
+
       <Card title={`名单（${e.roster.length}）`}>
         {error && <p class="error">{error}</p>}
         {e.roster.length === 0 && <Empty>还没有人报名</Empty>}
@@ -270,8 +273,6 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
       </Card>
 
       <Billing base={props.base} e={e} onChange={props.onChange} />
-
-      {editable && <AddPeople eb={eb} members={props.members} roster={e.roster} onDone={props.onChange} />}
 
       {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
 
