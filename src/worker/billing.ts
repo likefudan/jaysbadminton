@@ -184,16 +184,19 @@ export async function paymentRows(env: Env, eventId: number): Promise<PaymentRow
 }
 
 /**
- * Recomputes the received total and status of the matching bills from their receipts, net of
- * what was already refunded: nothing → unpaid, less than due → partial, due or more → paid (any
- * excess is a refund). Netting matters when a bill goes back up after a refund.
+ * Recomputes the received total and status of the matching bills from their receipts. Refunds are
+ * receipts with a negative amount, so the total is net of them: nothing → unpaid, less than due →
+ * partial, due or more → paid (any excess is still to be refunded).
  */
 export function syncPayments(db: D1Database, where: string, ...args: unknown[]): D1PreparedStatement[] {
   return [
     db
       .prepare(
         `UPDATE payments SET amount_paid_cents =
-           (SELECT COALESCE(SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id) - refunded_cents WHERE ${where}`,
+           (SELECT COALESCE(SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id),
+         refunded_cents =
+           (SELECT COALESCE(-SUM(amount_cents), 0) FROM payment_receipts WHERE payment_id = payments.id AND method = 'refund')
+         WHERE ${where}`,
       )
       .bind(...args),
     db
@@ -256,5 +259,5 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
   return out;
 }
 
-/** amount_paid_cents is already net of refunds, so whatever is above the bill is still owed back. */
+/** amount_paid_cents is net of refunds, so whatever is above the bill is still owed back. */
 export const refundOf = (p: { amount_paid_cents: number; amount_due_cents: number }) => Math.max(0, p.amount_paid_cents - p.amount_due_cents);

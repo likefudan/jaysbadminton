@@ -179,7 +179,7 @@ export const TABLES = {
           r.date,
           r.username,
           money(r.amount_cents),
-          r.method === "venmo" ? "Venmo" : "手动",
+          r.method === "venmo" ? "Venmo" : r.method === "refund" ? "退款" : "手动",
           r.payer_name ?? "",
           r.venmo_txn_id ?? "",
         ]),

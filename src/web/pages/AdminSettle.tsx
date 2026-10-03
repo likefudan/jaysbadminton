@@ -86,7 +86,8 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
     if (await run(() => api(`${props.base}/payments/${p.id}/mark-paid`, {}))) props.onDone();
   }
   async function remove(p: PaymentRow, r: Receipt) {
-    if (!confirm(`撤销 ${p.memberName} 的这笔 $${dollars(r.amountCents)}？`)) return;
+    const what = r.amountCents < 0 ? `退款 $${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`;
+    if (!confirm(`撤销 ${p.memberName} 的这笔${what}？`)) return;
     if (await run(() => api(`${props.base}/receipts/${r.id}/remove`, {}))) props.onDone();
   }
 

@@ -92,6 +92,18 @@ describe("settlement", () => {
     expect(await payment(s, "Jay")).toBeUndefined();
   });
 
+  it("keeps billing a removed member for the friends they brought", async () => {
+    const s = await scenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    await s.admin.call(`${s.base}/payments/${(await payment(s, "Alice")).id}/mark-paid`, {});
+    const roster = (await s.admin.call(s.eb)).data.roster;
+    await s.admin.call(`${s.eb}/roster/${roster.find((r: { name: string }) => r.name === "Alice").id}/remove`, {});
+    // Tom stays, absent, on Alice's bill: 3 registered share the court, 2 attended share the shuttles.
+    expect((await s.admin.call(s.eb)).data.roster.map((r: { name: string }) => r.name).sort()).toEqual(["Bob", "Jay", "Tom"]);
+    expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 3334, amountPaidCents: 5600, refundCents: 5600 - 3334 });
+    expect((await payment(s, "Bob")).amountDueCents).toBe(3334 + 900);
+  });
+
   it("asks for the difference again when a bill goes back up after a refund", async () => {
     const s = await scenario();
     await s.admin.call(`${s.eb}/finalize`, s.fees);
@@ -101,12 +113,14 @@ describe("settlement", () => {
     expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 2000 + 600 + 2000, refundCents: 1000 });
     expect((await s.admin.call(`${s.base}/payments/${a.id}/refunded`, {})).status).toBe(200);
     expect(await payment(s, "Alice")).toMatchObject({ amountPaidCents: 4600, status: "paid", refundCents: 0 });
+    expect((await s.admin.call(`${s.base}/payments/${a.id}/refunded`, {})).status).toBe(400);
 
     await s.admin.call(`${s.eb}/finalize`, s.fees);
     expect(await payment(s, "Alice")).toMatchObject({ amountDueCents: 5600, amountPaidCents: 4600, status: "partial" });
     await s.admin.call(`${s.base}/payments/${a.id}/mark-paid`, {});
     expect(await payment(s, "Alice")).toMatchObject({ amountPaidCents: 5600, status: "paid", refundCents: 0 });
-    expect((await payment(s, "Alice")).receipts.map((r: { amountCents: number }) => r.amountCents)).toEqual([5600, 1000]);
+    expect((await payment(s, "Alice")).receipts.map((r: { amountCents: number }) => r.amountCents)).toEqual([5600, -1000, 1000]);
+    expect((await payment(s, "Alice")).receipts.map((r: { method: string }) => r.method)).toEqual(["manual", "refund", "manual"]);
   });
 });
 

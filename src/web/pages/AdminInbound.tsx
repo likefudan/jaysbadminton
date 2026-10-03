@@ -145,11 +145,12 @@ export function ReceiptList(props: { receipts: Receipt[]; onRemove?: (r: Receipt
       {props.receipts.map((r, i) => (
         <li key={r.id}>
           <span>
-            第 {i + 1} 笔 · {r.method === "venmo" ? `Venmo${r.payerName ? `（${r.payerName}）` : ""}` : "手动标记"} ·{" "}
+            第 {i + 1} 笔 ·{" "}
+            {r.method === "venmo" ? `Venmo${r.payerName ? `（${r.payerName}）` : ""}` : r.method === "refund" ? "退款" : "手动标记"} ·{" "}
             {formatInstantZh(r.receivedAt)}
           </span>
           <span>
-            ${dollars(r.amountCents)}
+            {r.amountCents < 0 ? `−$${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`}
             {props.onRemove && (
               <button class="undo" disabled={props.busy} onClick={() => props.onRemove!(r)}>
                 撤销
