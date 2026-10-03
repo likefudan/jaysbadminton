@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { Client, approveMember, billingScenario as scenario, createTestEvent, expire, setUpAdmin } from "./helpers";
 
@@ -128,6 +129,58 @@ describe("settlement", () => {
       refundCents: 3100,
     });
     expect(await payment(s, "Jay")).toBeUndefined();
+  });
+
+  it("keeps a removed member's bill when its payments were refunded in full", async () => {
+    const s = await scenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const bob = await payment(s, "Bob");
+    // Bob's Venmo payment came in through 待确认 and was linked to his bill by hand.
+    await env.DB.prepare(
+      `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)
+       VALUES ('txn-bob', 'Bob Li', 3100, 'badminton', ?, 'unmatched', 'test')`,
+    )
+      .bind(new Date().toISOString())
+      .run();
+    const inbound = (await s.admin.call(`${s.base}/inbound`)).data.open[0];
+    expect((await s.admin.call(`${s.base}/inbound/${inbound.id}/link`, { paymentId: bob.id })).status).toBe(200);
+    const bobRow = async () =>
+      (await s.admin.call(s.eb)).data.roster.find((r: { name: string }) => r.name === "Bob").id;
+    // He leaves, is refunded in full (so the bill nets to nothing received), comes back and leaves again.
+    await s.admin.call(`${s.eb}/roster/${await bobRow()}/remove`, {});
+    expect((await s.admin.call(`${s.base}/payments/${bob.id}/refunded`, {})).status).toBe(200);
+    await s.admin.call(`${s.eb}/roster/add`, { memberId: s.bob.id, includeSelf: true, friends: [] });
+    expect(await payment(s, "Bob")).toMatchObject({ amountDueCents: 3100, amountPaidCents: 0, status: "unpaid" });
+    expect((await s.admin.call(`${s.eb}/roster/${await bobRow()}/remove`, {})).status).toBe(200);
+    expect(await payment(s, "Bob")).toMatchObject({ amountDueCents: 0, amountPaidCents: 0, status: "paid" });
+    expect((await payment(s, "Bob")).receipts.map((r: { amountCents: number }) => r.amountCents)).toEqual([
+      3100, -3100,
+    ]);
+  });
+
+  it("refuses roster changes after Finalize that would leave the fees unshared", async () => {
+    const s = await scenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const roster = (await s.admin.call(s.eb)).data.roster as { id: number; name: string; attended: boolean }[];
+    const present = roster.filter((r) => r.attended);
+    for (const r of present.slice(0, -1))
+      expect((await s.admin.call(`${s.eb}/attendance`, { registrationId: r.id, attended: false })).status).toBe(200);
+    const last = present.at(-1)!;
+    const refused = await s.admin.call(`${s.eb}/attendance`, { registrationId: last.id, attended: false });
+    expect(refused.status).toBe(400);
+    expect(refused.data.error.message).toContain("球费没人分摊");
+    expect((await s.admin.call(s.eb)).data.roster.find((r: { id: number }) => r.id === last.id).attended).toBe(true);
+    // Removing the last one who came is the same thing.
+    expect((await s.admin.call(`${s.eb}/roster/${last.id}/remove`, {})).status).toBe(400);
+
+    // With no shuttles to share, nobody attending is fine; emptying the list still is not.
+    await s.admin.call(`${s.eb}/finalize`, { ...s.fees, shuttleCount: 0 });
+    expect((await s.admin.call(`${s.eb}/attendance`, { registrationId: last.id, attended: false })).status).toBe(200);
+    const ids = (await s.admin.call(s.eb)).data.roster.map((r: { id: number }) => r.id) as number[];
+    for (const id of ids.slice(0, -1)) expect((await s.admin.call(`${s.eb}/roster/${id}/remove`, {})).status).toBe(200);
+    const emptied = await s.admin.call(`${s.eb}/roster/${ids.at(-1)}/remove`, {});
+    expect(emptied.data.error.message).toContain("名单删空");
+    expect((await s.admin.call(s.eb)).data.status).toBe("finalized");
   });
 
   it("keeps billing a removed member for the friends they brought", async () => {

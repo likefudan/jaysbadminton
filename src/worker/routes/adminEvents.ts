@@ -3,6 +3,7 @@ import { dollars, parseDollars, settle, type SettleInput } from "../../shared/se
 import type { EventDefaults, InboundResponse, SettlementView } from "../../shared/types";
 import {
   addReceipt,
+  assertCostsShared,
   checkCollected,
   finalize,
   markPaid,
@@ -23,6 +24,7 @@ import {
   deleteEvent,
   detail,
   friendCap,
+  friendCount,
   checkVenue,
   cleanTitle,
   getEvent,
@@ -139,7 +141,9 @@ async function ownerSignupEvent(env: Env, id: string) {
 adminEventRoutes.post("/events/:id/self-signup", async (c) => {
   const { e, ownerId } = await ownerSignupEvent(c.env, c.req.param("id"));
   const body = await readJson(c.req.raw);
-  await setSignup(c.env, e.id, ownerId, validateFriends(body.friends ?? [], null), false);
+  // No cap for the Owner, but friends already on the list (some may be added from 添加人员) may stay.
+  const keep = await friendCount(c.env, e.id, ownerId);
+  await setSignup(c.env, e.id, ownerId, validateFriends(body.friends ?? [], null, keep), false);
   return c.json(await detail(c.env, e));
 });
 
@@ -311,9 +315,9 @@ adminEventRoutes.post("/events/:id/roster/:rid/rename", async (c) => {
 adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   assertRosterEditable(e);
-  await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?")
-    .bind(Number(c.req.param("rid")), e.id)
-    .run();
+  const rid = Number(c.req.param("rid"));
+  await assertCostsShared(c.env, e, (list) => list.filter((r) => r.id !== rid));
+  await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?").bind(rid, e.id).run();
   await recomputeIfFinalized(c.env, e);
   return c.json(await detail(c.env, e));
 });
@@ -410,8 +414,11 @@ adminEventRoutes.post("/events/:id/attendance", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   assertRosterEditable(e);
   const b = await readJson(c.req.raw);
+  const rid = num(b.registrationId);
+  const attended = b.attended !== false;
+  await assertCostsShared(c.env, e, (list) => list.map((r) => (r.id === rid ? { ...r, attended } : r)));
   await c.env.DB.prepare("UPDATE registrations SET attended = ?, updated_at = ? WHERE id = ? AND event_id = ?")
-    .bind(b.attended === false ? 0 : 1, now(), num(b.registrationId), e.id)
+    .bind(attended ? 1 : 0, now(), rid, e.id)
     .run();
   await recomputeIfFinalized(c.env, e);
   return c.json(await detail(c.env, e));

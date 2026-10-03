@@ -324,16 +324,19 @@ export async function setSignup(
     .bind(eventId, memberId)
     .all<{ friend_index: number; attended: number; created_at: string; added_by_owner: number }>();
   const prev = new Map(existing.results.map((r) => [r.friend_index, r]));
-  const rows = [null, ...friends].map((name, i) => ({
-    i,
-    name: name === null ? null : name.trim().slice(0, 20) || null,
-  }));
+  // Friends keep the numbers they already have, in order, so a gap left by the Owner removing one
+  // doesn't shift the rest onto another friend's row (and its 到场 mark); new ones go after them.
+  const held = [...prev.keys()].filter((i) => i > 0).sort((a, b) => a - b);
+  const indexes = friends.map((_, n) => held[n] ?? (held.at(-1) ?? 0) + n - held.length + 1);
+  const rows = [
+    { i: 0, name: null },
+    ...friends.map((name, n) => ({ i: indexes[n]!, name: name.trim().slice(0, 20) || null })),
+  ];
   await env.DB.batch([
-    env.DB.prepare("DELETE FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index > ?").bind(
-      eventId,
-      memberId,
-      friends.length,
-    ),
+    env.DB.prepare(
+      `DELETE FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index > 0
+         AND friend_index NOT IN (SELECT value FROM json_each(?))`,
+    ).bind(eventId, memberId, JSON.stringify(indexes)),
     ...rows.map((r) =>
       env.DB.prepare(
         `INSERT INTO registrations (event_id, member_id, friend_index, friend_name, attended, added_by_owner, created_at, updated_at)
