@@ -150,7 +150,7 @@ memberRoutes.get("/:token/events", async (c) => {
     }
     // Who else is coming: only for members on the list themselves (the public pages show a count).
     let names: MyRosterEntry[] | null = null;
-    if (rows.length > 0) {
+    if (rows.some((r) => r.friend_index === 0)) {
       names = people.map((r) => ({
         name: r.name,
         friendOf: r.friendIndex > 0 ? r.memberName : null,

@@ -267,7 +267,7 @@ describe("Owner roster edits", () => {
       friends: ["Dan"],
     });
     const mine = (await anon.call(`${carol.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
-    expect(mine).toMatchObject({ myFriends: ["Dan"], selfSignedUp: false, canEdit: true });
+    expect(mine).toMatchObject({ myFriends: ["Dan"], selfSignedUp: false, canEdit: true, roster: null });
     await anon.call(`${carol.base}/events/${e.id}/signup`, { friends: ["Dan"] });
     const d = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data;
     expect(d.roster.map((r: { name: string; addedByOwner: boolean }) => [r.name, r.addedByOwner])).toEqual([

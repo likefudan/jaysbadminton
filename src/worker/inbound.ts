@@ -241,13 +241,12 @@ export const LINK_ARCHIVED_DAYS = 60;
  * Which bills a 待确认 payment may go on (bill p, member m, event e): any unpaid bill of an event
  * still collecting, and paid ones there or on an event archived lately, so someone who paid twice
  * (cash, then Venmo with a mistyped code) ends up under 需要退款, as when Venmo matches it
- * automatically. Paid bills that can't be meant are left out: the Owner's own, deleted members',
- * and $0 ones that never received anything. Bind the archive cut-off once.
+ * automatically. Never the Owner's own (it pays itself); and of paid bills, never deleted members'
+ * or $0 ones that never received anything. Bind the archive cut-off once.
  */
-export const LINKABLE = `(e.status = 'finalized' AND p.status != 'paid'
+export const LINKABLE = `(m.is_owner = 0 AND (e.status = 'finalized' AND p.status != 'paid'
   OR (e.status = 'finalized' OR (e.status = 'settled' AND e.settled_at >= ?1))
-     AND p.status = 'paid' AND m.is_owner = 0 AND m.deleted_at IS NULL
-     AND (p.amount_due_cents > 0 OR p.amount_paid_cents > 0))`;
+     AND p.status = 'paid' AND m.deleted_at IS NULL AND (p.amount_due_cents > 0 OR p.amount_paid_cents > 0)))`;
 
 export const linkCutoff = (at: Date = new Date()) =>
   new Date(at.getTime() - LINK_ARCHIVED_DAYS * 86400_000).toISOString();

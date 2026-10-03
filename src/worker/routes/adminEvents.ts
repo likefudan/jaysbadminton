@@ -41,7 +41,15 @@ import { checkPassword } from "../auth";
 import { SITE_TITLE_MAX, siteTheme, siteTitle } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
-import { LINKABLE, emailStatus, inboundRows, linkCutoff, openPayments, refundRows } from "../inbound";
+import {
+  LINKABLE,
+  LINK_ARCHIVED_DAYS,
+  emailStatus,
+  inboundRows,
+  linkCutoff,
+  openPayments,
+  refundRows,
+} from "../inbound";
 import { message, notifySettings } from "../notify";
 import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
@@ -499,6 +507,7 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
 
 async function paymentEvent(env: Env, paymentId: number, allowSettled = false) {
   const p = await env.DB.prepare("SELECT * FROM payments WHERE id = ?").bind(paymentId).first<{
+    id: number;
     event_id: number;
     member_id: string;
     status: string;
@@ -555,6 +564,12 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
   // The Owner's own bill is paid by itself, and every recompute redoes that receipt anyway.
   if (r.method === "manual" && !r.venmo_txn_id && (await isOwner(c.env, p.member_id)))
     throw badRequest("管理员本人的账单自动记为已付，不用撤销");
+  // On an archived bill every statement also checks, inside the transaction, that the bill stays
+  // paid without this receipt, so two removals at once can't both pass and leave it unpaid.
+  const keepsPaid =
+    e.status === "settled"
+      ? `AND (SELECT amount_paid_cents - amount_due_cents FROM payments WHERE id = ${Number(p.id)}) >= ${Number(r.amount_cents)}`
+      : "";
   const back: D1PreparedStatement[] = [];
   // Venmo receipts, and older linked ones saved as 'manual' that still carry their transaction.
   if (r.method === "venmo" || r.venmo_txn_id) {
@@ -570,22 +585,23 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
                              (SELECT id FROM inbound_payments WHERE venmo_txn_id = ?3))
            AND NOT EXISTS (SELECT 1 FROM payment_receipts o WHERE o.id != ?2
              AND (o.inbound_id = inbound_payments.id OR o.venmo_txn_id = inbound_payments.venmo_txn_id))
-           AND EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)`,
+           AND EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2) ${keepsPaid}`,
       ).bind(r.inbound_id, r.id, r.venmo_txn_id),
       // Auto-matched, or its 待确认 row is gone: it gets a row now, so the payment is never lost.
       c.env.DB.prepare(
         `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)
          SELECT ?3, ?4, ?5, ?6, ?7, 'unmatched', '从账单撤销的 Venmo 付款'
          WHERE EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)
-           AND NOT EXISTS (SELECT 1 FROM inbound_payments WHERE id = ?1 OR venmo_txn_id = ?3)`,
+           AND NOT EXISTS (SELECT 1 FROM inbound_payments WHERE id = ?1 OR venmo_txn_id = ?3) ${keepsPaid}`,
       ).bind(r.inbound_id, r.id, r.venmo_txn_id, r.payer_name, r.amount_cents, r.note, r.received_at),
     );
   }
-  await c.env.DB.batch([
+  const res = await c.env.DB.batch([
     ...back,
-    c.env.DB.prepare("DELETE FROM payment_receipts WHERE id = ?").bind(r.id),
+    c.env.DB.prepare(`DELETE FROM payment_receipts WHERE id = ? ${keepsPaid}`).bind(r.id),
     ...syncPayments(c.env.DB, "id = ?", r.payment_id),
   ]);
+  if (keepsPaid && !res[back.length]?.meta.changes) throw badRequest("这个活动已收齐归档，只能撤销多付的 Venmo 付款");
   return c.json({ ok: true });
 });
 
@@ -633,19 +649,34 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const i = await openInbound(c.env, Number(c.req.param("iid")));
   const paymentId = num((await readJson(c.req.raw)).paymentId);
   // Only what the list offers; a paid bill then gets an over-payment, listed for refund.
-  const e = await c.env.DB.prepare(
-    `SELECT e.id FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
-     WHERE p.id = ?2 AND ${LINKABLE}`,
+  const bill = await c.env.DB.prepare(
+    `SELECT e.id AS event_id, e.status, m.is_owner, m.deleted_at, ${LINKABLE} AS linkable
+     FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id WHERE p.id = ?2`,
   )
     .bind(linkCutoff(), paymentId)
-    .first<{ id: number }>();
-  if (!e) throw badRequest("这笔应付款不能关联：活动还没结算或已经归档，或者是管理员本人的账单");
+    .first<{ event_id: number; status: string; is_owner: number; deleted_at: string | null; linkable: number }>();
+  if (!bill) throw badRequest("找不到这笔应付款");
+  if (!bill.linkable)
+    throw badRequest(
+      bill.is_owner
+        ? "管理员本人的账单不用关联"
+        : bill.status === "settled"
+          ? `这个活动归档已超过 ${LINK_ARCHIVED_DAYS} 天，不能再关联`
+          : bill.status !== "finalized"
+            ? "这个活动还没结算"
+            : bill.deleted_at
+              ? "这个成员已删除，他付清的账单不能再关联"
+              : "这笔应付款不能关联",
+    );
   if (i.amount_cents === null) throw badRequest("这笔收款没有金额，请改用「标记已付」");
-  // Only one request can move it out of 待确认, so a double click never adds the money twice.
+  // Only one request can move it out of 待确认, so a double click never adds the money twice; the
+  // bill is checked again in the same statement.
   const claimed = await c.env.DB.prepare(
-    "UPDATE inbound_payments SET state = 'linked', linked_payment_id = ? WHERE id = ? AND state = 'open'",
+    `UPDATE inbound_payments SET state = 'linked', linked_payment_id = ?2 WHERE id = ?3 AND state = 'open'
+       AND EXISTS (SELECT 1 FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
+                   WHERE p.id = ?2 AND ${LINKABLE})`,
   )
-    .bind(paymentId, i.id)
+    .bind(linkCutoff(), paymentId, i.id)
     .run();
   if (!claimed.meta.changes) throw badRequest("这笔收款已经处理过了");
   await addReceipt(c.env, paymentId, {
@@ -656,7 +687,7 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
     note: i.note,
     inboundId: i.id,
   });
-  const settled = await checkCollected(c.env, e.id);
+  const settled = await checkCollected(c.env, bill.event_id);
   return c.json({ ok: true, settled });
 });
 
