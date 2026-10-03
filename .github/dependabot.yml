@@ -7,6 +7,10 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    ignore:
+      # @cloudflare/vitest-pool-workers only supports vitest 4; lift this once it supports 5.
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: [minor, patch]
