@@ -221,8 +221,8 @@ adminEventRoutes.post("/events/:id/close-now", async (c) => {
 
 /**
  * Emergency edit of date, times and location. The event code stays the same so links and
- * payment codes already sent out keep working. An open event's deadline moves with the start
- * (never past the end); if it has already passed, sign-up closes. Closed events stay closed.
+ * payment codes already sent out keep working. An open event's deadline moves with the start;
+ * if it has already passed, sign-up closes. Closed events stay closed.
  */
 adminEventRoutes.post("/events/:id/edit", async (c) => {
   await closeExpired(c.env);
@@ -245,9 +245,9 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   let status = e.status;
   if (e.status === "open") {
     // The deadline moves with the start, keeping its lead time: the usual offset, or whatever
-    // 重新开放报名 set (which may run past the start), so a title or venue fix changes nothing.
+    // 重新开放报名 set (which may run past the start), so a title or venue fix changes nothing and
+    // every edit can be undone by the next one.
     deadline = new Date(Date.parse(e.deadline_at) + Date.parse(startAt) - Date.parse(e.start_at)).toISOString();
-    if (deadline > endAt) deadline = endAt;
     if (deadline <= now()) status = "closed";
   }
   const ts = now();
@@ -626,16 +626,17 @@ adminEventRoutes.post("/payments/:pid/refunded", async (c) => {
   return c.json({ ok: true });
 });
 
-adminEventRoutes.get("/inbound", async (c) =>
-  c.json<InboundResponse>({
-    open: await inboundRows(c.env, "open"),
-    done: await inboundRows(c.env, "done"),
-    ignored: await inboundRows(c.env, "ignored"),
-    deleted: await inboundRows(c.env, "deleted"),
-    payments: await openPayments(c.env),
-    refunds: await refundRows(c.env),
-  }),
-);
+adminEventRoutes.get("/inbound", async (c) => {
+  const [open, done, ignored, deleted, payments, refunds] = await Promise.all([
+    inboundRows(c.env, "open"),
+    inboundRows(c.env, "done"),
+    inboundRows(c.env, "ignored"),
+    inboundRows(c.env, "deleted"),
+    openPayments(c.env),
+    refundRows(c.env),
+  ]);
+  return c.json<InboundResponse>({ open, done, ignored, deleted, payments, refunds });
+});
 
 async function openInbound(env: Env, id: number) {
   const i = await env.DB.prepare("SELECT * FROM inbound_payments WHERE id = ?").bind(id).first<{

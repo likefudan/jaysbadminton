@@ -412,16 +412,15 @@ describe("emergency controls", () => {
       location: "Fixed Gym",
     });
     expect(fixed.data).toMatchObject({ status: "open", deadlineAt: reopened, location: "Fixed Gym" });
-    // Ending before the reopened deadline pulls it in to the end.
+    // The end alone doesn't move it either.
     const shorter = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
       date: e.date,
       startTime: e.startTime,
       endTime: "20:00",
       location: "Fixed Gym",
     });
-    expect(shorter.data.status).toBe("open");
-    expect(Date.parse(shorter.data.deadlineAt)).toBe(Date.parse(reopened) - 30 * 60_000);
-    // Moving the start an hour later moves the deadline with it, past the old end.
+    expect(shorter.data).toMatchObject({ status: "open", deadlineAt: reopened });
+    // Moving the start an hour later moves the deadline with it.
     const moved = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
       date: e.date,
       startTime: "20:00",
@@ -429,7 +428,7 @@ describe("emergency controls", () => {
       location: "Fixed Gym",
     });
     expect(moved.data.status).toBe("open");
-    expect(Date.parse(moved.data.deadlineAt)).toBe(Date.parse(reopened) + 30 * 60_000);
+    expect(Date.parse(moved.data.deadlineAt)).toBe(Date.parse(reopened) + 3600_000);
   });
 
   it("closes sign-up when an edit moves the deadline into the past, and works after Finalize", async () => {
