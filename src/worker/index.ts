@@ -32,9 +32,10 @@ app.use("*", async (c, next) => {
   if (isStaging(c.env)) c.header("X-Robots-Tag", "noindex, nofollow");
 });
 
+// Proves the Worker can reach the migrated database; says nothing about the group itself.
 app.get("/api/health", async (c) => {
-  const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM members").first<{ n: number }>();
-  return c.json({ ok: true, members: row?.n ?? 0 });
+  await c.env.DB.prepare("SELECT 1 FROM members LIMIT 1").first();
+  return c.json({ ok: true });
 });
 
 // Browsers report what the content policy would have blocked; read them in the Worker logs.
