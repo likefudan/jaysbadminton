@@ -13,7 +13,7 @@ const US = { south: 24, west: -125, north: 50, east: -66 };
 
 /**
  * A slow lookup service never holds up the form for long: Google gets 4 seconds before Photon is
- * tried, and the Photon searches share another 4, so a suggestion request ends within about 8.
+ * tried, and each Photon search (nearby, then US-wide if nothing nearby) gets 4 more.
  */
 const TIMEOUT_MS = 4_000;
 

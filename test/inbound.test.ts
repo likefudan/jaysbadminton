@@ -355,6 +355,21 @@ describe("Owner review", () => {
     expect((await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {})).status).toBe(400); // second click
   });
 
+  it("undoing an older linked receipt finds its 待确认 row by transaction", async () => {
+    const s = await finalized();
+    await deliver({ amount: "10.00", note: `alice-${s.aliceCode.split("-")[1]}-m099`, txnId: "O1" });
+    const { open } = (await s.admin.call(`${s.base}/inbound`)).data;
+    const alice = await s.by("Alice");
+    await s.admin.call(`${s.base}/inbound/${open[0].id}/link`, { paymentId: alice.id });
+    // As saved before receipts kept their source (and before 0004, as 'manual').
+    await env.DB.prepare("UPDATE payment_receipts SET inbound_id = NULL, method = 'manual' WHERE payment_id = ?")
+      .bind(alice.id)
+      .run();
+    const receipt = (await s.by("Alice")).receipts[0];
+    await s.admin.call(`${s.base}/receipts/${receipt.id}/remove`, {});
+    expect((await s.admin.call(`${s.base}/inbound`)).data.open).toMatchObject([{ id: open[0].id, txnId: "O1" }]);
+  });
+
   it("undoing a linked payment whose 待确认 row is gone still puts it back in 待确认", async () => {
     const s = await finalized();
     await deliver({ amount: "10.00", note: `alice-${s.aliceCode.split("-")[1]}-m099`, txnId: "G1", payer: "Carol" });

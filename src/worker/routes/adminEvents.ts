@@ -517,21 +517,24 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
   if (!r) throw badRequest("找不到这笔付款记录");
   await paymentEvent(c.env, r.payment_id);
   const back: D1PreparedStatement[] = [];
-  if (r.method === "venmo") {
+  // Venmo receipts, and older linked ones saved as 'manual' that still carry their transaction.
+  if (r.method === "venmo" || r.venmo_txn_id) {
     back.push(
-      // Linked from 待确认: that row reopens. Each statement checks the receipt still exists, so a
+      // The 待确认 row it came from (older receipts find it by transaction) reopens from any state,
+      // unless it now counts on another bill. Each statement checks the receipt still exists, so a
       // second click changes nothing.
       c.env.DB.prepare(
-        `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL
-         WHERE id = ?1 AND state = 'linked' AND EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)`,
-      ).bind(r.inbound_id, r.id),
+        `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL, deleted_from = NULL, deleted_at = NULL
+         WHERE id = COALESCE(?1, (SELECT id FROM inbound_payments WHERE venmo_txn_id = ?3))
+           AND NOT (state = 'linked' AND linked_payment_id IS NOT ?4)
+           AND EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)`,
+      ).bind(r.inbound_id, r.id, r.venmo_txn_id, r.payment_id),
       // Auto-matched, or its 待确认 row is gone: it gets a row now, so the payment is never lost.
       c.env.DB.prepare(
         `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)
          SELECT ?3, ?4, ?5, ?6, ?7, 'unmatched', '从账单撤销的 Venmo 付款'
          WHERE EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)
-           AND NOT EXISTS (SELECT 1 FROM inbound_payments WHERE id = ?1)
-           AND (?3 IS NULL OR NOT EXISTS (SELECT 1 FROM inbound_payments WHERE venmo_txn_id = ?3))`,
+           AND NOT EXISTS (SELECT 1 FROM inbound_payments WHERE id = ?1 OR venmo_txn_id = ?3)`,
       ).bind(r.inbound_id, r.id, r.venmo_txn_id, r.payer_name, r.amount_cents, r.note, r.received_at),
     );
   }
