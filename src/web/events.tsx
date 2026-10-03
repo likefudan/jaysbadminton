@@ -5,7 +5,9 @@ import { formatDateZh, formatInstantZh } from "../shared/time";
 /** Apple Maps on iPhone, Google Maps elsewhere. */
 export function mapLink(address: string): string {
   const q = encodeURIComponent(address);
-  return /iPhone|iPad|Macintosh/.test(navigator.userAgent) ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
+  return /iPhone|iPad|Macintosh/.test(navigator.userAgent)
+    ? `https://maps.apple.com/?q=${q}`
+    : `https://www.google.com/maps/search/?api=1&query=${q}`;
 }
 
 /**
@@ -53,7 +55,8 @@ export function EventInfo(props: {
   status?: { cls: string; label: string }; // overrides the event status, e.g. a member's own bill
 }) {
   const e = props.e;
-  const badge = props.status ?? (props.publicView ? publicStatus(e.status) : { cls: e.status, label: STATUS_ZH[e.status] });
+  const badge =
+    props.status ?? (props.publicView ? publicStatus(e.status) : { cls: e.status, label: STATUS_ZH[e.status] });
   return (
     <div class="event-info">
       <DateTile date={e.date} />

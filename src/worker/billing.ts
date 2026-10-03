@@ -19,7 +19,9 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
   )
     .bind(eventId)
     .first<{ court_total_cents: number; shuttle_count: number; shuttle_price_cents: number }>();
-  return s ? { courtTotalCents: s.court_total_cents, shuttleCount: s.shuttle_count, shuttlePriceCents: s.shuttle_price_cents } : null;
+  return s
+    ? { courtTotalCents: s.court_total_cents, shuttleCount: s.shuttle_count, shuttlePriceCents: s.shuttle_price_cents }
+    : null;
 }
 
 /**
@@ -72,7 +74,12 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
       stmts.push(
         env.DB.prepare(
           `INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status) VALUES (?, ?, ?, ?, 'unpaid')`,
-        ).bind(e.id, b.memberId, b.totalCents, paymentCode(usernames.get(b.memberId) ?? "", e.date, e.code, b.memberId)),
+        ).bind(
+          e.id,
+          b.memberId,
+          b.totalCents,
+          paymentCode(usernames.get(b.memberId) ?? "", e.date, e.code, b.memberId),
+        ),
       );
       if (ownerIds.has(b.memberId)) {
         stmts.push(
@@ -116,7 +123,12 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
       );
     } else {
       // Paid something but no longer on the roster: owes nothing, so all of it is a refund.
-      stmts.push(env.DB.prepare("UPDATE payments SET amount_due_cents = 0 WHERE event_id = ? AND member_id = ?").bind(e.id, memberId));
+      stmts.push(
+        env.DB.prepare("UPDATE payments SET amount_due_cents = 0 WHERE event_id = ? AND member_id = ?").bind(
+          e.id,
+          memberId,
+        ),
+      );
     }
   }
   stmts.push(...syncPayments(env.DB, "event_id = ?", e.id));
@@ -128,7 +140,9 @@ export async function finalize(env: Env, e: EventRow, input: SettleInput): Promi
   const first = e.status !== "finalized";
   await applySettlement(env, e, input);
   await env.DB.batch([
-    env.DB.prepare("UPDATE events SET status = 'finalized', finalized_at = COALESCE(finalized_at, ?) WHERE id = ?").bind(now(), e.id),
+    env.DB.prepare(
+      "UPDATE events SET status = 'finalized', finalized_at = COALESCE(finalized_at, ?) WHERE id = ?",
+    ).bind(now(), e.id),
     setSetting(env.DB, "last_shuttle_price_cents", String(input.shuttlePriceCents)),
   ]);
   if (first) await notifyFinalized(env, e);
@@ -168,7 +182,10 @@ export async function paymentRows(env: Env, eventId: number): Promise<PaymentRow
   )
     .bind(eventId)
     .all<Record<string, any>>();
-  const receipts = await receiptsFor(env, results.map((p) => p.id));
+  const receipts = await receiptsFor(
+    env,
+    results.map((p) => p.id),
+  );
   return results.map((p) => ({
     id: p.id,
     memberId: p.member_id,
@@ -253,11 +270,18 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
     .all<Record<string, any>>();
   for (const r of results) {
     const list = out.get(r.payment_id) ?? [];
-    list.push({ id: r.id, amountCents: r.amount_cents, method: r.method, payerName: r.payer_name, receivedAt: r.received_at });
+    list.push({
+      id: r.id,
+      amountCents: r.amount_cents,
+      method: r.method,
+      payerName: r.payer_name,
+      receivedAt: r.received_at,
+    });
     out.set(r.payment_id, list);
   }
   return out;
 }
 
 /** amount_paid_cents is net of refunds, so whatever is above the bill is still owed back. */
-export const refundOf = (p: { amount_paid_cents: number; amount_due_cents: number }) => Math.max(0, p.amount_paid_cents - p.amount_due_cents);
+export const refundOf = (p: { amount_paid_cents: number; amount_due_cents: number }) =>
+  Math.max(0, p.amount_paid_cents - p.amount_due_cents);

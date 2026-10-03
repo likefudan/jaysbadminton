@@ -36,7 +36,9 @@ export async function currentScript(env: Env): Promise<string | null> {
 }
 
 export async function disableExport(env: Env): Promise<void> {
-  await env.DB.prepare("DELETE FROM settings WHERE key IN ('export_key_hash', 'export_key_enc', 'export_last_at')").run();
+  await env.DB.prepare(
+    "DELETE FROM settings WHERE key IN ('export_key_hash', 'export_key_enc', 'export_last_at')",
+  ).run();
 }
 
 /** Checks an /export/<key>/… request and records when the sheet last pulled. */

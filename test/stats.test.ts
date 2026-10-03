@@ -24,9 +24,13 @@ async function history() {
   await anon.call(`${bob.base}/events/${e3.id}/signup`, { friends: [] });
   await anon.call(`${bob.base}/events/${e4.id}/signup`, { friends: [] });
   // e1–e3 settled this year (dates moved to today, order kept by start time); e4 cancelled.
-  await env.DB.prepare("UPDATE events SET status = 'settled', date = ? WHERE id IN (?, ?, ?)").bind(today, e1.id, e2.id, e3.id).run();
+  await env.DB.prepare("UPDATE events SET status = 'settled', date = ? WHERE id IN (?, ?, ?)")
+    .bind(today, e1.id, e2.id, e3.id)
+    .run();
   await env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e4.id).run();
-  await env.DB.prepare("UPDATE registrations SET attended = 0 WHERE event_id = ? AND member_id = ?").bind(e3.id, bob.id).run();
+  await env.DB.prepare("UPDATE registrations SET attended = 0 WHERE event_id = ? AND member_id = ?")
+    .bind(e3.id, bob.id)
+    .run();
   const bill = (eventId: number, cents: number) =>
     env.DB.prepare(
       "INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, amount_paid_cents) VALUES (?, ?, ?, 'x', 'paid', ?)",
@@ -60,7 +64,9 @@ describe("personal stats", () => {
     const { ctx, alice } = await history();
     const old = await createTestEvent(ctx, { date: futureDate(20), startTime: "08:00", endTime: "09:00" });
     await anon.call(`${alice.base}/events/${old.id}/signup`, { friends: [] });
-    await env.DB.prepare("UPDATE events SET status = 'settled', date = ? WHERE id = ?").bind(`${lastYear}-01-01`, old.id).run();
+    await env.DB.prepare("UPDATE events SET status = 'settled', date = ? WHERE id = ?")
+      .bind(`${lastYear}-01-01`, old.id)
+      .run();
     await env.DB.prepare(
       "INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, amount_paid_cents) VALUES (?, ?, 1500, 'x', 'paid', 1500)",
     )
@@ -81,7 +87,9 @@ describe("personal stats", () => {
     // One entry per counted event, oldest first, for the page's range picker: 4 visits, the
     // cancelled one left out; spending matches the bills.
     expect(stats.history).toHaveLength(4);
-    expect(stats.history.map((h: { date: string }) => h.date)).toEqual([...stats.history.map((h: { date: string }) => h.date)].sort());
+    expect(stats.history.map((h: { date: string }) => h.date)).toEqual(
+      [...stats.history.map((h: { date: string }) => h.date)].sort(),
+    );
     expect(stats.history.every((h: { attended: boolean }) => h.attended)).toBe(true);
     expect(stats.history.reduce((t: number, h: { cents: number }) => t + h.cents, 0)).toBe(7500);
   });
@@ -99,8 +107,27 @@ describe("export", () => {
     const res = await pull(key);
     expect(res.status).toBe(200);
     const data = (await res.json()) as any;
-    expect(Object.keys(data.tables)).toEqual(["members", "events", "registrations", "settlements", "payments", "receipts", "inbound", "locations"]);
-    expect(data.tables.members.columns).toEqual(["成员编号", "用户名", "微信昵称", "邮箱", "管理员备注", "状态", "Owner", "申请时间", "通过时间"]);
+    expect(Object.keys(data.tables)).toEqual([
+      "members",
+      "events",
+      "registrations",
+      "settlements",
+      "payments",
+      "receipts",
+      "inbound",
+      "locations",
+    ]);
+    expect(data.tables.members.columns).toEqual([
+      "成员编号",
+      "用户名",
+      "微信昵称",
+      "邮箱",
+      "管理员备注",
+      "状态",
+      "Owner",
+      "申请时间",
+      "通过时间",
+    ]);
     expect(JSON.stringify(data)).not.toMatch(/token|hash/i);
     expect(data.tables.events.rows[0][0]).toMatch(/^jbm\d{8}$/);
     expect((await ctx.admin.call(`${ctx.base}/sheets`)).data).toMatchObject({ enabled: true, script });
@@ -109,7 +136,11 @@ describe("export", () => {
     await ctx.admin.call(`${ctx.base}/sheets/enable`, {});
     expect((await pull(key)).status).toBe(403);
     await ctx.admin.call(`${ctx.base}/sheets/disable`, {});
-    expect((await ctx.admin.call(`${ctx.base}/sheets`)).data).toEqual({ enabled: false, lastSyncAt: null, script: null });
+    expect((await ctx.admin.call(`${ctx.base}/sheets`)).data).toEqual({
+      enabled: false,
+      lastSyncAt: null,
+      script: null,
+    });
   });
 
   it("downloads CSV for the admin only", async () => {
@@ -127,7 +158,14 @@ describe("export", () => {
   });
 
   it("quotes commas and neutralises spreadsheet formulas", () => {
-    const csv = toCsv({ title: "t", columns: ["a", "b"], rows: [["x,y", "=HYPERLINK(1)"], [-5, '"q"']] });
+    const csv = toCsv({
+      title: "t",
+      columns: ["a", "b"],
+      rows: [
+        ["x,y", "=HYPERLINK(1)"],
+        [-5, '"q"'],
+      ],
+    });
     expect(csv).toBe('\uFEFFa,b\r\n"x,y",\'=HYPERLINK(1)\r\n-5,"""q"""\r\n');
   });
 

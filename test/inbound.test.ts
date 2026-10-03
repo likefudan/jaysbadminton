@@ -19,13 +19,25 @@ async function finalized() {
   await s.admin.call(`${s.eb}/finalize`, s.fees);
   const { payments } = (await s.admin.call(`${s.eb}/settlement`)).data;
   const by = (name: string) => payments.find((p: { memberName: string }) => p.memberName === name);
-  return { ...s, aliceCode: by("Alice").paymentCode as string, bobCode: by("Bob").paymentCode as string, by: async (name: string) =>
-    (await s.admin.call(`${s.eb}/settlement`)).data.payments.find((p: { memberName: string }) => p.memberName === name) };
+  return {
+    ...s,
+    aliceCode: by("Alice").paymentCode as string,
+    bobCode: by("Bob").paymentCode as string,
+    by: async (name: string) =>
+      (await s.admin.call(`${s.eb}/settlement`)).data.payments.find(
+        (p: { memberName: string }) => p.memberName === name,
+      ),
+  };
 }
 
 describe("receipt parsing", () => {
   it("reads every field from the HTML layout, joining the split amount", async () => {
-    const { raw } = await venmoEmail({ payer: "Yue sun", amount: "1,234.50", note: "Milktea9/27", txnId: "77B44894RT023271X" });
+    const { raw } = await venmoEmail({
+      payer: "Yue sun",
+      amount: "1,234.50",
+      note: "Milktea9/27",
+      txnId: "77B44894RT023271X",
+    });
     const mail = await parseEmail(raw);
     expect(mail.fromAddress).toBe("venmo@venmo.com");
     expect(mail.receipt).toEqual({
@@ -39,7 +51,15 @@ describe("receipt parsing", () => {
   });
 
   it("decodes entities and returns null when a field is missing", () => {
-    const html = receiptHtml({ payer: "A", amount: "7.00", note: "Tom &amp; Jerry&#39;s", txnId: "X1", sentTo: "me", from: "", to: "" });
+    const html = receiptHtml({
+      payer: "A",
+      amount: "7.00",
+      note: "Tom &amp; Jerry&#39;s",
+      txnId: "X1",
+      sentTo: "me",
+      from: "",
+      to: "",
+    });
     expect(htmlLines(html)).toContain("Tom & Jerry's");
     const noTxn = html.replace("<h3>Transaction ID</h3>", "");
     expect(htmlLines(noTxn)).not.toContain("Transaction ID");
@@ -59,7 +79,8 @@ describe("DKIM", () => {
       { tamper: (r: string) => `From: Venmo <venmo@venmo.com>\r\n${r}` },
       { tamper: (r: string) => `To: owner@example.com\r\n${r}` },
     ];
-    for (const opts of cases) expect((await verifyDkim((await venmoEmail({}, opts)).raw, "venmo.com", resolveKey)).ok).toBe(false);
+    for (const opts of cases)
+      expect((await verifyDkim((await venmoEmail({}, opts)).raw, "venmo.com", resolveKey)).ok).toBe(false);
   });
 
   it("drops forged and unrelated mail", async () => {
@@ -70,14 +91,17 @@ describe("DKIM", () => {
   });
 });
 
-const inboundCount = async () => (await env.DB.prepare("SELECT COUNT(*) AS n FROM inbound_payments").first<{ n: number }>())!.n;
+const inboundCount = async () =>
+  (await env.DB.prepare("SELECT COUNT(*) AS n FROM inbound_payments").first<{ n: number }>())!.n;
 
 describe("matching", () => {
   it("marks the exact amount paid, ignores the same transaction twice, and archives when collected", async () => {
     const s = await finalized();
     expect(await deliver({ amount: "56.00", note: `badminton ${s.aliceCode}`, txnId: "T1" })).toBe("paid");
     expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 5600, refundCents: 0 });
-    expect((await s.by("Alice")).receipts).toMatchObject([{ method: "venmo", amountCents: 5600, payerName: "Alice W" }]);
+    expect((await s.by("Alice")).receipts).toMatchObject([
+      { method: "venmo", amountCents: 5600, payerName: "Alice W" },
+    ]);
     expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T1" })).toBe("duplicate");
 
     // Case and stray spaces are tolerated.
@@ -109,7 +133,9 @@ describe("matching", () => {
     expect(await deliver({ amount: "30.00", note: s.aliceCode, txnId: "P2" })).toBe("partial");
     expect(await deliver({ amount: "6.00", note: s.aliceCode, txnId: "P3" })).toBe("paid");
     expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 5600, refundCents: 0 });
-    expect((await s.by("Alice")).receipts.map((r: { amountCents: number }) => r.amountCents)).toEqual([2000, 3000, 600]);
+    expect((await s.by("Alice")).receipts.map((r: { amountCents: number }) => r.amountCents)).toEqual([
+      2000, 3000, 600,
+    ]);
   });
 
   it("counts an over-payment, or paying twice, as paid and lists the refund", async () => {
@@ -125,7 +151,9 @@ describe("matching", () => {
 
     const { refunds, open } = (await s.admin.call(`${s.base}/inbound`)).data;
     expect(open).toEqual([]);
-    expect(refunds.map((r: { memberName: string; refundCents: number }) => [r.memberName, r.refundCents]).sort()).toEqual([
+    expect(
+      refunds.map((r: { memberName: string; refundCents: number }) => [r.memberName, r.refundCents]).sort(),
+    ).toEqual([
       ["Alice", 400],
       ["Bob", 3100],
     ]);
@@ -136,7 +164,9 @@ describe("matching", () => {
 
     expect((await s.admin.call(`${s.base}/payments/${bob.paymentId}/refunded`, {})).status).toBe(200);
     expect((await s.admin.call(`${s.base}/payments/${bob.paymentId}/refunded`, {})).status).toBe(400);
-    expect((await s.admin.call(`${s.base}/inbound`)).data.refunds.map((r: { memberName: string }) => r.memberName)).toEqual(["Alice"]);
+    expect(
+      (await s.admin.call(`${s.base}/inbound`)).data.refunds.map((r: { memberName: string }) => r.memberName),
+    ).toEqual(["Alice"]);
   });
 
   it("asks the Owner when the event is ours but the bill cannot be pinned down", async () => {
@@ -165,7 +195,9 @@ describe("matching", () => {
     expect(await deliver({ note: s.aliceCode, txnId: "W1", sentTo: "someone_else" })).toBe("wrong_recipient");
     // Right username, but Venmo addressed the receipt to someone else's email.
     expect(await deliver({ note: s.aliceCode, txnId: "W2", to: "carol@example.com" })).toBe("wrong_recipient");
-    expect(await deliver({ note: s.aliceCode, txnId: "W3", to: "Owner@Example.com, carol@example.com" })).toBe("wrong_recipient");
+    expect(await deliver({ note: s.aliceCode, txnId: "W3", to: "Owner@Example.com, carol@example.com" })).toBe(
+      "wrong_recipient",
+    );
     const html = (h: string) => h.replace("<h3>Transaction ID</h3>", "<h3>Reference</h3>");
     expect(await deliver({ note: s.aliceCode, txnId: "W4" }, { html })).toBe("parse_failed");
     expect(await inboundCount()).toBe(0);
@@ -240,14 +272,32 @@ describe("DNS trouble", () => {
 describe("收款设置", () => {
   it("needs the admin password and a valid Venmo notification email", async () => {
     const s = await billingScenario();
-    const save = (body: Record<string, unknown>) => s.admin.call(`${s.base}/settings/payment`, { password: "initial-password", ...body });
-    expect((await s.admin.call(`${s.base}/settings/payment`, { password: "wrong", venmoUsername: "KeLi8916", venmoEmail: "me@example.com" })).status).toBe(401);
+    const save = (body: Record<string, unknown>) =>
+      s.admin.call(`${s.base}/settings/payment`, { password: "initial-password", ...body });
+    expect(
+      (
+        await s.admin.call(`${s.base}/settings/payment`, {
+          password: "wrong",
+          venmoUsername: "KeLi8916",
+          venmoEmail: "me@example.com",
+        })
+      ).status,
+    ).toBe(401);
     expect((await save({ venmoUsername: "KeLi8916" })).status).toBe(400);
     expect((await save({ venmoUsername: "KeLi8916", venmoEmail: "not-an-email" })).status).toBe(400);
-    expect((await save({ venmoUsername: "KeLi8916", venmoEmail: " Me@Example.com ", zelleAccount: "z@example.com" })).status).toBe(200);
-    expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({ venmoUsername: "KeLi8916", venmoEmail: "me@example.com", zelleAccount: "z@example.com" });
+    expect(
+      (await save({ venmoUsername: "KeLi8916", venmoEmail: " Me@Example.com ", zelleAccount: "z@example.com" })).status,
+    ).toBe(200);
+    expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({
+      venmoUsername: "KeLi8916",
+      venmoEmail: "me@example.com",
+      zelleAccount: "z@example.com",
+    });
     // The ordinary settings form can no longer change where money goes.
     await s.admin.call(`${s.base}/settings`, { venmoUsername: "evil", zelleAccount: "evil" });
-    expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({ venmoUsername: "KeLi8916", zelleAccount: "z@example.com" });
+    expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({
+      venmoUsername: "KeLi8916",
+      zelleAccount: "z@example.com",
+    });
   });
 });

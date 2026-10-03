@@ -14,10 +14,28 @@ export function EventsTab(props: { base: string; members: MemberSummary[] }) {
   const [mode, setMode] = useState<"list" | "create" | number>("list");
 
   if (mode === "create") {
-    return <CreateEvent base={props.base} onDone={(id) => { reload(); setMode(id ?? "list"); }} />;
+    return (
+      <CreateEvent
+        base={props.base}
+        onDone={(id) => {
+          reload();
+          setMode(id ?? "list");
+        }}
+      />
+    );
   }
   if (typeof mode === "number") {
-    return <EventAdmin base={props.base} id={mode} members={props.members} onBack={() => { reload(); setMode("list"); }} />;
+    return (
+      <EventAdmin
+        base={props.base}
+        id={mode}
+        members={props.members}
+        onBack={() => {
+          reload();
+          setMode("list");
+        }}
+      />
+    );
   }
   return (
     <>
@@ -49,7 +67,14 @@ export function EventsTab(props: { base: string; members: MemberSummary[] }) {
 
 function EventRow(props: { e: EventSummary; onOpen: () => void }) {
   return (
-    <a class="event-link" href="#" onClick={(ev) => { ev.preventDefault(); props.onOpen(); }}>
+    <a
+      class="event-link"
+      href="#"
+      onClick={(ev) => {
+        ev.preventDefault();
+        props.onOpen();
+      }}
+    >
       <EventInfo e={props.e} />
       <span class="chevron">›</span>
     </a>
@@ -58,11 +83,7 @@ function EventRow(props: { e: EventSummary; onOpen: () => void }) {
 
 function CreateEvent(props: { base: string; onDone: (id?: number) => void }) {
   const [defaults] = useApi<EventDefaults>(`${props.base}/events/defaults`);
-  return (
-    <Load result={defaults}>
-      {(d) => <CreateForm base={props.base} d={d} onDone={props.onDone} />}
-    </Load>
-  );
+  return <Load result={defaults}>{(d) => <CreateForm base={props.base} d={d} onDone={props.onDone} />}</Load>;
 }
 
 function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: number) => void }) {
@@ -80,7 +101,17 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
 
   async function submit(ev: Event) {
     ev.preventDefault();
-    const body = { title, date, startTime, endTime, location, address, deadlineDays: days, deadlineHours: hours, joinSelf };
+    const body = {
+      title,
+      date,
+      startTime,
+      endTime,
+      location,
+      address,
+      deadlineDays: days,
+      deadlineHours: hours,
+      joinSelf,
+    };
     const r = await run(() => api<EventDetail>(`${props.base}/events`, body));
     if (r) props.onDone(r.id);
   }
@@ -93,9 +124,19 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
             <strong>我自己也报名</strong>
             <small>创建后你会直接出现在报名名单里</small>
           </span>
-          <input type="checkbox" role="switch" checked={joinSelf} onChange={(e) => setJoinSelf((e.target as HTMLInputElement).checked)} />
+          <input
+            type="checkbox"
+            role="switch"
+            checked={joinSelf}
+            onChange={(e) => setJoinSelf((e.target as HTMLInputElement).checked)}
+          />
         </label>
-        <Field label="标题（选填）" value={title} onInput={setTitle} hint="特别的活动可以起个名字，例如「HappyTuesday 比赛」；不填就只显示日期" />
+        <Field
+          label="标题（选填）"
+          value={title}
+          onInput={setTitle}
+          hint="特别的活动可以起个名字，例如「HappyTuesday 比赛」；不填就只显示日期"
+        />
         <Field label="日期" type="date" value={date} onInput={setDate} />
         <div class="inline">
           <Field label="开始" type="time" value={startTime} onInput={setStart} />
@@ -178,7 +219,12 @@ function VenueFields(props: {
                 <button type="button" class={v.name === props.venue ? "chip on" : "chip"} onClick={() => pick(v)}>
                   {v.name}
                 </button>
-                <button type="button" class="chip-remove" aria-label={`从最近的场馆中删除「${v.name}」`} onClick={() => forget(v.name)}>
+                <button
+                  type="button"
+                  class="chip-remove"
+                  aria-label={`从最近的场馆中删除「${v.name}」`}
+                  onClick={() => forget(v.name)}
+                >
                   ✕
                 </button>
               </span>
@@ -195,7 +241,12 @@ function VenueFields(props: {
           if (known) props.onAddress(known.address);
         }}
       />
-      <AddressInput base={props.base} value={props.address} onInput={props.onAddress} onPlace={(name) => !props.venue.trim() && props.onVenue(name)} />
+      <AddressInput
+        base={props.base}
+        value={props.address}
+        onInput={props.onAddress}
+        onPlace={(name) => !props.venue.trim() && props.onVenue(name)}
+      />
     </>
   );
 }
@@ -208,13 +259,21 @@ function EventAdmin(props: { base: string; id: number; members: MemberSummary[];
         ‹ 所有活动
       </button>
       <Load result={ev}>
-        {(e) => <EventAdminBody base={props.base} e={e} members={props.members} onChange={reload} onBack={props.onBack} />}
+        {(e) => (
+          <EventAdminBody base={props.base} e={e} members={props.members} onChange={reload} onBack={props.onBack} />
+        )}
       </Load>
     </>
   );
 }
 
-function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSummary[]; onChange: () => void; onBack: () => void }) {
+function EventAdminBody(props: {
+  base: string;
+  e: EventDetail;
+  members: MemberSummary[];
+  onChange: () => void;
+  onBack: () => void;
+}) {
   const e = props.e;
   const eb = `${props.base}/events/${e.id}`;
   const editable = e.status === "open" || e.status === "closed" || e.status === "finalized";
@@ -269,7 +328,11 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
             {editable && (
               <div class="actions">
                 {e.status !== "open" && (
-                  <button class={`toggle ${r.attended ? "" : "off"}`} disabled={busy} onClick={() => toggleAttendance(r)}>
+                  <button
+                    class={`toggle ${r.attended ? "" : "off"}`}
+                    disabled={busy}
+                    onClick={() => toggleAttendance(r)}
+                  >
                     {r.attended ? "到场" : "未出席"}
                   </button>
                 )}
@@ -319,7 +382,10 @@ function DeleteEvent(props: { eb: string; e: EventDetail; onDone: () => void }) 
     <Card title="危险操作">
       {!open ? (
         <>
-          <p class="muted small">比如测试用的活动。只有已收齐归档或已取消的活动可以删除。删除后不再计入排行榜、成员花费和 Google Sheets 同步。</p>
+          <p class="muted small">
+            比如测试用的活动。只有已收齐归档或已取消的活动可以删除。删除后不再计入排行榜、成员花费和 Google Sheets
+            同步。
+          </p>
           <button class="button danger block" onClick={() => setOpen(true)}>
             从数据库永久删除
           </button>
@@ -327,7 +393,13 @@ function DeleteEvent(props: { eb: string; e: EventDetail; onDone: () => void }) 
       ) : (
         <form onSubmit={submit}>
           <p class="error">这次活动的报名名单、账单、付款记录和匹配到的 Venmo 收款都会被一并删除，无法恢复。</p>
-          <Field label="管理密码" type="password" value={password} onInput={setPassword} autocomplete="current-password" />
+          <Field
+            label="管理密码"
+            type="password"
+            value={password}
+            onInput={setPassword}
+            autocomplete="current-password"
+          />
           {error && <p class="error">{error}</p>}
           <button class="button danger block" disabled={busy || !password}>
             永久删除
@@ -365,7 +437,8 @@ function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | un
     }
   }
   async function cancel() {
-    if (!confirm(myFriends.length ? `取消你自己和带的 ${myFriends.length} 个朋友的报名？` : "取消你自己的报名？")) return;
+    if (!confirm(myFriends.length ? `取消你自己和带的 ${myFriends.length} 个朋友的报名？` : "取消你自己的报名？"))
+      return;
     if (await run(() => api(`${props.eb}/self-cancel`, {}))) props.onDone();
   }
 
@@ -395,7 +468,13 @@ function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | un
           {error && <p class="error">{error}</p>}
           {signedUp ? (
             <div class="inline">
-              <button class="button secondary" onClick={() => { setFriends(current()); setEditing(true); }}>
+              <button
+                class="button secondary"
+                onClick={() => {
+                  setFriends(current());
+                  setEditing(true);
+                }}
+              >
                 修改
               </button>
               <button class="button danger" disabled={busy} onClick={cancel}>
@@ -403,7 +482,13 @@ function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | un
               </button>
             </div>
           ) : (
-            <button class="button block" onClick={() => { setFriends(current()); setEditing(true); }}>
+            <button
+              class="button block"
+              onClick={() => {
+                setFriends(current());
+                setEditing(true);
+              }}
+            >
               报名
             </button>
           )}
@@ -420,7 +505,9 @@ function Reopen(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const { busy, error, run } = useAction();
   return (
     <Card title="重新开放报名">
-      <p class="muted small">新的截止时间最晚可以到活动结束（{formatDateZh(props.e.date)} {props.e.endTime}）。</p>
+      <p class="muted small">
+        新的截止时间最晚可以到活动结束（{formatDateZh(props.e.date)} {props.e.endTime}）。
+      </p>
       <div class="inline">
         <Field label="截止日期" type="date" value={date} onInput={setDate} />
         <Field label="截止时间" type="time" value={time} onInput={setTime} />
@@ -476,13 +563,21 @@ function AddPeople(props: { eb: string; members: MemberSummary[]; roster: Roster
       </label>
       {selfAvailable && (
         <label class="check">
-          <input type="checkbox" checked={includeSelf} onChange={(e) => setIncludeSelf((e.target as HTMLInputElement).checked)} />
+          <input
+            type="checkbox"
+            checked={includeSelf}
+            onChange={(e) => setIncludeSelf((e.target as HTMLInputElement).checked)}
+          />
           这个成员本人也来
         </label>
       )}
       <FriendsEditor friends={friends} max={null} onChange={setFriends} label="挂在他名下的朋友" />
       {error && <p class="error">{error}</p>}
-      <button class="button block" disabled={busy || !memberId || (!(includeSelf && selfAvailable) && friends.length === 0)} onClick={add}>
+      <button
+        class="button block"
+        disabled={busy || !memberId || (!(includeSelf && selfAvailable) && friends.length === 0)}
+        onClick={add}
+      >
         添加
       </button>
     </Card>
@@ -541,8 +636,17 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
         <Field label="开始" type="time" value={startTime} onInput={setStart} />
         <Field label="结束" type="time" value={endTime} onInput={setEnd} />
       </div>
-      <VenueFields base={props.eb.replace(/\/events\/\d+$/, "")} venues={[]} venue={location} address={address} onVenue={setLocation} onAddress={setAddress} />
-      {props.e.status === "open" && <p class="muted small">报名截止时间会按原来的提前量重新计算；如果已经过了，报名会立即截止。</p>}
+      <VenueFields
+        base={props.eb.replace(/\/events\/\d+$/, "")}
+        venues={[]}
+        venue={location}
+        address={address}
+        onVenue={setLocation}
+        onAddress={setAddress}
+      />
+      {props.e.status === "open" && (
+        <p class="muted small">报名截止时间会按原来的提前量重新计算；如果已经过了，报名会立即截止。</p>
+      )}
       {error && <p class="error">{error}</p>}
       <button class="button block" disabled={busy} onClick={save}>
         保存修改

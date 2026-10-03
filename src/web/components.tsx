@@ -49,7 +49,13 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
 function BridgeMark() {
   return (
     <svg viewBox="0 0 512 512" width="22" height="22" aria-hidden="true" fill="currentColor">
-      <path d="M0 300 Q70 210 132 120 Q256 420 380 120 Q442 210 512 300" fill="none" stroke="currentColor" stroke-width="30" stroke-linejoin="round" />
+      <path
+        d="M0 300 Q70 210 132 120 Q256 420 380 120 Q442 210 512 300"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="30"
+        stroke-linejoin="round"
+      />
       <path d="M99 92L119 92L110 470L90 470ZM165 92L145 92L154 470L174 470Z" />
       <path d="M347 92L367 92L358 470L338 470ZM413 92L393 92L402 470L422 470Z" />
       <rect x="99" y="92" width="66" height="20" />

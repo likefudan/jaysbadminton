@@ -36,6 +36,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       # The runner has 2 CPUs, so Vitest would default to one worker and run the files one by one.
       - run: npm test -- --maxWorkers=2

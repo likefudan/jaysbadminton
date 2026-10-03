@@ -2,7 +2,14 @@ import { useState } from "preact/hooks";
 import { checkUsername } from "../../shared/rules";
 import { dollars } from "../../shared/settle";
 import { formatDateZh } from "../../shared/time";
-import type { MeResponse, MemberProfile, MyEvent, MyEventsResponse, MyHistoryEvent, PaymentStatus } from "../../shared/types";
+import type {
+  MeResponse,
+  MemberProfile,
+  MyEvent,
+  MyEventsResponse,
+  MyHistoryEvent,
+  PaymentStatus,
+} from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, Load, Page, SectionTitle, useAction } from "../components";
 import { CalendarLinks } from "../Calendar";
@@ -30,7 +37,10 @@ export function Member(props: { token?: string }) {
   return (
     <Load result={me}>
       {(m) => (
-        <Page title={`你好，${m.username}`} subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}>
+        <Page
+          title={`你好，${m.username}`}
+          subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}
+        >
           <MemberNav token={props.token} owner={m.isOwner} current="events" />
           {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
           <MyEvents base={base} />
@@ -47,7 +57,11 @@ export function Member(props: { token?: string }) {
 function MemberNav(props: { token?: string; owner: boolean; current: "events" | "profile" }) {
   const home = props.token ? `/m/${props.token}` : "/me";
   const link = (key: "events" | "profile", href: string, label: string) => (
-    <a class={`button secondary${props.current === key ? " on" : ""}`} href={href} aria-current={props.current === key ? "page" : undefined}>
+    <a
+      class={`button secondary${props.current === key ? " on" : ""}`}
+      href={href}
+      aria-current={props.current === key ? "page" : undefined}
+    >
       {label}
     </a>
   );
@@ -85,7 +99,9 @@ export function MemberProfilePage(props: { token?: string }) {
 
 function MyProfile(props: { base: string }) {
   const [res, reload] = useApi<MemberProfile>(`${props.base}/profile`);
-  return <Load result={res}>{(p) => <ProfileCard profile={p} base={props.base} mode="member" onChange={reload} />}</Load>;
+  return (
+    <Load result={res}>{(p) => <ProfileCard profile={p} base={props.base} mode="member" onChange={reload} />}</Load>
+  );
 }
 
 function Rename(props: { base: string; current: string; onDone: () => void }) {
@@ -206,12 +222,12 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
   return (
     <Card>
       <EventInfo e={e} status={e.payment ? BILL_STATUS[e.payment.status] : undefined} />
-      {e.roster && e.roster.length > 0 && <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />}
+      {e.roster && e.roster.length > 0 && (
+        <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
+      )}
       {signedUp && !editing && !e.payment && (
         <>
-          <p class="ok">
-            ✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}
-          </p>
+          <p class="ok">✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}</p>
           <CalendarLinks e={e} />
         </>
       )}
@@ -233,7 +249,13 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
           {error && <p class="error">{error}</p>}
           {signedUp ? (
             <div class="inline">
-              <button class="button secondary" onClick={() => { setFriends(e.myFriends ?? []); setEditing(true); }}>
+              <button
+                class="button secondary"
+                onClick={() => {
+                  setFriends(e.myFriends ?? []);
+                  setEditing(true);
+                }}
+              >
                 修改
               </button>
               <button class="button danger" disabled={busy} onClick={cancel}>
@@ -241,13 +263,21 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
               </button>
             </div>
           ) : (
-            <button class="button block" onClick={() => { setFriends([]); setEditing(true); }}>
+            <button
+              class="button block"
+              onClick={() => {
+                setFriends([]);
+                setEditing(true);
+              }}
+            >
               报名
             </button>
           )}
         </>
       )}
-      {!e.canEdit && e.status === "closed" && signedUp && <p class="muted small">报名已截止，需要修改请联系管理员。费用会在活动后公布。</p>}
+      {!e.canEdit && e.status === "closed" && signedUp && (
+        <p class="muted small">报名已截止，需要修改请联系管理员。费用会在活动后公布。</p>
+      )}
       {e.payment && <PaymentBox p={e.payment} />}
       <EventShareRow e={e} />
     </Card>

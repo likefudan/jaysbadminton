@@ -6,11 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": [
-      "**",
-      "!**/package-lock.json",
-      "!src/web/public/**/*.svg"
-    ]
+    "includes": ["**", "!**/package-lock.json", "!src/web/public/**/*.svg"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -34,7 +30,6 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
       "style": {
         "noNonNullAssertion": "off",
         "noDescendingSpecificity": "off"
@@ -52,9 +47,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "src/web/public/**/*.js"
-      ],
+      "includes": ["src/web/public/**/*.js"],
       "linter": {
         "rules": {
           "complexity": {

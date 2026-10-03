@@ -23,7 +23,12 @@ const at = (iso: string | null | undefined) => {
   return `${p.date} ${p.time}`;
 };
 const yes = (v: unknown) => (v ? "是" : "");
-const MEMBER_STATUS: Record<string, string> = { pending: "待审核", active: "正常", inactive: "已停用", rejected: "已拒绝" };
+const MEMBER_STATUS: Record<string, string> = {
+  pending: "待审核",
+  active: "正常",
+  inactive: "已停用",
+  rejected: "已拒绝",
+};
 const PAY_STATUS: Record<string, string> = { unpaid: "未付", partial: "部分付款", paid: "已付" };
 const INBOUND_STATE: Record<string, string> = { open: "待确认", linked: "已关联", ignored: "已忽略" };
 
@@ -64,7 +69,21 @@ export const TABLES = {
       );
       return {
         title: this.title,
-        columns: ["活动编号", "标题", "日期", "开始", "结束", "场馆", "地址", "状态", "报名人数", "到场人数", "报名截止", "结算时间", "收齐时间"],
+        columns: [
+          "活动编号",
+          "标题",
+          "日期",
+          "开始",
+          "结束",
+          "场馆",
+          "地址",
+          "状态",
+          "报名人数",
+          "到场人数",
+          "报名截止",
+          "结算时间",
+          "收齐时间",
+        ],
         rows: rows.map((e) => [
           eventNumber(e.date, e.code),
           e.title ?? "",
@@ -112,10 +131,26 @@ export const TABLES = {
   settlements: {
     title: "结算",
     async build(env: Env): Promise<Table> {
-      const rows = await all(env, "SELECT s.*, e.date, e.code FROM settlements s JOIN events e ON e.id = s.event_id ORDER BY e.start_at");
+      const rows = await all(
+        env,
+        "SELECT s.*, e.date, e.code FROM settlements s JOIN events e ON e.id = s.event_id ORDER BY e.start_at",
+      );
       return {
         title: this.title,
-        columns: ["活动编号", "日期", "场地费", "用球个数", "球单价", "球费", "总费用", "报名人数", "到场人数", "每人场地费", "每人球费", "结算时间"],
+        columns: [
+          "活动编号",
+          "日期",
+          "场地费",
+          "用球个数",
+          "球单价",
+          "球费",
+          "总费用",
+          "报名人数",
+          "到场人数",
+          "每人场地费",
+          "每人球费",
+          "结算时间",
+        ],
         rows: rows.map((s) => {
           const shuttle = s.shuttle_count * s.shuttle_price_cents;
           return [

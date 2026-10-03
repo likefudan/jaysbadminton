@@ -38,7 +38,8 @@ export function splitMessage(raw: Uint8Array): { headers: Header[]; body: Uint8A
   const headers: Header[] = [];
   for (const line of headerText.split(CRLF)) {
     if (/^[ \t]/.test(line) && headers.length) headers[headers.length - 1]!.raw += CRLF + line;
-    else if (line.includes(":")) headers.push({ name: line.slice(0, line.indexOf(":")).trim().toLowerCase(), raw: line });
+    else if (line.includes(":"))
+      headers.push({ name: line.slice(0, line.indexOf(":")).trim().toLowerCase(), raw: line });
   }
   return { headers, body };
 }
@@ -128,7 +129,11 @@ const b64of = (b: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(b))
  * Verifies a DKIM signature by `domain` that covers From, To and Subject. Any other signatures
  * (amazonses.com, forwarding hops) are ignored.
  */
-export async function verifyDkim(raw: Uint8Array, domain: string, resolveKey: KeyResolver = dohKey): Promise<DkimResult> {
+export async function verifyDkim(
+  raw: Uint8Array,
+  domain: string,
+  resolveKey: KeyResolver = dohKey,
+): Promise<DkimResult> {
   const { headers, body } = splitMessage(raw);
   const sigs = headers.filter((h) => h.name === "dkim-signature");
   let reason = `no DKIM-Signature for ${domain}`;
@@ -179,7 +184,9 @@ async function verifyOne(
   const keyTags = parseTags(record);
   const p = keyTags.get("p");
   if (!p) return { ok: false, reason: "key revoked" };
-  const key = await crypto.subtle.importKey("spki", b64(p), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+  const key = await crypto.subtle.importKey("spki", b64(p), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, [
+    "verify",
+  ]);
 
   const data = signedHeaderBlock(headers, signed, hMode) + signatureInput(sigRaw, hMode);
   const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, b64(tags.get("b") ?? ""), enc.encode(data));
@@ -204,7 +211,9 @@ export async function dohKey(selector: string, domain: string): Promise<string |
   if (cached) return cached;
   for (const url of DOH) {
     try {
-      const res = await fetch(`${url}?name=${encodeURIComponent(name)}&type=TXT`, { headers: { accept: "application/dns-json" } });
+      const res = await fetch(`${url}?name=${encodeURIComponent(name)}&type=TXT`, {
+        headers: { accept: "application/dns-json" },
+      });
       if (!res.ok) continue;
       const json = (await res.json()) as { Status?: number; Answer?: { type: number; data: string }[] };
       const record = json.Answer?.filter((a) => a.type === 16)

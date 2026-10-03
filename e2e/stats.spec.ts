@@ -3,17 +3,44 @@ import { expect, test } from "@playwright/test";
 /** 我的统计 on the 个人信息 page, with a fixed history so the numbers are known. */
 test("the member picks a range and the spending chart and figures follow", async ({ page }) => {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date());
-  const daysAgo = (n: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(Date.now() - n * 86400e3));
-  const entry = (date: string, cents: number, attended = true) => ({ date, title: "", location: "Synergy", cents, attended });
-  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }));
-  await page.route("**/api/m/tok/me", (route) => route.fulfill({ json: { id: "M007", username: "Dafei", wechatNickname: "dafei", active: true, isOwner: false } }));
-  await page.route("**/api/m/tok/events", (route) => route.fulfill({ json: { events: [], history: [], friendCap: 3 } }));
-  await page.route("**/api/m/tok/profile", (route) => route.fulfill({ status: 503, json: { error: { message: "x" } } }));
+  const daysAgo = (n: number) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(Date.now() - n * 86400e3));
+  const entry = (date: string, cents: number, attended = true) => ({
+    date,
+    title: "",
+    location: "Synergy",
+    cents,
+    attended,
+  });
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }),
+  );
+  await page.route("**/api/m/tok/me", (route) =>
+    route.fulfill({ json: { id: "M007", username: "Dafei", wechatNickname: "dafei", active: true, isOwner: false } }),
+  );
+  await page.route("**/api/m/tok/events", (route) =>
+    route.fulfill({ json: { events: [], history: [], friendCap: 3 } }),
+  );
+  await page.route("**/api/m/tok/profile", (route) =>
+    route.fulfill({ status: 503, json: { error: { message: "x" } } }),
+  );
   await page.route("**/api/m/tok/stats", (route) =>
     route.fulfill({
       json: {
-        year: 2026, yearCount: 0, totalCount: 4, yearSpendCents: 0, avgSpendCents: 0, lastYearCount: 0, lastYearSpendCents: 0, today,
-        history: [entry(daysAgo(300), 1000), entry(daysAgo(40), 2000, false), entry(daysAgo(10), 1500), entry(daysAgo(2), 1200)],
+        year: 2026,
+        yearCount: 0,
+        totalCount: 4,
+        yearSpendCents: 0,
+        avgSpendCents: 0,
+        lastYearCount: 0,
+        lastYearSpendCents: 0,
+        today,
+        history: [
+          entry(daysAgo(300), 1000),
+          entry(daysAgo(40), 2000, false),
+          entry(daysAgo(10), 1500),
+          entry(daysAgo(2), 1200),
+        ],
       },
     }),
   );
@@ -44,5 +71,8 @@ test("the member picks a range and the spending chart and figures follow", async
 
   // The choice is remembered.
   await page.reload();
-  await expect(page.locator(".card.spend").getByRole("button", { name: "30D" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".card.spend").getByRole("button", { name: "30D" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });

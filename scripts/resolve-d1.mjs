@@ -9,9 +9,11 @@ const ENVS = {
   staging: { name: "jaysbadminton-staging", placeholder: "11111111-1111-1111-1111-111111111111" },
 };
 const target = process.argv[2] ?? "production";
-const { name: NAME, placeholder: PLACEHOLDER } = ENVS[target] ?? (() => {
-  throw new Error(`unknown environment ${target}`);
-})();
+const { name: NAME, placeholder: PLACEHOLDER } =
+  ENVS[target] ??
+  (() => {
+    throw new Error(`unknown environment ${target}`);
+  })();
 
 const wrangler = (...args) => execFileSync("npx", ["wrangler", ...args], { encoding: "utf8" });
 const find = () => JSON.parse(wrangler("d1", "list", "--json")).find((db) => db.name === NAME);

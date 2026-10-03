@@ -2,7 +2,15 @@ import { sendApprovalEmail } from "../approvalEmail";
 import { Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
-import { assertAdminToken, checkPassword, endSession, hasSession, issueAdminToken, setPassword, startSession } from "../auth";
+import {
+  assertAdminToken,
+  checkPassword,
+  endSession,
+  hasSession,
+  issueAdminToken,
+  setPassword,
+  startSession,
+} from "../auth";
 import { now } from "../db";
 import { closeExpired } from "../events";
 import type { Env } from "../env";
@@ -62,20 +70,35 @@ const origin = (url: string) => new URL(url).origin;
 adminRoutes.post("/:token/members/:id/approve", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.status !== "pending") throw badRequest("这个申请已经处理过了");
-  const updated = await c.env.DB.prepare("UPDATE members SET status = 'active', approved_at = ? WHERE id = ? AND status = 'pending'").bind(now(), m.id).run();
+  const updated = await c.env.DB.prepare(
+    "UPDATE members SET status = 'active', approved_at = ? WHERE id = ? AND status = 'pending'",
+  )
+    .bind(now(), m.id)
+    .run();
   if (!updated.meta.changes) throw badRequest("这个申请已经处理过了");
   // Applied with Google: they sign in with it, so there is no link to send (a spare one can still
   // be made from the members list).
-  if (m.google_sub) return c.json<ApproveResponse>({ link: null, googleEmail: m.google_email, emailStatus: await sendApprovalEmail(c.env, m.id) });
+  if (m.google_sub)
+    return c.json<ApproveResponse>({
+      link: null,
+      googleEmail: m.google_email,
+      emailStatus: await sendApprovalEmail(c.env, m.id),
+    });
   const token = await issueMemberToken(c.env, m.id);
   // Registered with email: the link goes out by email right away (the admin can still copy it).
   const emailStatus = m.email ? await sendApprovalEmail(c.env, m.id) : undefined;
-  return c.json<ApproveResponse>({ link: memberLink(origin(c.req.url), token), googleEmail: null, email: m.email, emailStatus });
+  return c.json<ApproveResponse>({
+    link: memberLink(origin(c.req.url), token),
+    googleEmail: null,
+    email: m.email,
+    emailStatus,
+  });
 });
 
 adminRoutes.post("/:token/members/:id/approval-email", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
-  if (!(m.google_sub || m.email) || m.status !== "active" || m.deleted_at || !m.approved_at) throw badRequest("只能向已通过审核、留了邮箱的成员发送通知");
+  if (!(m.google_sub || m.email) || m.status !== "active" || m.deleted_at || !m.approved_at)
+    throw badRequest("只能向已通过审核、留了邮箱的成员发送通知");
   return c.json({ emailStatus: await sendApprovalEmail(c.env, m.id) });
 });
 
@@ -204,8 +227,14 @@ adminRoutes.get("/:token/settings/google", async (c) => {
   const session = await googleSession(c);
   const holder = session ? await memberByGoogle(c.env, session.google_sub) : null;
   return c.json({
-    bound: owner?.google_sub ? owner.google_email ?? "" : null,
-    current: session ? { email: session.email, holder: holder && holder.id !== owner?.id ? holder.username : null, isOwner: !!holder && holder.id === owner?.id } : null,
+    bound: owner?.google_sub ? (owner.google_email ?? "") : null,
+    current: session
+      ? {
+          email: session.email,
+          holder: holder && holder.id !== owner?.id ? holder.username : null,
+          isOwner: !!holder && holder.id === owner?.id,
+        }
+      : null,
   });
 });
 
@@ -218,9 +247,16 @@ adminRoutes.post("/:token/settings/google/bind", async (c) => {
   if (owner.google_sub === session.google_sub) return c.json({ ok: true });
   if (owner.google_sub) throw new HttpError(409, "already_linked", "管理员已经绑定了一个 Google 账号，请先解除绑定");
   const holder = await memberByGoogle(c.env, session.google_sub);
-  if (holder) throw new HttpError(409, "already_linked", `这个 Google 账号已经属于成员「${holder.username}」，一个 Google 账号只能对应一个人`);
+  if (holder)
+    throw new HttpError(
+      409,
+      "already_linked",
+      `这个 Google 账号已经属于成员「${holder.username}」，一个 Google 账号只能对应一个人`,
+    );
   // A deleted member keeps their history but lets go of the account.
-  await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL").bind(session.google_sub).run();
+  await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL")
+    .bind(session.google_sub)
+    .run();
   await c.env.DB.prepare("UPDATE members SET google_sub = ?, google_email = ? WHERE id = ? AND google_sub IS NULL")
     .bind(session.google_sub, session.email, owner.id)
     .run();

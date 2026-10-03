@@ -32,7 +32,9 @@ describe("test site vs production", () => {
   });
 
   it("marks link previews from the test site", async () => {
-    const shell = new Response("<html><head><title>x</title></head></html>", { headers: { "Content-Type": "text/html" } });
+    const shell = new Response("<html><head><title>x</title></head></html>", {
+      headers: { "Content-Type": "text/html" },
+    });
     const html = await withShareMeta(shell, { title: "活动", description: "d", url: "u" }, "https://s", true).text();
     expect(html).toContain("<title>【测试】活动</title>");
   });
@@ -40,7 +42,12 @@ describe("test site vs production", () => {
   it("never warns about Venmo forwarding on the test site, which gets no real mail", async () => {
     await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('venmo_username', 'x')").run();
     const before = await env.DB.prepare("SELECT COUNT(*) AS n FROM notification_log").first<{ n: number }>();
-    await forwardingWatch({ ...env, ENVIRONMENT: "staging" }, new Date(), { reminderEnabled: true, reminderHours: 6, dunningHour: new Date().getUTCHours(), weeklyDigest: false });
+    await forwardingWatch({ ...env, ENVIRONMENT: "staging" }, new Date(), {
+      reminderEnabled: true,
+      reminderHours: 6,
+      dunningHour: new Date().getUTCHours(),
+      weeklyDigest: false,
+    });
     const after = await env.DB.prepare("SELECT COUNT(*) AS n FROM notification_log").first<{ n: number }>();
     expect(after!.n).toBe(before!.n);
   });

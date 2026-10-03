@@ -120,7 +120,16 @@ export function summarize(history: SpendEntry[], range: RangeId, today: string):
   }
   const count = entries.filter((e) => e.attended).length;
   const cents = entries.reduce((t, e) => t + e.cents, 0);
-  return { start, end: today, unit, buckets, entries, count, cents, avgCents: count ? Math.round(cents / count) : null };
+  return {
+    start,
+    end: today,
+    unit,
+    buckets,
+    entries,
+    count,
+    cents,
+    avgCents: count ? Math.round(cents / count) : null,
+  };
 }
 
 /** A clean top for the y-axis and its step (in cents): 1, 2 or 5 × 10ⁿ whole dollars, 2–4 gridlines. */

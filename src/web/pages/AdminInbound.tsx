@@ -14,7 +14,8 @@ export function InboundTab(props: { base: string }) {
       {(d) => (
         <>
           <p class="muted small">
-            Venmo 收款邮件自动对账：编号和名字对上的自动记到这个人的账上：付够了标记已付，不够的显示「部分付款」等补付，多付的列在「需要退款」里；备注里没有本群付款编号的收款直接忽略，不会出现在这里。
+            Venmo
+            收款邮件自动对账：编号和名字对上的自动记到这个人的账上：付够了标记已付，不够的显示「部分付款」等补付，多付的列在「需要退款」里；备注里没有本群付款编号的收款直接忽略，不会出现在这里。
           </p>
           <Refunds base={props.base} list={d.refunds} onDone={reload} />
           <Card title={`待确认${d.open.length ? ` (${d.open.length})` : ""}`}>
@@ -89,8 +90,11 @@ function Item(props: { base: string; item: InboundRow; payments: OpenPayment[]; 
               <option value="">关联到谁的应付款…</option>
               {props.payments.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.memberName} · {p.status === "partial" ? `还差 $${dollars(p.amountDueCents - p.amountPaidCents)}` : `$${dollars(p.amountDueCents)}`} ·{" "}
-                  {p.eventLabel}
+                  {p.memberName} ·{" "}
+                  {p.status === "partial"
+                    ? `还差 $${dollars(p.amountDueCents - p.amountPaidCents)}`
+                    : `$${dollars(p.amountDueCents)}`}{" "}
+                  · {p.eventLabel}
                 </option>
               ))}
             </select>
@@ -146,8 +150,12 @@ export function ReceiptList(props: { receipts: Receipt[]; onRemove?: (r: Receipt
         <li key={r.id}>
           <span>
             第 {i + 1} 笔 ·{" "}
-            {r.method === "venmo" ? `Venmo${r.payerName ? `（${r.payerName}）` : ""}` : r.method === "refund" ? "退款" : "手动标记"} ·{" "}
-            {formatInstantZh(r.receivedAt)}
+            {r.method === "venmo"
+              ? `Venmo${r.payerName ? `（${r.payerName}）` : ""}`
+              : r.method === "refund"
+                ? "退款"
+                : "手动标记"}{" "}
+            · {formatInstantZh(r.receivedAt)}
           </span>
           <span>
             {r.amountCents < 0 ? `−$${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`}

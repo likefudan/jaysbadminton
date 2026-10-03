@@ -70,7 +70,10 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
 export async function recordCronError(env: Env, err: unknown): Promise<void> {
   try {
     const text = err instanceof Error ? err.message : String(err);
-    await env.DB.batch([setSetting(env.DB, "cron_last_error_at", now()), setSetting(env.DB, "cron_last_error", text.slice(0, 200))]);
+    await env.DB.batch([
+      setSetting(env.DB, "cron_last_error_at", now()),
+      setSetting(env.DB, "cron_last_error", text.slice(0, 200)),
+    ]);
   } catch {
     // Recording must never turn one failure into two.
   }
@@ -95,7 +98,10 @@ export async function weeklyDigest(env: Env, at: Date, cfg: NotifySettings): Pro
 export async function digestText(env: Env, at: Date): Promise<string> {
   const since = new Date(at.getTime() - 7 * DAY).toISOString();
   const db = env.DB;
-  await db.prepare("DELETE FROM email_log WHERE received_at < ?").bind(new Date(at.getTime() - 120 * DAY).toISOString()).run();
+  await db
+    .prepare("DELETE FROM email_log WHERE received_at < ?")
+    .bind(new Date(at.getTime() - 120 * DAY).toISOString())
+    .run();
 
   const { results: mail } = await db
     .prepare("SELECT outcome, COUNT(*) AS n FROM email_log WHERE received_at >= ? GROUP BY outcome")
@@ -107,7 +113,9 @@ export async function digestText(env: Env, at: Date): Promise<string> {
     .prepare("SELECT COUNT(*) AS n FROM events WHERE start_at >= ? AND start_at < ? AND status != 'cancelled'")
     .bind(since, at.toISOString())
     .first<{ n: number }>();
-  const review = await db.prepare("SELECT COUNT(*) AS n FROM inbound_payments WHERE state = 'open'").first<{ n: number }>();
+  const review = await db
+    .prepare("SELECT COUNT(*) AS n FROM inbound_payments WHERE state = 'open'")
+    .first<{ n: number }>();
   const owing = await db
     .prepare(
       `SELECT COUNT(*) AS n, COALESCE(SUM(amount_due_cents - amount_paid_cents), 0) AS cents
@@ -147,7 +155,9 @@ export async function digestText(env: Env, at: Date): Promise<string> {
   else checks.push("✓ 定时任务：正常");
   if (!sheets.enabled) checks.push("· Google 表格同步：没有开启");
   else if (!sheets.lastSyncAt || Date.parse(sheets.lastSyncAt) < at.getTime() - 2 * DAY)
-    checks.push(`⚠️ Google 表格同步：${sheets.lastSyncAt ? `最近一次在 ${formatInstantZh(sheets.lastSyncAt)}，已超过 2 天` : "还没同步过"}`);
+    checks.push(
+      `⚠️ Google 表格同步：${sheets.lastSyncAt ? `最近一次在 ${formatInstantZh(sheets.lastSyncAt)}，已超过 2 天` : "还没同步过"}`,
+    );
   else checks.push(`✓ Google 表格同步：最近一次在 ${formatInstantZh(sheets.lastSyncAt)}`);
   lines.push(...checks);
   return lines.join("\n");

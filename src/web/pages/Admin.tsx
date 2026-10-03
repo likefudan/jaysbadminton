@@ -1,5 +1,12 @@
 import { useState } from "preact/hooks";
-import type { ApprovalEmailStatus, ApproveResponse, LinkResponse, MemberProfile, MemberSummary, MembersResponse } from "../../shared/types";
+import type {
+  ApprovalEmailStatus,
+  ApproveResponse,
+  LinkResponse,
+  MemberProfile,
+  MemberSummary,
+  MembersResponse,
+} from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
@@ -40,10 +47,22 @@ export function Admin(props: { token?: string }) {
               <button class={tab === "inbound" ? "active" : ""} onClick={() => setTab("inbound")}>
                 收款
               </button>
-              <button class={tab === "pending" ? "active" : ""} onClick={() => { setTab("pending"); reload(); }}>
+              <button
+                class={tab === "pending" ? "active" : ""}
+                onClick={() => {
+                  setTab("pending");
+                  reload();
+                }}
+              >
                 待审核{m.pending.length > 0 && ` (${m.pending.length})`}
               </button>
-              <button class={tab === "members" ? "active" : ""} onClick={() => { setTab("members"); reload(); }}>
+              <button
+                class={tab === "members" ? "active" : ""}
+                onClick={() => {
+                  setTab("members");
+                  reload();
+                }}
+              >
                 成员
               </button>
               <button class={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>
@@ -73,7 +92,9 @@ function GoogleAdminLogin() {
         <button class="button block" onClick={() => location.assign("/api/auth/google?next=/admin/google")}>
           {other ? "换一个 Google 账号登录" : "使用 Google 登录"}
         </button>
-        <p class="muted small">只有在管理页「设置」里绑定过的那个 Google 账号能进。没绑定的话，请用管理链接和密码登录。</p>
+        <p class="muted small">
+          只有在管理页「设置」里绑定过的那个 Google 账号能进。没绑定的话，请用管理链接和密码登录。
+        </p>
       </Card>
     </Page>
   );
@@ -90,7 +111,13 @@ function Login(props: { base: string; onDone: () => void }) {
     <Page title="管理员登录">
       <Card>
         <form onSubmit={submit}>
-          <Field label="管理密码" type="password" value={password} onInput={setPassword} autocomplete="current-password" />
+          <Field
+            label="管理密码"
+            type="password"
+            value={password}
+            onInput={setPassword}
+            autocomplete="current-password"
+          />
           {error && <p class="error">{error}</p>}
           <button class="button block" disabled={busy}>
             {busy ? "登录中…" : "登录"}
@@ -160,13 +187,20 @@ function MemberDetail(props: { base: string; id: string; onBack: () => void; onC
 function approvalEmailMessage(status?: ApprovalEmailStatus, byEmail = false): string {
   const what = byEmail ? "专属链接" : "审核通知";
   if (status === "sent") return byEmail ? "专属链接已发到对方的邮箱。" : "审核通知已发送至对方的 Google 邮箱。";
-  if (status === "not_configured") return `成员已通过审核，但邮件服务尚未配置，${what}没有发出。配置后可在成员列表重试，或者把链接私发给对方。`;
+  if (status === "not_configured")
+    return `成员已通过审核，但邮件服务尚未配置，${what}没有发出。配置后可在成员列表重试，或者把链接私发给对方。`;
   if (status === "failed") return `成员已通过审核，但${what}邮件发送失败。可以在成员列表重试，或者把链接私发给对方。`;
   return "成员已通过审核，可以使用 Google 账号登录。";
 }
 
 function Pending(props: { base: string; list: MemberSummary[]; onChange: () => void }) {
-  const [issued, setIssued] = useState<{ name: string; link: string | null; googleEmail: string | null; email?: string | null; emailStatus?: ApprovalEmailStatus } | null>(null);
+  const [issued, setIssued] = useState<{
+    name: string;
+    link: string | null;
+    googleEmail: string | null;
+    email?: string | null;
+    emailStatus?: ApprovalEmailStatus;
+  } | null>(null);
   const { busy, error, run } = useAction();
 
   async function approve(m: MemberSummary) {
@@ -190,16 +224,18 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
               <LinkCard
                 title={`${issued.name} 的专属链接`}
                 link={issued.link}
-                note={issued.email ? `已自动发到 ${issued.email}；对方没收到时，可以把链接或二维码私发给对方。` : "通过微信私聊发给对方（链接或二维码都可以）。"}
+                note={
+                  issued.email
+                    ? `已自动发到 ${issued.email}；对方没收到时，可以把链接或二维码私发给对方。`
+                    : "通过微信私聊发给对方（链接或二维码都可以）。"
+                }
               />
               {issued.email && <p role="status">{approvalEmailMessage(issued.emailStatus, true)}</p>}
             </>
           ) : (
             <>
               <h2>已通过 {issued.name}</h2>
-              <p>
-                对方是用 Google（{issued.googleEmail}）申请的，不用发链接：用这个 Google 账号登录网站就能报名。
-              </p>
+              <p>对方是用 Google（{issued.googleEmail}）申请的，不用发链接：用这个 Google 账号登录网站就能报名。</p>
               <p role="status">{approvalEmailMessage(issued.emailStatus)}</p>
               <p class="muted small">需要备用链接的话，可以在「成员」里生成。</p>
             </>
@@ -239,8 +275,13 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
   const { busy, error, run } = useAction();
   const [emailMessage, setEmailMessage] = useState("");
   async function retryEmail(m: MemberSummary) {
-    const r = await run(() => api<{ emailStatus: ApprovalEmailStatus }>(`${props.base}/members/${m.id}/approval-email`, {}));
-    if (r) { setEmailMessage(approvalEmailMessage(r.emailStatus, !m.googleEmail)); props.onChange(); }
+    const r = await run(() =>
+      api<{ emailStatus: ApprovalEmailStatus }>(`${props.base}/members/${m.id}/approval-email`, {}),
+    );
+    if (r) {
+      setEmailMessage(approvalEmailMessage(r.emailStatus, !m.googleEmail));
+      props.onChange();
+    }
   }
   const openMember = (m: MemberSummary) => setOpen(m.id);
 
@@ -254,7 +295,8 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     if (r) setShown({ name: m.username, link: r.link, fresh: true });
   }
   async function deactivate(m: MemberSummary) {
-    if (!confirm(`停用后 ${m.username} 不能再报名，正在报名中的活动会被取消报名；他的链接还能用来付清欠款。继续吗？`)) return;
+    if (!confirm(`停用后 ${m.username} 不能再报名，正在报名中的活动会被取消报名；他的链接还能用来付清欠款。继续吗？`))
+      return;
     if (await run(() => api(`${props.base}/members/${m.id}/deactivate`, {}))) props.onChange();
   }
   /** For members disabled before links were kept: a fresh link so they can pay what they owe. */
@@ -300,10 +342,16 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
           <div class="row" key={m.id}>
             {who(m, openMember)}
             <div class="actions">
-              {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && <button class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>重试审核邮件</button>}
-              {m.hasLink && <button class="button secondary" disabled={busy} onClick={() => view(m)}>
-                链接
-              </button>}
+              {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && (
+                <button class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>
+                  重试审核邮件
+                </button>
+              )}
+              {m.hasLink && (
+                <button class="button secondary" disabled={busy} onClick={() => view(m)}>
+                  链接
+                </button>
+              )}
               <button class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
                 {m.hasLink ? "重新生成" : "生成备用链接"}
               </button>

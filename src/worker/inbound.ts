@@ -20,14 +20,23 @@ const GMAIL_FORWARDING = "forwarding-noreply@google.com";
  * code here. Pass it to the Owner's Telegram so they can finish the setup on their own; only
  * genuine (DKIM-signed by google.com) messages are passed on.
  */
-async function gmailConfirmation(env: Env, raw: Uint8Array, subject: string, text: string, opts: EmailOptions): Promise<EmailOutcome> {
+async function gmailConfirmation(
+  env: Env,
+  raw: Uint8Array,
+  subject: string,
+  text: string,
+  opts: EmailOptions,
+): Promise<EmailOutcome> {
   const dkim = await verifyDkim(raw, "google.com", opts.resolveKey);
   if (!dkim.ok) {
     console.warn("gmail confirmation not verified:", dkim.reason);
     return "gmail_unverified";
   }
   const body = text.split("\n").slice(0, 25).join("\n").slice(0, 1500);
-  await sendToOwner(env, message(`📮 Gmail 转发确认邮件\n${subject}\n\n${body}\n\n把上面的确认码填到 Gmail 设置里，或打开里面的确认链接。`));
+  await sendToOwner(
+    env,
+    message(`📮 Gmail 转发确认邮件\n${subject}\n\n${body}\n\n把上面的确认码填到 Gmail 设置里，或打开里面的确认链接。`),
+  );
   return "gmail_confirm";
 }
 
@@ -78,15 +87,24 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
   if (!r) return "parse_failed";
 
   // Both must match: the username printed in the body and the email Venmo addressed it to.
-  const { venmo_username: owner = "", venmo_email: ownerEmail = "" } = await getSettings(env.DB, ["venmo_username", "venmo_email"]);
+  const { venmo_username: owner = "", venmo_email: ownerEmail = "" } = await getSettings(env.DB, [
+    "venmo_username",
+    "venmo_email",
+  ]);
   if (!owner || r.sentTo.toLowerCase() !== owner.toLowerCase()) return "wrong_recipient";
   if (!ownerEmail || mail.toAddresses.length !== 1 || mail.toAddresses[0] !== ownerEmail) return "wrong_recipient";
 
   const code = parsePaymentCode(r.note);
   if (!code?.name || !(await isGroupName(env, code.name))) return "ignored";
-  const e = await env.DB.prepare("SELECT * FROM events WHERE date = ? AND code = ?").bind(code.date, code.eventCode).first<EventRow>();
+  const e = await env.DB.prepare("SELECT * FROM events WHERE date = ? AND code = ?")
+    .bind(code.date, code.eventCode)
+    .first<EventRow>();
   // A payment for an event the Owner deleted is still a group member's money: 待确认, not ignored.
-  const deleted = !e && (await env.DB.prepare("SELECT 1 FROM deleted_events WHERE date = ? AND code = ?").bind(code.date, code.eventCode).first());
+  const deleted =
+    !e &&
+    (await env.DB.prepare("SELECT 1 FROM deleted_events WHERE date = ? AND code = ?")
+      .bind(code.date, code.eventCode)
+      .first());
   if (!e && !deleted) return "ignored";
 
   const seen = await env.DB.prepare(
@@ -115,7 +133,9 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
 
   // Every payment counts toward the bill, however many there are; an archived (fully paid)
   // event can only gain an over-payment, which shows up under 需要退款.
-  if (!(await addReceipt(env, p.id, { amountCents: r.amountCents, method: "venmo", txnId: r.txnId, payerName: r.payer }))) {
+  if (
+    !(await addReceipt(env, p.id, { amountCents: r.amountCents, method: "venmo", txnId: r.txnId, payerName: r.payer }))
+  ) {
     return "duplicate";
   }
   const after = (await env.DB.prepare("SELECT status, amount_due_cents, amount_paid_cents FROM payments WHERE id = ?")
@@ -138,7 +158,9 @@ export async function handleEmail(env: Env, raw: Uint8Array, opts: EmailOptions 
 async function isGroupName(env: Env, name: string): Promise<boolean> {
   const { results: members } = await env.DB.prepare("SELECT username FROM members").all<{ username: string }>();
   if (members.some((m) => noteName(m.username) === name)) return true;
-  const { results: codes } = await env.DB.prepare("SELECT DISTINCT payment_code FROM payments").all<{ payment_code: string }>();
+  const { results: codes } = await env.DB.prepare("SELECT DISTINCT payment_code FROM payments").all<{
+    payment_code: string;
+  }>();
   return codes.some((c) => codeName(c.payment_code) === name);
 }
 
@@ -154,7 +176,8 @@ async function record(env: Env, r: VenmoReceipt, emailId: string, reason: string
   return "review";
 }
 
-const eventLabel = (date: string, code: string) => formatDateZh(date) + (code.length > 4 ? ` 第${code.charCodeAt(4) - 64}场` : "");
+const eventLabel = (date: string, code: string) =>
+  formatDateZh(date) + (code.length > 4 ? ` 第${code.charCodeAt(4) - 64}场` : "");
 
 export async function inboundRows(env: Env, state: "open" | "done"): Promise<InboundRow[]> {
   const { results } = await env.DB.prepare(
@@ -208,7 +231,10 @@ export async function refundRows(env: Env): Promise<RefundRow[]> {
      WHERE p.amount_paid_cents > p.amount_due_cents
      ORDER BY e.start_at DESC, m.username`,
   ).all<Record<string, any>>();
-  const receipts = await receiptsFor(env, results.map((p) => p.id));
+  const receipts = await receiptsFor(
+    env,
+    results.map((p) => p.id),
+  );
   return results.map((p) => ({
     paymentId: p.id,
     eventLabel: eventLabel(p.date, p.code),
@@ -250,5 +276,8 @@ export async function recordEmailOutcome(env: Env, outcome: EmailOutcome): Promi
 
 export async function emailStatus(env: Env): Promise<{ lastAt: string | null; outcome: string | null }> {
   const s = await getSettings(env.DB, ["email_last_at", "email_last_outcome"]);
-  return { lastAt: s.email_last_at ?? null, outcome: s.email_last_outcome ? (OUTCOME_ZH[s.email_last_outcome as EmailOutcome] ?? null) : null };
+  return {
+    lastAt: s.email_last_at ?? null,
+    outcome: s.email_last_outcome ? (OUTCOME_ZH[s.email_last_outcome as EmailOutcome] ?? null) : null,
+  };
 }

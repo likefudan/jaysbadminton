@@ -49,8 +49,8 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
       {preview && (
         <>
           <p class="small">
-            报名 {preview.registered} 人 · 到场 {preview.attended} 人 · 每人场地费 ${dollars(preview.courtShareCents)} · 每人球费 $
-            {dollars(preview.shuttleShareCents)}
+            报名 {preview.registered} 人 · 到场 {preview.attended} 人 · 每人场地费 ${dollars(preview.courtShareCents)} ·
+            每人球费 ${dollars(preview.shuttleShareCents)}
           </p>
           <table class="bills">
             <tbody>
@@ -93,7 +93,8 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
 
   async function toggleDunning() {
     const stop = !props.e.dunningStopped;
-    if (stop && !confirm("停止后不再发送这个活动的每日收款汇总和账单提醒，但未付记录保留、活动不归档。继续吗？")) return;
+    if (stop && !confirm("停止后不再发送这个活动的每日收款汇总和账单提醒，但未付记录保留、活动不归档。继续吗？"))
+      return;
     if (await run(() => api(`${props.base}/events/${props.e.id}/dunning`, { stop }))) props.onDone();
   }
 
@@ -128,8 +129,10 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
                 </small>
                 <small class={`pay-status ${p.status}`}>
                   {p.status === "unpaid" && "未付"}
-                  {p.status === "partial" && `部分付款 · 已收 $${dollars(p.amountPaidCents)}，还差 $${dollars(p.amountDueCents - p.amountPaidCents)}`}
-                  {p.status === "paid" && (p.refundCents > 0 ? `已付 · 多付 $${dollars(p.refundCents)}，需要退款` : "已付")}
+                  {p.status === "partial" &&
+                    `部分付款 · 已收 $${dollars(p.amountPaidCents)}，还差 $${dollars(p.amountDueCents - p.amountPaidCents)}`}
+                  {p.status === "paid" &&
+                    (p.refundCents > 0 ? `已付 · 多付 $${dollars(p.refundCents)}，需要退款` : "已付")}
                 </small>
               </div>
               {!settled && !p.isOwner && p.status !== "paid" && (
@@ -140,7 +143,9 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
                 </div>
               )}
             </div>
-            {!p.isOwner && <ReceiptList receipts={p.receipts} busy={busy} onRemove={settled ? undefined : (r) => remove(p, r)} />}
+            {!p.isOwner && (
+              <ReceiptList receipts={p.receipts} busy={busy} onRemove={settled ? undefined : (r) => remove(p, r)} />
+            )}
           </div>
         ))}
         {!settled && v.totals.unpaidCount > 0 && (
@@ -155,7 +160,9 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
 
 /** Loads the settlement view and shows whichever of the two cards fits the event's status. */
 export function Billing(props: { base: string; e: EventDetail; onChange: () => void }) {
-  const [view, reload] = useApi<SettlementView>(`${props.base}/events/${props.e.id}/settlement?v=${props.e.status}-${props.e.headcount}`);
+  const [view, reload] = useApi<SettlementView>(
+    `${props.base}/events/${props.e.id}/settlement?v=${props.e.status}-${props.e.headcount}`,
+  );
   const refresh = () => {
     reload();
     props.onChange();
@@ -166,8 +173,12 @@ export function Billing(props: { base: string; e: EventDetail; onChange: () => v
     <Load result={view}>
       {(v) => (
         <>
-          {(s === "finalized" || s === "settled") && <PaymentsBoard base={props.base} e={props.e} view={v} onDone={refresh} />}
-          {(s === "closed" || s === "finalized") && <SettleCard base={props.base} e={props.e} view={v} onDone={refresh} />}
+          {(s === "finalized" || s === "settled") && (
+            <PaymentsBoard base={props.base} e={props.e} view={v} onDone={refresh} />
+          )}
+          {(s === "closed" || s === "finalized") && (
+            <SettleCard base={props.base} e={props.e} view={v} onDone={refresh} />
+          )}
         </>
       )}
     </Load>

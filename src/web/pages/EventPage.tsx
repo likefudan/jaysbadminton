@@ -27,7 +27,9 @@ export function EventPage(props: { code?: string }) {
                 <CalendarLinks e={e} />
                 <EventShareRow e={e} />
               </Card>
-              {(member === "none" || member === "loading") && <p class="muted small">登录后即可报名；新朋友请先注册入群。</p>}
+              {(member === "none" || member === "loading") && (
+                <p class="muted small">登录后即可报名；新朋友请先注册入群。</p>
+              )}
               {member === "pending" && <p class="muted small">你的入群申请正在等待管理员审核，通过后就能报名。</p>}
             </>
           )}
@@ -48,7 +50,8 @@ function MemberView(props: { e: PublicEvent }) {
   const [res, reload] = useApi<{ events: MyEvent[]; friendCap: number }>("/api/m/session/events");
   const mine = res.state === "ok" ? res.data.events.find((x) => x.id === props.e.id) : undefined;
   if (res.state === "loading") return null;
-  if (res.state === "ok" && mine) return <SignupCard base="/api/m/session" e={mine} cap={res.data.friendCap} onChange={reload} />;
+  if (res.state === "ok" && mine)
+    return <SignupCard base="/api/m/session" e={mine} cap={res.data.friendCap} onChange={reload} />;
   return (
     <Card>
       <EventInfo e={props.e} publicView />

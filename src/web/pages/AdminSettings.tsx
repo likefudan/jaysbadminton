@@ -72,14 +72,22 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
       <GoogleAdminCard base={props.base} viaGoogle={props.viaGoogle} />
       <Card title="修改管理密码">
         <form onSubmit={changePassword}>
-          <Field label="当前密码" type="password" value={current} onInput={setCurrent} autocomplete="current-password" />
+          <Field
+            label="当前密码"
+            type="password"
+            value={current}
+            onInput={setCurrent}
+            autocomplete="current-password"
+          />
           <Field label="新密码" type="password" value={next} onInput={setNext} autocomplete="new-password" />
           <Field label="再输一次新密码" type="password" value={again} onInput={setAgain} autocomplete="new-password" />
           {pw.error && <p class="error">{pw.error}</p>}
           <button class="button block" disabled={pw.busy}>
             保存新密码
           </button>
-          <p class="muted small">修改后所有设备都会退出登录。忘记密码时，改 GitHub 里的 ADMIN_PASSWORD 并重新部署即可重置。</p>
+          <p class="muted small">
+            修改后所有设备都会退出登录。忘记密码时，改 GitHub 里的 ADMIN_PASSWORD 并重新部署即可重置。
+          </p>
         </form>
       </Card>
       <Card title="管理链接">
@@ -127,13 +135,20 @@ function BackupKey(props: { base: string }) {
   return (
     <Card title="备份网站密钥">
       <p class="muted small">
-        TOKEN_KEY 用来加密保存成员链接和管理链接，Cloudflare 里看不到它的值。把它发到你的 Telegram，存进密码管理器后删掉那条消息。
+        TOKEN_KEY 用来加密保存成员链接和管理链接，Cloudflare 里看不到它的值。把它发到你的
+        Telegram，存进密码管理器后删掉那条消息。
       </p>
       {done ? (
         <p>已发送到 Telegram。</p>
       ) : (
         <form onSubmit={submit}>
-          <Field label="管理密码" type="password" value={password} onInput={setPassword} autocomplete="current-password" />
+          <Field
+            label="管理密码"
+            type="password"
+            value={password}
+            onInput={setPassword}
+            autocomplete="current-password"
+          />
           {error && <p class="error">{error}</p>}
           <button class="button secondary block" disabled={busy || !password}>
             发送到 Telegram
@@ -154,7 +169,8 @@ function ResetAll(props: { base: string }) {
   const { busy, error, run } = useAction();
 
   function start() {
-    if (confirm("清空后，所有成员、活动、报名、付款记录和设置都会被删除，网站回到初次设置状态。确定要继续吗？")) setOpen(true);
+    if (confirm("清空后，所有成员、活动、报名、付款记录和设置都会被删除，网站回到初次设置状态。确定要继续吗？"))
+      setOpen(true);
   }
   async function submit(e: Event) {
     e.preventDefault();
@@ -175,7 +191,13 @@ function ResetAll(props: { base: string }) {
         <form onSubmit={submit}>
           <p class="error">所有成员、活动、报名、付款记录、设置都会被删除，管理链接和所有成员链接都会失效。</p>
           <Field label={`请输入「${RESET_PHRASE}」`} value={phrase} onInput={setPhrase} />
-          <Field label="管理密码" type="password" value={password} onInput={setPassword} autocomplete="current-password" />
+          <Field
+            label="管理密码"
+            type="password"
+            value={password}
+            onInput={setPassword}
+            autocomplete="current-password"
+          />
           {error && <p class="error">{error}</p>}
           <button class="button danger block" disabled={busy || phrase !== RESET_PHRASE || !password}>
             确认清空
@@ -250,7 +272,13 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
           <strong>展示排行榜</strong>
           <small>在首页显示出勤排行榜（只有名字和次数，没有金额）</small>
         </span>
-        <input type="checkbox" role="switch" checked={board} disabled={busy} onChange={(e) => toggleBoard((e.target as HTMLInputElement).checked)} />
+        <input
+          type="checkbox"
+          role="switch"
+          checked={board}
+          disabled={busy}
+          onChange={(e) => toggleBoard((e.target as HTMLInputElement).checked)}
+        />
       </label>
       {error && <p class="error">{error}</p>}
       <p class="muted small">首页和活动页对所有人公开：只显示活动时间、地点和报名人数，不显示名单和收款情况。</p>
@@ -332,7 +360,13 @@ function PaymentCard(props: { base: string }) {
   );
 }
 
-function PaymentForm(props: { base: string; initial: GeneralSettings; first: boolean; onDone: () => void; onCancel?: () => void }) {
+function PaymentForm(props: {
+  base: string;
+  initial: GeneralSettings;
+  first: boolean;
+  onDone: () => void;
+  onCancel?: () => void;
+}) {
   const [venmo, setVenmo] = useState(props.initial.venmoUsername);
   const [venmoEmail, setVenmoEmail] = useState(props.initial.venmoEmail);
   const [zelle, setZelle] = useState(props.initial.zelleAccount);
@@ -356,8 +390,20 @@ function PaymentForm(props: { base: string; initial: GeneralSettings; first: boo
           onInput={setVenmoEmail}
           hint="Venmo 账户里登记的、接收收款通知的邮箱。只有发到这个邮箱的 Venmo 收款邮件才会自动对账"
         />
-        <Field label="你的 Zelle 账号（选填）" value={zelle} onInput={setZelle} hint="手机号或邮箱，显示在付款页作为备选" />
-        <Field label="管理密码" type="password" value={password} onInput={setPassword} autocomplete="current-password" hint="为防止误改，保存收款设置需要输入管理密码" />
+        <Field
+          label="你的 Zelle 账号（选填）"
+          value={zelle}
+          onInput={setZelle}
+          hint="手机号或邮箱，显示在付款页作为备选"
+        />
+        <Field
+          label="管理密码"
+          type="password"
+          value={password}
+          onInput={setPassword}
+          autocomplete="current-password"
+          hint="为防止误改，保存收款设置需要输入管理密码"
+        />
         {error && <p class="error">{error}</p>}
         <button class="button block" disabled={busy || !password}>
           保存收款设置
@@ -419,7 +465,8 @@ function GoogleAdminCard(props: { base: string; viaGoogle: boolean }) {
   type State = { bound: string | null; current: { email: string; holder: string | null; isOwner: boolean } | null };
   const [res, reload] = useApi<State>(`${props.base}/settings/google`);
   const { busy, error, run } = useAction();
-  const signIn = () => location.assign(`/api/auth/google?next=${encodeURIComponent(`${location.pathname}?tab=settings`)}`);
+  const signIn = () =>
+    location.assign(`/api/auth/google?next=${encodeURIComponent(`${location.pathname}?tab=settings`)}`);
   async function bind() {
     if (await run(() => api(`${props.base}/settings/google/bind`, {}))) reload();
   }
@@ -436,7 +483,8 @@ function GoogleAdminCard(props: { base: string; viaGoogle: boolean }) {
           g.bound !== null ? (
             <>
               <p>
-                已绑定 <strong>{g.bound || "Google 账号"}</strong>。用这个账号登录后，在首页或 /admin 就能直接进入管理页，不用链接和密码。
+                已绑定 <strong>{g.bound || "Google 账号"}</strong>。用这个账号登录后，在首页或 /admin
+                就能直接进入管理页，不用链接和密码。
               </p>
               {error && <p class="error">{error}</p>}
               <button class="button secondary block" disabled={busy} onClick={unbind}>
@@ -445,10 +493,13 @@ function GoogleAdminCard(props: { base: string; viaGoogle: boolean }) {
             </>
           ) : (
             <>
-              <p class="muted">绑定一个 Google 账号（只能一个），以后用它登录就能直接进入管理页。管理链接和密码仍然可用。</p>
+              <p class="muted">
+                绑定一个 Google 账号（只能一个），以后用它登录就能直接进入管理页。管理链接和密码仍然可用。
+              </p>
               {g.current?.holder ? (
                 <p class="error">
-                  当前登录的 {g.current.email} 已经属于成员「{g.current.holder}」，一个 Google 账号只能对应一个人。请换一个账号。
+                  当前登录的 {g.current.email} 已经属于成员「{g.current.holder}」，一个 Google
+                  账号只能对应一个人。请换一个账号。
                 </p>
               ) : g.current ? (
                 <p>当前浏览器登录的 Google 账号：{g.current.email}</p>

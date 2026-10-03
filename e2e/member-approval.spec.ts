@@ -1,17 +1,51 @@
 import { test, expect } from "@playwright/test";
 
-test("the admin reviews application details, sees email failure and retries without approving again", async ({ page }) => {
-  let approved = false, emailStatus = "failed";
-  const member = { id: "M999", username: "Alice", wechatNickname: "alice_wx", applicationMessage: "小明介绍的", googleEmail: "alice@gmail.com", hasLink: false, isOwner: false, adminNote: "", owingCents: 0 };
+test("the admin reviews application details, sees email failure and retries without approving again", async ({
+  page,
+}) => {
+  let approved = false,
+    emailStatus = "failed";
+  const member = {
+    id: "M999",
+    username: "Alice",
+    wechatNickname: "alice_wx",
+    applicationMessage: "小明介绍的",
+    googleEmail: "alice@gmail.com",
+    hasLink: false,
+    isOwner: false,
+    adminNote: "",
+    owingCents: 0,
+  };
   // Applied before the form was simplified: still shows what they filled in then.
-  const older = { id: "M998", username: "Bob", wechatNickname: "Bob 身份", applicantName: "Bob 身份", wechatAccount: "bob_wechat", applicationMessage: "", googleEmail: "bob@gmail.com", hasLink: false, isOwner: false, adminNote: "", owingCents: 0 };
-  await page.route("**/api/auth/session", route => route.fulfill({ json: { signedIn: false } }));
-  await page.route("**/api/admin/test-token/members", route => route.fulfill({ json: { pending: approved ? [older] : [member, older], active: approved ? [{ ...member, approvalEmailStatus: emailStatus }] : [], inactive: [], deleted: [] } }));
-  await page.route("**/api/admin/test-token/members/M999/approve", route => {
+  const older = {
+    id: "M998",
+    username: "Bob",
+    wechatNickname: "Bob 身份",
+    applicantName: "Bob 身份",
+    wechatAccount: "bob_wechat",
+    applicationMessage: "",
+    googleEmail: "bob@gmail.com",
+    hasLink: false,
+    isOwner: false,
+    adminNote: "",
+    owingCents: 0,
+  };
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false } }));
+  await page.route("**/api/admin/test-token/members", (route) =>
+    route.fulfill({
+      json: {
+        pending: approved ? [older] : [member, older],
+        active: approved ? [{ ...member, approvalEmailStatus: emailStatus }] : [],
+        inactive: [],
+        deleted: [],
+      },
+    }),
+  );
+  await page.route("**/api/admin/test-token/members/M999/approve", (route) => {
     approved = true;
     return route.fulfill({ json: { link: null, googleEmail: member.googleEmail, emailStatus } });
   });
-  await page.route("**/api/admin/test-token/members/M999/approval-email", route => {
+  await page.route("**/api/admin/test-token/members/M999/approval-email", (route) => {
     emailStatus = "sent";
     return route.fulfill({ json: { emailStatus } });
   });

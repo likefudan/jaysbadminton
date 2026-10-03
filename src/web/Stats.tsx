@@ -105,7 +105,13 @@ function SpendingCard(props: { stats: MyStats }) {
       <Card class="spend">
         <div class="seg spend-ranges" role="group" aria-label="时间范围">
           {RANGES.map((r) => (
-            <button key={r} class={r === range ? "on" : ""} aria-pressed={r === range} title={RANGE_NAMES[r]} onClick={() => choose(r)}>
+            <button
+              key={r}
+              class={r === range ? "on" : ""}
+              aria-pressed={r === range}
+              title={RANGE_NAMES[r]}
+              onClick={() => choose(r)}
+            >
               {r}
             </button>
           ))}
@@ -133,7 +139,9 @@ function SpendingCard(props: { stats: MyStats }) {
               <strong>{bucketTitle(shown, sum.unit)}</strong> · 花费 ${dollars(shown.cents)} · 打球 {shown.count} 次
             </>
           ) : (
-            <span class="muted">{RANGE_NAMES[range]}每{UNIT_ZH[sum.unit]}的花费，点柱子看详情</span>
+            <span class="muted">
+              {RANGE_NAMES[range]}每{UNIT_ZH[sum.unit]}的花费，点柱子看详情
+            </span>
           )}
         </p>
         <div class="spend-chart">

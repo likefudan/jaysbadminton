@@ -60,7 +60,10 @@ export function TelegramCard(props: { base: string }) {
                   {s.botUsername && <span class="muted small">（机器人 @{s.botUsername}）</span>}
                 </p>
               ) : (
-                <p class="muted">还没有连接。点下面的按钮会打开 Telegram，在机器人对话里点「Start / 开始」即可。所有提醒和账单通知只发给连接的这一个账号。</p>
+                <p class="muted">
+                  还没有连接。点下面的按钮会打开 Telegram，在机器人对话里点「Start /
+                  开始」即可。所有提醒和账单通知只发给连接的这一个账号。
+                </p>
               )}
               {waiting && <p class="hint">等待你在 Telegram 里点 Start…（3 分钟内有效）</p>}
               {error && <p class="error">{error}</p>}
@@ -164,7 +167,8 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
         每周一发送健康简报
       </label>
       <p class="muted small">
-        简报在账单提醒时间发送：上周收到多少 Venmo 邮件、自动记了几笔、还有多少没付清，以及邮件转发、定时任务、Google 表格同步是否正常。另外，Venmo 邮件读不懂、或者有欠款却好几天没收到任何 Venmo 邮件时，会立即提醒你。
+        简报在账单提醒时间发送：上周收到多少 Venmo 邮件、自动记了几笔、还有多少没付清，以及邮件转发、定时任务、Google
+        表格同步是否正常。另外，Venmo 邮件读不懂、或者有欠款却好几天没收到任何 Venmo 邮件时，会立即提醒你。
       </p>
       {error && <p class="error">{error}</p>}
       <button class="button secondary block" disabled={busy} onClick={save}>

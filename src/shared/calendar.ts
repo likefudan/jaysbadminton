@@ -21,7 +21,12 @@ export function calendarEntry(e: EventSummary, origin: string): CalendarEntry {
     startUtc: pacificToUtc(e.date, e.startTime),
     endUtc: pacificToUtc(e.date, e.endTime),
     location: e.address ? `${e.location}, ${e.address}` : e.location,
-    details: [`场馆：${e.location}`, ...(e.address ? [`地址：${e.address}`] : []), `报名截止：${formatInstantZh(e.deadlineAt)}`, url].join("\n"),
+    details: [
+      `场馆：${e.location}`,
+      ...(e.address ? [`地址：${e.address}`] : []),
+      `报名截止：${formatInstantZh(e.deadlineAt)}`,
+      url,
+    ].join("\n"),
     url,
   };
 }
