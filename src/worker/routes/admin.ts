@@ -147,8 +147,8 @@ adminRoutes.post("/:token/settings/backup-key", async (c) => {
   const sent = await sendToOwner(
     c.env,
     `🔑 ${site}的 TOKEN_KEY（${escapeHtml(c.env.SITE_ORIGIN)}）：\n<pre>${escapeHtml(c.env.TOKEN_KEY)}</pre>\n` +
-      "请存进密码管理器，然后删除这条消息。万一 Worker 的 secret 丢了，用 " +
-      `<code>npx wrangler secret put TOKEN_KEY${isStaging(c.env) ? " --env staging" : ""}</code> 填回去即可。`,
+      `请存进密码管理器，并存为 GitHub secret <code>${isStaging(c.env) ? "LINK_ENCRYPTION_KEY_STAGING" : "LINK_ENCRYPTION_KEY"}</code>，然后删除这条消息。` +
+      "每次部署都会核对它；万一 Worker 的 secret 丢了，部署时会自动用它填回去。",
   );
   if (!sent) throw badRequest("发送失败：请先在设置里连接 Telegram");
   return c.json({ ok: true });
