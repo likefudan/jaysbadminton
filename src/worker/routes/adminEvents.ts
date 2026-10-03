@@ -521,16 +521,18 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
   if (r.method === "venmo" || r.venmo_txn_id) {
     back.push(
       // The 待确认 row it came from (older receipts find it by transaction) reopens from any state,
-      // unless it now counts on another bill. Each statement checks the receipt still exists, so a
+      // unless another receipt still counts it. Each statement checks the receipt still exists, so a
       // second click changes nothing.
       c.env.DB.prepare(
         `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL, deleted_from = NULL, deleted_at = NULL,
-           reason = '从账单撤销的 Venmo 付款' || COALESCE('（原先：' || reason || '）', '')
+           reason = CASE WHEN COALESCE(reason, '') = '' OR reason LIKE '从账单撤销的 Venmo 付款%' THEN COALESCE(NULLIF(reason, ''), '从账单撤销的 Venmo 付款')
+                         ELSE '从账单撤销的 Venmo 付款（原先：' || reason || '）' END
          WHERE id = COALESCE((SELECT id FROM inbound_payments WHERE id = ?1),
                              (SELECT id FROM inbound_payments WHERE venmo_txn_id = ?3))
-           AND NOT (state = 'linked' AND linked_payment_id IS NOT ?4)
+           AND NOT EXISTS (SELECT 1 FROM payment_receipts o WHERE o.id != ?2
+             AND (o.inbound_id = inbound_payments.id OR o.venmo_txn_id = inbound_payments.venmo_txn_id))
            AND EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)`,
-      ).bind(r.inbound_id, r.id, r.venmo_txn_id, r.payment_id),
+      ).bind(r.inbound_id, r.id, r.venmo_txn_id),
       // Auto-matched, or its 待确认 row is gone: it gets a row now, so the payment is never lost.
       c.env.DB.prepare(
         `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)

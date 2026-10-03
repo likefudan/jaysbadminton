@@ -385,8 +385,16 @@ describe("Owner review", () => {
     )
       .bind(new Date().toISOString(), t1)
       .run();
-    await env.DB.prepare("UPDATE inbound_payments SET linked_payment_id = ? WHERE id = ?").bind(bob.id, t2).run();
+    await env.DB.batch([
+      env.DB.prepare("UPDATE inbound_payments SET linked_payment_id = ? WHERE id = ?").bind(bob.id, t2),
+      env.DB.prepare(
+        "INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at, inbound_id) VALUES (?, 1100, 'venmo', ?, ?)",
+      ).bind(bob.id, new Date().toISOString(), t2),
+    ]);
     for (const r of (await s.by("Alice")).receipts) await s.admin.call(`${s.base}/receipts/${r.id}/remove`, {});
+    // Undone again after relinking, the reason doesn't pile up.
+    await s.admin.call(`${s.base}/inbound/${t1}/link`, { paymentId: alice.id });
+    await s.admin.call(`${s.base}/receipts/${(await s.by("Alice")).receipts[0].id}/remove`, {});
     const d = (await s.admin.call(`${s.base}/inbound`)).data;
     expect(d.open).toMatchObject([
       { id: t1, deletedAt: null, reason: "从账单撤销的 Venmo 付款（原先：编号里的成员没有这次活动的应付款）" },
