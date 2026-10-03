@@ -8,6 +8,7 @@ import { emailProblemAlert, recordCronError } from "./health";
 import { runScheduled } from "./notify";
 import { eventMeta, homeMeta, sharePage } from "./share";
 import { isStaging } from "./site";
+import { CSP, CSP_HEADER, HSTS } from "../shared/security";
 import { checkExportKey } from "./sheets";
 import { handleUpdate, webhookSecret } from "./telegram";
 import { adminRoutes } from "./routes/admin";
@@ -26,12 +27,21 @@ app.use("*", async (c, next) => {
   c.header("X-Frame-Options", "DENY");
   // Same as public/_headers, now that the Worker also serves the home and event pages.
   c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+  c.header("Strict-Transport-Security", HSTS);
+  c.header(CSP_HEADER, CSP);
   if (isStaging(c.env)) c.header("X-Robots-Tag", "noindex, nofollow");
 });
 
 app.get("/api/health", async (c) => {
   const row = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM members").first<{ n: number }>();
   return c.json({ ok: true, members: row?.n ?? 0 });
+});
+
+// Browsers report what the content policy would have blocked; read them in the Worker logs.
+app.post("/api/csp-report", async (c) => {
+  const report = (await c.req.text()).slice(0, 2000);
+  console.warn("csp report:", report);
+  return c.body(null, 204);
 });
 
 // Telegram delivers bot messages here; only the binding code in "/start <code>" is acted on.
