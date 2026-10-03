@@ -221,8 +221,9 @@ adminEventRoutes.post("/events/:id/close-now", async (c) => {
 
 /**
  * Emergency edit of date, times and location. The event code stays the same so links and
- * payment codes already sent out keep working. An open event keeps its deadline offset; if the
- * new deadline has already passed, sign-up closes. Closed events stay closed.
+ * payment codes already sent out keep working. When the start moves, an open event keeps its
+ * deadline offset; if the new deadline has already passed, sign-up closes. Otherwise the deadline
+ * stays, including one set by 重新开放报名 (only kept within the event). Closed events stay closed.
  */
 adminEventRoutes.post("/events/:id/edit", async (c) => {
   await closeExpired(c.env);
@@ -244,7 +245,9 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   let deadline = e.deadline_at;
   let status = e.status;
   if (e.status === "open") {
-    deadline = new Date(Date.parse(startAt) - e.deadline_offset_min * 60_000).toISOString();
+    // A title or venue fix must not undo a reopened deadline (which may run past the usual offset).
+    if (startAt !== e.start_at) deadline = new Date(Date.parse(startAt) - e.deadline_offset_min * 60_000).toISOString();
+    else if (deadline > endAt) deadline = endAt;
     if (deadline <= now()) status = "closed";
   }
   const ts = now();
@@ -706,6 +709,15 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
 adminEventRoutes.post("/inbound/:iid/ignore", async (c) => {
   const i = await openInbound(c.env, Number(c.req.param("iid")));
   await c.env.DB.prepare("UPDATE inbound_payments SET state = 'ignored' WHERE id = ?").bind(i.id).run();
+  return c.json({ ok: true });
+});
+
+/** 移回待确认: undoes a mistaken 忽略, so the payment can still be linked to a bill. */
+adminEventRoutes.post("/inbound/:iid/unignore", async (c) => {
+  const res = await c.env.DB.prepare("UPDATE inbound_payments SET state = 'open' WHERE id = ? AND state = 'ignored'")
+    .bind(Number(c.req.param("iid")))
+    .run();
+  if (!res.meta.changes) throw badRequest("只能把已忽略的收款移回待确认");
   return c.json({ ok: true });
 });
 

@@ -31,7 +31,12 @@ export function InboundTab(props: { base: string }) {
                         ? `已关联到 ${i.linked.memberName}（${i.linked.eventLabel}）`
                         : ""}
                   </small>
-                  {i.state === "ignored" && <DeleteButton base={props.base} item={i} onDone={reload} />}
+                  {i.state === "ignored" && (
+                    <div class="link-row">
+                      <UnignoreButton base={props.base} item={i} onDone={reload} />
+                      <DeleteButton base={props.base} item={i} onDone={reload} />
+                    </div>
+                  )}
                 </div>
               ))}
             </Card>
@@ -95,7 +100,7 @@ function Item(props: { base: string; item: InboundRow; groups: [string, OpenPaym
     if (await run(() => api(`${props.base}/inbound/${i.id}/link`, { paymentId: p.id }))) props.onDone();
   }
   async function ignore() {
-    if (!confirm("忽略这笔收款？之后不会再提醒。")) return;
+    if (!confirm("忽略这笔收款？之后不会再提醒；忽略错了可以在「最近处理过的」里移回待确认。")) return;
     if (await run(() => api(`${props.base}/inbound/${i.id}/ignore`, {}))) props.onDone();
   }
 
@@ -138,6 +143,22 @@ function Item(props: { base: string; item: InboundRow; groups: [string, OpenPaym
         <DeleteButton base={props.base} item={i} onDone={props.onDone} />
       </div>
     </div>
+  );
+}
+
+/** Undoes 忽略: the payment goes back to 待确认, where it can be linked to a bill. */
+function UnignoreButton(props: { base: string; item: InboundRow; onDone: () => void }) {
+  const { busy, error, run } = useAction();
+  async function back() {
+    if (await run(() => api(`${props.base}/inbound/${props.item.id}/unignore`, {}))) props.onDone();
+  }
+  return (
+    <>
+      <button type="button" class="button secondary" disabled={busy} onClick={back}>
+        移回待确认
+      </button>
+      {error && <p class="error">{error}</p>}
+    </>
   );
 }
 

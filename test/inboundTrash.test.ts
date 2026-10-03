@@ -43,6 +43,19 @@ describe("已删除 Venmo payments", () => {
     expect(await env.DB.prepare("SELECT id FROM inbound_payments WHERE id = ?").bind(pending).first()).toBeNull();
   });
 
+  it("moves a mistakenly ignored payment back to 待确认", async () => {
+    const ctx = await setUpAdmin();
+    const ignored = await add("U1", "ignored");
+    const pending = await add("U2");
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${ignored}/unignore`, {})).status).toBe(200);
+    const d = (await ctx.admin.call(`${ctx.base}/inbound`)).data;
+    expect(d.open.map((i: { id: number }) => i.id).sort()).toEqual([ignored, pending].sort());
+    // Only ignored ones: 待确认 and a second click are refused.
+    const again = await ctx.admin.call(`${ctx.base}/inbound/${ignored}/unignore`, {});
+    expect(again.data.error.message).toBe("只能把已忽略的收款移回待确认");
+    expect((await ctx.admin.call(`${ctx.base}/inbound/${pending}/unignore`, {})).status).toBe(400);
+  });
+
   it("清空 needs the password and empties only 已删除", async () => {
     const ctx = await setUpAdmin();
     for (const t of ["B1", "B2"]) await ctx.admin.call(`${ctx.base}/inbound/${await add(t)}/delete`, {});

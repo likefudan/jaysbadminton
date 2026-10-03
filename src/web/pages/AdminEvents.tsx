@@ -658,7 +658,9 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
         onAddress={setAddress}
       />
       {props.e.status === "open" && (
-        <p class="muted small">报名截止时间会按原来的提前量重新计算；如果已经过了，报名会立即截止。</p>
+        <p class="muted small">
+          改了日期或开始时间的话，报名截止时间会按原来的提前量重新计算；如果已经过了，报名会立即截止。只改标题、地点或结束时间不影响截止时间。
+        </p>
       )}
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy} onClick={save}>
