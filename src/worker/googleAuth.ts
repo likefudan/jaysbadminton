@@ -5,7 +5,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Env } from "./env";
 import { now } from "./db";
 import { randomToken, sha256, timingSafeEqual } from "./lib/crypto";
-import { assertPendingRoom, createMember, memberByToken, type MemberRow } from "./members";
+import { assertPendingRoom, createMember, emailTaken, memberByToken, type MemberRow } from "./members";
 import { HttpError, readJson, str } from "./http";
 
 type Ctx = Context<{ Bindings: Env }>;
@@ -23,6 +23,9 @@ const cookieOptions = (c: Ctx) => ({
   sameSite: "Lax" as const,
 });
 const loginRequired = () => new HttpError(401, "login_required", "请先使用 Google 登录");
+/** One email is one person: a Google account whose email another member already holds is refused. */
+const googleEmailTaken = () =>
+  new HttpError(409, "email_taken", "这个 Google 账号的邮箱已经登记在另一位成员名下，请联系管理员");
 
 /** Accept only HTTPS avatar URLs from Google's image hosts. Missing profiles still sign in. */
 function profilePicture(value: unknown): string | null {
@@ -206,6 +209,7 @@ googleRoutes.post("/register", async (c) => {
     throw new HttpError(409, "already_applied", "你的入群申请已经提交，请等待管理员审核");
   if (existing) throw new HttpError(409, "already_registered", "此 Google 账号已关联成员，请返回我的页面");
   const body = await readJson(c.req.raw);
+  if (await emailTaken(c.env, session.email)) throw googleEmailTaken();
   await assertPendingRoom(c.env);
   // A deleted member keeps their history but lets go of the Google account, so it can apply anew.
   await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL")
@@ -235,6 +239,10 @@ googleRoutes.post("/link", async (c) => {
   const m = await memberByToken(c.env, str(body.token));
   if (!m) throw new HttpError(403, "invalid_link", "原成员链接无效，请联系管理员");
   if (m.google_sub === session.google_sub) return c.json({ ok: true });
+  const holder = await memberByGoogle(c.env, session.google_sub);
+  if (holder) throw new HttpError(409, "already_linked", "此成员或 Google 账号已绑定，请使用原账号登录");
+  // The member's own email may match; anyone else's may not.
+  if (await emailTaken(c.env, session.email, m.id)) throw googleEmailTaken();
   try {
     const result = await c.env.DB.prepare(
       "UPDATE members SET google_sub = ?, google_email = ? WHERE id = ? AND google_sub IS NULL AND deleted_at IS NULL",
