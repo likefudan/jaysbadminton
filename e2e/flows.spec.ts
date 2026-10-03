@@ -219,6 +219,14 @@ test("public pages show the headcount and a link preview, never names", async ({
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "iPhone / Outlook" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.ics$/);
+
+  // 分享名片: an image with the logo, QR code and link, to long-press or download.
+  await page.getByRole("button", { name: "生成分享名片" }).click();
+  const card = page.getByRole("dialog", { name: "分享名片" });
+  await expect(card.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
+  const png = page.waitForEvent("download");
+  await card.getByRole("link", { name: "下载图片" }).click();
+  expect((await png).suggestedFilename()).toBe(`event-${eventCode}.png`);
 });
 
 test("signed in with Google: the member sees the roster on shared pages; the Owner binds Google for the admin page", async ({ page, context, baseURL }) => {

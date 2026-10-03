@@ -4,6 +4,8 @@ import { Card, Load, Page } from "../components";
 import { CalendarLinks } from "../Calendar";
 import { EventInfo } from "../events";
 import { useApi, useMemberSession } from "../hooks";
+import { ShareCardButton } from "../ShareCard";
+import { eventCardText } from "../../shared/shareCard";
 import { SignupCard } from "./Member";
 
 /**
@@ -32,6 +34,7 @@ export function EventPage(props: { code?: string }) {
           <a class="button block" href="/me">
             {member === "member" || member === "pending" ? "我的活动" : "登录 / 注册"}
           </a>
+          <ShareCardButton text={eventCardText(location.origin, e)} filename={`event-${e.code}.png`} />
           <a class="button secondary block" href="/">
             所有活动
           </a>

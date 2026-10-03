@@ -2777,3 +2777,14 @@ a.back {
 p.center a {
   color: var(--acc-ink);
 }
+
+/* 分享名片 */
+.sharecard {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(440px, 58vh);
+  margin: 8px auto 4px;
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
