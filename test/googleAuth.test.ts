@@ -277,6 +277,28 @@ describe("Google member access", () => {
       403,
     );
   });
+  it("refuses a Google account whose email another member already holds", async () => {
+    await createMember(env, {
+      username: "Ally",
+      wechatNickname: "Ally",
+      status: "active",
+      email: "Alice@Gmail.com",
+    });
+    const cookie = await session();
+    const reg = await request("/api/auth/register", cookie, { username: "Alice", wechatNickname: "Alice" });
+    expect(reg.status).toBe(409);
+    expect(((await reg.json()) as any).error.code).toBe("email_taken");
+    expect(await env.DB.prepare("SELECT 1 FROM members WHERE username = 'Alice'").first()).toBeNull();
+
+    // Linking someone else's link is refused too; linking the member who holds the email is fine.
+    const other = await createMember(env, { username: "Other", wechatNickname: "Other", status: "active" });
+    expect((await request("/api/auth/link", cookie, { token: await issueMemberToken(env, other.id) })).status).toBe(
+      409,
+    );
+    const ally = (await env.DB.prepare("SELECT id FROM members WHERE username = 'Ally'").first<{ id: string }>())!;
+    expect((await request("/api/auth/link", cookie, { token: await issueMemberToken(env, ally.id) })).status).toBe(200);
+  });
+
   it("binds an existing member without changing ID, token or records and prevents reassignment", async () => {
     const m = await createMember(env, { username: "Alice", wechatNickname: "Alice", status: "active" });
     const token = await issueMemberToken(env, m.id);
