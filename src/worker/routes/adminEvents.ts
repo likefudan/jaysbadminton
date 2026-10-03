@@ -714,7 +714,7 @@ adminEventRoutes.get("/export/:file", async (c) => {
 });
 
 adminEventRoutes.get("/sheets", async (c) =>
-  c.json({ ...(await sheetsStatus(c.env)), script: await currentScript(c.env) }),
+  c.json({ ...(await sheetsStatus(c.env)), ...(await currentScript(c.env)) }),
 );
 
 /** 开启同步 / 重新生成密钥: either way a fresh key, so a leaked script stops working. */

@@ -107,12 +107,15 @@ export async function issueAdminToken(env: Env): Promise<string> {
   return token;
 }
 
-/** The current admin link token, or a new one when the stored link predates encryption. */
+/**
+ * The current admin link token, or a new one when the stored link can't be read back: it predates
+ * encryption, or TOKEN_KEY has been replaced since.
+ */
 export async function currentAdminToken(env: Env): Promise<{ token: string; renewed: boolean }> {
   const s = await getSettings(env.DB, ["admin_token_hash", "admin_token_enc"]);
   if (s.admin_token_hash && s.admin_token_enc) {
-    const token = await decryptToken(s.admin_token_enc, env.TOKEN_KEY);
-    if ((await sha256(token)) === s.admin_token_hash) return { token, renewed: false };
+    const token = await decryptToken(s.admin_token_enc, env.TOKEN_KEY).catch(() => null);
+    if (token !== null && (await sha256(token)) === s.admin_token_hash) return { token, renewed: false };
   }
   return { token: await issueAdminToken(env), renewed: true };
 }

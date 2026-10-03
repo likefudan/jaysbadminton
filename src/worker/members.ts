@@ -168,7 +168,12 @@ export async function issueMemberToken(env: Env, id: string): Promise<string> {
 export async function revealMemberToken(env: Env, m: MemberRow): Promise<string> {
   if (m.deleted_at || m.status === "pending" || !m.token_enc)
     throw new HttpError(409, "no_link", "这个成员目前没有有效链接");
-  return decryptToken(m.token_enc, env.TOKEN_KEY);
+  try {
+    return await decryptToken(m.token_enc, env.TOKEN_KEY);
+  } catch {
+    // TOKEN_KEY was replaced: the link still works, but only a new one can be shown or sent.
+    throw new HttpError(409, "link_unreadable", "这个链接已无法显示（网站密钥换过），请点「重新生成」给他一个新链接");
+  }
 }
 
 export async function memberByToken(env: Env, token: string): Promise<MemberRow | null> {

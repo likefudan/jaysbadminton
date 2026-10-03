@@ -186,7 +186,7 @@ GitHub 仓库需要的 secrets：
 | `RESEND_API_KEY`、`EMAIL_FROM` | 用邮箱注册的成员审核通过后自动发链接邮件、找回链接，可选 |
 | `LINK_ENCRYPTION_KEY`、`LINK_ENCRYPTION_KEY_STAGING` | 正式网站和测试网站 `TOKEN_KEY` 的备份。在管理页「设置 → 备份网站密钥」把密钥发到 Telegram 后存进来。每次部署都会核对它。核对在 `wrangler deploy` 之后进行，对不上时这次部署任务会失败，但新版本已经上线，后面的 `reset_admin_link` 步骤和冒烟测试也不会运行；万一 Worker 的 `TOKEN_KEY` 丢了，部署时自动用它填回去 |
 
-每个网站的 `TOKEN_KEY` 由 CI 在第一次部署时自动生成，之后不再更换（它加密保存成员链接、管理链接和 Google 表格同步的密钥，管理密码的哈希和 Telegram webhook 的密钥也由它派生；丢了的话，链接无法再显示或通过邮件、Telegram 找回，管理密码会被重置，Telegram 要重新连接，管理页的 Google 表格设置也打不开了）。Cloudflare 里看不到它的值，所以要用上面的 `LINK_ENCRYPTION_KEY` 备份。
+每个网站的 `TOKEN_KEY` 由 CI 在第一次部署时自动生成，之后不再更换（它加密保存成员链接、管理链接和 Google 表格同步的密钥，管理密码的哈希和 Telegram webhook 的密钥也由它派生；丢了的话，成员链接无法再显示或通过邮件找回（只能重新生成），Telegram 找回管理链接时会换一个新的，管理密码会被重置，Telegram 要重新连接，Google 表格同步要重新生成密钥并粘贴新脚本）。Cloudflare 里看不到它的值，所以要用上面的 `LINK_ENCRYPTION_KEY` 备份。
 
 ### 文档
 
