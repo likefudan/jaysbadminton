@@ -286,7 +286,8 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
     list.push({
       id: r.id,
       amountCents: r.amount_cents,
-      method: r.method,
+      // Linked Venmo payments saved before receipts had a method of their own are 'manual' with a transaction.
+      method: r.method === "manual" && r.venmo_txn_id ? "venmo" : r.method,
       payerName: r.payer_name,
       receivedAt: r.received_at,
     });

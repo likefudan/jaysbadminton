@@ -370,6 +370,31 @@ describe("Owner review", () => {
     expect((await s.admin.call(`${s.base}/inbound`)).data.open).toMatchObject([{ id: open[0].id, txnId: "O1" }]);
   });
 
+  it("undoing reopens a trashed row but never one that counts on another bill", async () => {
+    const s = await finalized();
+    const day = s.aliceCode.split("-")[1];
+    await deliver({ amount: "10.00", note: `alice-${day}-m098`, txnId: "T1" });
+    await deliver({ amount: "11.00", note: `alice-${day}-m097`, txnId: "T2" });
+    const { open, payments } = (await s.admin.call(`${s.base}/inbound`)).data;
+    const [alice, bob] = ["Alice", "Bob"].map((n) => payments.find((p: { memberName: string }) => p.memberName === n));
+    for (const i of open) await s.admin.call(`${s.base}/inbound/${i.id}/link`, { paymentId: alice.id });
+    const [t1, t2] = ["T1", "T2"].map((t) => open.find((i: { txnId: string }) => i.txnId === t).id);
+    // Neither can happen through the app, but a receipt must never take a row that counts elsewhere.
+    await env.DB.prepare(
+      "UPDATE inbound_payments SET state = 'deleted', deleted_from = 'open', deleted_at = ? WHERE id = ?",
+    )
+      .bind(new Date().toISOString(), t1)
+      .run();
+    await env.DB.prepare("UPDATE inbound_payments SET linked_payment_id = ? WHERE id = ?").bind(bob.id, t2).run();
+    for (const r of (await s.by("Alice")).receipts) await s.admin.call(`${s.base}/receipts/${r.id}/remove`, {});
+    const d = (await s.admin.call(`${s.base}/inbound`)).data;
+    expect(d.open).toMatchObject([
+      { id: t1, deletedAt: null, reason: "从账单撤销的 Venmo 付款（原先：编号里的成员没有这次活动的应付款）" },
+    ]);
+    expect(d.done).toMatchObject([{ id: t2, state: "linked" }]);
+    expect(d.deleted).toEqual([]);
+  });
+
   it("undoing a linked payment whose 待确认 row is gone still puts it back in 待确认", async () => {
     const s = await finalized();
     await deliver({ amount: "10.00", note: `alice-${s.aliceCode.split("-")[1]}-m099`, txnId: "G1", payer: "Carol" });

@@ -524,8 +524,10 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
       // unless it now counts on another bill. Each statement checks the receipt still exists, so a
       // second click changes nothing.
       c.env.DB.prepare(
-        `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL, deleted_from = NULL, deleted_at = NULL
-         WHERE id = COALESCE(?1, (SELECT id FROM inbound_payments WHERE venmo_txn_id = ?3))
+        `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL, deleted_from = NULL, deleted_at = NULL,
+           reason = '从账单撤销的 Venmo 付款' || COALESCE('（原先：' || reason || '）', '')
+         WHERE id = COALESCE((SELECT id FROM inbound_payments WHERE id = ?1),
+                             (SELECT id FROM inbound_payments WHERE venmo_txn_id = ?3))
            AND NOT (state = 'linked' AND linked_payment_id IS NOT ?4)
            AND EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)`,
       ).bind(r.inbound_id, r.id, r.venmo_txn_id, r.payment_id),
@@ -578,6 +580,7 @@ async function openInbound(env: Env, id: number) {
     amount_cents: number | null;
     venmo_txn_id: string | null;
     payer_name: string | null;
+    note: string | null;
   }>();
   if (!i) throw badRequest("找不到这笔收款");
   if (i.state !== "open") throw badRequest("这笔收款已经处理过了");
@@ -602,6 +605,7 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
     method: "venmo",
     txnId: i.venmo_txn_id,
     payerName: i.payer_name,
+    note: i.note,
     inboundId: i.id,
   });
   const settled = await checkCollected(c.env, e.id);
