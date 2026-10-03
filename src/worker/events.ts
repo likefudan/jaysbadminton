@@ -111,7 +111,29 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
 
 export async function detail(env: Env, e: EventRow): Promise<EventDetail> {
   const list = await roster(env, e.id);
-  return { ...toSummary(e, list.length), roster: list, dunningStopped: e.dunning_stopped === 1 };
+  return { ...toSummary(e, list.length), roster: list, dunningStopped: e.dunning_stopped === 1, deletable: isDeletable(e) };
+}
+
+/** Only history can be deleted for good: archived or cancelled events, or any event that is already over. */
+export const isDeletable = (e: EventRow): boolean => e.status === "settled" || e.status === "cancelled" || e.end_at <= now();
+
+/**
+ * 从数据库永久删除: removes the event and everything hanging off it in one transaction (children
+ * first, for the foreign keys). Venmo payments matched to its bills go with it, both auto-matched
+ * receipts and 待确认 rows the Owner linked by hand. Leaderboard, member spending and the Sheets
+ * export are all computed from these tables, so the event simply stops counting everywhere.
+ */
+export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
+  const bills = "SELECT id FROM payments WHERE event_id = ?1";
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM inbound_payments WHERE linked_payment_id IN (${bills})`).bind(e.id),
+    env.DB.prepare(`DELETE FROM payment_receipts WHERE payment_id IN (${bills})`).bind(e.id),
+    env.DB.prepare("DELETE FROM payments WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM settlements WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM events WHERE id = ?").bind(e.id),
+  ]);
 }
 
 export async function friendCap(env: Env): Promise<number> {
