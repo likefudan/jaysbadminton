@@ -30,6 +30,7 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 - 成员用 Google 账号登录（或管理员私发的专属链接），点「报名」，可以带朋友并写上朋友的名字。
 - 报了名的人能看到完整名单（包括谁带了谁）；公开页面和微信分享卡片只显示人数，从不显示名字。
 - 一键加入 iPhone / Outlook / Google 日历，提前 2 小时提醒。
+- 报名中的活动可以生成分享名片：一张带日期、时间、场馆和二维码的图片（不含名字），长按保存后发到微信群；首页也能生成整个网站的名片。
 
 **算账不用计算器**
 - 管理员勾选谁到了场，输入场地总费用、用球个数和单价，系统按规则算出每个人的金额：场地费所有报名的人平摊，球费到场的人平摊，带的朋友算在带他的人账上。
@@ -38,6 +39,7 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 **收款不用对账**
 - 每个人的付款页面有一个预填好收款人、金额和备注编号的 Venmo 按钮。
 - 管理员的 Gmail 把 Venmo 的收款邮件转发给网站，网站校验 Venmo 的数字签名后按备注编号自动标记已付；部分付款、多付要退款、编号写错的都会单独列出来让管理员确认。
+- 每一笔付款和退款都单独记录：多付的钱列在「需要退款」里，管理员退款后点「已退款」记一笔退款；Finalize 后改了费用，已付款的人会显示还差多少或多付多少。
 - 所有人付清后自动归档，并给管理员发一条带明细的收齐消息。
 
 **通知到 Telegram**
@@ -51,7 +53,7 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 
 **零成本、好维护**
 - 全部运行在 Cloudflare 免费额度内（Workers + D1 数据库 + 定时任务 + 邮件路由），唯一的花费是域名。
-- 改动先自动部署到测试网站，确认没问题再打版本标签发布到正式网站；发布前自动备份数据库，出问题可以一键回滚。
+- 改动先自动部署到测试网站，确认没问题再打版本标签发布到正式网站；发布前自动备份数据库，出问题可以回滚到 v2026.10.03.4 及以后的版本（见下方「回滚的限制」）。
 - 每天自动把数据同步一份到管理员自己的 Google 表格。
 
 ---
@@ -78,14 +80,14 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 | 结算 | 活动结束后：标记谁没到场 → 输入场地费、用球数和单价 → 预览每人金额 → Finalize |
 | 收款 | 「收款」看板自动更新；「待确认」里处理对不上的付款；也可以手动标记已付、记录退款 |
 | 通知 | 「设置 → 连接 Telegram」。给机器人发「管理页面」可以找回管理链接 |
-| 其他设置 | 收款账号（加锁）、带朋友上限、提醒时间、默认外观、网站标题、排行榜开关、导出 CSV、Google 表格同步 |
+| 其他设置 | 收款账号（加锁）、带朋友上限、提醒时间、默认外观、网站标题、排行榜开关、导出 CSV、Google 表格同步、备份网站密钥（存成 GitHub secret，见下面「部署配置」） |
 
 管理页里的「管理员指南」有逐项打勾的上线清单，第一次设置时照着走一遍即可。
 
 ### 网站维护者
 
 - **发布**：改动合并到 `main` 后自动部署到测试网站。测试没问题后，在 GitHub → Actions → **Release** → Run workflow（分支选 `main`，发布说明可选填），或者直接让 Claude「发布」。它会给 `main` 打上当天的 `vYYYY.MM.DD` 标签（同一天再发加 `.2`）、发布 Release（自动附上合并的 PR 列表），然后先备份正式数据库再部署到正式网站。`main` 的 CI 没通过、或者这个提交已经发布过时会拒绝发布。也可以照旧在 GitHub → Releases 手动新建标签发布。
-- **回滚**：Actions → CI → Run workflow，「Use workflow from」选上一个版本标签。
+- **回滚**：Actions → CI → Run workflow，「Use workflow from」选上一个版本标签。只能回滚到 `v2026.10.03.4` 及以后的版本，原因见下面「部署配置」。
 - **忘记管理密码**：修改 GitHub secret `ADMIN_PASSWORD`（测试网站是 `ADMIN_PASSWORD_STAGING`），再按上面的方法重新部署一次。
 - **丢了管理链接**：已绑定 Google 的话直接用 Google 登录；或者在 Telegram 给机器人发「管理页面」；或者运行一次部署并勾选 `reset_admin_link`（正式网站选最新版本标签，测试网站选 `main`），然后回到 `/admin` 重新设置。数据不受影响。
 - 上线前要在真实手机和账号上确认的事项见 [docs/launch-checklist.md](docs/launch-checklist.md)。
@@ -125,7 +127,7 @@ flowchart LR
 
 - **隐私**：公开页面只显示人数；令牌在数据库里只存哈希和加密后的密文；导出和表格同步从不包含令牌。一个 Google 账号只能对应一个人。
 - **算钱**：结算是一个纯函数 `settle()`，预览和 Finalize 共用，全程整数「分」并向上取整，有单元测试覆盖需求文档里的例子。
-- **付款编号**：形如 `xiaoming-jbm20261006-m007`，对账只认日期和成员编号部分，改名不影响。
+- **付款编号**：形如 `xiaoming-jbm20261006-m007`，中间是活动编号（创建活动时生成，之后改日期也不变，也不会再分配给别的活动），对账认活动编号和成员编号，改名不影响。
 - **自动对账**：只接受签名有效的 Venmo 邮件；金额对上就标记已付，部分付款和多付会通知管理员；伪造的邮件在签名校验这一步就被丢弃。
 - **截止闹钟**：每个活动一个 Durable Object（`src/worker/deadlines.ts`），闹钟定在「截止前提醒」和截止那一刻，到点关闭报名并发出「报名截止」。创建、编辑、提前截止、重新开放、取消活动以及修改提醒设置时都会重新设定闹钟，定时任务每次运行也会为所有报名中的活动重设一遍（上线前已有的活动也就有了闹钟）。
 - **定时任务**：每 15 分钟运行，负责结算提醒、每日催款、Gmail 转发检查和每周汇总，同时兜底补发闹钟漏掉的截止通知；每条通知都记录在 `notification_log` 里，重试也不会重复发送。
@@ -155,6 +157,8 @@ npm run dev                   # 构建前端并在 http://localhost:8787 启动
 npm test                      # 单元测试
 npm run test:e2e              # 浏览器测试（在本地 Worker 上用全新的数据库）
 npm run typecheck
+npm run lint                  # Biome 检查（CI 也会跑）
+npm run format                # Biome 自动格式化并修复
 ```
 
 ### 部署配置
@@ -164,7 +168,9 @@ npm run typecheck
 | 测试网站 | https://staging.jaysbadminton.llmat.dev | 每次合并到 `main` | `jaysbadminton-staging` |
 | 正式网站 | https://jaysbadminton.llmat.dev | 推送 `vYYYY.MM.DD` 标签 | `jaysbadminton` |
 
-每次部署会找到或创建对应的 D1 数据库、执行迁移、`wrangler deploy`、同步 secrets，并从外部冒烟测试一遍。正式部署会拒绝不在 `main` 上的标签，并先把数据库导出为 Actions 的附件（保留 90 天）。迁移只会增加内容，所以回滚到旧版本也能在新数据库上运行。
+每次部署会找到或创建对应的 D1 数据库、执行迁移、`wrangler deploy`、同步 secrets，并从外部冒烟测试一遍。正式部署会拒绝不在 `main` 上的标签，并先把数据库导出为 Actions 的附件（保留 90 天）。
+
+**回滚的限制**：回滚只换代码，不会撤销已经执行的数据库迁移。`v2026.10.03.4` 之前的版本不能直接回滚：之后的迁移改变了数据的含义（例如 `0018` 把已收金额改成扣掉退款后的净额，退款变成单独的负数记录；`0020` 新增了「已删除」状态），旧代码会把已退款的人算成少付，退款列表也会算错。所以只回滚到 `v2026.10.03.4` 及以后的版本；确实需要更早的版本时，先用发布前的数据库备份（那次 Actions 运行的 Artifacts）恢复数据库，再部署那个版本。
 
 GitHub 仓库需要的 secrets：
 
@@ -177,8 +183,10 @@ GitHub 仓库需要的 secrets：
 | `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` | Google 登录，可选；配置方法见 [docs/google-login.zh.md](docs/google-login.zh.md) |
 | `TELEGRAM_DEV_BOT_TOKEN`、`TELEGRAM_DEV_CHAT_ID` | 可选：开发群通知。每个 PR 合并、每次正式发布（成功或失败）都发一条消息到开发者的 Telegram 群。用一个单独的机器人，不要用网站的机器人 |
 | `GOOGLE_MAPS_API_KEY` | 地址联想，可选；没有时使用免费的 Photon |
+| `RESEND_API_KEY`、`EMAIL_FROM` | 用邮箱注册的成员审核通过后自动发链接邮件、找回链接，可选 |
+| `LINK_ENCRYPTION_KEY`、`LINK_ENCRYPTION_KEY_STAGING` | 正式网站和测试网站 `TOKEN_KEY` 的备份。在管理页「设置 → 备份网站密钥」把密钥发到 Telegram 后存进来。每次部署都会核对它（对不上时这次部署会报错）；万一 Worker 的 `TOKEN_KEY` 丢了，部署时自动用它填回去 |
 
-每个网站的 `TOKEN_KEY` 由 CI 在第一次部署时自动生成，之后不再更换。
+每个网站的 `TOKEN_KEY` 由 CI 在第一次部署时自动生成，之后不再更换（它加密保存成员链接和管理链接，也参与管理密码的哈希）。Cloudflare 里看不到它的值，所以要用上面的 `LINK_ENCRYPTION_KEY` 备份。
 
 ### 文档
 
