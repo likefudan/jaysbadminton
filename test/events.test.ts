@@ -123,6 +123,19 @@ describe("member sign-up", () => {
     expect((await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["a", "b", "c", "d"] })).status).toBe(200);
   });
 
+  it("lets a member keep friends the Owner added above the cap, but not add more", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    const bob = await approveMember(ctx, "Bob");
+    await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["a", "b", "c"] });
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: bob.id, friends: ["d", "e"] });
+    const keep = await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["a", "b", "c", "d", "Eve"] });
+    expect(keep.status).toBe(200);
+    expect((await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["a", "b", "c"] })).status).toBe(200);
+    const more = await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: ["a", "b", "c", "d"] });
+    expect(more.data.error.message).toBe("最多带 3 个朋友");
+  });
+
   it("locks members out after the deadline, until the Owner reopens", async () => {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx);

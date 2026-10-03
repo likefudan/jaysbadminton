@@ -164,6 +164,16 @@ export async function friendCap(env: Env): Promise<number> {
   return Number.isInteger(n) && n >= 0 ? n : DEFAULT_FRIEND_CAP;
 }
 
+/** How many friends a member has on an event's list now. */
+export async function friendCount(env: Env, eventId: number, memberId: string): Promise<number> {
+  const r = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index > 0",
+  )
+    .bind(eventId, memberId)
+    .first<{ n: number }>();
+  return r?.n ?? 0;
+}
+
 export interface CreateEventInput {
   date: string;
   startTime: string;

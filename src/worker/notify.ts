@@ -175,17 +175,27 @@ export async function nextDeadlineAlarm(env: Env, eventId: number, at: Date = ne
   return reminder !== null && reminder > at.getTime() ? reminder : deadline;
 }
 
-/** 结算提醒: hourly once the event is over and not finalized, quiet from 22:00 to 8:00. */
+/**
+ * 结算提醒: hourly once the event is over and not finalized, quiet from 22:00 to 8:00. An event
+ * nobody signed up for can't be finalized, so that one gets a single note suggesting 取消 instead.
+ */
 async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
   if (e.status !== "closed" || at.getTime() < new Date(e.end_at).getTime()) return;
   const p = toPacific(at);
   const hour = Number(p.time.slice(0, 2));
   if (hour >= 22 || hour < 8) return;
+  const n = await headcount(env, e.id);
+  if (n === 0) {
+    await once(env, e.id, "settle_reminder", "empty", async () =>
+      sendToOwner(env, message(`💰 ${day(e)} 的活动已经结束，没有人报名，不用结算。\n可以在管理页取消这个活动。`)),
+    );
+    return;
+  }
   await once(env, e.id, "settle_reminder", `${p.date}T${p.time.slice(0, 2)}`, async () =>
     sendToOwner(
       env,
       message(
-        `💰 ${day(e)} 的活动已经结束，还没有结算（报名 ${await headcount(env, e.id)} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。`,
+        `💰 ${day(e)} 的活动已经结束，还没有结算（报名 ${n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。`,
       ),
     ),
   );
