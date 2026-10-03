@@ -67,12 +67,23 @@ function Item(props: { base: string; item: InboundRow; payments: OpenPayment[]; 
   const i = props.item;
   const [target, setTarget] = useState("");
   const { busy, error, run } = useAction();
+  // Someone who pays twice (a Venmo payment on top of cash, say) can only be put on a paid bill.
+  const groups: [string, OpenPayment[]][] = [
+    ["未付清", props.payments.filter((p) => p.status !== "paid")],
+    ["已付清（多付的钱列入需要退款）", props.payments.filter((p) => p.status === "paid")],
+  ];
 
   async function link() {
     const p = props.payments.find((x) => String(x.id) === target);
     if (!p) return;
     const amount = i.amountCents === null ? "" : ` $${dollars(i.amountCents)}`;
-    if (!confirm(`把这笔${amount}算作 ${p.memberName}（${p.eventLabel}）的付款，标记为已付？`)) return;
+    const what =
+      p.status === "paid"
+        ? "这笔已经付清，多出的钱会列入「需要退款」。"
+        : p.amountPaidCents + (i.amountCents ?? 0) > p.amountDueCents
+          ? "多出的钱会列入「需要退款」。"
+          : "";
+    if (!confirm(`把这笔${amount}算作 ${p.memberName}（${p.eventLabel}）的付款？${what}`)) return;
     if (await run(() => api(`${props.base}/inbound/${i.id}/link`, { paymentId: p.id }))) props.onDone();
   }
   async function ignore() {
@@ -90,15 +101,21 @@ function Item(props: { base: string; item: InboundRow; payments: OpenPayment[]; 
           <>
             <select value={target} onChange={(e) => setTarget((e.target as HTMLSelectElement).value)}>
               <option value="">关联到谁的应付款…</option>
-              {props.payments.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.memberName} ·{" "}
-                  {p.status === "partial"
-                    ? `还差 $${dollars(p.amountDueCents - p.amountPaidCents)}`
-                    : `$${dollars(p.amountDueCents)}`}{" "}
-                  · {p.eventLabel}
-                </option>
-              ))}
+              {groups.map(([label, list]) =>
+                list.length === 0 ? null : (
+                  <optgroup key={label} label={label}>
+                    {list.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.memberName} ·{" "}
+                        {p.status === "partial"
+                          ? `还差 $${dollars(p.amountDueCents - p.amountPaidCents)}`
+                          : `$${dollars(p.amountDueCents)}`}{" "}
+                        · {p.eventLabel}
+                      </option>
+                    ))}
+                  </optgroup>
+                ),
+              )}
             </select>
             <button type="button" class="button" disabled={busy || !target} onClick={link}>
               关联

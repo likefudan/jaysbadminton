@@ -68,10 +68,14 @@ async function login(
   const cookie = response.headers.get("Set-Cookie")?.match(/jb_member=([^; ,]+)/)?.[0] ?? "";
   return { response, cookie, start };
 }
-async function session(sub = "google-alice", expires = new Date(Date.now() + 60_000).toISOString()) {
+async function session(
+  sub = "google-alice",
+  expires = new Date(Date.now() + 60_000).toISOString(),
+  email = "alice@gmail.com",
+) {
   const token = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO member_sessions (id_hash, google_sub, email, expires_at) VALUES (?, ?, ?, ?)")
-    .bind(await sha256(token), sub, "alice@gmail.com", expires)
+    .bind(await sha256(token), sub, email, expires)
     .run();
   return `jb_member=${token}`;
 }
@@ -379,7 +383,7 @@ describe("Google member access", () => {
 });
 
 describe("Google login for the admin", () => {
-  const jay = () => session("google-jay");
+  const jay = () => session("google-jay", undefined, "jay@gmail.com");
   async function bindJay() {
     const ctx = await setUpAdmin();
     const google = await jay();
@@ -404,7 +408,7 @@ describe("Google login for the admin", () => {
     expect(await (await request("/api/auth/session", google)).json()).toMatchObject({ isAdmin: true, hasMember: true });
     expect(await (await request(`${ctx.base}/settings/google`, `${ctx.admin.cookie}; ${google}`)).json()).toMatchObject(
       {
-        bound: "alice@gmail.com",
+        bound: "jay@gmail.com",
         current: { isOwner: true, holder: null },
       },
     );
@@ -447,6 +451,15 @@ describe("Google login for the admin", () => {
       (await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${await session("google-other")}`, {}))
         .status,
     ).toBe(409);
+  });
+
+  it("refuses a Google account whose email another member holds", async () => {
+    const ctx = await setUpAdmin();
+    await createMember(env, { username: "Carol", wechatNickname: "Carol", status: "active", email: "Jay@Gmail.com" });
+    const res = await request(`${ctx.base}/settings/google/bind`, `${ctx.admin.cookie}; ${await jay()}`, {});
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).error.code).toBe("email_taken");
+    expect((await env.DB.prepare("SELECT google_sub FROM members WHERE is_owner = 1").first())?.google_sub).toBeNull();
   });
 
   it("unbinding shuts the Google way in; the link and password still work", async () => {

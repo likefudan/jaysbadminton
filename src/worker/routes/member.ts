@@ -161,6 +161,7 @@ memberRoutes.get("/:token/events", async (c) => {
     events.push({
       ...e,
       myFriends: rows.length === 0 ? null : friends.map((f) => f.friend_name ?? ""),
+      selfSignedUp: rows.some((r) => r.friend_index === 0),
       canEdit: m.status === "active" && (e.status === "open" || (ownerRules(m) && e.status === "closed")),
       payment,
       roster: names,

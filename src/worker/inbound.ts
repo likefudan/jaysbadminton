@@ -234,14 +234,23 @@ export async function inboundRows(env: Env, state: keyof typeof ROW_FILTER): Pro
   }));
 }
 
-/** Payments an inbound row can be linked to: not yet paid, on events still collecting. */
-export async function openPayments(env: Env): Promise<OpenPayment[]> {
+/** How long after archiving an event its bills can still take a 待确认 payment (as an over-payment). */
+export const LINK_ARCHIVED_DAYS = 60;
+
+/**
+ * Bills an inbound row can be linked to: unpaid ones first, then paid ones on events still
+ * collecting or archived lately. A payment on a paid bill is an over-payment and shows up under
+ * 需要退款, as when a Venmo payment is matched to it automatically.
+ */
+export async function openPayments(env: Env, at: Date = new Date()): Promise<OpenPayment[]> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.amount_due_cents, p.amount_paid_cents, p.status, p.payment_code, m.username, e.date, e.code
      FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
-     WHERE p.status != 'paid' AND e.status = 'finalized'
-     ORDER BY e.start_at DESC, m.username`,
-  ).all<Record<string, any>>();
+     WHERE e.status = 'finalized' OR (e.status = 'settled' AND e.settled_at >= ?)
+     ORDER BY p.status = 'paid', e.start_at DESC, m.username`,
+  )
+    .bind(new Date(at.getTime() - LINK_ARCHIVED_DAYS * 86400_000).toISOString())
+    .all<Record<string, any>>();
   return results.map((p) => ({
     id: p.id,
     eventLabel: eventLabel(p.date, p.code),

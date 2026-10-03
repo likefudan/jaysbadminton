@@ -16,7 +16,15 @@ import { closeExpired } from "../events";
 import type { Env } from "../env";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { adminEventRoutes } from "./adminEvents";
-import { type MemberRow, issueMemberToken, memberLink, requireMember, revealMemberToken, toSummary } from "../members";
+import {
+  type MemberRow,
+  emailTaken,
+  issueMemberToken,
+  memberLink,
+  requireMember,
+  revealMemberToken,
+  toSummary,
+} from "../members";
 import { memberProfile, setAdminNote } from "../profile";
 import { googleOwner, googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
 import { isStaging } from "../site";
@@ -192,16 +200,19 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能删除已停用的成员");
   const owing = (await owingByMember(c.env)).get(m.id) ?? 0;
   if (owing > 0) throw badRequest(`${m.username} 还有 $${(owing / 100).toFixed(2)} 没付清，付清或标记已付后才能删除`);
-  // Still on a list that hasn't been settled: Finalize would bill someone who no longer has a link.
+  // Still on a list that can change their bill: Finalize, or a fee or roster change after it, would
+  // bill someone who no longer has a link. Archived events are fixed, so those don't count.
   const pending = await c.env.DB.prepare(
-    `SELECT e.date FROM registrations r JOIN events e ON e.id = r.event_id
-     WHERE r.member_id = ? AND e.status IN ('open', 'closed') ORDER BY e.start_at LIMIT 1`,
+    `SELECT e.date, e.status FROM registrations r JOIN events e ON e.id = r.event_id
+     WHERE r.member_id = ? AND e.status IN ('open', 'closed', 'finalized') ORDER BY e.start_at LIMIT 1`,
   )
     .bind(m.id)
-    .first<{ date: string }>();
+    .first<{ date: string; status: string }>();
   if (pending)
     throw badRequest(
-      `${m.username} 还在 ${pending.date} 活动的名单上，这场还没结算。请先结算这场，或者把这个人从名单上删掉，再删除成员`,
+      pending.status === "finalized"
+        ? `${m.username} 还在 ${pending.date} 活动的名单上，这场还没收齐，费用还可能变。请等这场收齐归档，或者把这个人从名单上删掉，再删除成员`
+        : `${m.username} 还在 ${pending.date} 活动的名单上，这场还没结算。请先结算这场，或者把这个人从名单上删掉，再删除成员`,
     );
   // History stays; the link, the Google account and the name are released, so the person (or
   // someone else with that name) can apply again. The old record keeps the name with its ID
@@ -264,6 +275,9 @@ adminRoutes.post("/:token/settings/google/bind", async (c) => {
       "already_linked",
       `这个 Google 账号已经属于成员「${holder.username}」，一个 Google 账号只能对应一个人`,
     );
+  // One email is one person here too (as for members applying or linking with Google).
+  if (await emailTaken(c.env, session.email, owner.id))
+    throw new HttpError(409, "email_taken", "这个 Google 账号的邮箱已经登记在另一位成员名下，请换一个账号");
   // A deleted member keeps their history but lets go of the account.
   await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL")
     .bind(session.google_sub)

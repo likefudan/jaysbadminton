@@ -257,6 +257,27 @@ describe("Owner roster edits", () => {
     ]);
   });
 
+  it("tells a member whose friends are on the list without them, and signing up keeps the friends", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    const carol = await approveMember(ctx, "Carol");
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/roster/add`, {
+      memberId: carol.id,
+      includeSelf: false,
+      friends: ["Dan"],
+    });
+    const mine = (await anon.call(`${carol.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
+    expect(mine).toMatchObject({ myFriends: ["Dan"], selfSignedUp: false, canEdit: true });
+    await anon.call(`${carol.base}/events/${e.id}/signup`, { friends: ["Dan"] });
+    const d = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data;
+    expect(d.roster.map((r: { name: string; addedByOwner: boolean }) => [r.name, r.addedByOwner])).toEqual([
+      ["Carol", false],
+      ["Dan", true],
+    ]);
+    const after = (await anon.call(`${carol.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
+    expect(after.selfSignedUp).toBe(true);
+  });
+
   it("replaces a member with a substitute and renames friends", async () => {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx);

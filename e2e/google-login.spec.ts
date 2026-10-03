@@ -237,6 +237,7 @@ test("a signed-in member sees the roster and can sign up on the shared event pag
             canEdit: true,
             payment: null,
             myFriends: signedUp ? [] : null,
+            selfSignedUp: signedUp,
             roster: signedUp
               ? [
                   { name: "Jay", friendOf: null, mine: false, absent: false },
