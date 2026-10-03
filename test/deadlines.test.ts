@@ -1,6 +1,7 @@
-import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import { createExecutionContext, runDurableObjectAlarm, runInDurableObject, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import worker from "../src/worker/index";
 import { createTestEvent, setUpAdmin } from "./helpers";
 
 let texts: string[] = [];
@@ -31,6 +32,17 @@ describe("deadline alarms", () => {
 
     await ctx.admin.call(`${ctx.base}/settings`, { reminderEnabled: false });
     expect(await alarmOf(e.id)).toBe(deadline);
+  });
+
+  it("gives an open event without an alarm (created before alarms existed) one at the next cron run", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    await runInDurableObject(stub(e.id), (_o, state) => state.storage.deleteAlarm());
+    expect(await alarmOf(e.id)).toBeNull();
+    const c = createExecutionContext();
+    await worker.scheduled!({ scheduledTime: Date.now(), cron: "*/15 * * * *", noRetry() {} } as ScheduledController, env, c);
+    await waitOnExecutionContext(c);
+    expect(await alarmOf(e.id)).toBe(Date.parse(e.deadlineAt) - 6 * 3600_000);
   });
 
   it("closes sign-up and posts the roster as soon as the deadline alarm fires", async () => {

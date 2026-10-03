@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "./env";
+import { recordCronError } from "./health";
 import { deadlineNotices, nextDeadlineAlarm } from "./notify";
 
 /**
@@ -19,7 +20,12 @@ export class DeadlineAlarm extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const eventId = await this.ctx.storage.get<number>("eventId");
     if (eventId === undefined) return;
-    await deadlineNotices(this.env, eventId);
+    try {
+      await deadlineNotices(this.env, eventId);
+    } catch (err) {
+      await recordCronError(this.env, err); // shows up in the weekly digest's health check
+      throw err; // Cloudflare retries a failed alarm
+    }
     // After the reminder, the deadline is next; after the deadline there is nothing left.
     const next = await nextDeadlineAlarm(this.env, eventId);
     if (next !== null && next > Date.now()) await this.ctx.storage.setAlarm(next);
@@ -35,7 +41,7 @@ export async function syncDeadline(env: Env, eventId: number): Promise<void> {
   }
 }
 
-/** After the reminder settings change: every open event's reminder may have moved. */
+/** From the cron, and after the reminder settings change (every open event's reminder may have moved). */
 export async function syncAllDeadlines(env: Env): Promise<void> {
   const { results } = await env.DB.prepare("SELECT id FROM events WHERE status = 'open'").all<{ id: number }>();
   for (const r of results) await syncDeadline(env, r.id);
