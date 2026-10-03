@@ -481,5 +481,12 @@ describe("collection and archive", () => {
     const s = await scenario();
     const bad = await s.admin.call(`${s.eb}/finalize`, { courtTotal: "abc", shuttleCount: 1, shuttlePrice: "3" });
     expect(bad.data.error.message).toBe("请填写场地总费用（美元）");
+    const typo = await s.admin.call(`${s.eb}/preview`, { ...s.fees, courtTotal: "5000.01" });
+    expect(typo.data.error.message).toContain("场地总费用超过 $5000.00");
+    const shuttle = await s.admin.call(`${s.eb}/finalize`, { ...s.fees, shuttlePrice: "30" });
+    expect(shuttle.data.error.message).toContain("羽毛球单价超过 $20.00");
+    expect((await s.admin.call(`${s.eb}/finalize`, { ...s.fees, courtTotal: "5000", shuttlePrice: "20" })).status).toBe(
+      200,
+    );
   });
 });

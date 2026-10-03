@@ -436,6 +436,9 @@ adminEventRoutes.post("/events/:id/attendance", async (c) => {
   return c.json(await detail(c.env, e));
 });
 
+const MAX_COURT_CENTS = 500_000;
+const MAX_SHUTTLE_CENTS = 2_000;
+
 function readInput(b: Record<string, unknown>): SettleInput {
   const court = parseDollars(str(b.courtTotal) || String(b.courtTotal ?? ""));
   const price = parseDollars(str(b.shuttlePrice) || String(b.shuttlePrice ?? ""));
@@ -443,6 +446,9 @@ function readInput(b: Record<string, unknown>): SettleInput {
   if (court === null) throw badRequest("请填写场地总费用（美元）");
   if (!Number.isInteger(count) || count < 0 || count > 500) throw badRequest("请填写用球个数");
   if (price === null) throw badRequest("请填写羽毛球单价（美元）");
+  // Sanity limits against a typo (an extra zero, cents typed as dollars) going out on everyone's bill.
+  if (court > MAX_COURT_CENTS) throw badRequest(`场地总费用超过 $${dollars(MAX_COURT_CENTS)}，请检查是否多打了一个 0`);
+  if (price > MAX_SHUTTLE_CENTS) throw badRequest(`羽毛球单价超过 $${dollars(MAX_SHUTTLE_CENTS)}，请检查是否填错`);
   return { courtTotalCents: court, shuttleCount: count, shuttlePriceCents: price };
 }
 
