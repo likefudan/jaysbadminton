@@ -53,7 +53,7 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 
 **零成本、好维护**
 - 全部运行在 Cloudflare 免费额度内（Workers + D1 数据库 + 定时任务 + 邮件路由），唯一的花费是域名。
-- 改动先自动部署到测试网站，确认没问题再打版本标签发布到正式网站；发布前自动备份数据库，出问题可以回滚到 v2026.10.03.4 及以后的版本（见下方「回滚的限制」）。
+- 改动先自动部署到测试网站，确认没问题再打版本标签发布到正式网站；发布前自动备份数据库，出问题可以回滚到上一个版本，但不能早于最近一次新增数据库迁移的版本（见下方「回滚的限制」）。
 - 每天自动把数据同步一份到管理员自己的 Google 表格。
 
 ---
@@ -87,7 +87,7 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 ### 网站维护者
 
 - **发布**：改动合并到 `main` 后自动部署到测试网站。测试没问题后，在 GitHub → Actions → **Release** → Run workflow（分支选 `main`，发布说明可选填），或者直接让 Claude「发布」。它会给 `main` 打上当天的 `vYYYY.MM.DD` 标签（同一天再发加 `.2`）、发布 Release（自动附上合并的 PR 列表），然后先备份正式数据库再部署到正式网站。`main` 的 CI 没通过、或者这个提交已经发布过时会拒绝发布。也可以照旧在 GitHub → Releases 手动新建标签发布。
-- **回滚**：Actions → CI → Run workflow，「Use workflow from」选上一个版本标签。只能回滚到 `v2026.10.03.4` 及以后的版本，原因见下面「部署配置」。
+- **回滚**：Actions → CI → Run workflow，「Use workflow from」选上一个版本标签。只能回滚到 migrations 文件夹里已经包含数据库执行过的全部迁移的版本，也就是不早于最近一次新增迁移的那个版本（在那个标签上 `ls migrations/` 就能看到它带了哪些迁移），原因见下面「回滚的限制」。
 - **忘记管理密码**：修改 GitHub secret `ADMIN_PASSWORD`（测试网站是 `ADMIN_PASSWORD_STAGING`），再按上面的方法重新部署一次。
 - **丢了管理链接**：已绑定 Google 的话直接用 Google 登录；或者在 Telegram 给机器人发「管理页面」；或者运行一次部署并勾选 `reset_admin_link`（正式网站选最新版本标签，测试网站选 `main`），然后回到 `/admin` 重新设置。数据不受影响。
 - 上线前要在真实手机和账号上确认的事项见 [docs/launch-checklist.md](docs/launch-checklist.md)。
@@ -170,7 +170,7 @@ npm run format                # Biome 自动格式化并修复
 
 每次部署会找到或创建对应的 D1 数据库、执行迁移、`wrangler deploy`、同步 secrets，并从外部冒烟测试一遍。正式部署会拒绝不在 `main` 上的标签，并先把数据库导出为 Actions 的附件（保留 90 天）。
 
-**回滚的限制**：回滚只换代码，不会撤销已经执行的数据库迁移。`v2026.10.03.4` 之前的版本不能直接回滚：之后的迁移改变了数据的含义（例如 `0018` 把已收金额改成扣掉退款后的净额，退款变成单独的负数记录；`0020` 新增了「已删除」状态），旧代码会把已退款的人算成少付，退款列表也会算错。所以只回滚到 `v2026.10.03.4` 及以后的版本；确实需要更早的版本时，先用发布前的数据库备份（那次 Actions 运行的 Artifacts）恢复数据库，再部署那个版本。
+**回滚的限制**：回滚只换代码，不会撤销已经执行的数据库迁移，而旧代码不认识它之后的迁移带来的数据。例如 `0018` 之前的代码点「已退款」只改 `refunded_cents`、不记退款记录；再升级回来时，已收和已退金额按收款记录重新计算，这笔退款就没了，这个人又出现在「需要退款」里，可能被退两次。`0021` 之前的代码新建活动时没有活动编号，再升级回来后这些活动的付款编号会变成 `名字-null-m007`，Venmo 对不上账。所以只能回滚到 migrations 文件夹里已经包含数据库执行过的全部迁移的版本，也就是不早于最近一次新增迁移的那个版本（在那个标签上 `ls migrations/` 就能看到它带了哪些迁移）。确实需要更早的版本时，先用发布前的数据库备份（那次 Actions 运行的 Artifacts）恢复数据库，再部署那个版本。
 
 GitHub 仓库需要的 secrets：
 
@@ -184,9 +184,9 @@ GitHub 仓库需要的 secrets：
 | `TELEGRAM_DEV_BOT_TOKEN`、`TELEGRAM_DEV_CHAT_ID` | 可选：开发群通知。每个 PR 合并、每次正式发布（成功或失败）都发一条消息到开发者的 Telegram 群。用一个单独的机器人，不要用网站的机器人 |
 | `GOOGLE_MAPS_API_KEY` | 地址联想，可选；没有时使用免费的 Photon |
 | `RESEND_API_KEY`、`EMAIL_FROM` | 用邮箱注册的成员审核通过后自动发链接邮件、找回链接，可选 |
-| `LINK_ENCRYPTION_KEY`、`LINK_ENCRYPTION_KEY_STAGING` | 正式网站和测试网站 `TOKEN_KEY` 的备份。在管理页「设置 → 备份网站密钥」把密钥发到 Telegram 后存进来。每次部署都会核对它（对不上时这次部署会报错）；万一 Worker 的 `TOKEN_KEY` 丢了，部署时自动用它填回去 |
+| `LINK_ENCRYPTION_KEY`、`LINK_ENCRYPTION_KEY_STAGING` | 正式网站和测试网站 `TOKEN_KEY` 的备份。在管理页「设置 → 备份网站密钥」把密钥发到 Telegram 后存进来。每次部署都会核对它。核对在 `wrangler deploy` 之后进行，对不上时这次部署任务会失败，但新版本已经上线，后面的 `reset_admin_link` 步骤和冒烟测试也不会运行；万一 Worker 的 `TOKEN_KEY` 丢了，部署时自动用它填回去 |
 
-每个网站的 `TOKEN_KEY` 由 CI 在第一次部署时自动生成，之后不再更换（它加密保存成员链接和管理链接，也参与管理密码的哈希）。Cloudflare 里看不到它的值，所以要用上面的 `LINK_ENCRYPTION_KEY` 备份。
+每个网站的 `TOKEN_KEY` 由 CI 在第一次部署时自动生成，之后不再更换（它加密保存成员链接、管理链接和 Google 表格同步的密钥，管理密码的哈希和 Telegram webhook 的密钥也由它派生；丢了的话，除了链接显示不出来，还要重新打开同步脚本页面、重新连接 Telegram）。Cloudflare 里看不到它的值，所以要用上面的 `LINK_ENCRYPTION_KEY` 备份。
 
 ### 文档
 
