@@ -277,7 +277,11 @@ adminRoutes.post("/:token/settings/google/bind", async (c) => {
     );
   // One email is one person here too (as for members applying or linking with Google).
   if (await emailTaken(c.env, session.email, owner.id))
-    throw new HttpError(409, "email_taken", "这个 Google 账号的邮箱已经登记在另一位成员名下，请换一个账号");
+    throw new HttpError(
+      409,
+      "email_taken",
+      "这个 Google 账号的邮箱已经登记在另一位成员（或待审核的申请）名下，请先处理那条记录或换一个账号",
+    );
   // A deleted member keeps their history but lets go of the account.
   await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL")
     .bind(session.google_sub)

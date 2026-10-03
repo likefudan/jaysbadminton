@@ -218,7 +218,12 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
   async function cancel() {
     // Friends hung under them go too, the ones the Owner added included (Ke Li's call).
     const n = e.myFriends?.length ?? 0;
-    if (!confirm(n ? `取消你自己和名下 ${n} 个朋友的报名？` : "确定取消报名吗？")) return;
+    const question = friendsOnly
+      ? `把名下的 ${n} 个朋友从名单上去掉？`
+      : n
+        ? `取消你自己和名下 ${n} 个朋友的报名？`
+        : "确定取消报名吗？";
+    if (!confirm(question)) return;
     if (await run(() => api(`${props.base}/events/${e.id}/cancel`, {}))) props.onChange();
   }
 
@@ -267,17 +272,33 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
                 取消报名
               </button>
             </div>
+          ) : friendsOnly ? (
+            <div class="inline">
+              <button
+                type="button"
+                class="button"
+                onClick={() => {
+                  // Signing up keeps the friends already under them.
+                  setFriends(e.myFriends ?? []);
+                  setEditing(true);
+                }}
+              >
+                我也报名
+              </button>
+              <button type="button" class="button danger" disabled={busy} onClick={cancel}>
+                去掉这些朋友
+              </button>
+            </div>
           ) : (
             <button
               type="button"
               class="button block"
               onClick={() => {
-                // Signing up keeps the friends already under them.
-                setFriends(e.myFriends ?? []);
+                setFriends([]);
                 setEditing(true);
               }}
             >
-              {friendsOnly ? "我也报名" : "报名"}
+              报名
             </button>
           )}
         </>

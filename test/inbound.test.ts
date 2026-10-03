@@ -302,27 +302,24 @@ describe("Owner review", () => {
     expect(after.done.map((i: { state: string }) => i.state).sort()).toEqual(["ignored", "linked"]);
   });
 
-  it("links a second payment to a paid or archived bill as an over-payment to refund", async () => {
+  it("links a second payment to a paid bill as an over-payment to refund", async () => {
     const s = await finalized();
     const day = s.aliceCode.split("-")[1];
     const bob = await s.by("Bob");
     await s.admin.call(`${s.base}/payments/${bob.id}/mark-paid`, {}); // paid in cash
     await deliver({ amount: "31.00", note: `bob-${day}-m099`, txnId: "D1" }); // and by Venmo, mistyped
-    let d = (await s.admin.call(`${s.base}/inbound`)).data;
+    const d = (await s.admin.call(`${s.base}/inbound`)).data;
     const order = d.payments.map((p: { id: number; status: string }) => p.status === "paid");
     expect(order).toEqual([...order].sort()); // unpaid first, then paid ones
     expect(d.payments.find((p: { id: number }) => p.id === bob.id)).toMatchObject({ status: "paid" });
     expect((await s.admin.call(`${s.base}/inbound/${d.open[0].id}/link`, { paymentId: bob.id })).status).toBe(200);
     expect(await s.by("Bob")).toMatchObject({ status: "paid", amountPaidCents: 6200, refundCents: 3100 });
 
-    // Archived after everyone paid: its bills still take a late payment, as an over-payment.
+    // Neither the Owner's own bill nor one of an archived event is offered.
+    expect(d.payments.some((p: { memberName: string }) => p.memberName === "Jay")).toBe(false);
     await s.admin.call(`${s.base}/payments/${(await s.by("Alice")).id}/mark-paid`, {});
     expect((await s.admin.call(`${s.eb}`)).data.status).toBe("settled");
-    await deliver({ amount: "5.00", note: `alice-${day}-m099`, txnId: "D2" });
-    d = (await s.admin.call(`${s.base}/inbound`)).data;
-    const alice = d.payments.find((p: { memberName: string }) => p.memberName === "Alice");
-    expect((await s.admin.call(`${s.base}/inbound/${d.open[0].id}/link`, { paymentId: alice.id })).status).toBe(200);
-    expect(d.refunds.length + 1).toBe((await s.admin.call(`${s.base}/inbound`)).data.refunds.length);
+    expect((await s.admin.call(`${s.base}/inbound`)).data.payments).toEqual([]);
   });
 
   it("tops up a partly paid bill from a linked payment, and undoing it puts the payment back", async () => {

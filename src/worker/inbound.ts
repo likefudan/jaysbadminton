@@ -234,23 +234,21 @@ export async function inboundRows(env: Env, state: keyof typeof ROW_FILTER): Pro
   }));
 }
 
-/** How long after archiving an event its bills can still take a 待确认 payment (as an over-payment). */
-export const LINK_ARCHIVED_DAYS = 60;
-
 /**
- * Bills an inbound row can be linked to: unpaid ones first, then paid ones on events still
- * collecting or archived lately. A payment on a paid bill is an over-payment and shows up under
- * 需要退款, as when a Venmo payment is matched to it automatically.
+ * Bills an inbound row can be linked to, on events still collecting: unpaid ones first, then paid
+ * ones. Someone who pays twice (a Venmo payment on top of cash, say) can only be put on a paid bill,
+ * and the excess shows up under 需要退款, as when a Venmo payment is matched automatically. Paid
+ * bills that can't be meant are left out: the Owner's own, $0 ones of people taken off the list, and
+ * deleted members'.
  */
-export async function openPayments(env: Env, at: Date = new Date()): Promise<OpenPayment[]> {
+export async function openPayments(env: Env): Promise<OpenPayment[]> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.amount_due_cents, p.amount_paid_cents, p.status, p.payment_code, m.username, e.date, e.code
      FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
-     WHERE e.status = 'finalized' OR (e.status = 'settled' AND e.settled_at >= ?)
+     WHERE e.status = 'finalized'
+       AND (p.status != 'paid' OR (p.amount_due_cents > 0 AND m.is_owner = 0 AND m.deleted_at IS NULL))
      ORDER BY p.status = 'paid', e.start_at DESC, m.username`,
-  )
-    .bind(new Date(at.getTime() - LINK_ARCHIVED_DAYS * 86400_000).toISOString())
-    .all<Record<string, any>>();
+  ).all<Record<string, any>>();
   return results.map((p) => ({
     id: p.id,
     eventLabel: eventLabel(p.date, p.code),

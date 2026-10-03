@@ -625,14 +625,8 @@ async function openInbound(env: Env, id: number) {
 adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const i = await openInbound(c.env, Number(c.req.param("iid")));
   const paymentId = num((await readJson(c.req.raw)).paymentId);
-  // Any bill the list offers: a paid or archived one simply gains an over-payment to refund.
-  const bill = await c.env.DB.prepare(
-    "SELECT e.id, e.status FROM payments p JOIN events e ON e.id = p.event_id WHERE p.id = ?",
-  )
-    .bind(paymentId)
-    .first<{ id: number; status: string }>();
-  if (!bill) throw badRequest("找不到这笔应付款");
-  if (bill.status !== "finalized" && bill.status !== "settled") throw badRequest("这个活动还没结算");
+  // A paid bill too: the payment is then an over-payment, listed for refund.
+  const { e } = await paymentEvent(c.env, paymentId);
   if (i.amount_cents === null) throw badRequest("这笔收款没有金额，请改用「标记已付」");
   // Only one request can move it out of 待确认, so a double click never adds the money twice.
   const claimed = await c.env.DB.prepare(
@@ -649,7 +643,7 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
     note: i.note,
     inboundId: i.id,
   });
-  const settled = await checkCollected(c.env, bill.id);
+  const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });
 });
 
