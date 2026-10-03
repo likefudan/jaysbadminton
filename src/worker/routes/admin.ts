@@ -264,6 +264,7 @@ const RESET_TABLES = [
   "settlements",
   "registrations",
   "events",
+  "deleted_events",
   "locations",
   "admin_sessions",
   "members",

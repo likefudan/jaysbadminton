@@ -17,6 +17,12 @@ export class DeadlineAlarm extends DurableObject<Env> {
     else await this.ctx.storage.setAlarm(at);
   }
 
+  /** The event was deleted from the database: drop its alarm and everything stored here. */
+  async clear(): Promise<void> {
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+  }
+
   async alarm(): Promise<void> {
     const eventId = await this.ctx.storage.get<number>("eventId");
     if (eventId === undefined) return;
@@ -38,6 +44,15 @@ export async function syncDeadline(env: Env, eventId: number): Promise<void> {
     await env.DEADLINES.get(env.DEADLINES.idFromName(String(eventId))).sync(eventId);
   } catch (err) {
     console.error(`deadline alarm for event ${eventId} failed:`, err);
+  }
+}
+
+/** After 从数据库永久删除. Like syncDeadline it never fails the request: a stray alarm finds no event and sends nothing. */
+export async function clearDeadline(env: Env, eventId: number): Promise<void> {
+  try {
+    await env.DEADLINES.get(env.DEADLINES.idFromName(String(eventId))).clear();
+  } catch (err) {
+    console.error(`clearing deadline alarm for event ${eventId} failed:`, err);
   }
 }
 

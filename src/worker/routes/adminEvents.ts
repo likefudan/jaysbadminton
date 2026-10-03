@@ -4,17 +4,19 @@ import type { EventDefaults, InboundResponse, SettlementView } from "../../share
 import { addReceipt, checkCollected, finalize, markPaid, paymentRows, recomputeIfFinalized, savedInput, settleRows, syncPayments } from "../billing";
 import { isDate, isTime, pacificToUtc } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
-import { syncAllDeadlines, syncDeadline } from "../deadlines";
+import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
 import type { Env } from "../env";
 import {
   assertRosterEditable,
   closeExpired,
   createEvent,
+  deleteEvent,
   detail,
   friendCap,
   checkVenue,
   cleanTitle,
   getEvent,
+  isDeletable,
   saveVenue,
   removeSignup,
   setSignup,
@@ -66,6 +68,17 @@ adminEventRoutes.get("/events/defaults", async (c) => {
     locations: results,
     friendCap: await friendCap(c.env),
   });
+});
+
+/** 最近的场馆 ✕: forgets a venue. Events keep their own copy of the venue and address. */
+adminEventRoutes.post("/locations/remove", async (c) => {
+  const name = str((await readJson(c.req.raw)).name);
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM locations WHERE name = ?").bind(name),
+    // Otherwise the next new event would still start with it filled in.
+    c.env.DB.prepare("DELETE FROM settings WHERE key = 'last_location' AND value = ?").bind(name),
+  ]);
+  return c.json({ ok: true });
 });
 
 adminEventRoutes.post("/events", async (c) => {
@@ -123,6 +136,22 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
   if (e.status !== "open" && e.status !== "closed") throw badRequest("只能在 Finalize 之前取消活动");
   await c.env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e.id).run();
   await syncDeadline(c.env, e.id);
+  return c.json({ ok: true });
+});
+
+/**
+ * 从数据库永久删除, for test events and other history the Owner wants gone. Needs the admin
+ * password; the page also asks for confirmation. Reported to the Owner's Telegram like other
+ * password-gated changes. D1 Time Travel can still restore the last 7 days if it was a mistake.
+ */
+adminEventRoutes.post("/events/:id/delete", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  if (!(await checkPassword(c.env, str((await readJson(c.req.raw)).password)))) throw new HttpError(401, "wrong_password", "管理密码不正确");
+  if (!isDeletable(e)) throw badRequest("只能删除已收齐归档或已取消的活动");
+  await deleteEvent(c.env, e);
+  await clearDeadline(c.env, e.id);
+  const label = `${e.date} ${e.code}${e.title ? ` ${e.title}` : ""}`;
+  await sendToOwner(c.env, message(`🗑 活动 ${label} 已从数据库永久删除（报名、账单和付款记录一并删除）。\n\n如果不是你本人操作，请立刻修改管理密码。`));
   return c.json({ ok: true });
 });
 

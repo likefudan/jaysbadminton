@@ -35,6 +35,17 @@ describe("creating events", () => {
     ]);
   });
 
+  it("forgets a recent venue from 最近的场馆", async () => {
+    const ctx = await setUpAdmin();
+    await createTestEvent(ctx, { location: "Old Gym", address: "1 Old St, San Jose, CA 95131" });
+    await createTestEvent(ctx, { location: "Test Gym", address: "" });
+    expect((await ctx.admin.call(`${ctx.base}/locations/remove`, { name: "Test Gym" })).status).toBe(200);
+    const { data } = await ctx.admin.call(`${ctx.base}/events/defaults`);
+    expect(data.locations.map((l: { name: string }) => l.name)).not.toContain("Test Gym");
+    expect(data.locations).toContainEqual({ name: "Old Gym", address: "1 Old St, San Jose, CA 95131" });
+    expect(data.location).toBe(""); // it was the last one used, so it no longer pre-fills either
+  });
+
   it("refuses a deadline that is already in the past", async () => {
     const ctx = await setUpAdmin();
     const res = await ctx.admin.call(`${ctx.base}/events`, {

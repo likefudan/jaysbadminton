@@ -153,20 +153,35 @@ function VenueFields(props: {
   onVenue: (v: string) => void;
   onAddress: (v: string) => void;
 }) {
+  const [venues, setVenues] = useState(props.venues);
   const pick = (v: { name: string; address: string }) => {
     props.onVenue(v.name);
     props.onAddress(v.address);
   };
+  // No confirmation: it only forgets a shortcut, and typing the venue again brings it back.
+  async function forget(name: string) {
+    setVenues((list) => list.filter((v) => v.name !== name));
+    try {
+      await api(`${props.base}/locations/remove`, { name });
+    } catch {
+      setVenues(props.venues);
+    }
+  }
   return (
     <>
-      {props.venues.length > 0 && (
+      {venues.length > 0 && (
         <div class="field">
           <span>最近的场馆</span>
           <div class="chips">
-            {props.venues.map((v) => (
-              <button type="button" key={v.name} class={v.name === props.venue ? "chip on" : "chip"} onClick={() => pick(v)}>
-                {v.name}
-              </button>
+            {venues.map((v) => (
+              <span class="chip-wrap" key={v.name}>
+                <button type="button" class={v.name === props.venue ? "chip on" : "chip"} onClick={() => pick(v)}>
+                  {v.name}
+                </button>
+                <button type="button" class="chip-remove" aria-label={`从最近的场馆中删除「${v.name}」`} onClick={() => forget(v.name)}>
+                  ✕
+                </button>
+              </span>
             ))}
           </div>
         </div>
@@ -281,7 +296,48 @@ function EventAdminBody(props: { base: string; e: EventDetail; members: MemberSu
           取消这次活动
         </button>
       )}
+
+      {e.deletable && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
     </>
+  );
+}
+
+/** 从数据库永久删除: for test events and other history. Asks for the admin password, then confirms once more. */
+function DeleteEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const { busy, error, run } = useAction();
+  const label = `${formatDateZh(props.e.date)}${props.e.title ? `「${props.e.title}」` : ""}`;
+
+  async function submit(ev: Event) {
+    ev.preventDefault();
+    if (!confirm(`最后确认：永久删除 ${label} 这次活动？删除后无法恢复。`)) return;
+    if (await run(() => api(`${props.eb}/delete`, { password }))) props.onDone();
+  }
+
+  return (
+    <Card title="危险操作">
+      {!open ? (
+        <>
+          <p class="muted small">比如测试用的活动。只有已收齐归档或已取消的活动可以删除。删除后不再计入排行榜、成员花费和 Google Sheets 同步。</p>
+          <button class="button danger block" onClick={() => setOpen(true)}>
+            从数据库永久删除
+          </button>
+        </>
+      ) : (
+        <form onSubmit={submit}>
+          <p class="error">这次活动的报名名单、账单、付款记录和匹配到的 Venmo 收款都会被一并删除，无法恢复。</p>
+          <Field label="管理密码" type="password" value={password} onInput={setPassword} autocomplete="current-password" />
+          {error && <p class="error">{error}</p>}
+          <button class="button danger block" disabled={busy || !password}>
+            永久删除
+          </button>
+          <button class="button secondary block" type="button" onClick={() => setOpen(false)}>
+            取消
+          </button>
+        </form>
+      )}
+    </Card>
   );
 }
 

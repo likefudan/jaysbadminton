@@ -131,6 +131,19 @@ test("the Owner creates an event and is signed up for it", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "名单（1）" })).toBeVisible();
 });
 
+test("the Owner forgets a venue from 最近的场馆 with its ✕", async ({ page }) => {
+  await openAdmin(page);
+  await page.getByRole("button", { name: "＋ 新建活动" }).click();
+  await expect(page.getByRole("button", { name: VENUE, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: `从最近的场馆中删除「${VENUE}」` }).click(); // no confirmation dialog
+  await expect(page.getByText("最近的场馆")).toHaveCount(0);
+  await page.reload();
+  await openAdmin(page);
+  await page.getByRole("button", { name: "＋ 新建活动" }).click();
+  await expect(field(page, "日期")).toBeVisible();
+  await expect(page.getByText("最近的场馆")).toHaveCount(0);
+});
+
 test("the member signs up with a friend and can add it to a calendar", async ({ page }) => {
   await page.goto(memberPath);
   await expect(page.getByRole("heading", { name: "你好，小明" })).toBeVisible();
