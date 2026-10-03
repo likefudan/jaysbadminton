@@ -19,7 +19,7 @@ export function InboundTab(props: { base: string }) {
           </p>
           <Refunds base={props.base} list={d.refunds} onDone={reload} />
           <OpenList base={props.base} open={d.open} payments={d.payments} onDone={reload} />
-          {d.ignored.length > 0 && (
+          {(d.ignored ?? []).length > 0 && (
             <Card title={`已忽略 (${d.ignored.length})`}>
               <p class="muted small">忽略错了可以移回待确认，再关联到账单；不需要的可以删除。</p>
               {d.ignored.map((i) => (
