@@ -83,9 +83,10 @@ const rosterRow = (): Rule => ({
   cap: "event",
   check: async (c, actor, p) => {
     const eventId = num(p.id);
+    // The event first, so someone else's event never tells which rows are on it.
+    await requireEvent(c.env, actor, eventId);
     const rowEvent = await eventOf(c.env, "SELECT event_id FROM registrations WHERE id = ?", num(p.rid));
     if (rowEvent !== null && rowEvent !== eventId) throw new HttpError(403, "forbidden", "这一行不在这场活动的名单上");
-    await requireEvent(c.env, actor, eventId);
   },
 });
 
@@ -98,16 +99,29 @@ const bill = (): Rule => ({
 /** event: the event a payment record (`:rid` of /receipts) belongs to. */
 const receipt = (): Rule => ({
   cap: "event",
-  check: async (c, actor, p) =>
-    requireEvent(
+  check: async (c, actor, p) => {
+    const rid = num(p.rid);
+    await requireEvent(
       c.env,
       actor,
       await eventOf(
         c.env,
         "SELECT p.event_id FROM payment_receipts r JOIN payments p ON p.id = r.payment_id WHERE r.id = ?",
-        num(p.rid),
+        rid,
       ),
-    ),
+    );
+    if (can(actor.role, "group")) return;
+    // Taking back a Venmo payment reopens its 待确认 row: that needs `payee` for the row too, so
+    // nobody moves a payment that went into someone else's account.
+    const row = await c.env.DB.prepare(
+      `SELECT i.id FROM payment_receipts r JOIN inbound_payments i
+         ON i.id = r.inbound_id OR (r.venmo_txn_id IS NOT NULL AND i.venmo_txn_id = r.venmo_txn_id)
+       WHERE r.id = ? LIMIT 1`,
+    )
+      .bind(rid)
+      .first<{ id: number }>();
+    if (row) await requirePayee(c.env, actor, row.id);
+  },
 });
 
 async function requirePayee(env: Env, actor: Actor, inboundId: number | null): Promise<void> {

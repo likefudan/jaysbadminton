@@ -189,6 +189,19 @@ describe("organizers on the admin pages", () => {
     ).toBe(200);
   });
 
+  it("won't take back a Venmo payment that went into someone else's account", async () => {
+    const { ctx, org, ids } = await scenario();
+    // The Owner links a payment from their own account onto a bill of Alice's event.
+    expect(
+      (await ctx.admin.call(`${ctx.base}/inbound/${ids.theirs.iid}/link`, { paymentId: ids.mine.pid })).status,
+    ).toBe(200);
+    const r = await env.DB.prepare("SELECT id FROM payment_receipts WHERE inbound_id = ?")
+      .bind(ids.theirs.iid)
+      .first<{ id: number }>();
+    expect((await request(`${GOOGLE}/receipts/${r!.id}/remove`, org, {})).status).toBe(403);
+    expect((await ctx.admin.call(`${ctx.base}/receipts/${r!.id}/remove`, {})).status).toBe(200);
+  });
+
   it("refuses ids that aren't numbers instead of failing", async () => {
     const { org } = await scenario();
     expect((await request(`${GOOGLE}/events/abc/edit`, org, {})).status).toBe(403);
