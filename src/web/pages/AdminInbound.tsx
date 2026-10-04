@@ -240,7 +240,7 @@ function Trash(props: { base: string; list: InboundRow[]; onDone: () => void }) 
       ) : (
         <form onSubmit={clear}>
           <Field
-            label="管理密码"
+            label="群主密码"
             type="password"
             value={password}
             onInput={setPassword}

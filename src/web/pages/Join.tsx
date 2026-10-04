@@ -35,7 +35,7 @@ export function Join() {
       <Page title="申请已提交">
         <Card>
           <p>
-            管理员审核通过后，你的专属链接会发到 <strong>{email.trim()}</strong>。以后报名、查看账单都用这个链接。
+            群主审核通过后，你的专属链接会发到 <strong>{email.trim()}</strong>。以后报名、查看账单都用这个链接。
           </p>
           <p class="muted small">
             没收到的话，请看一下垃圾邮件文件夹；也可以在「登录 / 注册」页点「找回我的专属链接」。

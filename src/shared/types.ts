@@ -17,7 +17,7 @@ export interface MemberSummary {
   email?: string | null;
   applicantName?: string;
   wechatAccount?: string;
-  /** 给管理员的留言, written with the application; "" when none. */
+  /** 给群主的留言, written with the application; "" when none. */
   applicationMessage?: string;
   approvalEmailStatus?: string | null;
   /** The admin's own name for this person, to tell people apart (never shown to members). */

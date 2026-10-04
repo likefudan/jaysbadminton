@@ -234,7 +234,7 @@ function NoteRow(props: { base: string; note: string; onChange: () => void }) {
   if (editing) {
     return (
       <form class="profile-edit" onSubmit={save}>
-        <Field label="备注名（只有管理员能看到）" value={value} onInput={setValue} />
+        <Field label="备注名（只有群主能看到）" value={value} onInput={setValue} />
         {error && <p class="error">{error}</p>}
         <div class="inline">
           <button type="submit" class="button" disabled={busy}>

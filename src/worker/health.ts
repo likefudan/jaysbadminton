@@ -60,7 +60,7 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
     sendToOwner(
       env,
       message(
-        `📭 ${quiet}，但还有 ${owing.n} 笔账单没付清。\n如果最近确实有人用 Venmo 付过款，说明 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（管理页「设置 → 管理员指南」第二部分）。`,
+        `📭 ${quiet}，但还有 ${owing.n} 笔账单没付清。\n如果最近确实有人用 Venmo 付过款，说明 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（管理页「设置 → 使用指南」第二部分）。`,
       ),
     ),
   );

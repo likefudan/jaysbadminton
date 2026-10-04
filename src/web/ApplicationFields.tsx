@@ -23,10 +23,10 @@ export function ApplicationFields(props: {
         label="微信名"
         value={props.nickname}
         onInput={props.setNickname}
-        hint="群昵称或微信号都可以，管理员能认出你就行"
+        hint="群昵称或微信号都可以，群主能认出你就行"
       />
       <label class="field">
-        <span>给管理员的留言（选填）</span>
+        <span>给群主的留言（选填）</span>
         <textarea
           value={props.message}
           maxLength={MESSAGE_MAX}

@@ -31,7 +31,7 @@ export function checkEmail(raw: string): string | null {
   return null;
 }
 
-/** 给管理员的留言: optional. */
+/** 给群主的留言: optional. */
 export function checkMessage(raw: string): string | null {
   return [...raw.trim()].length > MESSAGE_MAX ? `留言最多 ${MESSAGE_MAX} 个字` : null;
 }

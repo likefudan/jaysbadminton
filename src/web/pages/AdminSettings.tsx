@@ -70,7 +70,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
         </button>
       </Card>
       <GoogleAdminCard base={props.base} viaGoogle={props.viaGoogle} />
-      <Card title="修改管理密码">
+      <Card title="修改群主密码">
         <form onSubmit={changePassword}>
           <Field
             label="当前密码"
@@ -143,7 +143,7 @@ function BackupKey(props: { base: string }) {
       ) : (
         <form onSubmit={submit}>
           <Field
-            label="管理密码"
+            label="群主密码"
             type="password"
             value={password}
             onInput={setPassword}
@@ -182,7 +182,7 @@ function ResetAll(props: { base: string }) {
     <Card title="危险操作">
       {!open ? (
         <>
-          <p class="muted small">把网站重置成全新状态。只保留管理密码，清空后用它在 /admin 重新做初次设置。</p>
+          <p class="muted small">把网站重置成全新状态。只保留群主密码，清空后用它在 /admin 重新做初次设置。</p>
           <button type="button" class="button danger block" onClick={start}>
             清空所有数据
           </button>
@@ -192,7 +192,7 @@ function ResetAll(props: { base: string }) {
           <p class="error">所有成员、活动、报名、付款记录、设置都会被删除，管理链接和所有成员链接都会失效。</p>
           <Field label={`请输入「${RESET_PHRASE}」`} value={phrase} onInput={setPhrase} />
           <Field
-            label="管理密码"
+            label="群主密码"
             type="password"
             value={password}
             onInput={setPassword}
@@ -354,7 +354,7 @@ function PaymentCard(props: { base: string }) {
               <dd>{v.zelleAccount || "（未填）"}</dd>
             </dl>
             <button type="button" class="link-button" onClick={() => setEditing(true)}>
-              🔒 修改收款设置（需要管理密码）
+              🔒 修改收款设置（需要群主密码）
             </button>
           </Card>
         );
@@ -400,12 +400,12 @@ function PaymentForm(props: {
           hint="手机号或邮箱，显示在付款页作为备选"
         />
         <Field
-          label="管理密码"
+          label="群主密码"
           type="password"
           value={password}
           onInput={setPassword}
           autocomplete="current-password"
-          hint="为防止误改，保存收款设置需要输入管理密码"
+          hint="为防止误改，保存收款设置需要输入群主密码"
         />
         {error && <p class="error">{error}</p>}
         <button type="submit" class="button block" disabled={busy || !password}>
@@ -517,7 +517,7 @@ function GoogleAdminCard(props: { base: string; viaGoogle: boolean }) {
                   {g.current ? "换一个 Google 账号" : "先登录 Google"}
                 </button>
               )}
-              <p class="muted small">请给这个 Google 账号开启两步验证：绑定后它就等于管理员钥匙。</p>
+              <p class="muted small">请给这个 Google 账号开启两步验证：绑定后它就是进入管理页的钥匙。</p>
             </>
           )
         }

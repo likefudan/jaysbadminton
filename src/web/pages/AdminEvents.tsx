@@ -330,7 +330,7 @@ function EventAdminBody(props: {
             <div class="who">
               {r.friendIndex > 0 && "　↳ "}
               {r.name}
-              {r.addedByOwner && <span class="badge">管理员添加</span>}
+              {r.addedByOwner && <span class="badge">群主添加</span>}
               {r.friendIndex > 0 && <small>　{r.memberName} 带的朋友</small>}
             </div>
             {editable && (
@@ -403,7 +403,7 @@ function DeleteEvent(props: { eb: string; e: EventDetail; onDone: () => void }) 
         <form onSubmit={submit}>
           <p class="error">这次活动的报名名单、账单、付款记录和匹配到的 Venmo 收款都会被一并删除，无法恢复。</p>
           <Field
-            label="管理密码"
+            label="群主密码"
             type="password"
             value={password}
             onInput={setPassword}
@@ -503,7 +503,7 @@ function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | un
               报名
             </button>
           )}
-          {e.status === "closed" && <p class="muted small">报名已截止，你作为管理员仍可以修改自己的报名，直到结算。</p>}
+          {e.status === "closed" && <p class="muted small">报名已截止，你作为群主仍可以修改自己的报名，直到结算。</p>}
         </>
       )}
     </Card>

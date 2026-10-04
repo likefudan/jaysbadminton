@@ -179,5 +179,5 @@ async function sendAdminLink(env: Env, chatId: string): Promise<void> {
   const { token, renewed } = await currentAdminToken(env);
   const link = `${env.SITE_ORIGIN}/admin/${token}`;
   const note = renewed ? "\n（之前的管理链接无法找回，已为你生成新的，旧链接已失效。）" : "";
-  await sendToOwner(env, `🔑 管理页面：\n${escapeHtml(link)}\n打开后还需要输入管理密码。请不要转发这个链接。${note}`);
+  await sendToOwner(env, `🔑 管理页面：\n${escapeHtml(link)}\n打开后还需要输入群主密码。请不要转发这个链接。${note}`);
 }

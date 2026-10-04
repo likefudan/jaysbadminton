@@ -70,7 +70,7 @@ export async function assertPendingRoom(env: Env): Promise<void> {
     n: number;
   }>();
   if ((pending?.n ?? 0) >= MAX_PENDING) {
-    throw new HttpError(429, "too_many_pending", "现在待审核的申请太多了，请先联系管理员处理后再提交");
+    throw new HttpError(429, "too_many_pending", "现在待审核的申请太多了，请先联系群主处理后再提交");
   }
 }
 

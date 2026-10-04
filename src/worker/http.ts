@@ -11,7 +11,7 @@ export class HttpError extends Error {
   }
 }
 
-export const invalidLink = () => new HttpError(404, "invalid_link", "链接无效，请联系管理员");
+export const invalidLink = () => new HttpError(404, "invalid_link", "链接无效，请联系群主");
 export const badRequest = (message: string) => new HttpError(400, "bad_request", message);
 
 /** Reads a JSON body, treating anything malformed as an empty object so field checks report it. */

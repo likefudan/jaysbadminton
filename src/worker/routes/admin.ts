@@ -39,12 +39,12 @@ adminRoutes.use("/:token/*", async (c, next) => {
   if (c.req.param("token") === GOOGLE_ADMIN) {
     // The Google cookie is SameSite=Lax (the admin one is Strict), so writes must come from this site.
     if (c.req.method !== "GET") requireSameOrigin(c);
-    if (!(await googleOwner(c))) throw new HttpError(401, "google_admin_required", "请用管理员绑定的 Google 账号登录");
+    if (!(await googleOwner(c))) throw new HttpError(401, "google_admin_required", "请用群主绑定的 Google 账号登录");
     return next();
   }
   await assertAdminToken(c.env, c.req.param("token"));
   if (!c.req.path.endsWith("/login") && !(await hasSession(c))) {
-    throw new HttpError(401, "login_required", "请输入管理密码");
+    throw new HttpError(401, "login_required", "请输入群主密码");
   }
   await next();
 });
@@ -143,7 +143,7 @@ adminRoutes.post("/:token/members/:id/regenerate", async (c) => {
 
 adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
-  if (m.is_owner) throw badRequest("不能停用管理员自己");
+  if (m.is_owner) throw badRequest("不能停用群主本人");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
   await closeExpired(c.env); // an event past its deadline keeps its sign-ups
   await c.env.DB.batch([
@@ -265,9 +265,9 @@ adminRoutes.post("/:token/settings/google/bind", async (c) => {
   const session = await googleSession(c);
   if (!session) throw new HttpError(401, "login_required", "请先在这个浏览器登录 Google");
   const owner = await c.env.DB.prepare("SELECT * FROM members WHERE is_owner = 1").first<MemberRow>();
-  if (!owner) throw new HttpError(404, "member_not_found", "找不到管理员的成员记录");
+  if (!owner) throw new HttpError(404, "member_not_found", "找不到群主的成员记录");
   if (owner.google_sub === session.google_sub) return c.json({ ok: true });
-  if (owner.google_sub) throw new HttpError(409, "already_linked", "管理员已经绑定了一个 Google 账号，请先解除绑定");
+  if (owner.google_sub) throw new HttpError(409, "already_linked", "群主已经绑定了一个 Google 账号，请先解除绑定");
   const holder = await memberByGoogle(c.env, session.google_sub);
   if (holder)
     throw new HttpError(

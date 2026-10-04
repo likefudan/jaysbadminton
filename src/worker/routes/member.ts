@@ -184,7 +184,7 @@ const OWNER_FRIEND_MAX = 20;
 
 async function openEventFor(c: { env: import("../env").Env; get: (k: "member") => MemberRow }, id: string) {
   const m = c.get("member");
-  if (m.status !== "active") throw badRequest("你的账号已停用，不能报名。有疑问请联系管理员。");
+  if (m.status !== "active") throw badRequest("你的账号已停用，不能报名。有疑问请联系群主。");
   await closeExpired(c.env);
   const e = await getEvent(c.env, Number(id));
   if (ownerRules(m) && e.status === "closed") return e;

@@ -25,7 +25,7 @@ async function openAdmin(page: Page) {
   await page.goto(adminPath);
   await page.locator('.tabs, input[type="password"]').first().waitFor();
   if (await page.locator('input[type="password"]').count()) {
-    await field(page, "管理密码").fill(PASSWORD);
+    await field(page, "群主密码").fill(PASSWORD);
     await page.getByRole("button", { name: "登录" }).click();
   }
   await expect(page.locator(".tabs")).toBeVisible();
@@ -53,7 +53,7 @@ function inAWeek(): string {
 
 test("the Owner sets up the site and the payment details", async ({ page }) => {
   await page.goto("/admin");
-  await field(page, "管理密码").fill(PASSWORD);
+  await field(page, "群主密码").fill(PASSWORD);
   await field(page, "你的用户名").fill("Jay");
   await field(page, "你的微信昵称").fill("Jay");
   await page.getByRole("button", { name: "生成管理链接" }).click();
@@ -82,7 +82,7 @@ test("a newcomer registers with email and the Owner approves them", async ({ pag
   await page.getByRole("link", { name: "用邮箱注册" }).click();
   await field(page, "用户名").fill("小明");
   await field(page, "微信名").fill("xiaoming");
-  await page.getByLabel("给管理员的留言（选填）").fill("小王介绍的");
+  await page.getByLabel("给群主的留言（选填）").fill("小王介绍的");
   await field(page, "邮箱").fill("ming.reg@example.com");
   await field(page, "再输一次邮箱").fill("ming.reg@exampel.com");
   await page.getByRole("button", { name: "提交申请" }).click();
@@ -217,7 +217,7 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await expect(detail.locator(".profile-info")).toContainText("xm@example.com");
   await expect(detail.locator(".heatmap-grid .upcoming")).toHaveCount(1);
   await detail.getByRole("button", { name: "添加" }).click();
-  await field(page, "备注名（只有管理员能看到）").fill("周六队长");
+  await field(page, "备注名（只有群主能看到）").fill("周六队长");
   await detail.getByRole("button", { name: "保存" }).click();
   await expect(detail.locator(".profile-info")).toContainText("周六队长");
   await page.getByRole("button", { name: "‹ 成员" }).click();
