@@ -95,7 +95,7 @@ CREATE INDEX events_payee ON events (payee_id);
 
 -- 组织者的收款设置（群主的仍留在 settings 里，不搬，见下方「回滚注意」）
 CREATE TABLE payment_profiles (
-  member_id      TEXT PRIMARY KEY REFERENCES members (id),
+  member_id      TEXT NOT NULL PRIMARY KEY REFERENCES members (id),
   venmo_username TEXT COLLATE NOCASE UNIQUE,
   venmo_email    TEXT COLLATE NOCASE UNIQUE,
   zelle_account  TEXT,
@@ -117,10 +117,11 @@ CREATE TABLE payment_aliases (
 
 -- 收款进了谁的账户
 ALTER TABLE inbound_payments ADD COLUMN payee_id TEXT REFERENCES members (id);
+CREATE INDEX inbound_payee ON inbound_payments (payee_id, state);   -- 组织者的「待确认」列表
 
 -- 组织者的 Telegram 接收人（群主的仍留在 settings 里）
 CREATE TABLE telegram_bindings (
-  member_id TEXT PRIMARY KEY REFERENCES members (id),
+  member_id TEXT NOT NULL PRIMARY KEY REFERENCES members (id),
   chat_id   TEXT UNIQUE,        -- 还没连上时为空（SQLite 的 UNIQUE 允许多个空值）
   chat_name TEXT,
   bind_hash TEXT,               -- 这个人的一次性绑定码（SHA-256），点「连接 Telegram」时写入，连上后清空

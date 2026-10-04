@@ -1,6 +1,9 @@
 -- 组织者 (docs/design/organizers.zh.md §5). Only adds columns and tables, so code from before this
--- migration still runs on the result. The flag ORGANIZERS gates every way in; until it is on, nobody
--- has role 'organizer' and every event's manager and payee is the Owner.
+-- migration still runs on the result. One exception: the older 清空所有数据 does not know the new
+-- tables that point at members, so after a rollback it fails on their foreign keys once an
+-- organizer has saved payment settings or Telegram (only possible with the flag on: staging, until
+-- launch). The flag ORGANIZERS gates every way in; until it is on, nobody has role 'organizer' and
+-- every event's manager and payee is the Owner.
 
 -- Who a member is besides the Owner (is_owner stays: there is exactly one Owner). 'member' or
 -- 'organizer' (a future 'admin' fits too). No CHECK: changing one in SQLite means rebuilding the
@@ -20,7 +23,7 @@ CREATE INDEX events_payee ON events (payee_id);
 -- Organizers' payment settings. The Owner's stay in settings (venmo_username etc.), so rolling
 -- back loses nothing of theirs.
 CREATE TABLE payment_profiles (
-  member_id        TEXT PRIMARY KEY REFERENCES members (id),
+  member_id        TEXT NOT NULL PRIMARY KEY REFERENCES members (id),
   venmo_username   TEXT COLLATE NOCASE UNIQUE,
   venmo_email      TEXT COLLATE NOCASE UNIQUE,
   zelle_account    TEXT,
@@ -42,10 +45,11 @@ CREATE TABLE payment_aliases (
 
 -- Whose account a received payment went into. NULL means the Owner.
 ALTER TABLE inbound_payments ADD COLUMN payee_id TEXT REFERENCES members (id);
+CREATE INDEX inbound_payee ON inbound_payments (payee_id, state);
 
 -- Organizers' Telegram chats. The Owner's stays in settings (telegram_chat_id).
 CREATE TABLE telegram_bindings (
-  member_id    TEXT PRIMARY KEY REFERENCES members (id),
+  member_id    TEXT NOT NULL PRIMARY KEY REFERENCES members (id),
   chat_id      TEXT UNIQUE,  -- NULL until connected (UNIQUE allows several NULLs)
   chat_name    TEXT,
   bind_hash    TEXT,         -- SHA-256 of their one-time 连接 Telegram code, cleared once connected
