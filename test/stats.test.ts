@@ -128,6 +128,7 @@ describe("export", () => {
       "申请时间",
       "通过时间",
     ]);
+    expect(data.tables.registrations.columns).toContain("群主添加");
     expect(JSON.stringify(data)).not.toMatch(/token|hash/i);
     expect(data.tables.events.rows[0][0]).toMatch(/^jbm\d{8}$/);
     expect((await ctx.admin.call(`${ctx.base}/sheets`)).data).toMatchObject({ enabled: true, script });

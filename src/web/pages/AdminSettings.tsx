@@ -517,7 +517,7 @@ function GoogleAdminCard(props: { base: string; viaGoogle: boolean }) {
                   {g.current ? "换一个 Google 账号" : "先登录 Google"}
                 </button>
               )}
-              <p class="muted small">请给这个 Google 账号开启两步验证：绑定后它就等于群主钥匙。</p>
+              <p class="muted small">请给这个 Google 账号开启两步验证：绑定后它就是进入管理页的钥匙。</p>
             </>
           )
         }

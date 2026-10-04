@@ -143,7 +143,7 @@ adminRoutes.post("/:token/members/:id/regenerate", async (c) => {
 
 adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
-  if (m.is_owner) throw badRequest("不能停用群主自己");
+  if (m.is_owner) throw badRequest("不能停用群主本人");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
   await closeExpired(c.env); // an event past its deadline keeps its sign-ups
   await c.env.DB.batch([
