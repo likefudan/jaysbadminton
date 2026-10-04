@@ -1,6 +1,13 @@
 import { useState } from "preact/hooks";
 import { AddressInput } from "../AddressInput";
-import type { EventDefaults, EventDetail, EventSummary, MemberSummary, RosterEntry } from "../../shared/types";
+import type {
+  EventDefaults,
+  EventDetail,
+  EventSummary,
+  MemberSummary,
+  OrganizersBlock,
+  RosterEntry,
+} from "../../shared/types";
 import { formatDateZh } from "../../shared/time";
 import { api } from "../api";
 import { Card, CopyButton, Empty, Field, Load, useAction } from "../components";
@@ -11,7 +18,7 @@ import { Billing } from "./AdminSettle";
 
 const PAST_PAGE = 30;
 
-export function EventsTab(props: { base: string; members: MemberSummary[] }) {
+export function EventsTab(props: { base: string; members: MemberSummary[]; organizers: OrganizersBlock | null }) {
   const [pastShown, setPastShown] = useState(PAST_PAGE);
   const [list, reload] = useApi<{ current: EventSummary[]; past: EventSummary[]; morePast: boolean }>(
     `${props.base}/events?past=${pastShown}`,
@@ -35,6 +42,7 @@ export function EventsTab(props: { base: string; members: MemberSummary[] }) {
         base={props.base}
         id={mode}
         members={props.members}
+        organizers={props.organizers}
         onBack={() => {
           reload();
           setMode("list");
@@ -259,7 +267,13 @@ function VenueFields(props: {
   );
 }
 
-function EventAdmin(props: { base: string; id: number; members: MemberSummary[]; onBack: () => void }) {
+function EventAdmin(props: {
+  base: string;
+  id: number;
+  members: MemberSummary[];
+  organizers: OrganizersBlock | null;
+  onBack: () => void;
+}) {
   const [ev, reload] = useApi<EventDetail>(`${props.base}/events/${props.id}`);
   return (
     <>
@@ -268,7 +282,14 @@ function EventAdmin(props: { base: string; id: number; members: MemberSummary[];
       </button>
       <Load result={ev}>
         {(e) => (
-          <EventAdminBody base={props.base} e={e} members={props.members} onChange={reload} onBack={props.onBack} />
+          <EventAdminBody
+            base={props.base}
+            e={e}
+            members={props.members}
+            organizers={props.organizers}
+            onChange={reload}
+            onBack={props.onBack}
+          />
         )}
       </Load>
     </>
@@ -279,6 +300,7 @@ function EventAdminBody(props: {
   base: string;
   e: EventDetail;
   members: MemberSummary[];
+  organizers: OrganizersBlock | null;
   onChange: () => void;
   onBack: () => void;
 }) {
@@ -365,6 +387,16 @@ function EventAdminBody(props: {
 
       {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
 
+      {editable && props.organizers?.canManage && (
+        <Transfer
+          eb={eb}
+          e={e}
+          owner={props.members.find((m) => m.isOwner)}
+          organizers={props.organizers}
+          onDone={props.onChange}
+        />
+      )}
+
       {(e.status === "open" || e.status === "closed") && (
         <button type="button" class="button danger block" disabled={busy} onClick={cancelEvent}>
           取消这次活动
@@ -373,6 +405,69 @@ function EventAdminBody(props: {
 
       {e.deletable && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
     </>
+  );
+}
+
+/** 转交 (Owner): another organizer or the Owner runs it; before Finalize the money goes with it. */
+function Transfer(props: {
+  eb: string;
+  e: EventDetail;
+  owner: MemberSummary | undefined;
+  organizers: OrganizersBlock;
+  onDone: () => void;
+}) {
+  const e = props.e;
+  const choices = [
+    ...(props.owner ? [{ id: props.owner.id, label: `群主（${props.owner.username}）` }] : []),
+    ...props.organizers.list.map((o) => ({ id: o.id, label: o.username })),
+  ].filter((c) => c.id !== e.manager.id);
+  const [to, setTo] = useState("");
+  const { busy, error, run } = useAction();
+  const finalized = e.status === "finalized";
+  async function submit() {
+    const target = choices.find((c) => c.id === to);
+    if (!target) return;
+    const money = finalized
+      ? `账单已经发出，收款人仍是 ${e.payee.name}，只换负责人。`
+      : `收款人也一起换成 ${target.label}，结算后成员把钱付给他。`;
+    if (!confirm(`把这场活动转给 ${target.label}？\n\n${money}`)) return;
+    if (await run(() => api(`${props.eb}/transfer`, { to }))) {
+      setTo("");
+      props.onDone();
+    }
+  }
+  return (
+    <Card title="负责人">
+      <p>
+        负责人：{e.manager.name} · 收款人：{e.payee.name}
+      </p>
+      {choices.length === 0 ? (
+        <p class="muted small">没有可以转给的人。先在「成员」里设一位组织者。</p>
+      ) : (
+        <>
+          <label class="field">
+            <span>转给</span>
+            <select value={to} onChange={(ev) => setTo((ev.target as HTMLSelectElement).value)}>
+              <option value="">选择一位组织者或群主</option>
+              {choices.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p class="muted small">
+            {finalized
+              ? "已经结算：只换负责人，钱仍然付给原来的收款人，直到收齐。"
+              : "还没结算：负责人和收款人一起换。"}
+          </p>
+          {error && <p class="error">{error}</p>}
+          <button type="button" class="button secondary block" disabled={busy || !to} onClick={submit}>
+            转交
+          </button>
+        </>
+      )}
+    </Card>
   );
 }
 

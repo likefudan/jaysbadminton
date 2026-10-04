@@ -16,10 +16,10 @@ export async function sendApplicationNotice(env: Env, m: MemberRow): Promise<boo
   return sendToOwner(env, escapeHtml(lines.filter(Boolean).join("\n")));
 }
 
-type SendResult = "sent" | "failed" | "not_configured";
+export type SendResult = "sent" | "failed" | "not_configured";
 
 /** One plain-text email through Resend. Never logs credentials, addresses or provider responses. */
-async function sendEmail(
+export async function sendEmail(
   env: Env,
   mail: { to: string; subject: string; text: string; key: string },
 ): Promise<SendResult> {
@@ -41,8 +41,8 @@ async function sendEmail(
   }
 }
 
-const site = (env: Env, path: string) => new URL(path, env.SITE_ORIGIN).href;
-const SPAM_HINT = "如果没在收件箱里找到我们的邮件，请看一下垃圾邮件文件夹。";
+export const site = (env: Env, path: string) => new URL(path, env.SITE_ORIGIN).href;
+export const SPAM_HINT = "如果没在收件箱里找到我们的邮件，请看一下垃圾邮件文件夹。";
 
 /** The member's own link, written for someone who registered with email (or asked for it again). */
 function linkEmailText(m: MemberRow, link: string, intro: string): string {

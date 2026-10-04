@@ -40,6 +40,7 @@ import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
 import type { AdminEnv } from "../access";
 import { can, eventPayee, payeeProfile } from "../organizers";
+import { assertOrganizersOn, transferEvent } from "../appointments";
 import {
   assertAccountFree,
   assertPayeeReady,
@@ -201,6 +202,14 @@ adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
 
 adminEventRoutes.get("/events/:id", async (c) => {
   return c.json(await detail(c.env, await getEvent(c.env, Number(c.req.param("id"))), c.get("actor").memberId));
+});
+
+/** 转交 (Owner): another organizer, or the Owner, runs the event; before Finalize the money goes too. */
+adminEventRoutes.post("/events/:id/transfer", async (c) => {
+  assertOrganizersOn(c.env);
+  const id = Number(c.req.param("id"));
+  await transferEvent(c.env, (await getEvent(c.env, id)).id, str((await readJson(c.req.raw)).to));
+  return c.json(await detail(c.env, await getEvent(c.env, id), c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/cancel", async (c) => {

@@ -4,7 +4,15 @@ import { Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
 import { type AdminEnv, adminAccess } from "../access";
-import { can } from "../organizers";
+import { can, memberRole } from "../organizers";
+import {
+  appointOrganizer,
+  assertNotPayee,
+  assertOrganizersOn,
+  organizersBlock,
+  revokeImpact,
+  revokeOrganizer,
+} from "../appointments";
 import { checkPassword, endSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
 import { closeExpired } from "../events";
@@ -48,13 +56,48 @@ adminRoutes.get("/:token/members", async (c) => {
   // 未付 counts only the events one runs, without `group`: other people's fees stay theirs.
   const actor = c.get("actor");
   const owing = await owingByMember(c.env, can(actor.role, "group") ? null : actor.memberId);
-  const all = results.map((m) => ({ ...toSummary(m), owingCents: owing.get(m.id) ?? 0 }));
+  const all = results.map((m) => ({
+    ...toSummary(m),
+    owingCents: owing.get(m.id) ?? 0,
+    isOrganizer: m.status === "active" && memberRole(c.env, m) === "organizer",
+  }));
   return c.json<MembersResponse>({
     pending: all.filter((m) => m.status === "pending"),
     active: all.filter((m) => m.status === "active"),
     inactive: all.filter((m) => m.status === "inactive" && !m.deletedAt),
     deleted: all.filter((m) => !!m.deletedAt),
+    organizers: await organizersBlock(c.env, can(actor.role, "group")),
   });
+});
+
+/** 设为组织者 (design §8). */
+adminRoutes.post("/:token/members/:id/appoint", async (c) => {
+  assertOrganizersOn(c.env);
+  return c.json(await appointOrganizer(c.env, c.req.param("id")));
+});
+
+/** What 撤销组织者 would do, for the confirmation. */
+adminRoutes.get("/:token/members/:id/revoke", async (c) => {
+  assertOrganizersOn(c.env);
+  return c.json({ events: await revokeImpact(c.env, (await requireMember(c.env, c.req.param("id"))).id) });
+});
+
+adminRoutes.post("/:token/members/:id/revoke", async (c) => {
+  assertOrganizersOn(c.env);
+  return c.json(await revokeOrganizer(c.env, await requireMember(c.env, c.req.param("id")), "owner"));
+});
+
+/** 不再当组织者: an organizer steps down; the same rules as being revoked. */
+adminRoutes.get("/:token/organizer/retire", async (c) => {
+  const actor = c.get("actor");
+  if (actor.role !== "organizer" || !actor.memberId) throw badRequest("只有组织者可以这样做");
+  return c.json({ events: await revokeImpact(c.env, actor.memberId) });
+});
+
+adminRoutes.post("/:token/organizer/retire", async (c) => {
+  const actor = c.get("actor");
+  if (actor.role !== "organizer" || !actor.memberId) throw badRequest("只有组织者可以这样做");
+  return c.json(await revokeOrganizer(c.env, await requireMember(c.env, actor.memberId), "self"));
 });
 
 const origin = (url: string) => new URL(url).origin;
@@ -129,6 +172,9 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.is_owner) throw badRequest("不能停用群主本人");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
+  // An organizer stops being one first (design §8), whatever the flag says: their events go back
+  // to the Owner and they are told what still pays into their account.
+  const revoked = m.role === "organizer" ? await revokeOrganizer(c.env, m, "owner") : null;
   await closeExpired(c.env); // an event past its deadline keeps its sign-ups
   await c.env.DB.batch([
     // The link keeps working so they can still pay what they owe; sign-up is refused.
@@ -138,7 +184,7 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
       "DELETE FROM registrations WHERE member_id = ? AND event_id IN (SELECT id FROM events WHERE status = 'open')",
     ).bind(m.id),
   ]);
-  return c.json({ ok: true });
+  return c.json({ ok: true, revoked });
 });
 
 adminRoutes.post("/:token/settings/password", async (c) => {
@@ -198,6 +244,7 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
         ? `${m.username} 还在 ${pending.date} 活动的名单上，这场还没收齐，费用还可能变。请等这场收齐归档，或者把这个人从名单上删掉，再删除成员`
         : `${m.username} 还在 ${pending.date} 活动的名单上，这场还没结算。请先结算这场，或者把这个人从名单上删掉，再删除成员`,
     );
+  await assertNotPayee(c.env, m);
   // History stays; the link, the Google account and the name are released, so the person (or
   // someone else with that name) can apply again. The old record keeps the name with its ID
   // appended, e.g. "Alice（M004）", so rosters and rankings never mix the two up.

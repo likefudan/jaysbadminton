@@ -5,7 +5,7 @@ import { syncDeadline } from "./deadlines";
 import { codeOf, eventNumberBase, nextEventNumber, parsePaymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
-import { eventPayee, ownerId } from "./organizers";
+import { eventManager, eventPayee, ownerId } from "./organizers";
 import { payeeName } from "./payees";
 
 export interface EventRow {
@@ -127,12 +127,14 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
 export async function detail(env: Env, e: EventRow, viewer: string | null): Promise<EventDetail> {
   const list = await roster(env, e.id);
   const payee = await eventPayee(env.DB, e);
+  const manager = await eventManager(env.DB, e);
   return {
     ...toSummary(e, list.length),
     roster: list,
     dunningStopped: e.dunning_stopped === 1,
     deletable: isDeletable(e),
     payee: { id: payee, name: await payeeName(env.DB, payee), isMe: !!payee && payee === viewer },
+    manager: { id: manager, name: await payeeName(env.DB, manager), isMe: !!manager && manager === viewer },
   };
 }
 
