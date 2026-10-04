@@ -25,7 +25,7 @@ const cookieOptions = (c: Ctx) => ({
 const loginRequired = () => new HttpError(401, "login_required", "请先使用 Google 登录");
 /** One email is one person: a Google account whose email another member already holds is refused. */
 const googleEmailTaken = () =>
-  new HttpError(409, "email_taken", "这个 Google 账号的邮箱已经登记在另一位成员名下，请联系管理员");
+  new HttpError(409, "email_taken", "这个 Google 账号的邮箱已经登记在另一位成员名下，请联系群主");
 
 /** Accept only HTTPS avatar URLs from Google's image hosts. Missing profiles still sign in. */
 function profilePicture(value: unknown): string | null {
@@ -66,7 +66,7 @@ export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): 
   const m = await memberByGoogle(c.env, session.google_sub);
   if (!m) throw new HttpError(409, "profile_required", "请先完善成员资料");
   if (m.status === "pending")
-    throw new HttpError(403, "pending_approval", "你的入群申请正在等待管理员审核，通过后才能报名活动");
+    throw new HttpError(403, "pending_approval", "你的入群申请正在等待群主审核，通过后才能报名活动");
   return m;
 }
 
@@ -206,7 +206,7 @@ googleRoutes.post("/register", async (c) => {
   if (!session) throw loginRequired();
   const existing = await memberByGoogle(c.env, session.google_sub);
   if (existing?.status === "pending")
-    throw new HttpError(409, "already_applied", "你的入群申请已经提交，请等待管理员审核");
+    throw new HttpError(409, "already_applied", "你的入群申请已经提交，请等待群主审核");
   if (existing) throw new HttpError(409, "already_registered", "此 Google 账号已关联成员，请返回我的页面");
   const body = await readJson(c.req.raw);
   if (await emailTaken(c.env, session.email)) throw googleEmailTaken();
@@ -237,7 +237,7 @@ googleRoutes.post("/link", async (c) => {
   if (!session) throw loginRequired();
   const body = await readJson(c.req.raw);
   const m = await memberByToken(c.env, str(body.token));
-  if (!m) throw new HttpError(403, "invalid_link", "原成员链接无效，请联系管理员");
+  if (!m) throw new HttpError(403, "invalid_link", "原成员链接无效，请联系群主");
   if (m.google_sub === session.google_sub) return c.json({ ok: true });
   const holder = await memberByGoogle(c.env, session.google_sub);
   if (holder) throw new HttpError(409, "already_linked", "此成员或 Google 账号已绑定，请使用原账号登录");

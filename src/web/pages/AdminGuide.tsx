@@ -46,7 +46,7 @@ function Section(props: { title: string; open?: boolean; children: ComponentChil
   );
 }
 
-/** 管理员指南: what to set up, how Venmo forwarding works and is tested, and how to recover access. */
+/** 使用指南: what to set up, how Venmo forwarding works and is tested, and how to recover access. */
 export function AdminGuide(props: { base: string }) {
   const s = useStatus(props.base);
   const host = location.hostname;
@@ -54,12 +54,12 @@ export function AdminGuide(props: { base: string }) {
   const join = `${location.origin}/login`; // 登录 / 注册: Google or email
 
   return (
-    <Card title="管理员指南">
+    <Card title="使用指南">
       <Section title="一、第一次设置后要做的事" open={!!s && !(s.venmo && s.telegram)}>
         <ol class="checklist">
           <Step>
             <b>收藏管理链接</b>。打开管理页需要「管理链接 +
-            管理密码」两样。如果是用初始密码登录的，请在上面「修改管理密码」里改成你自己的。
+            群主密码」两样。如果是用初始密码登录的，请在上面「修改群主密码」里改成你自己的。
           </Step>
           <Step done={s?.telegram}>
             <b>连接 Telegram</b>（上面「Telegram 通知」→
@@ -71,7 +71,7 @@ export function AdminGuide(props: { base: string }) {
             里的密钥丢了，部署时会用它自动恢复，成员链接、管理链接和表格同步脚本才能继续显示和找回。
           </Step>
           <Step done={s?.venmo}>
-            <b>填写收款设置</b>（上面「收款设置」，保存时要输入管理密码）：Venmo 用户名、Venmo 通知邮箱（Venmo
+            <b>填写收款设置</b>（上面「收款设置」，保存时要输入群主密码）：Venmo 用户名、Venmo 通知邮箱（Venmo
             账户里登记的、收款通知发到的那个邮箱），Zelle 选填。
           </Step>
           <Step done={!!s?.email.lastAt}>
@@ -152,7 +152,7 @@ export function AdminGuide(props: { base: string }) {
             里给机器人发送「管理页面」，它会把链接发给你（只回复已连接的那个账号）。没连 Telegram 的话，请网站维护者在
             GitHub → Actions → CI → Run workflow，「Use workflow from」选最新的版本标签（v 开头），勾选 reset_admin_link
             运行一次（测试环境则选 main），然后打开 <code>{location.origin}/admin</code>{" "}
-            用当前的管理密码重新生成（没在管理页改过密码的话，就是 GitHub 里的 ADMIN_PASSWORD，测试环境是
+            用当前的群主密码重新生成（没在管理页改过密码的话，就是 GitHub 里的 ADMIN_PASSWORD，测试环境是
             ADMIN_PASSWORD_STAGING）。
           </li>
           <li>
@@ -164,7 +164,7 @@ export function AdminGuide(props: { base: string }) {
             <b>换一部手机</b>：用管理链接打开，输入密码即可；每台设备记住登录 30 天。
           </li>
           <li>
-            <b>交接给新的管理员</b>：用下面的「清空所有数据」重置网站，新管理员用管理密码在{" "}
+            <b>交接给新的群主</b>：用下面的「清空所有数据」重置网站，新群主用群主密码在{" "}
             <code>{location.origin}/admin</code> 做初次设置，再按本指南走一遍。
           </li>
         </ul>

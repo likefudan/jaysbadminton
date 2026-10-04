@@ -28,7 +28,7 @@ export function EventPage(props: { code?: string }) {
               {(member === "none" || member === "loading") && (
                 <p class="muted small">登录后即可报名；新朋友请先注册入群。</p>
               )}
-              {member === "pending" && <p class="muted small">你的入群申请正在等待管理员审核，通过后就能报名。</p>}
+              {member === "pending" && <p class="muted small">你的入群申请正在等待群主审核，通过后就能报名。</p>}
             </>
           )}
           <a class="button block" href="/me">

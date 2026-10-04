@@ -154,7 +154,7 @@ async function ownerSignupEvent(env: Env, id: string) {
   const owner = await env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{
     id: string;
   }>();
-  if (!owner) throw badRequest("找不到管理员本人的成员记录");
+  if (!owner) throw badRequest("找不到群主本人的成员记录");
   return { e, ownerId: owner.id };
 }
 
@@ -193,7 +193,7 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
 adminEventRoutes.post("/events/:id/delete", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   if (!(await checkPassword(c.env, str((await readJson(c.req.raw)).password))))
-    throw new HttpError(401, "wrong_password", "管理密码不正确");
+    throw new HttpError(401, "wrong_password", "群主密码不正确");
   if (!isDeletable(e)) throw badRequest("只能删除已收齐归档或已取消的活动");
   await deleteEvent(c.env, e);
   await clearDeadline(c.env, e.id);
@@ -201,7 +201,7 @@ adminEventRoutes.post("/events/:id/delete", async (c) => {
   await sendToOwner(
     c.env,
     message(
-      `🗑 活动 ${label} 已从数据库永久删除（报名、账单和付款记录一并删除）。\n\n如果不是你本人操作，请立刻修改管理密码。`,
+      `🗑 活动 ${label} 已从数据库永久删除（报名、账单和付款记录一并删除）。\n\n如果不是你本人操作，请立刻修改群主密码。`,
     ),
   );
   return c.json({ ok: true });
@@ -405,7 +405,7 @@ adminEventRoutes.post("/settings", async (c) => {
  */
 adminEventRoutes.post("/settings/payment", async (c) => {
   const b = await readJson(c.req.raw);
-  if (!(await checkPassword(c.env, str(b.password)))) throw new HttpError(401, "wrong_password", "管理密码不正确");
+  if (!(await checkPassword(c.env, str(b.password)))) throw new HttpError(401, "wrong_password", "群主密码不正确");
   const venmo = str(b.venmoUsername).trim().replace(/^@/, "");
   if (venmo && !/^[A-Za-z0-9_-]{2,30}$/.test(venmo)) throw badRequest("Venmo 用户名格式不对（不用加 @）");
   // Receipts are only trusted when addressed to this email (the signed To header), so it comes with the username.
@@ -427,7 +427,7 @@ adminEventRoutes.post("/settings/payment", async (c) => {
   ].filter(([, a, z]) => a !== z);
   if (changes.length) {
     const lines = changes.map(([k, a, z]) => `${k}：${a || "（空）"} → ${z || "（空）"}`).join("\n");
-    await sendToOwner(c.env, message(`🔐 收款设置已修改\n${lines}\n\n如果不是你本人操作，请立刻修改管理密码。`));
+    await sendToOwner(c.env, message(`🔐 收款设置已修改\n${lines}\n\n如果不是你本人操作，请立刻修改群主密码。`));
   }
   return c.json({ ok: true });
 });
@@ -570,7 +570,7 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
     throw badRequest(`这个活动归档已超过 ${LINK_ARCHIVED_DAYS} 天，不能再撤销`);
   // The Owner's own bill is paid by itself, and every recompute redoes that receipt anyway.
   if (r.method === "manual" && !r.venmo_txn_id && (await isOwner(c.env, p.member_id)))
-    throw badRequest("管理员本人的账单自动记为已付，不用撤销");
+    throw badRequest("群主本人的账单自动记为已付，不用撤销");
   // On an archived bill every statement also checks, inside the transaction, that the bill stays
   // paid without this receipt, so two removals at once can't both pass and leave it unpaid.
   const keepsPaid =
@@ -675,7 +675,7 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   if (!bill.linkable)
     throw badRequest(
       bill.is_owner
-        ? "管理员本人的账单不用关联"
+        ? "群主本人的账单不用关联"
         : bill.deleted_at
           ? "这个成员已删除，他付清的账单不能再关联"
           : bill.status === "settled" && (bill.settled_at ?? "") < linkCutoff()
@@ -782,7 +782,7 @@ adminEventRoutes.post("/inbound/:iid/purge", async (c) => {
 /** 清空 已删除: needs the admin password as well as the page's confirmation. */
 adminEventRoutes.post("/inbound/trash/clear", async (c) => {
   if (!(await checkPassword(c.env, str((await readJson(c.req.raw)).password))))
-    throw new HttpError(401, "wrong_password", "管理密码不正确");
+    throw new HttpError(401, "wrong_password", "群主密码不正确");
   const res = await c.env.DB.prepare("DELETE FROM inbound_payments WHERE state = 'deleted'").run();
   return c.json({ ok: true, removed: res.meta.changes });
 });

@@ -16,7 +16,7 @@ type Ctx = Context<{ Bindings: Env }>;
  * made in the admin page are kept until the secret itself changes again.
  */
 export async function syncEnvPassword(env: Env): Promise<void> {
-  if (!env.ADMIN_PASSWORD || !env.TOKEN_KEY) throw new HttpError(500, "misconfigured", "系统尚未配置管理密码");
+  if (!env.ADMIN_PASSWORD || !env.TOKEN_KEY) throw new HttpError(500, "misconfigured", "系统尚未配置群主密码");
   const fp = await hmac(`admin-password:${env.ADMIN_PASSWORD}`, env.TOKEN_KEY);
   const s = await getSettings(env.DB, ["admin_password_env_fp"]);
   if (s.admin_password_env_fp === fp) return;

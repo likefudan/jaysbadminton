@@ -88,9 +88,9 @@ function GoogleAdminLogin() {
   const [session] = useApi<{ signedIn: boolean; email: string | null }>("/api/auth/session");
   const other = session.state === "ok" && session.data.signedIn ? session.data.email : null;
   return (
-    <Page title="管理员登录">
+    <Page title="群主登录">
       <Card>
-        {other && <p class="error">当前登录的 Google 账号 {other} 不是管理员绑定的账号。</p>}
+        {other && <p class="error">当前登录的 Google 账号 {other} 不是群主绑定的账号。</p>}
         <button
           type="button"
           class="button block"
@@ -114,11 +114,11 @@ function Login(props: { base: string; onDone: () => void }) {
     if (await run(() => api(`${props.base}/login`, { password }))) props.onDone();
   }
   return (
-    <Page title="管理员登录">
+    <Page title="群主登录">
       <Card>
         <form onSubmit={submit}>
           <Field
-            label="管理密码"
+            label="群主密码"
             type="password"
             value={password}
             onInput={setPassword}
@@ -152,7 +152,7 @@ const who = (m: MemberSummary, onOpen?: (m: MemberSummary) => void) => {
       ) : (
         name
       )}
-      {m.isOwner && <span class="badge">管理员</span>}
+      {m.isOwner && <span class="badge">群主</span>}
       <small>
         {m.id} · 微信：{m.wechatAccount || m.wechatNickname}
         {m.applicantName && ` · 身份：${m.applicantName}`}

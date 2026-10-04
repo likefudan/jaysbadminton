@@ -23,7 +23,7 @@ export function AdminSetup() {
               <p class="muted small">
                 管理链接丢失时，可在 GitHub Actions
                 里手动运行部署并勾选「reset_admin_link」（正式环境选最新的版本标签，测试环境选
-                main），然后回到这里用管理密码重新设置。
+                main），然后回到这里用群主密码重新设置。
               </p>
             </Card>
           </Page>
@@ -89,11 +89,11 @@ function SetupForm() {
       <Card>
         <form onSubmit={submit}>
           <Field
-            label="管理密码"
+            label="群主密码"
             type="password"
             value={password}
             onInput={setPassword}
-            hint="当前的管理密码（第一次部署时就是 GitHub 里的 ADMIN_PASSWORD；在管理页改过的话用改后的）"
+            hint="当前的群主密码（第一次部署时就是 GitHub 里的 ADMIN_PASSWORD；在管理页改过的话用改后的）"
             autocomplete="current-password"
           />
           <Field label="你的用户名" value={username} onInput={setUsername} hint="你作为成员报名时显示的名字" />

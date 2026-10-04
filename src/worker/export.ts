@@ -47,7 +47,7 @@ export const TABLES = {
       const rows = await all(env, "SELECT * FROM members ORDER BY id");
       return {
         title: this.title,
-        columns: ["成员编号", "用户名", "微信昵称", "邮箱", "管理员备注", "状态", "Owner", "申请时间", "通过时间"],
+        columns: ["成员编号", "用户名", "微信昵称", "邮箱", "群主备注", "状态", "群主", "申请时间", "通过时间"],
         rows: rows.map((m) => [
           m.id,
           m.username,
@@ -117,7 +117,7 @@ export const TABLES = {
       );
       return {
         title: this.title,
-        columns: ["活动编号", "日期", "成员编号", "成员", "名字", "是朋友", "到场", "管理员添加", "报名时间"],
+        columns: ["活动编号", "日期", "成员编号", "成员", "名字", "是朋友", "到场", "群主添加", "报名时间"],
         rows: rows.map((r) => [
           r.number,
           r.date,

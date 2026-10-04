@@ -18,7 +18,7 @@ const ERRORS: Record<string, string> = {
   not_configured: "网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。",
   invalid_state: "登录请求已过期，请重新登录。",
   cancelled: "你取消了 Google 登录，可以再试一次。",
-  failed: "Google 登录未完成，请重试。若持续失败，请联系管理员。",
+  failed: "Google 登录未完成，请重试。若持续失败，请联系群主。",
 };
 
 export function Logout() {
@@ -57,9 +57,7 @@ export function GoogleLink(props: { token: string }) {
       <p>绑定后可直接进入我的活动，原有报名和账单都会保留。</p>
       {session.state === "ok" && !session.data.enabled ? (
         <>
-          <p class="hint">
-            网站尚未启用 Google 绑定。你可以继续在这里报名和查看账单；开通后可自行绑定，无需管理员审批。
-          </p>
+          <p class="hint">网站尚未启用 Google 绑定。你可以继续在这里报名和查看账单；开通后可自行绑定，无需群主审批。</p>
           <button type="button" class="button secondary block" onClick={reload}>
             重新检查绑定是否可用
           </button>
@@ -97,7 +95,7 @@ const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
 function SignIn(props: { googleEnabled: boolean }) {
   const error = ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""];
   return (
-    <Page title="登录 / 注册" subtitle="已经是成员就登录；新朋友在这里申请入群，管理员审核后就能报名。">
+    <Page title="登录 / 注册" subtitle="已经是成员就登录；新朋友在这里申请入群，群主审核后就能报名。">
       {error && (
         <p class="error" role="alert">
           {error}
@@ -140,7 +138,7 @@ export function Account(props: { page?: "profile" }) {
           return (
             <Page title="申请已提交" subtitle={`Google 账号：${s.email}`}>
               <Card>
-                <p>管理员审核通过后，用这个 Google 账号登录就能报名活动、查看账单。</p>
+                <p>群主审核通过后，用这个 Google 账号登录就能报名活动、查看账单。</p>
                 <p class="muted small">审核前还不能报名。你可以刷新查看审核状态。</p>
                 {s.emailNotificationsEnabled && (
                   <p class="muted small">审核通过后会向你的 Google 邮箱发送通知，请留意收件箱和垃圾邮件。</p>
@@ -212,7 +210,7 @@ function Profile(props: { email: string; onDone: () => void }) {
                 message={message}
                 setMessage={setMessage}
               />
-              <p class="muted small">提交后需要管理员审核，通过后才能报名活动。</p>
+              <p class="muted small">提交后需要群主审核，通过后才能报名活动。</p>
             </>
           )}
           {error && (

@@ -186,7 +186,7 @@ test("the admin gets in with the bound Google account; another account is told s
   await page.route("**/api/admin/google/members", (route) =>
     route.fulfill({
       status: 401,
-      json: { error: { code: "google_admin_required", message: "请用管理员绑定的 Google 账号登录" } },
+      json: { error: { code: "google_admin_required", message: "请用群主绑定的 Google 账号登录" } },
     }),
   );
   await page.route(/\/api\/auth\/google\?next=/, (route) =>
@@ -194,7 +194,7 @@ test("the admin gets in with the bound Google account; another account is told s
   );
 
   await page.goto("/admin/google");
-  await expect(page.getByText("当前登录的 Google 账号 someone@gmail.com 不是管理员绑定的账号。")).toBeVisible();
+  await expect(page.getByText("当前登录的 Google 账号 someone@gmail.com 不是群主绑定的账号。")).toBeVisible();
   await page.getByRole("button", { name: "换一个 Google 账号登录" }).click();
   await expect(page).toHaveURL(/\/api\/auth\/google\?next=\/admin\/google$/);
 

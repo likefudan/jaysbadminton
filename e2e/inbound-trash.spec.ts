@@ -60,7 +60,7 @@ test("已删除: delete a payment, restore one, and 清空 with the password", a
   await trash.getByRole("button", { name: "恢复" }).first().click();
   await trash.getByRole("button", { name: "永久删除", exact: true }).first().click();
   await trash.getByRole("button", { name: "清空" }).click();
-  await trash.getByLabel("管理密码").fill("pw");
+  await trash.getByLabel("群主密码").fill("pw");
   await trash.getByRole("button", { name: "永久删除全部 2 笔" }).click();
 
   await expect.poll(() => calls.length).toBe(5);

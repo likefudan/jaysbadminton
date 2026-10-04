@@ -48,7 +48,7 @@ One Worker answers everything on `https://jaysbadminton.llmat.dev`: page paths r
 | `/export/{key}/all.json` | Owner (export key) | The JSON feed for the Google Sheets mirror (CSV downloads go through the admin API) |
 
 - `{code}` is the event code from the requirements: the event's date when it was created, as MMDD (`1006`), with a letter suffix for a later event created for the same day (`1006B`). It comes from the event's fixed number (`jbm20261006`, `jbm20261006b`; see Event number) and does not change when the date is edited. Only the number is unique: codes repeat from one year to the next, and events that shared a number before migration 0021 kept their old codes, so the public page opens the matching event with the latest start time.
-- Unknown or revoked tokens show a neutral "链接无效，请联系管理员" page with no detail.
+- Unknown or revoked tokens show a neutral "链接无效，请联系群主" page with no detail.
 - Everything the Worker answers (`/`, `/e/*`, `/api/*`, `/export/*`, `/robots.txt`) sends `Cache-Control: no-store` and `Referrer-Policy: no-referrer`, so tokens are not cached or leaked to Venmo or other sites. The other pages, `/m/*` and `/admin/*` included, are the static app shell served by Cloudflare with `src/web/public/_headers`: it sets `Referrer-Policy: no-referrer` and the other security headers, but not `Cache-Control: no-store`. The shell holds no token or member data; those come from `/api`.
 
 ## Identity and security

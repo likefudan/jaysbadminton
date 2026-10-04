@@ -237,7 +237,7 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
         <p class="ok">✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}</p>
       )}
       {friendsOnly && !editing && (
-        <p class="muted">你本人没有报名；管理员在你名下加了 {e.myFriends!.length} 个朋友，费用算在你的账单上。</p>
+        <p class="muted">你本人没有报名；群主在你名下加了 {e.myFriends!.length} 个朋友，费用算在你的账单上。</p>
       )}
       {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
       {!editing && <EventActions e={e} calendar={signedUp && !e.payment} />}
@@ -304,7 +304,7 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
         </>
       )}
       {!e.canEdit && e.status === "closed" && (signedUp || friendsOnly) && (
-        <p class="muted small">报名已截止，需要修改请联系管理员。费用会在活动后公布。</p>
+        <p class="muted small">报名已截止，需要修改请联系群主。费用会在活动后公布。</p>
       )}
       {e.payment && <PaymentBox p={e.payment} />}
     </Card>
