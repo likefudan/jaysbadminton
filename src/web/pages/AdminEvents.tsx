@@ -429,7 +429,7 @@ function Transfer(props: {
     if (!target) return;
     const money = finalized
       ? `账单已经发出，收款人仍是 ${e.payee.name}，只换负责人。`
-      : `收款人也一起换成 ${target.label}，结算后成员把钱付给他。${target.ready ? "" : `\n\n${target.label} 还没填好收款设置，填好之前这场不能结算。`}`;
+      : `收款人也一起换成 ${target.label}，结算后成员把钱付给他（${e.payee.name}本人和挂在名下的朋友也要付）。${target.ready ? "" : `\n\n${target.label} 还没填好收款设置，填好之前这场不能结算。`}`;
     if (!confirm(`把这场活动转给 ${target.label}？\n\n${money}`)) return;
     if (await run(() => api(`${props.eb}/transfer`, { to }))) {
       setTo("");

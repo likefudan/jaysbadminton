@@ -96,7 +96,7 @@ export async function appointOrganizer(env: Env, id: string): Promise<{ emailSta
   if (!done[0]!.meta.changes) {
     // Something changed in between (appointed, disabled, Google unlinked): say what.
     assertAppointable(await requireMember(env, id));
-    throw badRequest(`${m.username} 已经是组织者了`);
+    throw badRequest("刚才有别的操作改了他的状态，请刷新页面后再试");
   }
   if (!m.google_email) return { emailStatus: "no_address" };
   const emailStatus = await sendEmail(env, {

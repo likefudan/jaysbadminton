@@ -89,7 +89,10 @@ adminRoutes.get("/:token/members/:id/revoke", async (c) => {
 
 adminRoutes.post("/:token/members/:id/revoke", async (c) => {
   assertOrganizersOn(c.env);
-  return c.json(await revokeOrganizer(c.env, await requireMember(c.env, c.req.param("id")), "owner"));
+  const m = await requireMember(c.env, c.req.param("id"));
+  // Disabled ones (by older code) are revoked by 恢复, with the right email.
+  if (m.status !== "active") throw badRequest("请先「恢复」这个成员（会撤销组织者身份）");
+  return c.json(await revokeOrganizer(c.env, m, "owner"));
 });
 
 /** 不再当组织者: an organizer steps down; the same rules as being revoked. */

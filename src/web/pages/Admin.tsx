@@ -508,6 +508,9 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
 /** The revoke confirmation: what happens to each of their events that is not archived (design §8). */
 function revokeSummary(events: RevokeImpact[]): string {
   if (events.length === 0) return "\n\n他没有未归档的活动。";
+  const own = events.some((e) => e.outcome === "to_owner" || e.outcome === "payee_to_owner")
+    ? "\n\n还没结算的活动换了收款人以后，他本人和挂在他名下的朋友也要和别人一样付钱。"
+    : "";
   const what: Record<RevokeImpact["outcome"], string> = {
     to_owner: "还没结算：负责人和收款人都转给群主",
     payee_stays: "收款中：由群主接手管理，钱继续付到他的账户，直到收齐",
@@ -523,7 +526,7 @@ function revokeSummary(events: RevokeImpact[]): string {
           : what[e.outcome];
       return `· ${formatDateZh(e.date, false)}${e.title ? ` ${e.title}` : ""}：${label}`;
     })
-    .join("\n")}`;
+    .join("\n")}${own}`;
 }
 
 /** Why an appointment or revoke email did not go out. */
