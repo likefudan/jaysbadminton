@@ -87,7 +87,17 @@ googleRoutes.use("*", async (c, next) => {
   await next();
 });
 googleRoutes.get("/session", async (c) => {
-  if (await developerMember(c)) return c.json({ enabled: googleEnabled(c.env), signedIn: true, email: null, picture: null, hasMember: true, pending: false, isAdmin: false, developer: true });
+  if (await developerMember(c))
+    return c.json({
+      enabled: googleEnabled(c.env),
+      signedIn: true,
+      email: null,
+      picture: null,
+      hasMember: true,
+      pending: false,
+      isAdmin: false,
+      developer: true,
+    });
   const session = await googleSession(c);
   const member = session ? await memberByGoogle(c.env, session.google_sub) : null;
   return c.json({

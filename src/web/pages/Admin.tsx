@@ -25,7 +25,14 @@ export function Admin(props: { token?: string }) {
     return t === "settings" || t === "members" || t === "pending" ? t : "events";
   });
 
-  if (members.state === "error" && members.code === "developer_login_required") return <Page title="开发者登录"><a class="button block" href="/login">前往开发者登录</a></Page>;
+  if (members.state === "error" && members.code === "developer_login_required")
+    return (
+      <Page title="开发者登录">
+        <a class="button block" href="/login">
+          前往开发者登录
+        </a>
+      </Page>
+    );
   if (members.state === "error" && members.code === "google_admin_required") return <GoogleAdminLogin />;
   if (members.state === "error" && members.code === "login_required") return <Login base={base} onDone={reload} />;
   if (members.state === "error" && members.code === "invalid_link") {
