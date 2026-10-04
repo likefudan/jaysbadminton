@@ -63,6 +63,11 @@ export async function eventPayee(db: D1Database, e: { payee_id: string | null })
   return e.payee_id ?? ownerId(db);
 }
 
+/** Whose account a received payment (inbound_payments) went into. */
+export async function inboundPayee(db: D1Database, i: { payee_id: string | null }): Promise<string | null> {
+  return i.payee_id ?? ownerId(db);
+}
+
 export interface PayeeProfile {
   memberId: string;
   venmoUsername: string;

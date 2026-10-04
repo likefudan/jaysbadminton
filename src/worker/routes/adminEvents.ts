@@ -38,6 +38,8 @@ import {
 } from "../events";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
+import type { AdminEnv } from "../access";
+import { can } from "../organizers";
 import { SITE_TITLE_MAX, siteTheme, siteTitle } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
@@ -56,8 +58,8 @@ import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { disconnect, sendToOwner, startBinding, telegramStatus } from "../telegram";
 
-/** Mounted under /api/admin/:token after the admin auth middleware. */
-export const adminEventRoutes = new Hono<{ Bindings: Env }>();
+/** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
+export const adminEventRoutes = new Hono<AdminEnv>();
 
 const num = (v: unknown) => (typeof v === "number" ? v : Number(v));
 
@@ -67,14 +69,20 @@ const PAST_PAGE = 30;
 adminEventRoutes.get("/events", async (c) => {
   const want = Math.floor(Number(c.req.query("past") ?? PAST_PAGE));
   const limit = Number.isFinite(want) ? Math.min(Math.max(want, PAST_PAGE), 2000) : PAST_PAGE;
+  // Without `group`, only the events one manages (NULL is the Owner's, so never an organizer's).
+  const actor = c.get("actor");
+  const mine = can(actor.role, "group") ? [] : [actor.memberId];
+  const only = mine.length ? "AND manager_id = ?" : "";
   const current = await c.env.DB.prepare(
-    "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at",
-  ).all<EventRow>();
+    `SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ${only} ORDER BY start_at`,
+  )
+    .bind(...mine)
+    .all<EventRow>();
   // One more than shown, to know whether there are older ones.
   const past = await c.env.DB.prepare(
-    "SELECT * FROM events WHERE status IN ('settled', 'cancelled') ORDER BY start_at DESC LIMIT ?",
+    `SELECT * FROM events WHERE status IN ('settled', 'cancelled') ${only} ORDER BY start_at DESC LIMIT ?`,
   )
-    .bind(limit + 1)
+    .bind(...mine, limit + 1)
     .all<EventRow>();
   return c.json({
     current: await summaries(c.env, current.results),
@@ -122,7 +130,11 @@ adminEventRoutes.post("/locations/remove", async (c) => {
 
 adminEventRoutes.post("/events", async (c) => {
   const b = await readJson(c.req.raw);
+  const actor = c.get("actor");
+  // Whoever creates it runs it and is paid for it (the Owner's own events, as before, are theirs).
   const e = await createEvent(c.env, {
+    managerId: actor.memberId,
+    rememberDefaults: can(actor.role, "group"),
     date: str(b.date),
     startTime: str(b.startTime),
     endTime: str(b.endTime),
@@ -132,44 +144,49 @@ adminEventRoutes.post("/events", async (c) => {
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
-  // "我自己也报名": the Owner signs up as a normal player (ticked by default in the form).
+  // "我自己也报名": the creator signs up as a normal player (ticked by default in the form).
   if (b.joinSelf === true) {
-    const owner = await c.env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{
-      id: string;
-    }>();
-    if (owner) await setSignup(c.env, e.id, owner.id, [], false);
+    const self = await activeSelf(c.env, actor.memberId);
+    if (self) await setSignup(c.env, e.id, self, [], false);
   }
   return c.json(await detail(c.env, e));
 });
 
+/** The signed-in person's member id while they are an active member (they can play), else null. */
+async function activeSelf(env: Env, memberId: string | null): Promise<string | null> {
+  if (!memberId) return null;
+  const m = await env.DB.prepare("SELECT id FROM members WHERE id = ? AND status = 'active' AND deleted_at IS NULL")
+    .bind(memberId)
+    .first<{ id: string }>();
+  return m?.id ?? null;
+}
+
 /**
- * 我的报名: the Owner signs themselves up (with friends) from the admin page, which is their only
- * link. Allowed until Finalize, like any roster edit before the bills exist; no friend cap.
+ * 我的报名: whoever runs the event signs themselves up (with friends) from the admin page.
+ * Allowed until Finalize, like any roster edit before the bills exist; no friend cap.
  */
-async function ownerSignupEvent(env: Env, id: string) {
+async function selfSignupEvent(env: Env, id: string, memberId: string | null) {
   await closeExpired(env);
   const e = await getEvent(env, Number(id));
   if (e.status !== "open" && e.status !== "closed")
     throw badRequest("已经结算，不能再改自己的报名；需要调整请直接改名单");
-  const owner = await env.DB.prepare("SELECT id FROM members WHERE is_owner = 1 AND status = 'active'").first<{
-    id: string;
-  }>();
-  if (!owner) throw badRequest("找不到群主本人的成员记录");
-  return { e, ownerId: owner.id };
+  const self = await activeSelf(env, memberId);
+  if (!self) throw badRequest("找不到你本人的成员记录");
+  return { e, self };
 }
 
 adminEventRoutes.post("/events/:id/self-signup", async (c) => {
-  const { e, ownerId } = await ownerSignupEvent(c.env, c.req.param("id"));
+  const { e, self } = await selfSignupEvent(c.env, c.req.param("id"), c.get("actor").memberId);
   const body = await readJson(c.req.raw);
-  // No cap for the Owner, but friends already on the list (some may be added from 添加人员) may stay.
-  const keep = await friendCount(c.env, e.id, ownerId);
-  await setSignup(c.env, e.id, ownerId, validateFriends(body.friends ?? [], null, keep), false);
+  // No cap here, but friends already on the list (some may be added from 添加人员) may stay.
+  const keep = await friendCount(c.env, e.id, self);
+  await setSignup(c.env, e.id, self, validateFriends(body.friends ?? [], null, keep), false);
   return c.json(await detail(c.env, e));
 });
 
 adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
-  const { e, ownerId } = await ownerSignupEvent(c.env, c.req.param("id"));
-  await removeSignup(c.env, e.id, ownerId);
+  const { e, self } = await selfSignupEvent(c.env, c.req.param("id"), c.get("actor").memberId);
+  await removeSignup(c.env, e.id, self);
   return c.json(await detail(c.env, e));
 });
 
@@ -628,13 +645,16 @@ adminEventRoutes.post("/payments/:pid/refunded", async (c) => {
 });
 
 adminEventRoutes.get("/inbound", async (c) => {
+  // Without `group`: payments into one's own account, and bills of the events one runs.
+  const actor = c.get("actor");
+  const only = can(actor.role, "group") ? null : actor.memberId;
   const [open, done, ignored, deleted, payments, refunds] = await Promise.all([
-    inboundRows(c.env, "open"),
-    inboundRows(c.env, "done"),
-    inboundRows(c.env, "ignored"),
-    inboundRows(c.env, "deleted"),
-    openPayments(c.env),
-    refundRows(c.env),
+    inboundRows(c.env, "open", only),
+    inboundRows(c.env, "done", only),
+    inboundRows(c.env, "ignored", only),
+    inboundRows(c.env, "deleted", only),
+    openPayments(c.env, only),
+    refundRows(c.env, only),
   ]);
   return c.json<InboundResponse>({ open, done, ignored, deleted, payments, refunds });
 });

@@ -180,6 +180,13 @@ export async function friendCount(env: Env, eventId: number, memberId: string): 
 }
 
 export interface CreateEventInput {
+  /** Who runs it and is paid for it: whoever creates it (the Owner when left out). */
+  managerId?: string | null;
+  /**
+   * Whether this event's time, venue and deadline become the next 新建活动 form's defaults. Shared
+   * by everyone, so only the group's own (the Owner's) events set them; an organizer's leave them.
+   */
+  rememberDefaults?: boolean;
   date: string;
   startTime: string;
   endTime: string;
@@ -243,8 +250,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const address = input.address.trim();
   const title = cleanTitle(input.title);
   const ts = now();
-  // The Owner manages and is paid for every event until organizers can create their own (card 3).
-  const owner = await ownerId(env.DB);
+  const manager = input.managerId ?? (await ownerId(env.DB));
   // The 活动编号 skips every number an event created on this date has ever had (including events
   // since moved to another date or deleted), so no number is handed out twice. If two requests race
   // for the same one, the unique index refuses the second insert and it takes the next letter.
@@ -286,8 +292,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
           v.deadlineAt,
           v.offsetMin,
           ts,
-          owner,
-          owner,
+          manager,
+          manager,
         )
         .first<{ id: number }>();
       id = res!.id;
@@ -298,10 +304,14 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   }
   await env.DB.batch([
     saveVenue(env, location, address, ts),
-    setSetting(env.DB, "last_start_time", input.startTime),
-    setSetting(env.DB, "last_end_time", input.endTime),
-    setSetting(env.DB, "last_location", location),
-    setSetting(env.DB, "last_deadline_offset_min", String(v.offsetMin)),
+    ...(input.rememberDefaults === false
+      ? []
+      : [
+          setSetting(env.DB, "last_start_time", input.startTime),
+          setSetting(env.DB, "last_end_time", input.endTime),
+          setSetting(env.DB, "last_location", location),
+          setSetting(env.DB, "last_deadline_offset_min", String(v.offsetMin)),
+        ]),
   ]);
   await syncDeadline(env, id);
   return getEvent(env, id);
