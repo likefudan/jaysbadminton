@@ -1,3 +1,5 @@
+import { useStaging } from "../site";
+import { DeveloperLogin } from "../DeveloperTools";
 import { useState } from "preact/hooks";
 import { checkMessage, checkNickname, checkUsername } from "../../shared/rules";
 import { api } from "../api";
@@ -93,6 +95,7 @@ const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
 
 /** 登录 / 注册: the one way in for everyone — Google, or email (the link comes by email). */
 function SignIn(props: { googleEnabled: boolean }) {
+  const staging = useStaging();
   const error = ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""];
   return (
     <Page title="登录 / 注册" subtitle="已经是成员就登录；新朋友在这里申请入群，群主审核后就能报名。">
@@ -121,6 +124,7 @@ function SignIn(props: { googleEnabled: boolean }) {
           用邮箱注册
         </a>
       </Card>
+      {staging && <DeveloperLogin />}
       <p class="center">
         <a href="/recover">已经是成员？找回我的专属链接</a>
       </p>

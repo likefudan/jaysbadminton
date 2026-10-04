@@ -2985,3 +2985,10 @@ p.center a {
   border-radius: 14px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
 }
+
+/* Staging keeps the same bridge geometry and dimensions, in a distinct violet palette. */
+.logo.logo-staging { color: #7052b5; background: #eee8fc; }
+[data-mode="dark"] .logo.logo-staging { color: #c5afff; background: #34264c; }
+.developer-tools { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(18px, env(safe-area-inset-bottom)); z-index: 80; max-width: calc(100vw - 32px); }
+.developer-switch { background: #7052b5; color: #fff; border-color: #7052b5; box-shadow: 0 4px 16px #0003; }
+.developer-tools-panel { width: min(280px, calc(100vw - 32px)); padding: 16px; margin-bottom: 8px; border-radius: 16px; background: var(--surface); color: var(--text); border: 1px solid var(--line); box-shadow: 0 4px 20px #0003; }

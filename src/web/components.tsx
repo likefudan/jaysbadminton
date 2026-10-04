@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { Loaded } from "./hooks";
 import { AppearanceButton, AppearanceSheet } from "./Appearance";
 import { useSiteTitle, useStaging } from "./site";
+import { DeveloperSwitch } from "./DeveloperTools";
 import { GoogleAccount } from "./GoogleAccount";
 
 export function Page(props: { title: string; eyebrow?: string; subtitle?: string; children: ComponentChildren }) {
@@ -17,7 +18,7 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
       {staging && <div class="env-banner">测试环境 · 数据和正式网站分开，请不要转发这里的链接</div>}
       <header class="topbar">
         <a href="/" class="brand">
-          <span class="logo">
+          <span class={staging ? "logo logo-staging" : "logo"}>
             <BridgeMark />
           </span>
           <span class="brand-name">{site}</span>
@@ -36,6 +37,7 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
         </div>
         {props.children}
       </main>
+      {staging && <DeveloperSwitch />}
       <footer class="legal-links">
         <a href="/privacy">隐私政策</a>
         <span aria-hidden="true">·</span>

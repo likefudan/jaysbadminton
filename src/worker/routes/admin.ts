@@ -1,3 +1,4 @@
+import { developerMember, endDeveloperSession } from "../developer";
 import { sendApprovalEmail } from "../approvalEmail";
 import { Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
@@ -36,6 +37,12 @@ export const GOOGLE_ADMIN = "google";
 export const adminRoutes = new Hono<{ Bindings: Env }>();
 
 adminRoutes.use("/:token/*", async (c, next) => {
+  if (c.req.param("token") === "developer") {
+    if (!isStaging(c.env)) throw new HttpError(404, "not_found", "找不到这个地址");
+    if (c.req.method !== "GET") requireSameOrigin(c);
+    if (!(await developerMember(c))) throw new HttpError(401, "developer_login_required", "请先使用开发者登录");
+    return next();
+  }
   if (c.req.param("token") === GOOGLE_ADMIN) {
     // The Google cookie is SameSite=Lax (the admin one is Strict), so writes must come from this site.
     if (c.req.method !== "GET") requireSameOrigin(c);
@@ -57,6 +64,7 @@ adminRoutes.post("/:token/login", async (c) => {
 });
 
 adminRoutes.post("/:token/logout", async (c) => {
+  if (c.req.param("token") === "developer") await endDeveloperSession(c);
   await endSession(c);
   return c.json({ ok: true });
 });
