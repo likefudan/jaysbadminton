@@ -112,6 +112,8 @@ export interface EventDetail extends EventSummary {
   dunningStopped: boolean;
   /** 从数据库永久删除 is offered: the event is archived (all paid) or cancelled. */
   deletable: boolean;
+  /** 收款人: walk-ins can be hung under them (their bill pays itself). */
+  payee: { id: string | null; name: string; isMe: boolean };
 }
 
 export interface MyEvent extends EventSummary {
@@ -120,6 +122,8 @@ export interface MyEvent extends EventSummary {
   /** On the list themselves; false with myFriends set when the Owner hung friends under them without them. */
   selfSignedUp: boolean;
   canEdit: boolean;
+  /** How many friends they may bring to this event (more for the person running it). */
+  friendCap: number;
   /** Present once the event is finalized and the member owes something. */
   payment: MyPayment | null;
   /** Everyone signed up, friends right after the member who brought them; only for members who signed up themselves. */
@@ -237,7 +241,8 @@ export interface PaymentRow {
   id: number;
   memberId: string;
   memberName: string;
-  isOwner: boolean;
+  /** The bill of the event's payee (收款人), who pays themselves: always paid, nothing to mark or undo. */
+  isPayee: boolean;
   amountDueCents: number;
   paymentCode: string;
   status: PaymentStatus;
@@ -258,6 +263,8 @@ export interface SettlementView {
   defaultShuttlePrice: string;
   payments: PaymentRow[];
   totals: { dueCents: number; paidCents: number; unpaidCount: number };
+  /** The payee is whoever is looking (the Owner on their own events): their bill reads 我. */
+  payeeIsMe: boolean;
 }
 
 export interface MyPayment {
@@ -267,6 +274,9 @@ export interface MyPayment {
   status: PaymentStatus;
   code: string;
   shares: import("./settle").Share[];
+  /** Who the money goes to: 群主, or the organizer running the event (付给 …). */
+  payeeName: string;
+  /** The payee's accounts ("" when they have none). */
   venmoUsername: string;
   zelleAccount: string;
 }

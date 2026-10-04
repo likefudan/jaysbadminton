@@ -316,7 +316,7 @@ describe("Owner review", () => {
       ["Alice", "paid"],
       ["Bob", "paid"],
     ]); // never the Owner's own bill
-    const owner = (await s.admin.call(`${s.eb}/settlement`)).data.payments.find((p: { isOwner: boolean }) => p.isOwner);
+    const owner = (await s.admin.call(`${s.eb}/settlement`)).data.payments.find((p: { isPayee: boolean }) => p.isPayee);
     expect((await s.admin.call(`${s.base}/inbound/${d.open[0].id}/link`, { paymentId: owner.id })).status).toBe(400);
 
     expect((await s.admin.call(`${s.base}/inbound/${d.open[0].id}/link`, { paymentId: bob.id })).status).toBe(200);

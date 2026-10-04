@@ -9,7 +9,7 @@ export function PaymentBox(props: { p: MyPayment }) {
   const owed = p.amountCents - p.paidCents; // what the Venmo button asks for after a partial payment
   return (
     <div class="paybox">
-      <p class="pay-label">本次应付</p>
+      <p class="pay-label">本次应付 · 付给{p.payeeName}</p>
       <p class="amount">${dollars(p.amountCents)}</p>
       <ul class="breakdown">
         {p.shares.map((s, i) => (
@@ -26,7 +26,11 @@ export function PaymentBox(props: { p: MyPayment }) {
         ))}
       </ul>
       {p.status === "paid" && <p class="paid-banner">✓ 已付清，谢谢！</p>}
-      {p.refundCents > 0 && <p class="hint">你多付了 ${dollars(p.refundCents)}，群主会退给你。</p>}
+      {p.refundCents > 0 && (
+        <p class="hint">
+          你多付了 ${dollars(p.refundCents)}，{p.payeeName}会退给你。
+        </p>
+      )}
       {p.status === "partial" && (
         <p class="hint">
           已收到 ${dollars(p.paidCents)}，还差 <strong>${dollars(owed)}</strong>。补付时备注用同一个编号即可。
@@ -39,7 +43,7 @@ export function PaymentBox(props: { p: MyPayment }) {
               用 Venmo 付 ${dollars(owed)}
             </a>
           ) : (
-            <p class="muted">群主还没设置 Venmo 账号。</p>
+            <p class="muted">{p.payeeName}还没设置 Venmo 账号。</p>
           )}
           {inWeChat() && <p class="hint">如果在微信里打不开 Venmo，请点右上角「···」，选择「在浏览器中打开」。</p>}
           <div class="memo">
@@ -62,7 +66,11 @@ export function PaymentBox(props: { p: MyPayment }) {
               <dt>备注</dt>
               <dd>同上</dd>
             </dl>
-            {p.zelleAccount && <p class="muted small">也可以用 Zelle 转到 {p.zelleAccount}，但需要群主手动确认。</p>}
+            {p.zelleAccount && (
+              <p class="muted small">
+                也可以用 Zelle 转到 {p.zelleAccount}，但需要{p.payeeName}手动确认。
+              </p>
+            )}
           </div>
         </>
       )}

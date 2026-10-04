@@ -320,7 +320,9 @@ function EventAdminBody(props: {
       {e.status === "closed" && <Reopen eb={eb} e={e} onDone={props.onChange} />}
 
       {/* Workflow order: add walk-ins, check the roster, then fill in the costs. */}
-      {editable && <AddPeople eb={eb} members={props.members} roster={e.roster} onDone={props.onChange} />}
+      {editable && (
+        <AddPeople eb={eb} members={props.members} roster={e.roster} payee={e.payee} onDone={props.onChange} />
+      )}
 
       <Card title={`名单（${e.roster.length}）`}>
         {error && <p class="error">{error}</p>}
@@ -538,7 +540,13 @@ function Reopen(props: { eb: string; e: EventDetail; onDone: () => void }) {
   );
 }
 
-function AddPeople(props: { eb: string; members: MemberSummary[]; roster: RosterEntry[]; onDone: () => void }) {
+function AddPeople(props: {
+  eb: string;
+  members: MemberSummary[];
+  roster: RosterEntry[];
+  payee: EventDetail["payee"];
+  onDone: () => void;
+}) {
   const [memberId, setMemberId] = useState("");
   const [includeSelf, setIncludeSelf] = useState(true);
   const [friends, setFriends] = useState<string[]>([]);
@@ -560,7 +568,10 @@ function AddPeople(props: { eb: string; members: MemberSummary[]; roster: Roster
 
   return (
     <Card title="添加人员">
-      <p class="muted small">临时来的非成员，请作为「朋友」挂在你自己或某个成员名下，费用由这个人承担。</p>
+      <p class="muted small">
+        临时来的非成员，请作为「朋友」挂在{props.payee.isMe ? "你自己" : `本场收款人 ${props.payee.name} `}
+        或某个成员名下，费用由这个人承担。
+      </p>
       <label class="field">
         <span>成员</span>
         <select value={memberId} onChange={(e) => setMemberId((e.target as HTMLSelectElement).value)}>

@@ -45,11 +45,10 @@ export function EventPage(props: { code?: string }) {
 
 /** The event as it appears on the member's own page; falls back to the public card when it isn't there (e.g. long settled). */
 function MemberView(props: { e: PublicEvent }) {
-  const [res, reload] = useApi<{ events: MyEvent[]; friendCap: number }>("/api/m/session/events");
+  const [res, reload] = useApi<{ events: MyEvent[] }>("/api/m/session/events");
   const mine = res.state === "ok" ? res.data.events.find((x) => x.id === props.e.id) : undefined;
   if (res.state === "loading") return null;
-  if (res.state === "ok" && mine)
-    return <SignupCard base="/api/m/session" e={mine} cap={res.data.friendCap} onChange={reload} />;
+  if (res.state === "ok" && mine) return <SignupCard base="/api/m/session" e={mine} onChange={reload} />;
   return (
     <Card>
       <EventInfo e={props.e} publicView />

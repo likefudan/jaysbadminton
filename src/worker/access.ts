@@ -153,8 +153,8 @@ const inboundToBill = (): Rule => ({
 const cap = (capability: Capability | null): Rule => ({ cap: capability });
 
 /**
- * Every admin endpoint, as `METHOD path` under /api/admin/:token. Cards 4 and 7 turn the payment
- * settings and Telegram into each person's own (`self`); until then they are the Owner's.
+ * Every admin endpoint, as `METHOD path` under /api/admin/:token. Telegram and the forwarding
+ * status are still the Owner's until card 7 makes them each person's own (`self`).
  */
 export const ADMIN_ACCESS: Record<string, Rule> = {
   // Signing in and out
@@ -233,6 +233,10 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "POST /inbound/:iid/unignore": inbound(),
   "POST /inbound/:iid/delete": inbound(),
   "POST /inbound/:iid/restore": inbound(),
+
+  // self: one's own data. The Owner's payment settings stay behind the password (/settings/payment).
+  "GET /payment-profile": cap("self"),
+  "POST /payment-profile": cap("self"),
 
   // Anyone signed in; the handler returns only what they may see
   "GET /events": cap(null),

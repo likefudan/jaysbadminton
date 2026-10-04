@@ -138,6 +138,8 @@
 
 **发布影响：** 开关关着时没有组织者的活动，收款人都是群主，行为不变。
 
+实际实现（卡 4 已完成）：收款人相关的检查在 `src/worker/payees.ts`（`assertAccountFree`、`savePaymentProfile`、`assertPayeeReady`、`assertPayeeUnlocked`，SQL 里用 `payeeSql`）。组织者的收款设置接口是 `GET/POST /payment-profile`（`self`）；群主仍用要密码的 `/settings/payment`，在 `/payment-profile` 保存会被拒绝。补充的默认处理：有未收齐账单时不能清空 Venmo 用户名（账单会没法付）；改回旧账户时它从 `payment_aliases` 里删掉、重新成为现用账户。成员页每张账单写「付给群主」或「付给 组织者名」，「多付会退给你」「Zelle 需要谁手动确认」也换成收款人；管理页结算列表里收款人自己的账单标「我」（看的人就是收款人时）或「收款人」。负责人的报名特权按活动给：`MyEvent` 多了每场的 `friendCap`；组织者的这项特权只在他仍是组织者、开关打开时有效（不涉及钱，可以由开关挡住）。组织者的收款设置页面在卡 6 做。
+
 ---
 
 ## 卡 5 · 任命 / 撤销组织者

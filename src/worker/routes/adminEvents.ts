@@ -39,7 +39,16 @@ import {
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
 import type { AdminEnv } from "../access";
-import { can } from "../organizers";
+import { can, eventPayee, payeeProfile } from "../organizers";
+import {
+  assertAccountFree,
+  assertPayeeReady,
+  outstandingBills,
+  payeeName,
+  payeeSql,
+  readPaymentInput,
+  savePaymentProfile,
+} from "../payees";
 import { SITE_TITLE_MAX, siteTheme, siteTitle } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
@@ -149,7 +158,7 @@ adminEventRoutes.post("/events", async (c) => {
     const self = await activeSelf(c.env, actor.memberId);
     if (self) await setSignup(c.env, e.id, self, [], false);
   }
-  return c.json(await detail(c.env, e));
+  return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 /** The signed-in person's member id while they are an active member (they can play), else null. */
@@ -181,17 +190,17 @@ adminEventRoutes.post("/events/:id/self-signup", async (c) => {
   // No cap here, but friends already on the list (some may be added from 添加人员) may stay.
   const keep = await friendCount(c.env, e.id, self);
   await setSignup(c.env, e.id, self, validateFriends(body.friends ?? [], null, keep), false);
-  return c.json(await detail(c.env, e));
+  return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
   const { e, self } = await selfSignupEvent(c.env, c.req.param("id"), c.get("actor").memberId);
   await removeSignup(c.env, e.id, self);
-  return c.json(await detail(c.env, e));
+  return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 adminEventRoutes.get("/events/:id", async (c) => {
-  return c.json(await detail(c.env, await getEvent(c.env, Number(c.req.param("id")))));
+  return c.json(await detail(c.env, await getEvent(c.env, Number(c.req.param("id"))), c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/cancel", async (c) => {
@@ -286,7 +295,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
     saveVenue(c.env, location, address, ts),
   ]);
   await syncDeadline(c.env, e.id);
-  return c.json(await detail(c.env, await getEvent(c.env, e.id)));
+  return c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
 });
 
 /** Reopens sign-up with a new deadline, which may be as late as the event's end. */
@@ -337,7 +346,7 @@ adminEventRoutes.post("/events/:id/roster/add", async (c) => {
     ...friends.map((f) => insert(next++, f.trim().slice(0, 20) || null)),
   ]);
   await recomputeIfFinalized(c.env, e);
-  return c.json(await detail(c.env, e));
+  return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/roster/:rid/rename", async (c) => {
@@ -350,7 +359,7 @@ adminEventRoutes.post("/events/:id/roster/:rid/rename", async (c) => {
     .bind(str(b.name).trim().slice(0, 20) || null, now(), Number(c.req.param("rid")), e.id)
     .run();
   if (!res.meta.changes) throw badRequest("只能修改朋友的名字");
-  return c.json(await detail(c.env, e));
+  return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
@@ -360,7 +369,7 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
   await assertCostsShared(c.env, e, (list) => list.filter((r) => r.id !== rid));
   await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?").bind(rid, e.id).run();
   await recomputeIfFinalized(c.env, e);
-  return c.json(await detail(c.env, e));
+  return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 adminEventRoutes.get("/settings", async (c) => {
@@ -423,13 +432,10 @@ adminEventRoutes.post("/settings", async (c) => {
 adminEventRoutes.post("/settings/payment", async (c) => {
   const b = await readJson(c.req.raw);
   if (!(await checkPassword(c.env, str(b.password)))) throw new HttpError(401, "wrong_password", "群主密码不正确");
-  const venmo = str(b.venmoUsername).trim().replace(/^@/, "");
-  if (venmo && !/^[A-Za-z0-9_-]{2,30}$/.test(venmo)) throw badRequest("Venmo 用户名格式不对（不用加 @）");
-  // Receipts are only trusted when addressed to this email (the signed To header), so it comes with the username.
-  const mail = str(b.venmoEmail).trim().toLowerCase();
-  if (venmo && !mail) throw badRequest("请填写 Venmo 通知邮箱（Venmo 账户里登记的邮箱）");
-  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw badRequest("Venmo 通知邮箱格式不对");
-  const zelle = str(b.zelleAccount).trim().slice(0, 60);
+  const { venmo, mail, zelle } = readPaymentInput(b);
+  // Never an organizer's account, current or recent: payments into it would be taken as the Owner's.
+  // The Owner's own change takes effect at once, as before (no 60-day alias).
+  await assertAccountFree(c.env.DB, null, { venmo, mail, zelle });
 
   const before = await getSettings(c.env.DB, ["venmo_username", "venmo_email", "zelle_account"]);
   await c.env.DB.batch([
@@ -449,6 +455,48 @@ adminEventRoutes.post("/settings/payment", async (c) => {
   return c.json({ ok: true });
 });
 
+/**
+ * 我的收款设置 (`self`): where the money of the events someone runs goes. The Owner's stay in
+ * settings, behind the password (/settings/payment above); this is an organizer's own.
+ */
+adminEventRoutes.get("/payment-profile", async (c) => {
+  const actor = c.get("actor");
+  const me = actor.memberId;
+  // The saved row as is (payeeProfile drops one with only an email, which still counts as taken).
+  const p =
+    actor.role === "owner"
+      ? await payeeProfile(c.env.DB, me)
+      : await c.env.DB.prepare(
+          `SELECT venmo_username AS venmoUsername, venmo_email AS venmoEmail, zelle_account AS zelleAccount
+           FROM payment_profiles WHERE member_id = ?`,
+        )
+          .bind(me)
+          .first<{ venmoUsername: string | null; venmoEmail: string | null; zelleAccount: string | null }>();
+  return c.json({
+    venmoUsername: p?.venmoUsername ?? "",
+    venmoEmail: p?.venmoEmail ?? "",
+    zelleAccount: p?.zelleAccount ?? "",
+    // Changing the Venmo account now keeps the old one recognized for a while (the page warns).
+    outstandingBills: me ? await outstandingBills(c.env.DB, me) : 0,
+  });
+});
+
+adminEventRoutes.post("/payment-profile", async (c) => {
+  const actor = c.get("actor");
+  if (actor.role === "owner" || !actor.memberId)
+    throw badRequest("群主的收款设置请在「设置 › 收款设置」里修改（需要群主密码）");
+  const { changes } = await savePaymentProfile(c.env, actor.memberId, readPaymentInput(await readJson(c.req.raw)));
+  if (changes.length) {
+    // The Owner hears of it, as of their own; the organizer too once Telegram is per person (card 7).
+    const lines = changes.map(([k, a, z]) => `${k}：${a || "（空）"} → ${z || "（空）"}`).join("\n");
+    await sendToOwner(
+      c.env,
+      message(`🔐 组织者 ${await payeeName(c.env.DB, actor.memberId)} 的收款设置已修改\n${lines}`),
+    );
+  }
+  return c.json({ ok: true });
+});
+
 // ---- Attendance, settlement and payments ----
 
 adminEventRoutes.post("/events/:id/attendance", async (c) => {
@@ -462,7 +510,7 @@ adminEventRoutes.post("/events/:id/attendance", async (c) => {
     .bind(attended ? 1 : 0, now(), rid, e.id)
     .run();
   await recomputeIfFinalized(c.env, e);
-  return c.json(await detail(c.env, e));
+  return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 const MAX_COURT_CENTS = 500_000;
@@ -491,7 +539,7 @@ adminEventRoutes.get("/events/:id/settlement", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   const input = await savedInput(c.env, e.id);
   const s = await getSettings(c.env.DB, ["last_shuttle_price_cents"]);
-  const payments = await paymentRows(c.env, e.id);
+  const payments = await paymentRows(c.env, e);
   return c.json<SettlementView>({
     inputs: input && {
       courtTotal: dollars(input.courtTotalCents),
@@ -505,6 +553,7 @@ adminEventRoutes.get("/events/:id/settlement", async (c) => {
       paidCents: payments.reduce((t, p) => t + p.amountPaidCents, 0),
       unpaidCount: payments.filter((p) => p.status !== "paid").length,
     },
+    payeeIsMe: (await eventPayee(c.env.DB, e)) === c.get("actor").memberId,
   });
 });
 
@@ -522,6 +571,7 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
   assertSettleable(e);
   const input = readInput(await readJson(c.req.raw));
   if ((await settleRows(c.env, e.id)).length === 0) throw badRequest("名单是空的，不能结算");
+  await assertPayeeReady(c.env, e, c.get("actor").memberId);
   await finalize(c.env, e, input);
   return c.json({ ok: true });
 });
@@ -542,9 +592,6 @@ async function paymentEvent(env: Env, paymentId: number, allowSettled = false) {
     throw badRequest("这个活动已收齐归档，不能再修改");
   return { p, e };
 }
-
-const isOwner = async (env: Env, memberId: string) =>
-  !!(await env.DB.prepare("SELECT 1 FROM members WHERE id = ? AND is_owner = 1").bind(memberId).first());
 
 /** Cash, Zelle or anything else: a manual receipt for whatever is still owed. */
 adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
@@ -585,9 +632,10 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
   // Only while it could be linked back again, so an undo can always be put right.
   if (e.status === "settled" && (e.settled_at ?? "") < linkCutoff())
     throw badRequest(`这个活动归档已超过 ${LINK_ARCHIVED_DAYS} 天，不能再撤销`);
-  // The Owner's own bill is paid by itself, and every recompute redoes that receipt anyway.
-  if (r.method === "manual" && !r.venmo_txn_id && (await isOwner(c.env, p.member_id)))
-    throw badRequest("群主本人的账单自动记为已付，不用撤销");
+  // The payee's own bill is paid by itself, and every recompute redoes that receipt anyway.
+  const payee = await eventPayee(c.env.DB, e);
+  if (r.method === "manual" && !r.venmo_txn_id && p.member_id === payee)
+    throw badRequest(`${await payeeName(c.env.DB, payee)}本人的账单自动记为已付，不用撤销`);
   // On an archived bill every statement also checks, inside the transaction, that the bill stays
   // paid without this receipt, so two removals at once can't both pass and leave it unpaid.
   const keepsPaid =
@@ -679,7 +727,8 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const paymentId = num((await readJson(c.req.raw)).paymentId);
   // Only what the list offers; a paid bill then gets an over-payment, listed for refund.
   const bill = await c.env.DB.prepare(
-    `SELECT e.id AS event_id, e.status, e.settled_at, m.is_owner, m.deleted_at, ${LINKABLE} AS linkable
+    `SELECT e.id AS event_id, e.status, e.settled_at, ${payeeSql("e")} AS payee, p.member_id, m.deleted_at,
+       ${LINKABLE} AS linkable
      FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id WHERE p.id = ?2`,
   )
     .bind(linkCutoff(), paymentId)
@@ -687,15 +736,16 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
       event_id: number;
       status: string;
       settled_at: string | null;
-      is_owner: number;
+      payee: string | null;
+      member_id: string;
       deleted_at: string | null;
       linkable: number;
     }>();
   if (!bill) throw badRequest("找不到这笔应付款");
   if (!bill.linkable)
     throw badRequest(
-      bill.is_owner
-        ? "群主本人的账单不用关联"
+      bill.member_id === bill.payee
+        ? `${await payeeName(c.env.DB, bill.payee)}本人的账单不用关联`
         : bill.deleted_at
           ? "这个成员已删除，他付清的账单不能再关联"
           : bill.status === "settled" && (bill.settled_at ?? "") < linkCutoff()

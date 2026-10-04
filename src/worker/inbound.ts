@@ -9,6 +9,7 @@ import type { EventRow } from "./events";
 import { message, notifyPayment } from "./notify";
 import { sendToOwner } from "./telegram";
 import { codeName, noteName, parsePaymentCode } from "./paymentCode";
+import { payeeSql } from "./payees";
 import type { RefundRow } from "../shared/types";
 
 export const MAX_EMAIL_BYTES = 512 * 1024;
@@ -255,10 +256,10 @@ export const LINK_ARCHIVED_DAYS = 60;
  * Which bills a 待确认 payment may go on (bill p, member m, event e): any unpaid bill of an event
  * still collecting, and paid ones there or on an event archived lately, so someone who paid twice
  * (cash, then Venmo with a mistyped code) ends up under 需要退款, as when Venmo matches it
- * automatically. Never the Owner's own (it pays itself); and of paid bills, never deleted members'
+ * automatically. Never the payee's own (it pays itself); and of paid bills, never deleted members'
  * or $0 ones that never received anything. Bind the archive cut-off once.
  */
-export const LINKABLE = `(m.is_owner = 0 AND (e.status = 'finalized' AND p.status != 'paid'
+export const LINKABLE = `(p.member_id IS NOT ${payeeSql("e")} AND (e.status = 'finalized' AND p.status != 'paid'
   OR (e.status = 'finalized' OR (e.status = 'settled' AND e.settled_at >= ?1))
      AND p.status = 'paid' AND m.deleted_at IS NULL AND (p.amount_due_cents > 0 OR p.amount_paid_cents > 0)))`;
 

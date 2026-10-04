@@ -6,6 +6,7 @@ import { paymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
 import { badRequest } from "./http";
+import { eventPayee } from "./organizers";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
   return toSettleRows(await roster(env, eventId));
@@ -28,8 +29,9 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
 /**
  * Writes the settlement and brings the payment rows in line with it. Every row follows the new
  * amounts, paid ones included, so a corrected fee is shared by everyone: a member who already paid
- * the old amount ends up owing the difference (partial) or due a refund. The Owner's own bill is
- * always paid in full with one manual receipt that tracks the amount. A member who left the roster
+ * the old amount ends up owing the difference (partial) or due a refund. The payee's own bill (the
+ * Owner's on their events, an organizer's on theirs, friends they brought included) is always paid
+ * in full with one manual receipt that tracks the amount: they would only be paying themselves. A member who left the roster
  * loses a bill that never received anything; one with payments on it (even if all refunded) is
  * kept at nothing owed, so its history stays and linked Venmo payments still point at it.
  */
@@ -45,11 +47,13 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
     .bind(e.id)
     .all<{ member_id: string; status: string; has_receipts: number; has_others: number }>();
   const people = await env.DB.prepare(
-    `SELECT id, username, is_owner FROM members WHERE is_owner = 1 OR id IN (SELECT member_id FROM registrations WHERE event_id = ?)`,
+    "SELECT id, username FROM members WHERE id IN (SELECT member_id FROM registrations WHERE event_id = ?)",
   )
     .bind(e.id)
-    .all<{ id: string; username: string; is_owner: number }>();
-  const ownerIds = new Set(people.results.filter((p) => p.is_owner === 1).map((p) => p.id));
+    .all<{ id: string; username: string }>();
+  // Read on every recompute rather than kept, so the rule always follows events.payee_id.
+  const payee = await eventPayee(env.DB, e);
+  const paysSelf = (memberId: string) => memberId === payee;
   const usernames = new Map(people.results.map((p) => [p.id, p.username]));
   const prev = new Map(existing.map((p) => [p.member_id, p.status]));
   const history = new Map(existing.map((p) => [p.member_id, p]));
@@ -84,7 +88,7 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
           `INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status) VALUES (?, ?, ?, ?, 'unpaid')`,
         ).bind(e.id, b.memberId, b.totalCents, paymentCode(usernames.get(b.memberId) ?? "", e.number, b.memberId)),
       );
-      if (ownerIds.has(b.memberId)) {
+      if (paysSelf(b.memberId)) {
         stmts.push(
           env.DB.prepare(
             `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
@@ -100,8 +104,8 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
           b.memberId,
         ),
       );
-      if (ownerIds.has(b.memberId)) {
-        // The Owner pays themselves, so their manual receipt is redone at the new amount, less
+      if (paysSelf(b.memberId)) {
+        // The payee pays themselves, so their manual receipt is redone at the new amount, less
         // anything else on the bill (a Venmo payment linked to it stays, with its refunds).
         stmts.push(
           env.DB.prepare(
@@ -121,8 +125,8 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   for (const memberId of prev.keys()) {
     if (billed.has(memberId)) continue;
     const h = history.get(memberId)!;
-    if (!h.has_receipts || (ownerIds.has(memberId) && !h.has_others)) {
-      // Nothing was ever received, or only the Owner's own manual receipts: nothing is lost.
+    if (!h.has_receipts || (paysSelf(memberId) && !h.has_others)) {
+      // Nothing was ever received, or only the payee's own manual receipts: nothing is lost.
       stmts.push(
         env.DB.prepare(
           "DELETE FROM payment_receipts WHERE payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
@@ -132,8 +136,8 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
     } else {
       // Paid something but no longer on the roster: owes nothing, so whatever is kept is a refund.
       // "Unpaid" is not enough to drop it: a payment refunded in full nets to unpaid too.
-      if (ownerIds.has(memberId))
-        // The Owner's own manual receipts only ever matched their share, which is now nothing.
+      if (paysSelf(memberId))
+        // The payee's own manual receipts only ever matched their share, which is now nothing.
         stmts.push(
           env.DB.prepare(
             "DELETE FROM payment_receipts WHERE method = 'manual' AND payment_id = (SELECT id FROM payments WHERE event_id = ? AND member_id = ?)",
@@ -216,12 +220,13 @@ export async function checkCollected(env: Env, eventId: number): Promise<boolean
   return true;
 }
 
-export async function paymentRows(env: Env, eventId: number): Promise<PaymentRow[]> {
+export async function paymentRows(env: Env, e: EventRow): Promise<PaymentRow[]> {
+  const payee = await eventPayee(env.DB, e);
   const { results } = await env.DB.prepare(
-    `SELECT p.*, m.username, m.is_owner FROM payments p JOIN members m ON m.id = p.member_id
+    `SELECT p.*, m.username FROM payments p JOIN members m ON m.id = p.member_id
      WHERE p.event_id = ? ORDER BY CASE p.status WHEN 'paid' THEN 1 ELSE 0 END, m.username`,
   )
-    .bind(eventId)
+    .bind(e.id)
     .all<Record<string, any>>();
   const receipts = await receiptsFor(
     env,
@@ -231,7 +236,7 @@ export async function paymentRows(env: Env, eventId: number): Promise<PaymentRow
     id: p.id,
     memberId: p.member_id,
     memberName: p.username,
-    isOwner: p.is_owner === 1,
+    isPayee: p.member_id === payee,
     amountDueCents: p.amount_due_cents,
     paymentCode: p.payment_code,
     status: p.status,

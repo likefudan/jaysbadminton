@@ -134,7 +134,7 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
             <div class="row">
               <div class="who">
                 {p.memberName}
-                {p.isOwner && <span class="badge">我</span>}
+                {p.isPayee && <span class="badge">{v.payeeIsMe ? "我" : "收款人"}</span>}
                 <small>
                   应付 ${dollars(p.amountDueCents)} · {p.paymentCode}
                 </small>
@@ -146,7 +146,7 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
                     (p.refundCents > 0 ? `已付 · 多付 $${dollars(p.refundCents)}，需要退款` : "已付")}
                 </small>
               </div>
-              {!settled && !p.isOwner && p.status !== "paid" && (
+              {!settled && !p.isPayee && p.status !== "paid" && (
                 <div class="actions">
                   <button type="button" class="button" disabled={busy} onClick={() => mark(p)}>
                     {p.status === "partial" ? "补齐已付" : "标记已付"}
@@ -154,7 +154,7 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
                 </div>
               )}
             </div>
-            {!p.isOwner && (
+            {!p.isPayee && (
               <ReceiptList
                 receipts={p.receipts}
                 busy={busy}
