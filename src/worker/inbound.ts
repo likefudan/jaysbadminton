@@ -195,12 +195,12 @@ const eventLabel = (date: string, code: string) =>
   formatDateZh(date) + (code.length > 4 ? ` 第${code.charCodeAt(4) - 64}场` : "");
 
 const ROW_FILTER = {
-  open: "i.state = 'open' ORDER BY i.received_at DESC LIMIT 200",
-  done: "i.state = 'linked' ORDER BY i.received_at DESC LIMIT 30",
+  open: ["i.state = 'open'", "ORDER BY i.received_at DESC LIMIT 200"],
+  done: ["i.state = 'linked'", "ORDER BY i.received_at DESC LIMIT 30"],
   // All of them, until deleted, so a mistaken 忽略 can always be moved back (only payments that
   // carry our code ever get here, so there are few).
-  ignored: "i.state = 'ignored' ORDER BY i.received_at DESC",
-  deleted: "i.state = 'deleted' ORDER BY i.deleted_at DESC",
+  ignored: ["i.state = 'ignored'", "ORDER BY i.received_at DESC"],
+  deleted: ["i.state = 'deleted'", "ORDER BY i.deleted_at DESC"],
 };
 
 /** 已删除 keeps a payment this long; then the cron removes it for good. */
@@ -212,14 +212,25 @@ export async function purgeDeletedInbound(env: Env, at: Date = new Date()): Prom
     .run();
 }
 
-export async function inboundRows(env: Env, state: keyof typeof ROW_FILTER): Promise<InboundRow[]> {
+/**
+ * One list of the 收款 page. With `payee`, only payments into that person's account (an organizer's;
+ * NULL is the Owner's, so never theirs).
+ */
+export async function inboundRows(
+  env: Env,
+  state: keyof typeof ROW_FILTER,
+  payee: string | null = null,
+): Promise<InboundRow[]> {
+  const [where, order] = ROW_FILTER[state];
   const { results } = await env.DB.prepare(
     `SELECT i.*, m.username, e.date, e.code FROM inbound_payments i
      LEFT JOIN payments p ON p.id = i.linked_payment_id
      LEFT JOIN members m ON m.id = p.member_id
      LEFT JOIN events e ON e.id = p.event_id
-     WHERE ${ROW_FILTER[state]}`,
-  ).all<Record<string, any>>();
+     WHERE ${where} ${payee ? "AND i.payee_id = ?" : ""} ${order}`,
+  )
+    .bind(...(payee ? [payee] : []))
+    .all<Record<string, any>>();
   return results.map((i) => ({
     id: i.id,
     kind: i.kind,
@@ -254,15 +265,18 @@ export const LINKABLE = `(m.is_owner = 0 AND (e.status = 'finalized' AND p.statu
 export const linkCutoff = (at: Date = new Date()) =>
   new Date(at.getTime() - LINK_ARCHIVED_DAYS * 86400_000).toISOString();
 
-/** The bills 待确认 offers to link to: unpaid ones first, then paid ones. */
-export async function openPayments(env: Env): Promise<OpenPayment[]> {
+/**
+ * The bills 待确认 offers to link to: unpaid ones first, then paid ones. With `manager`, only bills
+ * of the events that person runs.
+ */
+export async function openPayments(env: Env, manager: string | null = null): Promise<OpenPayment[]> {
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.amount_due_cents, p.amount_paid_cents, p.status, p.payment_code, m.username, e.date, e.code
      FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
-     WHERE ${LINKABLE}
+     WHERE ${LINKABLE} ${manager ? "AND e.manager_id = ?2" : ""}
      ORDER BY p.status = 'paid', e.start_at DESC, m.username`,
   )
-    .bind(linkCutoff())
+    .bind(linkCutoff(), ...(manager ? [manager] : []))
     .all<Record<string, any>>();
   return results.map((p) => ({
     id: p.id,
@@ -275,14 +289,19 @@ export async function openPayments(env: Env): Promise<OpenPayment[]> {
   }));
 }
 
-/** Bills that received more than they were due, on any event, until the Owner marks them refunded. */
-export async function refundRows(env: Env): Promise<RefundRow[]> {
+/**
+ * Bills that received more than they were due, on any event (with `manager`, the events that person
+ * runs), until they are marked refunded.
+ */
+export async function refundRows(env: Env, manager: string | null = null): Promise<RefundRow[]> {
   const { results } = await env.DB.prepare(
     `SELECT p.*, m.username, e.date, e.code FROM payments p
      JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id
-     WHERE p.amount_paid_cents > p.amount_due_cents
+     WHERE p.amount_paid_cents > p.amount_due_cents ${manager ? "AND e.manager_id = ?" : ""}
      ORDER BY e.start_at DESC, m.username`,
-  ).all<Record<string, any>>();
+  )
+    .bind(...(manager ? [manager] : []))
+    .all<Record<string, any>>();
   const receipts = await receiptsFor(
     env,
     results.map((p) => p.id),

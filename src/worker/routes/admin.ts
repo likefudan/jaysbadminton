@@ -1,17 +1,10 @@
-import { developerMember, endDeveloperSession } from "../developer";
+import { endDeveloperSession } from "../developer";
 import { sendApprovalEmail } from "../approvalEmail";
 import { Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
-import {
-  assertAdminToken,
-  checkPassword,
-  endSession,
-  hasSession,
-  issueAdminToken,
-  setPassword,
-  startSession,
-} from "../auth";
+import { type AdminEnv, adminAccess } from "../access";
+import { checkPassword, endSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
 import { closeExpired } from "../events";
 import type { Env } from "../env";
@@ -27,34 +20,14 @@ import {
   toSummary,
 } from "../members";
 import { memberProfile, setAdminNote } from "../profile";
-import { googleOwner, googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
+import { googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
 import { isStaging } from "../site";
 import { escapeHtml, sendToOwner } from "../telegram";
 
-/** /admin/google: the admin page reached through the Owner's own Google account instead of the link. */
-export const GOOGLE_ADMIN = "google";
+export const adminRoutes = new Hono<AdminEnv>();
 
-export const adminRoutes = new Hono<{ Bindings: Env }>();
-
-adminRoutes.use("/:token/*", async (c, next) => {
-  if (c.req.param("token") === "developer") {
-    if (!isStaging(c.env)) throw new HttpError(404, "not_found", "找不到这个地址");
-    if (c.req.method !== "GET") requireSameOrigin(c);
-    if (!(await developerMember(c))) throw new HttpError(401, "developer_login_required", "请先使用开发者登录");
-    return next();
-  }
-  if (c.req.param("token") === GOOGLE_ADMIN) {
-    // The Google cookie is SameSite=Lax (the admin one is Strict), so writes must come from this site.
-    if (c.req.method !== "GET") requireSameOrigin(c);
-    if (!(await googleOwner(c))) throw new HttpError(401, "google_admin_required", "请用群主绑定的 Google 账号登录");
-    return next();
-  }
-  await assertAdminToken(c.env, c.req.param("token"));
-  if (!c.req.path.endsWith("/login") && !(await hasSession(c))) {
-    throw new HttpError(401, "login_required", "请输入群主密码");
-  }
-  await next();
-});
+// Who is calling and whether they may: one table for every endpoint (access.ts).
+adminRoutes.use("/:token/*", adminAccess);
 
 adminRoutes.post("/:token/login", async (c) => {
   const body = await readJson(c.req.raw);

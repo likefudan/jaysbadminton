@@ -8,8 +8,6 @@ import { HttpError, invalidLink } from "./http";
 export const SESSION_COOKIE = "jb_admin";
 const SESSION_DAYS = 30;
 
-type Ctx = Context<{ Bindings: Env }>;
-
 /**
  * Makes the stored password follow the ADMIN_PASSWORD secret: when the secret changes (the
  * recovery path), the stored hash is replaced and every session is signed out. Password changes
@@ -125,7 +123,7 @@ export async function assertAdminToken(env: Env, token: string): Promise<void> {
   if (!s.admin_token_hash || s.admin_token_hash !== (await sha256(token))) throw invalidLink();
 }
 
-export async function startSession(c: Ctx): Promise<void> {
+export async function startSession<E extends { Bindings: Env }>(c: Context<E>): Promise<void> {
   const raw = randomToken();
   const expires = new Date(Date.now() + SESSION_DAYS * 86400_000);
   await c.env.DB.batch([
@@ -145,7 +143,7 @@ export async function startSession(c: Ctx): Promise<void> {
   });
 }
 
-export async function hasSession(c: Ctx): Promise<boolean> {
+export async function hasSession<E extends { Bindings: Env }>(c: Context<E>): Promise<boolean> {
   const raw = getCookie(c, SESSION_COOKIE);
   if (!raw) return false;
   await syncEnvPassword(c.env);
@@ -155,7 +153,7 @@ export async function hasSession(c: Ctx): Promise<boolean> {
   return !!row;
 }
 
-export async function endSession(c: Ctx): Promise<void> {
+export async function endSession<E extends { Bindings: Env }>(c: Context<E>): Promise<void> {
   const raw = getCookie(c, SESSION_COOKIE);
   if (raw)
     await c.env.DB.prepare("DELETE FROM admin_sessions WHERE id_hash = ?")

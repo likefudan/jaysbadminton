@@ -8,6 +8,7 @@ import { now } from "./db";
 import { randomToken, sha256, timingSafeEqual } from "./lib/crypto";
 import { assertPendingRoom, createMember, emailTaken, memberByToken, type MemberRow } from "./members";
 import { HttpError, readJson, str } from "./http";
+import { memberRole } from "./organizers";
 
 type Ctx = Context<{ Bindings: Env }>;
 export const MEMBER_COOKIE = "jb_member";
@@ -73,14 +74,6 @@ export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): 
   return m;
 }
 
-/** The Owner, when this browser's Google account is the one bound to them; otherwise null. */
-export async function googleOwner<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow | null> {
-  const session = await googleSession(c);
-  if (!session) return null;
-  const m = await memberByGoogle(c.env, session.google_sub);
-  return m && m.is_owner === 1 && m.status === "active" ? m : null;
-}
-
 export const googleRoutes = new Hono<{ Bindings: Env }>();
 googleRoutes.use("*", async (c, next) => {
   if (c.req.method !== "GET") requireSameOrigin(c);
@@ -95,6 +88,7 @@ googleRoutes.get("/session", async (c) => {
       picture: null,
       hasMember: true,
       pending: false,
+      role: "member",
       isAdmin: false,
       developer: true,
     });
@@ -108,6 +102,8 @@ googleRoutes.get("/session", async (c) => {
     hasMember: !!member && member.status !== "pending",
     pending: member?.status === "pending",
     emailNotificationsEnabled: !!(c.env.RESEND_API_KEY && c.env.EMAIL_FROM),
+    // What the admin pages let them do. isAdmin (the Owner) stays until the pages read role (card 6).
+    role: member && member.status === "active" ? memberRole(c.env, member) : "member",
     isAdmin: !!member && member.is_owner === 1 && member.status === "active",
   });
 });
