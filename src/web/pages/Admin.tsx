@@ -329,7 +329,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     if (r.revoked) setEmailMessage(revokeEmailMessage(m.username, r.revoked.emailStatus));
     props.onChange();
   }
-  async function revokePreview(m: MemberSummary) {
+  async function revokePreview(m: { id: string }) {
     const r = await run(() => api<{ events: RevokeImpact[] }>(`${props.base}/members/${m.id}/revoke`));
     return r ? r.events : null;
   }
@@ -345,16 +345,16 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     setEmailMessage(
       r.emailStatus === "sent"
         ? `${m.username} 已成为组织者，已发邮件告诉他用 Google 登录后在「管理」里发起活动。`
-        : `${m.username} 已成为组织者，但${{ failed: "通知邮件发送失败", no_address: "他的 Google 账号没有邮箱，通知邮件没有发出" }[r.emailStatus as string] ?? "邮件服务没有配置，通知邮件没有发出"}。请你自己告诉他：用 Google 登录后打开 ${location.origin}/admin/google，先填好收款设置。`,
+        : `${m.username} 已成为组织者，但${emailProblem(r.emailStatus)}。请你自己告诉他：用 Google 登录后打开 ${location.origin}/admin/google，先填好收款设置。`,
     );
     props.onChange();
   }
   async function revoke(m: { id: string; username: string }) {
-    const r = await run(() => api<{ events: RevokeImpact[] }>(`${props.base}/members/${m.id}/revoke`));
-    if (!r) return;
+    const events = await revokePreview(m);
+    if (!events) return;
     if (
       !confirm(
-        `撤销 ${m.username} 的组织者身份？${revokeSummary(r.events)}\n\n撤销后他马上进不了管理页，系统会发邮件告诉他。`,
+        `撤销 ${m.username} 的组织者身份？${revokeSummary(events)}\n\n撤销后他马上进不了管理页，系统会发邮件告诉他。`,
       )
     )
       return;
@@ -508,17 +508,23 @@ function revokeSummary(events: RevokeImpact[]): string {
     payee_stays: "收款中：由群主接手管理，钱继续付到他的账户，直到收齐",
     manager_only: "收款中：负责人转给群主，收款人不变",
     payee_only: "收款中：负责人不变，钱继续付到他的账户，直到收齐",
+    payee_to_owner: "还没结算：收款人转给群主，负责人不变",
   };
   return `\n\n会受影响的活动：\n${events
     .map((e) => `· ${formatDateZh(e.date, false)}${e.title ? ` ${e.title}` : ""}：${what[e.outcome]}`)
     .join("\n")}`;
 }
 
+/** Why an appointment or revoke email did not go out. */
+function emailProblem(status: string): string {
+  if (status === "failed") return "通知邮件发送失败";
+  if (status === "no_address") return "他没有可以收信的邮箱，通知邮件没有发出";
+  return "邮件服务没有配置，通知邮件没有发出";
+}
+
 function revokeEmailMessage(name: string, status: string): string {
   if (status === "sent") return `已撤销 ${name} 的组织者身份，并发邮件告诉了他。`;
-  const why =
-    { failed: "邮件发送失败", no_address: "他没有登记邮箱，邮件没有发出" }[status] ?? "邮件服务没有配置，邮件没有发出";
-  return `已撤销 ${name} 的组织者身份，但${why}。请你自己告诉他：还在收款的活动钱继续付到他的账户，收到后和你核对；之后可以删掉 Venmo 邮件转发。`;
+  return `已撤销 ${name} 的组织者身份，但${emailProblem(status)}。请你自己告诉他：还在收款的活动钱继续付到他的账户，收到后和你核对；之后可以删掉 Venmo 邮件转发。`;
 }
 
 /** 组织者 block at the top of the members page: the Owner and (read-only) organizers see it. */

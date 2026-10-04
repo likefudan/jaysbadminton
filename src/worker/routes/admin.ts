@@ -7,7 +7,7 @@ import { type AdminEnv, adminAccess } from "../access";
 import { can, memberRole } from "../organizers";
 import {
   appointOrganizer,
-  assertNotPayee,
+  assertNotRunning,
   assertOrganizersOn,
   organizersBlock,
   revokeImpact,
@@ -175,29 +175,24 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   if (m.is_owner) throw badRequest("不能停用群主本人");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
   await closeExpired(c.env); // an event past its deadline keeps its sign-ups
-  const deactivate = [
+  const deactivate = (onlyIfNotOrganizer: boolean) => [
     // The link keeps working so they can still pay what they owe; sign-up is refused.
-    c.env.DB.prepare("UPDATE members SET status = 'inactive' WHERE id = ? AND status = 'active'").bind(m.id),
+    c.env.DB.prepare(
+      `UPDATE members SET status = 'inactive' WHERE id = ? AND status = 'active' ${onlyIfNotOrganizer ? "AND role != 'organizer'" : ""}`,
+    ).bind(m.id),
     // Requirements: deactivating cancels sign-ups for events still open; closed events keep theirs.
     c.env.DB.prepare(
-      "DELETE FROM registrations WHERE member_id = ? AND event_id IN (SELECT id FROM events WHERE status = 'open')",
+      `DELETE FROM registrations WHERE member_id = ?1 AND event_id IN (SELECT id FROM events WHERE status = 'open')
+         AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND status = 'inactive')`,
     ).bind(m.id),
   ];
   // An organizer stops being one in the same transaction (design §8), whatever the flag says:
   // their events go back to the Owner and they are told what still pays into their account.
   const revoke = async (who: MemberRow) =>
-    c.json({ ok: true, revoked: await revokeOrganizer(c.env, who, "deactivate", deactivate) });
+    c.json({ ok: true, revoked: await revokeOrganizer(c.env, who, "deactivate", deactivate(false)) });
   if (m.role === "organizer") return revoke(m);
   // Not an organizer when read, and still not one when written (an appointment may land in between).
-  const [plain] = await c.env.DB.batch([
-    c.env.DB.prepare(
-      "UPDATE members SET status = 'inactive' WHERE id = ? AND status = 'active' AND role != 'organizer'",
-    ).bind(m.id),
-    c.env.DB.prepare(
-      `DELETE FROM registrations WHERE member_id = ?1 AND event_id IN (SELECT id FROM events WHERE status = 'open')
-         AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND status = 'inactive')`,
-    ).bind(m.id),
-  ]);
+  const [plain] = await c.env.DB.batch(deactivate(true));
   if (plain!.meta.changes) return c.json({ ok: true, revoked: null });
   const fresh = await requireMember(c.env, m.id);
   if (fresh.status === "active" && fresh.role === "organizer") return revoke(fresh);
@@ -236,7 +231,8 @@ adminRoutes.post("/:token/settings/backup-key", async (c) => {
 adminRoutes.post("/:token/members/:id/reactivate", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能恢复已停用的成员");
-  await c.env.DB.prepare("UPDATE members SET status = 'active' WHERE id = ?").bind(m.id).run();
+  // Back as a plain member: being an organizer again takes a new appointment (with its checks).
+  await c.env.DB.prepare("UPDATE members SET status = 'active', role = 'member' WHERE id = ?").bind(m.id).run();
   const link = m.token_enc ? null : memberLink(origin(c.req.url), await issueMemberToken(c.env, m.id));
   return c.json({ ok: true, link });
 });
@@ -261,7 +257,7 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
         ? `${m.username} 还在 ${pending.date} 活动的名单上，这场还没收齐，费用还可能变。请等这场收齐归档，或者把这个人从名单上删掉，再删除成员`
         : `${m.username} 还在 ${pending.date} 活动的名单上，这场还没结算。请先结算这场，或者把这个人从名单上删掉，再删除成员`,
     );
-  await assertNotPayee(c.env, m);
+  await assertNotRunning(c.env, m);
   // History stays; the link, the Google account and the name are released, so the person (or
   // someone else with that name) can apply again. The old record keeps the name with its ID
   // appended, e.g. "Alice（M004）", so rosters and rankings never mix the two up.

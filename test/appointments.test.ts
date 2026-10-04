@@ -161,7 +161,7 @@ describe("revoking an organizer", () => {
 
     const done = await call(`/members/${alice.id}/revoke`, {});
     expect(done.status).toBe(200);
-    expect(done.data.events).toEqual(preview.data.events);
+    expect(done.data.emailStatus).toBe("not_configured");
     expect(await eventRow(open)).toMatchObject({ manager_id: "M001", payee_id: "M001" });
     expect(await eventRow(finalized)).toMatchObject({ manager_id: "M001", payee_id: alice.id });
     expect(await eventRow(archived)).toMatchObject({ manager_id: alice.id, payee_id: alice.id });
@@ -202,15 +202,16 @@ describe("revoking an organizer", () => {
     expect((await call(`/members/${bob.id}/appoint`, {})).status).toBe(200);
     const finalized = await finalizedEvent(cookie, bob.base);
     expect((await call(`/events/${finalized}/transfer`, { to: bob.id })).status).toBe(200);
-    const done = await call(`/members/${alice.id}/revoke`, {});
-    expect(done.data.events.map((e: any) => e.outcome)).toEqual(["payee_only"]);
+    const preview = await call(`/members/${alice.id}/revoke`);
+    expect(preview.data.events.map((e: any) => e.outcome)).toEqual(["payee_only"]);
+    expect((await call(`/members/${alice.id}/revoke`, {})).status).toBe(200);
     expect(await eventRow(finalized)).toMatchObject({ manager_id: bob.id, payee_id: alice.id });
   });
 
   it("retires someone with no events at once", async () => {
     const { call, alice } = await withOrganizer();
-    const done = await call(`/members/${alice.id}/revoke`, {});
-    expect(done.data.events).toEqual([]);
+    expect((await call(`/members/${alice.id}/revoke`)).data.events).toEqual([]);
+    expect((await call(`/members/${alice.id}/revoke`, {})).status).toBe(200);
     expect((await call("/members")).data.organizers).toMatchObject({ list: [], former: [] });
   });
 
@@ -235,7 +236,7 @@ describe("revoking an organizer", () => {
     const finalized = await finalizedEvent(cookie, bob.base);
     const off = await call(`/members/${alice.id}/deactivate`, {});
     expect(off.status).toBe(200);
-    expect(off.data.revoked.events).toHaveLength(2);
+    expect(off.data.revoked.emailStatus).toBe("not_configured");
     expect(await db.prepare("SELECT role, status FROM members WHERE id = ?").bind(alice.id).first()).toEqual({
       role: "member",
       status: "inactive",

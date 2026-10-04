@@ -60,6 +60,9 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   const billed = new Set(result.bills.map((b) => b.memberId));
 
   const stmts: D1PreparedStatement[] = [
+    // The bills follow this payee, so it is the one written down: a 转交 or 撤销 landing between
+    // the read above and this write must not leave the event pointing at someone else.
+    ...(payee ? [env.DB.prepare("UPDATE events SET payee_id = ? WHERE id = ?").bind(payee, e.id)] : []),
     env.DB.prepare(
       `INSERT INTO settlements (event_id, court_total_cents, shuttle_count, shuttle_price_cents, registered_count,
          attended_count, court_share_cents, shuttle_share_cents, finalized_at)

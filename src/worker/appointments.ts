@@ -64,15 +64,19 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
   };
 }
 
-/** Appoints an active member who signs in with Google (only that way reaches the admin pages). */
-export async function appointOrganizer(env: Env, id: string): Promise<{ emailStatus: RevokeEmail }> {
-  const m = await requireMember(env, id);
+function assertAppointable(m: MemberRow): void {
   if (m.is_owner) throw badRequest("群主本来就有全部权限");
   if (m.status !== "active" || m.deleted_at) throw badRequest("只能任命状态正常的成员");
   if (m.role === "organizer") throw badRequest(`${m.username} 已经是组织者了`);
   // The admin pages open for organizers only through Google, and a member link can't swap in
   // another Google account once one is bound, so the link alone never makes someone an organizer.
   if (!m.google_sub) throw badRequest(`${m.username} 还没有关联 Google 账号。请他先用 Google 登录关联，再任命`);
+}
+
+/** Appoints an active member who signs in with Google (only that way reaches the admin pages). */
+export async function appointOrganizer(env: Env, id: string): Promise<{ emailStatus: RevokeEmail }> {
+  const m = await requireMember(env, id);
+  assertAppointable(m);
   const ts = now();
   const done = await env.DB.batch([
     env.DB.prepare(
@@ -86,7 +90,11 @@ export async function appointOrganizer(env: Env, id: string): Promise<{ emailSta
          AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND role = 'organizer' AND role_since = ?2)`,
     ).bind(m.id, ts),
   ]);
-  if (!done[0]!.meta.changes) throw badRequest(`${m.username} 已经是组织者了`);
+  if (!done[0]!.meta.changes) {
+    // Something changed in between (appointed, disabled, Google unlinked): say what.
+    assertAppointable(await requireMember(env, id));
+    throw badRequest(`${m.username} 已经是组织者了`);
+  }
   if (!m.google_email) return { emailStatus: "no_address" };
   const emailStatus = await sendEmail(env, {
     to: m.google_email,
@@ -114,6 +122,18 @@ interface ImpactRow {
   unlocked: number;
 }
 
+/** The same rules as the writes in revokeOrganizer, for one event. */
+function outcome(e: ImpactRow, id: string): RevokeImpact["outcome"] {
+  const runs = e.manager_id === id;
+  const paid = e.payee_id === id;
+  // Before Finalize nobody has a bill yet, so the money goes back with the event.
+  if (e.status !== "finalized" && e.unlocked)
+    return runs && paid ? "to_owner" : runs ? "manager_only" : "payee_to_owner";
+  // After it, members are already paying into their account: only who runs it changes, if it is them.
+  if (!paid) return "manager_only";
+  return runs ? "payee_stays" : "payee_only";
+}
+
 /** What revoking someone does to each of their events that is not archived (design §8 table). */
 export async function revokeImpact(env: Env, id: string): Promise<RevokeImpact[]> {
   const { results } = await env.DB.prepare(
@@ -128,16 +148,7 @@ export async function revokeImpact(env: Env, id: string): Promise<RevokeImpact[]
     date: e.date,
     title: e.title,
     status: e.status,
-    // Before Finalize nobody has a bill yet, so the money moves with the event. After it, members
-    // are already paying into the organizer's account: only who runs it changes, if it is them.
-    outcome:
-      e.status !== "finalized" && e.unlocked
-        ? "to_owner"
-        : e.payee_id !== id
-          ? "manager_only"
-          : e.manager_id === id
-            ? "payee_stays"
-            : "payee_only",
+    outcome: outcome(e, id),
   }));
 }
 
@@ -156,11 +167,10 @@ export async function revokeOrganizer(
   m: MemberRow,
   by: RevokeBy,
   with_: D1PreparedStatement[] = [],
-): Promise<{ events: RevokeImpact[]; emailStatus: RevokeEmail } | null> {
+): Promise<{ emailStatus: RevokeEmail } | null> {
   if (m.role !== "organizer") throw badRequest(`${m.username} 不是组织者`);
   const owner = await ownerId(env.DB);
   if (!owner) throw new HttpError(409, "no_owner", "找不到群主的成员记录");
-  const events = await revokeImpact(env, m.id);
   const ts = now();
   // Each step runs only if this request is the one that revoked them (role_since = ts), so a
   // second click, or a revoke racing this one, changes nothing more.
@@ -191,7 +201,7 @@ export async function revokeOrganizer(
     if (with_.length) return null;
     throw badRequest(`${m.username} 不是组织者`);
   }
-  return { events, emailStatus: await sendRevokeEmail(env, m, by, ts) };
+  return { emailStatus: await sendRevokeEmail(env, m, by, ts) };
 }
 
 /** They can no longer open the admin pages, so this is how they learn what happens to their events. */
@@ -255,15 +265,21 @@ export async function transferEvent(env: Env, eventId: number, to: string): Prom
   )
     .bind(target.id, eventId, owner)
     .run();
-  if (!r.meta.changes) throw badRequest("已收齐归档或已取消的活动不能转交");
+  if (r.meta.changes) return;
+  if (memberRole(env, await requireMember(env, to)) === "member") throw badRequest("只能转给群主或现任组织者");
+  throw badRequest("已收齐归档或已取消的活动不能转交");
 }
 
-/** 删除成员: someone members still pay (a 历史收款人) must stay until those events are archived. */
-export async function assertNotPayee(env: Env, m: MemberRow): Promise<void> {
+/** 删除成员: someone still running an event, or paid for one (a 历史收款人), stays until it is archived. */
+export async function assertNotRunning(env: Env, m: MemberRow): Promise<void> {
   const e = await env.DB.prepare(
-    `SELECT e.date FROM events e WHERE ${payeeSql("e")} = ? AND e.status IN ${LIVE} ORDER BY e.start_at LIMIT 1`,
+    `SELECT e.date, ${payeeSql("e")} = ?1 AS paid FROM events e
+     WHERE (${payeeSql("e")} = ?1 OR e.manager_id = ?1) AND e.status IN ${LIVE} ORDER BY e.start_at LIMIT 1`,
   )
     .bind(m.id)
-    .first<{ date: string }>();
-  if (e) throw badRequest(`${m.username} 是 ${e.date} 活动的收款人，这场还没收齐归档。请等这场收齐归档后再删除成员`);
+    .first<{ date: string; paid: number }>();
+  if (e)
+    throw badRequest(
+      `${m.username} 是 ${e.date} 活动的${e.paid ? "收款人" : "负责人"}，这场还没收齐归档。请等这场收齐归档${e.paid ? "" : "（或把它转交给别人）"}后再删除成员`,
+    );
 }

@@ -127,7 +127,8 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
 export async function detail(env: Env, e: EventRow, viewer: string | null): Promise<EventDetail> {
   const list = await roster(env, e.id);
   const [payee, manager] = await Promise.all([eventPayee(env.DB, e), eventManager(env.DB, e)]);
-  const [payeeLabel, managerLabel] = await Promise.all([payeeName(env.DB, payee), payeeName(env.DB, manager)]);
+  const payeeLabel = await payeeName(env.DB, payee);
+  const managerLabel = manager === payee ? payeeLabel : await payeeName(env.DB, manager);
   return {
     ...toSummary(e, list.length),
     roster: list,
