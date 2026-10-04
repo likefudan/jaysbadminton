@@ -182,7 +182,7 @@ describe("organizers on the admin pages", () => {
   });
 
   it("keeps group and system endpoints for the Owner", async () => {
-    const { org, bob } = await scenario();
+    const { ctx, org, alice, bob } = await scenario();
     for (const [method, path] of [
       ["GET", `/members/${bob.id}/link`],
       ["POST", `/members/${bob.id}/regenerate`],
@@ -199,8 +199,20 @@ describe("organizers on the admin pages", () => {
     ] as const) {
       expect((await request(`${GOOGLE}${path}`, org, method === "POST" ? {} : undefined)).status, path).toBe(403);
     }
-    // Read-only member pages are theirs too.
-    expect((await request(`${GOOGLE}/members`, org)).status).toBe(200);
+    // Read-only member pages are theirs too, with only their own events' amounts owed.
+    const members = await request(`${GOOGLE}/members`, org);
+    expect(members.status).toBe(200);
+    const bobRow = ((await members.json()) as any).active.find((m: { id: string }) => m.id === bob.id);
+    const owed = await env.DB.prepare(
+      "SELECT SUM(amount_due_cents - amount_paid_cents) AS n FROM payments p JOIN events e ON e.id = p.event_id WHERE p.member_id = ? AND e.manager_id = ?",
+    )
+      .bind(bob.id, alice.id)
+      .first<{ n: number }>();
+    expect(bobRow.owingCents).toBe(owed!.n);
+    expect(bobRow.owingCents).toBeGreaterThan(0);
+    expect(
+      (await ctx.admin.call(`${ctx.base}/members`)).data.active.find((m: { id: string }) => m.id === bob.id).owingCents,
+    ).toBeGreaterThan(owed!.n);
     expect((await request(`${GOOGLE}/members/${bob.id}/profile`, org)).status).toBe(200);
   });
 

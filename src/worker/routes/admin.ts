@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
 import { type AdminEnv, adminAccess } from "../access";
+import { can } from "../organizers";
 import { checkPassword, endSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
 import { closeExpired } from "../events";
@@ -44,7 +45,9 @@ adminRoutes.post("/:token/logout", async (c) => {
 
 adminRoutes.get("/:token/members", async (c) => {
   const { results } = await c.env.DB.prepare("SELECT * FROM members ORDER BY id").all<MemberRow>();
-  const owing = await owingByMember(c.env);
+  // 未付 counts only the events one runs, without `group`: other people's fees stay theirs.
+  const actor = c.get("actor");
+  const owing = await owingByMember(c.env, can(actor.role, "group") ? null : actor.memberId);
   const all = results.map((m) => ({ ...toSummary(m), owingCents: owing.get(m.id) ?? 0 }));
   return c.json<MembersResponse>({
     pending: all.filter((m) => m.status === "pending"),
@@ -208,11 +211,14 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
 
 export const deletedName = (m: Pick<MemberRow, "id" | "username">) => `${m.username}（${m.id}）`;
 
-async function owingByMember(env: Env): Promise<Map<string, number>> {
+async function owingByMember(env: Env, manager: string | null = null): Promise<Map<string, number>> {
   const { results } = await env.DB.prepare(
     `SELECT member_id, SUM(amount_due_cents - amount_paid_cents) AS owing FROM payments
-     WHERE status != 'paid' GROUP BY member_id`,
-  ).all<{ member_id: string; owing: number }>();
+     WHERE status != 'paid' ${manager ? "AND event_id IN (SELECT id FROM events WHERE manager_id = ?)" : ""}
+     GROUP BY member_id`,
+  )
+    .bind(...(manager ? [manager] : []))
+    .all<{ member_id: string; owing: number }>();
   return new Map(results.map((r) => [r.member_id, r.owing]));
 }
 
