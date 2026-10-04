@@ -4,9 +4,10 @@ import { SPAM_HINT, type SendResult, sendEmail, site } from "./approvalEmail";
 import { now } from "./db";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
+import { ROSTER_EDITABLE } from "./events";
 import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
-import { payeeSql, payeeUnlockedSql } from "./payees";
+import { payeeUnlockedSql } from "./payees";
 
 /**
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
@@ -14,7 +15,7 @@ import { payeeSql, payeeUnlockedSql } from "./payees";
  */
 
 /** Events that are not archived yet: still taking sign-ups, waiting for Finalize, or collecting. */
-const LIVE = "('open', 'closed', 'finalized')";
+const LIVE = `(${ROSTER_EDITABLE.map((s) => `'${s}'`).join(", ")})`;
 
 /** The appoint / revoke / transfer endpoints: refused while the feature is off. */
 export function assertOrganizersOn(env: Env): void {
@@ -211,15 +212,15 @@ export async function revokeOrganizer(
 async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string): Promise<NoticeEmail> {
   const to = m.google_email ?? m.email;
   if (!to) return "no_address";
-  const venmo = await env.DB.prepare("SELECT venmo_username FROM payment_profiles WHERE member_id = ?")
-    .bind(m.id)
-    .first<{ venmo_username: string | null }>();
-  // Read after the change: exactly the events members still pay into their account.
-  const { results: collecting } = await env.DB.prepare(
-    `SELECT code, date, title FROM events WHERE payee_id = ? AND status IN ${LIVE} ORDER BY start_at`,
-  )
-    .bind(m.id)
-    .all<{ code: string; date: string; title: string }>();
+  const [venmo, { results: collecting }] = await Promise.all([
+    env.DB.prepare("SELECT venmo_username FROM payment_profiles WHERE member_id = ?")
+      .bind(m.id)
+      .first<{ venmo_username: string | null }>(),
+    // Read after the change: exactly the events members still pay into their account.
+    env.DB.prepare(`SELECT code, date, title FROM events WHERE payee_id = ? AND status IN ${LIVE} ORDER BY start_at`)
+      .bind(m.id)
+      .all<{ code: string; date: string; title: string }>(),
+  ]);
   const account = venmo?.venmo_username ? `你的 Venmo（@${venmo.venmo_username}）` : "你的账户";
   const lines = [
     `${m.username}，你好！`,
@@ -255,29 +256,43 @@ async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string)
 export async function transferEvent(env: Env, eventId: number, to: string): Promise<void> {
   const target = await requireMember(env, to);
   if (memberRole(env, target) === "member") throw badRequest("只能转给群主或现任组织者");
-  const owner = await ownerId(env.DB);
-  // NULL means the Owner everywhere, so the Owner is written out like anyone else. The target is
+  // The target is
   // checked again inside the write, in case they stopped being an organizer a moment ago.
   const r = await env.DB.prepare(
     `UPDATE events SET manager_id = ?1,
        payee_id = CASE WHEN status IN ('open', 'closed') AND ${payeeUnlockedSql("events")}
-                       THEN ?1 ELSE COALESCE(payee_id, ?3) END
+                       THEN ?1 ELSE payee_id END
      WHERE id = ?2 AND status IN ${LIVE}
        AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND deleted_at IS NULL
                      AND (is_owner = 1 OR (role = 'organizer' AND status = 'active')))`,
   )
-    .bind(target.id, eventId, owner)
+    .bind(target.id, eventId)
     .run();
   if (r.meta.changes) return;
   if (memberRole(env, await requireMember(env, to)) === "member") throw badRequest("只能转给群主或现任组织者");
   throw badRequest("已收齐归档或已取消的活动不能转交");
 }
 
-/** 删除成员: someone still running an event, or paid for one (a 历史收款人), stays until it is archived. */
+/** A new event by someone revoked a moment ago goes to the Owner, as revoking did with their others. */
+export async function handBackIfRevoked(env: Env, eventId: number, creator: string | null): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE events SET manager_id = (SELECT id FROM members WHERE is_owner = 1),
+       payee_id = (SELECT id FROM members WHERE is_owner = 1)
+     WHERE id = ?1 AND manager_id = ?2
+       AND NOT EXISTS (SELECT 1 FROM members WHERE id = ?2 AND role = 'organizer' AND status = 'active')`,
+  )
+    .bind(eventId, creator)
+    .run();
+}
+
+/**
+ * 删除成员: someone still running an event, or paid for one (a 历史收款人), stays until it is
+ * archived. Never the Owner (they can't be deleted), so NULL (the Owner) needn't be resolved.
+ */
 export async function assertNotRunning(env: Env, m: MemberRow): Promise<void> {
   const e = await env.DB.prepare(
-    `SELECT e.date, ${payeeSql("e")} = ?1 AS paid FROM events e
-     WHERE (${payeeSql("e")} = ?1 OR e.manager_id = ?1) AND e.status IN ${LIVE} ORDER BY e.start_at LIMIT 1`,
+    `SELECT e.date, e.payee_id = ?1 AS paid FROM events e
+     WHERE (e.payee_id = ?1 OR e.manager_id = ?1) AND e.status IN ${LIVE} ORDER BY e.start_at LIMIT 1`,
   )
     .bind(m.id)
     .first<{ date: string; paid: number }>();

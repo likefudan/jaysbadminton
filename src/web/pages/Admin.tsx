@@ -313,9 +313,14 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     if (r) setShown({ name: m.username, link: r.link, fresh: true });
   }
   async function deactivate(m: MemberSummary) {
-    const impact = m.isOrganizer ? await revokePreview(m) : [];
-    if (!impact) return;
-    const revoke = m.isOrganizer ? `\n\n${m.username} 是组织者，停用会先撤销组织者身份。${revokeSummary(impact)}` : "";
+    // No preview (they stopped being an organizer meanwhile): 停用 still works, so ask without it.
+    const impact = m.isOrganizer
+      ? await api<{ events: RevokeImpact[] }>(`${props.base}/members/${m.id}/revoke`).then(
+          (r) => r.events,
+          () => null,
+        )
+      : null;
+    const revoke = impact ? `\n\n${m.username} 是组织者，停用会先撤销组织者身份。${revokeSummary(impact)}` : "";
     if (
       !confirm(
         `停用后 ${m.username} 不能再报名，正在报名中的活动会被取消报名；他的链接还能用来付清欠款。${revoke}\n\n继续吗？`,

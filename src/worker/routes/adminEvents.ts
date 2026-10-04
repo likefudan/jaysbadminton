@@ -40,7 +40,7 @@ import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
 import type { AdminEnv } from "../access";
 import { can, eventPayee, payeeProfile } from "../organizers";
-import { assertOrganizersOn, transferEvent } from "../appointments";
+import { assertOrganizersOn, handBackIfRevoked, transferEvent } from "../appointments";
 import {
   assertAccountFree,
   assertPayeeReady,
@@ -154,6 +154,8 @@ adminEventRoutes.post("/events", async (c) => {
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
+  // Revoked while this request was on its way: the event goes to the Owner like their others did.
+  if (actor.role === "organizer") await handBackIfRevoked(c.env, e.id, actor.memberId);
   // "我自己也报名": the creator signs up as a normal player (ticked by default in the form).
   if (b.joinSelf === true) {
     const self = await activeSelf(c.env, actor.memberId);

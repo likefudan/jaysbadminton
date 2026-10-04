@@ -247,6 +247,8 @@ adminRoutes.post("/:token/members/:id/reactivate", async (c) => {
 adminRoutes.post("/:token/members/:id/delete", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能删除已停用的成员");
+  // An organizer disabled before 停用 revoked them is revoked first, handing their events back.
+  if (m.role === "organizer") await revokeOrganizer(c.env, m, "owner");
   const owing = (await owingByMember(c.env)).get(m.id) ?? 0;
   if (owing > 0) throw badRequest(`${m.username} 还有 $${(owing / 100).toFixed(2)} 没付清，付清或标记已付后才能删除`);
   // Still on a list that can change their bill: Finalize, or a fee or roster change after it, would

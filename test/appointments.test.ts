@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { handBackIfRevoked } from "../src/worker/appointments";
 import { finalize } from "../src/worker/billing";
 import { getEvent } from "../src/worker/events";
 import { issueMemberToken } from "../src/worker/members";
@@ -315,5 +316,19 @@ describe("a 转交 racing a Finalize", () => {
       n: 0,
     });
     expect(await eventRow(id)).toMatchObject({ status: "closed", payee_id: "M001" });
+  });
+});
+
+describe("an event created just as its organizer was revoked", () => {
+  it("goes to the Owner, while one by a current organizer stays theirs", async () => {
+    const { call, alice, cookie } = await withOrganizer();
+    const kept = await organizerEvent(cookie);
+    await handBackIfRevoked(env as any, kept, alice.id);
+    expect(await eventRow(kept)).toMatchObject({ manager_id: alice.id, payee_id: alice.id });
+    expect((await call(`/members/${alice.id}/revoke`, {})).status).toBe(200);
+    // As if her request had passed the access check before the revoke and inserted after it.
+    await db.prepare("UPDATE events SET manager_id = ?1, payee_id = ?1 WHERE id = ?2").bind(alice.id, kept).run();
+    await handBackIfRevoked(env as any, kept, alice.id);
+    expect(await eventRow(kept)).toMatchObject({ manager_id: "M001", payee_id: "M001" });
   });
 });
