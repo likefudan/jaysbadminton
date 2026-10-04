@@ -340,12 +340,12 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
       )
     )
       return;
-    const r = await run(() => api<{ emailStatus: ApprovalEmailStatus }>(`${props.base}/members/${m.id}/appoint`, {}));
+    const r = await run(() => api<{ emailStatus: string }>(`${props.base}/members/${m.id}/appoint`, {}));
     if (!r) return;
     setEmailMessage(
       r.emailStatus === "sent"
         ? `${m.username} 已成为组织者，已发邮件告诉他用 Google 登录后在「管理」里发起活动。`
-        : `${m.username} 已成为组织者，但${r.emailStatus === "failed" ? "通知邮件发送失败" : "邮件服务没有配置，通知邮件没有发出"}。请你自己告诉他：用 Google 登录后打开 ${location.origin}/admin/google，先填好收款设置。`,
+        : `${m.username} 已成为组织者，但${{ failed: "通知邮件发送失败", no_address: "他的 Google 账号没有邮箱，通知邮件没有发出" }[r.emailStatus as string] ?? "邮件服务没有配置，通知邮件没有发出"}。请你自己告诉他：用 Google 登录后打开 ${location.origin}/admin/google，先填好收款设置。`,
     );
     props.onChange();
   }

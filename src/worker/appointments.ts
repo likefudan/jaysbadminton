@@ -65,7 +65,7 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
 }
 
 /** Appoints an active member who signs in with Google (only that way reaches the admin pages). */
-export async function appointOrganizer(env: Env, id: string): Promise<{ emailStatus: SendResult }> {
+export async function appointOrganizer(env: Env, id: string): Promise<{ emailStatus: RevokeEmail }> {
   const m = await requireMember(env, id);
   if (m.is_owner) throw badRequest("群主本来就有全部权限");
   if (m.status !== "active" || m.deleted_at) throw badRequest("只能任命状态正常的成员");
@@ -87,8 +87,9 @@ export async function appointOrganizer(env: Env, id: string): Promise<{ emailSta
     ).bind(m.id, ts),
   ]);
   if (!done[0]!.meta.changes) throw badRequest(`${m.username} 已经是组织者了`);
+  if (!m.google_email) return { emailStatus: "no_address" };
   const emailStatus = await sendEmail(env, {
-    to: m.google_email ?? "",
+    to: m.google_email,
     subject: "你已成为羽毛球群的组织者",
     text:
       `${m.username}，你好！\n群主已把你设为组织者：你可以发起活动、管理自己的活动、给自己的活动收款。\n\n` +
@@ -109,12 +110,14 @@ interface ImpactRow {
   status: EventStatus;
   manager_id: string | null;
   payee_id: string | null;
+  /** No Finalize and no bills yet: the payee can still move (assertPayeeUnlocked). */
+  unlocked: number;
 }
 
 /** What revoking someone does to each of their events that is not archived (design §8 table). */
 export async function revokeImpact(env: Env, id: string): Promise<RevokeImpact[]> {
   const { results } = await env.DB.prepare(
-    `SELECT id, code, date, title, status, manager_id, payee_id FROM events
+    `SELECT id, code, date, title, status, manager_id, payee_id, ${payeeUnlockedSql("events")} AS unlocked FROM events
      WHERE (manager_id = ?1 OR payee_id = ?1) AND status IN ${LIVE} ORDER BY start_at`,
   )
     .bind(id)
@@ -128,7 +131,7 @@ export async function revokeImpact(env: Env, id: string): Promise<RevokeImpact[]
     // Before Finalize nobody has a bill yet, so the money moves with the event. After it, members
     // are already paying into the organizer's account: only who runs it changes, if it is them.
     outcome:
-      e.status !== "finalized"
+      e.status !== "finalized" && e.unlocked
         ? "to_owner"
         : e.payee_id !== id
           ? "manager_only"
@@ -153,7 +156,7 @@ export async function revokeOrganizer(
   m: MemberRow,
   by: RevokeBy,
   with_: D1PreparedStatement[] = [],
-): Promise<{ events: RevokeImpact[]; emailStatus: RevokeEmail }> {
+): Promise<{ events: RevokeImpact[]; emailStatus: RevokeEmail } | null> {
   if (m.role !== "organizer") throw badRequest(`${m.username} 不是组织者`);
   const owner = await ownerId(env.DB);
   if (!owner) throw new HttpError(409, "no_owner", "找不到群主的成员记录");
@@ -182,8 +185,12 @@ export async function revokeOrganizer(
     env.DB.prepare(`DELETE FROM telegram_bindings WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
     ...with_,
   ]);
-  // Someone else revoked them in between: that request did all of this and told them.
-  if (!done[0]!.meta.changes) throw badRequest(`${m.username} 不是组织者`);
+  // Someone else revoked them in between: that request did all of this and told them. `with_`
+  // (停用) has still happened, so that is not an error; null says there was nothing to revoke.
+  if (!done[0]!.meta.changes) {
+    if (with_.length) return null;
+    throw badRequest(`${m.username} 不是组织者`);
+  }
   return { events, emailStatus: await sendRevokeEmail(env, m, by, ts) };
 }
 
@@ -235,19 +242,16 @@ async function sendRevokeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string)
 export async function transferEvent(env: Env, eventId: number, to: string): Promise<void> {
   const target = await requireMember(env, to);
   if (memberRole(env, target) === "member") throw badRequest("只能转给群主或现任组织者");
-  const e = await env.DB.prepare("SELECT status FROM events WHERE id = ?")
-    .bind(eventId)
-    .first<{ status: EventStatus }>();
-  if (!e) throw new HttpError(404, "event_not_found", "找不到这个活动");
-  if (e.status !== "open" && e.status !== "closed" && e.status !== "finalized")
-    throw badRequest("已收齐归档或已取消的活动不能转交");
   const owner = await ownerId(env.DB);
-  // NULL means the Owner everywhere, so the Owner is written out like anyone else.
+  // NULL means the Owner everywhere, so the Owner is written out like anyone else. The target is
+  // checked again inside the write, in case they stopped being an organizer a moment ago.
   const r = await env.DB.prepare(
     `UPDATE events SET manager_id = ?1,
        payee_id = CASE WHEN status IN ('open', 'closed') AND ${payeeUnlockedSql("events")}
                        THEN ?1 ELSE COALESCE(payee_id, ?3) END
-     WHERE id = ?2 AND status IN ${LIVE}`,
+     WHERE id = ?2 AND status IN ${LIVE}
+       AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND deleted_at IS NULL
+                     AND (is_owner = 1 OR (role = 'organizer' AND status = 'active')))`,
   )
     .bind(target.id, eventId, owner)
     .run();

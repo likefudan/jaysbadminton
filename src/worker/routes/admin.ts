@@ -79,7 +79,9 @@ adminRoutes.post("/:token/members/:id/appoint", async (c) => {
 /** What 撤销组织者 would do, for the confirmation. */
 adminRoutes.get("/:token/members/:id/revoke", async (c) => {
   assertOrganizersOn(c.env);
-  return c.json({ events: await revokeImpact(c.env, (await requireMember(c.env, c.req.param("id"))).id) });
+  const m = await requireMember(c.env, c.req.param("id"));
+  if (m.role !== "organizer") throw badRequest(`${m.username} 不是组织者`);
+  return c.json({ events: await revokeImpact(c.env, m.id) });
 });
 
 adminRoutes.post("/:token/members/:id/revoke", async (c) => {
@@ -175,7 +177,7 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   await closeExpired(c.env); // an event past its deadline keeps its sign-ups
   const deactivate = [
     // The link keeps working so they can still pay what they owe; sign-up is refused.
-    c.env.DB.prepare("UPDATE members SET status = 'inactive' WHERE id = ?").bind(m.id),
+    c.env.DB.prepare("UPDATE members SET status = 'inactive' WHERE id = ? AND status = 'active'").bind(m.id),
     // Requirements: deactivating cancels sign-ups for events still open; closed events keep theirs.
     c.env.DB.prepare(
       "DELETE FROM registrations WHERE member_id = ? AND event_id IN (SELECT id FROM events WHERE status = 'open')",
@@ -183,10 +185,23 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   ];
   // An organizer stops being one in the same transaction (design §8), whatever the flag says:
   // their events go back to the Owner and they are told what still pays into their account.
-  if (m.role === "organizer")
-    return c.json({ ok: true, revoked: await revokeOrganizer(c.env, m, "deactivate", deactivate) });
-  await c.env.DB.batch(deactivate);
-  return c.json({ ok: true, revoked: null });
+  const revoke = async (who: MemberRow) =>
+    c.json({ ok: true, revoked: await revokeOrganizer(c.env, who, "deactivate", deactivate) });
+  if (m.role === "organizer") return revoke(m);
+  // Not an organizer when read, and still not one when written (an appointment may land in between).
+  const [plain] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      "UPDATE members SET status = 'inactive' WHERE id = ? AND status = 'active' AND role != 'organizer'",
+    ).bind(m.id),
+    c.env.DB.prepare(
+      `DELETE FROM registrations WHERE member_id = ?1 AND event_id IN (SELECT id FROM events WHERE status = 'open')
+         AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND status = 'inactive')`,
+    ).bind(m.id),
+  ]);
+  if (plain!.meta.changes) return c.json({ ok: true, revoked: null });
+  const fresh = await requireMember(c.env, m.id);
+  if (fresh.status === "active" && fresh.role === "organizer") return revoke(fresh);
+  throw badRequest("这个成员不是正常状态");
 });
 
 adminRoutes.post("/:token/settings/password", async (c) => {

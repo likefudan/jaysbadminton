@@ -182,6 +182,7 @@ describe("revoking an organizer", () => {
     expect(block.list).toEqual([]);
     expect(block.former).toEqual([{ id: alice.id, username: "Alice", collecting: 1 }]);
     expect((await call(`/members/${alice.id}/revoke`, {})).status).toBe(400);
+    expect((await call(`/members/${alice.id}/revoke`)).status).toBe(400);
 
     // Appointed again: the same payment settings, no longer retired.
     expect((await call(`/members/${alice.id}/appoint`, {})).status).toBe(200);

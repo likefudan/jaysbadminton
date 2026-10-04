@@ -418,8 +418,8 @@ function Transfer(props: {
 }) {
   const e = props.e;
   const choices = [
-    ...(props.owner ? [{ id: props.owner.id, label: `群主（${props.owner.username}）` }] : []),
-    ...props.organizers.list.map((o) => ({ id: o.id, label: o.username })),
+    ...(props.owner ? [{ id: props.owner.id, label: `群主（${props.owner.username}）`, ready: true }] : []),
+    ...props.organizers.list.map((o) => ({ id: o.id, label: o.username, ready: o.paymentReady })),
   ].filter((c) => c.id !== e.manager.id);
   const [to, setTo] = useState("");
   const { busy, error, run } = useAction();
@@ -429,7 +429,7 @@ function Transfer(props: {
     if (!target) return;
     const money = finalized
       ? `账单已经发出，收款人仍是 ${e.payee.name}，只换负责人。`
-      : `收款人也一起换成 ${target.label}，结算后成员把钱付给他。`;
+      : `收款人也一起换成 ${target.label}，结算后成员把钱付给他。${target.ready ? "" : `\n\n${target.label} 还没填好收款设置，填好之前这场不能结算。`}`;
     if (!confirm(`把这场活动转给 ${target.label}？\n\n${money}`)) return;
     if (await run(() => api(`${props.eb}/transfer`, { to }))) {
       setTo("");

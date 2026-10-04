@@ -346,7 +346,8 @@ test("the Owner appoints an organizer, hands them an event and revokes them", as
   await expect(block).toContainText("还没有组织者");
   const ming = page.locator(".row", { hasText: "小明" });
   await ming.getByRole("button", { name: "设为组织者" }).click();
-  await expect(page.getByText(/小明 已成为组织者，但邮件服务没有配置/)).toBeVisible();
+  // Linked to Google here without an email, so nobody could be told: the Owner is asked to.
+  await expect(page.getByText(/小明 已成为组织者，但他的 Google 账号没有邮箱/)).toBeVisible();
   await expect(ming.locator(".badge")).toHaveText("组织者");
   await expect(block).toContainText("收款设置没填好");
   await expect(block).toContainText("负责 0 场未归档活动");
