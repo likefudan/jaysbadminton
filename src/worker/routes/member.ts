@@ -12,7 +12,7 @@ import type {
 import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
-import { eventManager, eventPayee, payeeProfile } from "../organizers";
+import { eventManager, eventPayee, memberRole, payeeProfile } from "../organizers";
 import { payeeName } from "../payees";
 import {
   closeExpired,
@@ -202,7 +202,9 @@ memberRoutes.get("/:token/events", async (c) => {
  * changes allowed after the deadline until Finalize. On someone else's event they are a player
  * like anyone else (the Owner can still change any list from the admin page).
  */
-const runsEvent = async (env: Env, m: MemberRow, e: EventRow) => (await eventManager(env.DB, e)) === m.id;
+const runsEvent = async (env: Env, m: MemberRow, e: EventRow) =>
+  // An organizer only while they are one and the feature is on; not money, so the flag may gate it.
+  memberRole(env, m) !== "member" && (await eventManager(env.DB, e)) === m.id;
 const MANAGER_FRIEND_MAX = 20;
 
 async function openEventFor(c: { env: Env; get: (k: "member") => MemberRow }, id: string) {

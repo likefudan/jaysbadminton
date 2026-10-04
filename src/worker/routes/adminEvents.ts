@@ -460,8 +460,18 @@ adminEventRoutes.post("/settings/payment", async (c) => {
  * settings, behind the password (/settings/payment above); this is an organizer's own.
  */
 adminEventRoutes.get("/payment-profile", async (c) => {
-  const me = c.get("actor").memberId;
-  const p = await payeeProfile(c.env.DB, me);
+  const actor = c.get("actor");
+  const me = actor.memberId;
+  // The saved row as is (payeeProfile drops one with only an email, which still counts as taken).
+  const p =
+    actor.role === "owner"
+      ? await payeeProfile(c.env.DB, me)
+      : await c.env.DB.prepare(
+          `SELECT venmo_username AS venmoUsername, venmo_email AS venmoEmail, zelle_account AS zelleAccount
+           FROM payment_profiles WHERE member_id = ?`,
+        )
+          .bind(me)
+          .first<{ venmoUsername: string | null; venmoEmail: string | null; zelleAccount: string | null }>();
   return c.json({
     venmoUsername: p?.venmoUsername ?? "",
     venmoEmail: p?.venmoEmail ?? "",
@@ -717,7 +727,7 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   const paymentId = num((await readJson(c.req.raw)).paymentId);
   // Only what the list offers; a paid bill then gets an over-payment, listed for refund.
   const bill = await c.env.DB.prepare(
-    `SELECT e.id AS event_id, e.status, e.settled_at, p.member_id = ${payeeSql("e")} AS is_payee, m.deleted_at,
+    `SELECT e.id AS event_id, e.status, e.settled_at, ${payeeSql("e")} AS payee, p.member_id, m.deleted_at,
        ${LINKABLE} AS linkable
      FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id WHERE p.id = ?2`,
   )
@@ -726,15 +736,16 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
       event_id: number;
       status: string;
       settled_at: string | null;
-      is_payee: number;
+      payee: string | null;
+      member_id: string;
       deleted_at: string | null;
       linkable: number;
     }>();
   if (!bill) throw badRequest("找不到这笔应付款");
   if (!bill.linkable)
     throw badRequest(
-      bill.is_payee
-        ? "本场收款人本人的账单不用关联"
+      bill.member_id === bill.payee
+        ? `${await payeeName(c.env.DB, bill.payee)}本人的账单不用关联`
         : bill.deleted_at
           ? "这个成员已删除，他付清的账单不能再关联"
           : bill.status === "settled" && (bill.settled_at ?? "") < linkCutoff()

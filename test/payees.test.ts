@@ -120,7 +120,7 @@ describe("an organizer's event is paid to the organizer", () => {
     expect(offered).toContain("Jay");
     expect(offered).not.toContain("Alice");
     const link = await request(`${GOOGLE}/inbound/${inbound!.id}/link`, s.org, { paymentId: b.Alice.id });
-    expect((await json(link)).error.message).toBe("本场收款人本人的账单不用关联");
+    expect((await json(link)).error.message).toBe("Alice本人的账单不用关联");
   });
 
   it("shows members the organizer's Venmo and name on the bill, and the Owner's on the Owner's events", async () => {
@@ -162,6 +162,40 @@ describe("an organizer's event is paid to the organizer", () => {
   });
 });
 
+describe("an event with no payee recorded (written by older code after a rollback)", () => {
+  it("is the Owner's: their bill pays itself, it isn't linkable, and members pay the Owner", async () => {
+    const ctx = await setUpAdmin();
+    await ctx.admin.call(`${ctx.base}/settings/payment`, ownerPayment);
+    const bob = await approveMember(ctx, "Bob");
+    const owner = (await env.DB.prepare("SELECT id FROM members WHERE is_owner = 1").first<{ id: string }>())!.id;
+    const e = (
+      await ctx.admin.call(`${ctx.base}/events`, {
+        date: futureDate(7),
+        startTime: "19:00",
+        endTime: "21:00",
+        location: "Bay",
+        deadlineDays: 1,
+        deadlineHours: 0,
+        joinSelf: true,
+      })
+    ).data;
+    await env.DB.prepare("UPDATE events SET manager_id = NULL, payee_id = NULL WHERE id = ?").bind(e.id).run();
+    await new Client().call(`${bob.base}/events/${e.id}/signup`, { friends: [] });
+    await expire(e.id);
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/finalize`, fees)).status).toBe(200);
+    const pays = (await ctx.admin.call(`${ctx.base}/events/${e.id}/settlement`)).data;
+    expect(pays.payeeIsMe).toBe(true);
+    const jay = pays.payments.find((p: { memberId: string }) => p.memberId === owner);
+    expect(jay).toMatchObject({ isPayee: true, status: "paid" });
+    const offered = (await ctx.admin.call(`${ctx.base}/inbound`)).data.payments.map(
+      (p: { memberName: string }) => p.memberName,
+    );
+    expect(offered).toEqual(["Bob"]);
+    const bill = (await new Client().call(`${bob.base}/events`)).data.events[0].payment;
+    expect(bill).toMatchObject({ payeeName: "群主", venmoUsername: "KeLi8916" });
+  });
+});
+
 describe("whoever runs the event signs up with the Owner's old privileges", () => {
   it("gives them on their own event only", async () => {
     const s = await scenario({ finalize: false });
@@ -180,6 +214,15 @@ describe("whoever runs the event signs up with the Owner's old privileges", () =
     const own = (await new Client().call(`${jay}/events`)).data.events.find((x: { id: number }) => x.id === s.e.id);
     expect(own).toMatchObject({ canEdit: false, friendCap: 3 });
     expect((await new Client().call(`${jay}/events/${s.e.id}/signup`, { friends: [] })).status).toBe(400);
+  });
+
+  it("not while the organizer feature is off", async () => {
+    const s = await scenario({ finalize: false });
+    const mine = await googleCookie("google-alice", "alice@gmail.com");
+    const ev = (await json(await request("/api/m/session/events", mine, undefined, "0"))).events.find(
+      (x: { id: number }) => x.id === s.e.id,
+    );
+    expect(ev).toMatchObject({ canEdit: false, friendCap: 3 });
   });
 });
 
@@ -230,6 +273,15 @@ describe("我的收款设置", () => {
     const owner = await s.admin.call(`${s.base}/payment-profile`, { venmoUsername: "x1", venmoEmail: "x@y.z" });
     expect(owner.status).toBe(400);
     expect((await s.admin.call(`${s.base}/payment-profile`)).data).toMatchObject({ venmoUsername: "KeLi8916" });
+  });
+
+  it("shows a notification email saved on its own", async () => {
+    const s = await scenario({ finalize: false });
+    expect((await s.profile({ venmoUsername: "", venmoEmail: "only@venmo.test" })).status).toBe(200);
+    expect(await json(await request(`${GOOGLE}/payment-profile`, s.org))).toMatchObject({
+      venmoUsername: "",
+      venmoEmail: "only@venmo.test",
+    });
   });
 
   it("keeps every Venmo account to one person", async () => {
