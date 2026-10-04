@@ -9,8 +9,7 @@ import { randomToken, sha256 } from "./lib/crypto";
 import { isStaging } from "./site";
 
 const COOKIE = "jb_developer";
-type Ctx = Context<{ Bindings: Env }>;
-const cookieOptions = (c: Ctx) => ({
+const cookieOptions = <E extends { Bindings: Env }>(c: Context<E>) => ({
   path: "/",
   httpOnly: true,
   secure: new URL(c.req.url).protocol === "https:",
@@ -33,7 +32,7 @@ export async function developerMember<E extends { Bindings: Env }>(c: Context<E>
   return member && member.status === "active" && !member.deleted_at && !member.is_owner ? member : null;
 }
 
-export async function endDeveloperSession(c: Ctx) {
+export async function endDeveloperSession<E extends { Bindings: Env }>(c: Context<E>) {
   const raw = getCookie(c, COOKIE);
   if (raw && isStaging(c.env))
     await c.env.DB.prepare("DELETE FROM admin_sessions WHERE id_hash = ?")
