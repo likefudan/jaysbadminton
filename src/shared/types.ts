@@ -58,8 +58,12 @@ export interface RevokeImpact {
   date: string;
   title: string;
   status: EventStatus;
-  /** to_owner: manager and payee go to the Owner; payee_stays: the Owner runs it, money still goes to them; manager_only: only who runs it changes. */
-  outcome: "to_owner" | "payee_stays" | "manager_only";
+  /**
+   * to_owner: manager and payee go to the Owner; payee_stays: the Owner runs it, money still goes
+   * to them; manager_only: only who runs it changes; payee_only: someone else runs it already and
+   * nothing changes, but members still pay them.
+   */
+  outcome: "to_owner" | "payee_stays" | "manager_only" | "payee_only";
 }
 
 export interface MembersResponse {

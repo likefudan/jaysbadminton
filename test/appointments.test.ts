@@ -194,6 +194,18 @@ describe("revoking an organizer", () => {
     expect((await request(`${GOOGLE}/members`, cookie)).status).toBe(200);
   });
 
+  it("leaves an event someone else runs now with them, and says the money still goes to them", async () => {
+    const { ctx, call, alice, cookie } = await withOrganizer();
+    const bob = await approveMember(ctx, "Bob");
+    await withGoogle(bob.id, "bob");
+    expect((await call(`/members/${bob.id}/appoint`, {})).status).toBe(200);
+    const finalized = await finalizedEvent(cookie, bob.base);
+    expect((await call(`/events/${finalized}/transfer`, { to: bob.id })).status).toBe(200);
+    const done = await call(`/members/${alice.id}/revoke`, {});
+    expect(done.data.events.map((e: any) => e.outcome)).toEqual(["payee_only"]);
+    expect(await eventRow(finalized)).toMatchObject({ manager_id: bob.id, payee_id: alice.id });
+  });
+
   it("retires someone with no events at once", async () => {
     const { call, alice } = await withOrganizer();
     const done = await call(`/members/${alice.id}/revoke`, {});
@@ -263,7 +275,7 @@ describe("transferring an event", () => {
     await db.prepare("UPDATE events SET status = 'settled' WHERE id = ?").bind(finalized).run();
     expect((await call(`/events/${finalized}/transfer`, { to: alice.id })).status).toBe(400);
     expect((await call(`/events/${mine.id}/transfer`, { to: bob.id })).status).toBe(400);
-    expect((await call(`/events/${mine.id}/transfer`, { to: "M999" })).status).toBe(400);
+    expect((await call(`/events/${mine.id}/transfer`, { to: "M999" })).status).toBe(404);
   });
 });
 

@@ -6,7 +6,7 @@ import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
-import { payeeSql } from "./payees";
+import { payeeSql, payeeUnlockedSql } from "./payees";
 
 /**
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
@@ -76,11 +76,15 @@ export async function appointOrganizer(env: Env, id: string): Promise<{ emailSta
   const ts = now();
   const done = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE members SET role = 'organizer', role_since = ?
-       WHERE id = ? AND role != 'organizer' AND status = 'active' AND deleted_at IS NULL AND google_sub IS NOT NULL`,
-    ).bind(ts, m.id),
-    // Someone appointed before keeps their payment settings and is no longer a 历史收款人.
-    env.DB.prepare("UPDATE payment_profiles SET retired_at = NULL WHERE member_id = ?").bind(m.id),
+      `UPDATE members SET role = 'organizer', role_since = ?2
+       WHERE id = ?1 AND role != 'organizer' AND status = 'active' AND deleted_at IS NULL AND google_sub IS NOT NULL`,
+    ).bind(m.id, ts),
+    // Someone appointed before keeps their payment settings and is no longer a 历史收款人 (only if
+    // the line above appointed them).
+    env.DB.prepare(
+      `UPDATE payment_profiles SET retired_at = NULL WHERE member_id = ?1
+         AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND role = 'organizer' AND role_since = ?2)`,
+    ).bind(m.id, ts),
   ]);
   if (!done[0]!.meta.changes) throw badRequest(`${m.username} 已经是组织者了`);
   const emailStatus = await sendEmail(env, {
@@ -122,70 +126,94 @@ export async function revokeImpact(env: Env, id: string): Promise<RevokeImpact[]
     title: e.title,
     status: e.status,
     // Before Finalize nobody has a bill yet, so the money moves with the event. After it, members
-    // are already paying into the organizer's account: only who runs it changes.
-    outcome: e.status === "finalized" ? (e.payee_id === id ? "payee_stays" : "manager_only") : "to_owner",
+    // are already paying into the organizer's account: only who runs it changes, if it is them.
+    outcome:
+      e.status !== "finalized"
+        ? "to_owner"
+        : e.payee_id !== id
+          ? "manager_only"
+          : e.manager_id === id
+            ? "payee_stays"
+            : "payee_only",
   }));
 }
 
+export type RevokeBy = "owner" | "self" | "deactivate";
+/** What happened to the email telling them; no_address: they have no email to send it to. */
+export type RevokeEmail = SendResult | "no_address";
+
 /**
- * 撤销组织者 (by the Owner, by themselves 不再当组织者, or before 停用): their events go back to the
- * Owner, except that finalized events keep paying into their account until archived. Their payment
- * settings stay (retired) so those payments can still be matched, and they are told by email.
+ * 撤销组织者 (by the Owner, by themselves 不再当组织者, or as part of 停用): their events go back to
+ * the Owner, except that finalized events keep paying into their account until archived. Their
+ * payment settings stay (retired) so those payments can still be matched, and they are told by
+ * email. `with` runs in the same transaction (停用's own statements), so it all happens or none.
  */
 export async function revokeOrganizer(
   env: Env,
   m: MemberRow,
-  by: "owner" | "self",
-): Promise<{ events: RevokeImpact[]; emailStatus: SendResult }> {
+  by: RevokeBy,
+  with_: D1PreparedStatement[] = [],
+): Promise<{ events: RevokeImpact[]; emailStatus: RevokeEmail }> {
   if (m.role !== "organizer") throw badRequest(`${m.username} 不是组织者`);
   const owner = await ownerId(env.DB);
   if (!owner) throw new HttpError(409, "no_owner", "找不到群主的成员记录");
   const events = await revokeImpact(env, m.id);
   const ts = now();
+  // Each step runs only if this request is the one that revoked them (role_since = ts), so a
+  // second click, or a revoke racing this one, changes nothing more.
+  const mine = "EXISTS (SELECT 1 FROM members WHERE id = ?2 AND role = 'member' AND role_since = ?3)";
   const done = await env.DB.batch([
-    env.DB.prepare("UPDATE members SET role = 'member', role_since = ? WHERE id = ? AND role = 'organizer'").bind(
-      ts,
+    env.DB.prepare("UPDATE members SET role = 'member', role_since = ?2 WHERE id = ?1 AND role = 'organizer'").bind(
       m.id,
+      ts,
     ),
-    // Before Finalize (no bills: the same test as assertPayeeUnlocked) the payee moves too.
+    // Before Finalize nobody has a bill, so the money moves with the event.
     env.DB.prepare(
       `UPDATE events SET payee_id = ?1 WHERE payee_id = ?2 AND status IN ('open', 'closed')
-         AND finalized_at IS NULL AND NOT EXISTS (SELECT 1 FROM payments WHERE event_id = events.id)`,
-    ).bind(owner, m.id),
-    env.DB.prepare(`UPDATE events SET manager_id = ? WHERE manager_id = ? AND status IN ${LIVE}`).bind(owner, m.id),
-    env.DB.prepare("UPDATE payment_profiles SET retired_at = ? WHERE member_id = ?").bind(ts, m.id),
+         AND ${payeeUnlockedSql("events")} AND ${mine}`,
+    ).bind(owner, m.id, ts),
+    env.DB.prepare(`UPDATE events SET manager_id = ?1 WHERE manager_id = ?2 AND status IN ${LIVE} AND ${mine}`).bind(
+      owner,
+      m.id,
+      ts,
+    ),
+    env.DB.prepare(`UPDATE payment_profiles SET retired_at = ?3 WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
     // Their Telegram goes (design §8): what is left for them as a 历史收款人 goes to the Owner.
-    env.DB.prepare("DELETE FROM telegram_bindings WHERE member_id = ?").bind(m.id),
+    env.DB.prepare(`DELETE FROM telegram_bindings WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
+    ...with_,
   ]);
-  // Someone else revoked them in between: the first one already did all of this.
+  // Someone else revoked them in between: that request did all of this and told them.
   if (!done[0]!.meta.changes) throw badRequest(`${m.username} 不是组织者`);
-  return { events, emailStatus: await sendRevokeEmail(env, m, events, by, ts) };
+  return { events, emailStatus: await sendRevokeEmail(env, m, by, ts) };
 }
 
 /** They can no longer open the admin pages, so this is how they learn what happens to their events. */
-async function sendRevokeEmail(
-  env: Env,
-  m: MemberRow,
-  events: RevokeImpact[],
-  by: "owner" | "self",
-  ts: string,
-): Promise<SendResult> {
+async function sendRevokeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string): Promise<RevokeEmail> {
   const to = m.google_email ?? m.email;
-  if (!to) return "not_configured";
+  if (!to) return "no_address";
   const venmo = await env.DB.prepare("SELECT venmo_username FROM payment_profiles WHERE member_id = ?")
     .bind(m.id)
     .first<{ venmo_username: string | null }>();
-  const collecting = events.filter((e) => e.outcome === "payee_stays");
+  // Read after the change: exactly the events members still pay into their account.
+  const { results: collecting } = await env.DB.prepare(
+    `SELECT code, date, title FROM events WHERE payee_id = ? AND status IN ${LIVE} ORDER BY start_at`,
+  )
+    .bind(m.id)
+    .all<{ code: string; date: string; title: string }>();
   const account = venmo?.venmo_username ? `你的 Venmo（@${venmo.venmo_username}）` : "你的账户";
   const lines = [
     `${m.username}，你好！`,
-    by === "self" ? "你已经不再当组织者。" : "群主已撤销你的组织者身份。",
-    "管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。",
+    {
+      owner: "群主已撤销你的组织者身份。管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。",
+      self: "你已经不再当组织者。管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。",
+      deactivate:
+        "群主已停用你的账号，你的组织者身份也一并撤销。管理页对你的 Google 账号不再开放；你不能再报名，但还可以打开自己的页面付清欠款。",
+    }[by],
     "",
   ];
   if (collecting.length > 0)
     lines.push(
-      `下面 ${collecting.length} 场活动已经发出账单，成员还会继续把钱付到${account}，这几场由群主接手管理。收到钱后请和群主核对：`,
+      `下面 ${collecting.length} 场活动已经发出账单，成员还会继续把钱付到${account}，但已经不由你管理。收到钱后请和群主核对：`,
       ...collecting.map((e) => `- ${formatDateZh(e.date)}${e.title ? ` ${e.title}` : ""}（${e.code}）`),
       "",
       "等这几场都收齐后，就可以删掉 Gmail 里转发 Venmo 邮件的过滤器了。",
@@ -205,8 +233,8 @@ async function sendRevokeEmail(
  * money goes with it; once bills exist the payee stays, as members may already have paid.
  */
 export async function transferEvent(env: Env, eventId: number, to: string): Promise<void> {
-  const target = await env.DB.prepare("SELECT * FROM members WHERE id = ?").bind(to).first<MemberRow>();
-  if (!target || memberRole(env, target) === "member") throw badRequest("只能转给群主或现任组织者");
+  const target = await requireMember(env, to);
+  if (memberRole(env, target) === "member") throw badRequest("只能转给群主或现任组织者");
   const e = await env.DB.prepare("SELECT status FROM events WHERE id = ?")
     .bind(eventId)
     .first<{ status: EventStatus }>();
@@ -217,8 +245,7 @@ export async function transferEvent(env: Env, eventId: number, to: string): Prom
   // NULL means the Owner everywhere, so the Owner is written out like anyone else.
   const r = await env.DB.prepare(
     `UPDATE events SET manager_id = ?1,
-       payee_id = CASE WHEN status IN ('open', 'closed') AND finalized_at IS NULL
-                        AND NOT EXISTS (SELECT 1 FROM payments WHERE event_id = events.id)
+       payee_id = CASE WHEN status IN ('open', 'closed') AND ${payeeUnlockedSql("events")}
                        THEN ?1 ELSE COALESCE(payee_id, ?3) END
      WHERE id = ?2 AND status IN ${LIVE}`,
   )

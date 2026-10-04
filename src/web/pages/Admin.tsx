@@ -507,6 +507,7 @@ function revokeSummary(events: RevokeImpact[]): string {
     to_owner: "还没结算：负责人和收款人都转给群主",
     payee_stays: "收款中：由群主接手管理，钱继续付到他的账户，直到收齐",
     manager_only: "收款中：负责人转给群主，收款人不变",
+    payee_only: "收款中：负责人不变，钱继续付到他的账户，直到收齐",
   };
   return `\n\n会受影响的活动：\n${events
     .map((e) => `· ${formatDateZh(e.date, false)}${e.title ? ` ${e.title}` : ""}：${what[e.outcome]}`)
@@ -515,7 +516,9 @@ function revokeSummary(events: RevokeImpact[]): string {
 
 function revokeEmailMessage(name: string, status: string): string {
   if (status === "sent") return `已撤销 ${name} 的组织者身份，并发邮件告诉了他。`;
-  return `已撤销 ${name} 的组织者身份，但${status === "failed" ? "邮件发送失败" : "邮件服务没有配置，邮件没有发出"}。请你自己告诉他：还在收款的活动钱继续付到他的账户，收到后和你核对；之后可以删掉 Venmo 邮件转发。`;
+  const why =
+    { failed: "邮件发送失败", no_address: "他没有登记邮箱，邮件没有发出" }[status] ?? "邮件服务没有配置，邮件没有发出";
+  return `已撤销 ${name} 的组织者身份，但${why}。请你自己告诉他：还在收款的活动钱继续付到他的账户，收到后和你核对；之后可以删掉 Venmo 邮件转发。`;
 }
 
 /** 组织者 block at the top of the members page: the Owner and (read-only) organizers see it. */

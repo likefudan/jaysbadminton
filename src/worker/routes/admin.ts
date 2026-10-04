@@ -59,7 +59,7 @@ adminRoutes.get("/:token/members", async (c) => {
   const all = results.map((m) => ({
     ...toSummary(m),
     owingCents: owing.get(m.id) ?? 0,
-    isOrganizer: m.status === "active" && memberRole(c.env, m) === "organizer",
+    isOrganizer: memberRole(c.env, m) === "organizer",
   }));
   return c.json<MembersResponse>({
     pending: all.filter((m) => m.status === "pending"),
@@ -172,19 +172,21 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.is_owner) throw badRequest("不能停用群主本人");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
-  // An organizer stops being one first (design §8), whatever the flag says: their events go back
-  // to the Owner and they are told what still pays into their account.
-  const revoked = m.role === "organizer" ? await revokeOrganizer(c.env, m, "owner") : null;
   await closeExpired(c.env); // an event past its deadline keeps its sign-ups
-  await c.env.DB.batch([
+  const deactivate = [
     // The link keeps working so they can still pay what they owe; sign-up is refused.
     c.env.DB.prepare("UPDATE members SET status = 'inactive' WHERE id = ?").bind(m.id),
     // Requirements: deactivating cancels sign-ups for events still open; closed events keep theirs.
     c.env.DB.prepare(
       "DELETE FROM registrations WHERE member_id = ? AND event_id IN (SELECT id FROM events WHERE status = 'open')",
     ).bind(m.id),
-  ]);
-  return c.json({ ok: true, revoked });
+  ];
+  // An organizer stops being one in the same transaction (design §8), whatever the flag says:
+  // their events go back to the Owner and they are told what still pays into their account.
+  if (m.role === "organizer")
+    return c.json({ ok: true, revoked: await revokeOrganizer(c.env, m, "deactivate", deactivate) });
+  await c.env.DB.batch(deactivate);
+  return c.json({ ok: true, revoked: null });
 });
 
 adminRoutes.post("/:token/settings/password", async (c) => {
