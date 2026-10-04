@@ -9,4 +9,5 @@ if [ ! -f .dev.vars ]; then
 fi
 rm -rf .wrangler/e2e
 npx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e > /dev/null
-exec npx wrangler dev --port 8788 --persist-to .wrangler/e2e --show-interactive-dev-session=false
+# The 组织者 features are on, as on the test site; unit tests cover them being off.
+exec npx wrangler dev --var ORGANIZERS:1 --port 8788 --persist-to .wrangler/e2e --show-interactive-dev-session=false

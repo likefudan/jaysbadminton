@@ -21,4 +21,6 @@ export interface Env {
   SITE_ORIGIN: string;
   /** "production" or "staging" (the test site); missing in tests, which count as production. */
   ENVIRONMENT?: string;
+  /** "1" turns on the 组织者 features (staging and local dev); "0" or missing keeps them off. */
+  ORGANIZERS?: string;
 }

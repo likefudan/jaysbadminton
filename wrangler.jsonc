@@ -19,7 +19,9 @@
       "migrations_dir": "migrations"
     }
   ],
-  "vars": { "SITE_ORIGIN": "https://jaysbadminton.llmat.dev", "ENVIRONMENT": "production" },
+  // ORGANIZERS: the 组织者 features stay off in production until they have been tried on staging
+  // (docs/design/organizers-tasks.zh.md, card 11). Local dev turns them on with ORGANIZERS="1" in .dev.vars.
+  "vars": { "SITE_ORIGIN": "https://jaysbadminton.llmat.dev", "ENVIRONMENT": "production", "ORGANIZERS": "0" },
   // 截止前提醒 and 报名截止 go out on time from each event's alarm (src/worker/deadlines.ts).
   "durable_objects": { "bindings": [{ "name": "DEADLINES", "class_name": "DeadlineAlarm" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DeadlineAlarm"] }],
@@ -49,7 +51,7 @@
           "migrations_dir": "migrations"
         }
       ],
-      "vars": { "SITE_ORIGIN": "https://staging.jaysbadminton.llmat.dev", "ENVIRONMENT": "staging" },
+      "vars": { "SITE_ORIGIN": "https://staging.jaysbadminton.llmat.dev", "ENVIRONMENT": "staging", "ORGANIZERS": "1" },
       "durable_objects": { "bindings": [{ "name": "DEADLINES", "class_name": "DeadlineAlarm" }] },
       "triggers": { "crons": ["*/15 * * * *"] },
       "routes": [{ "pattern": "staging.jaysbadminton.llmat.dev", "custom_domain": true }],

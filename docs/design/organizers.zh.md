@@ -87,15 +87,17 @@
 ALTER TABLE members ADD COLUMN role TEXT NOT NULL DEFAULT 'member';   -- 'member' | 'organizer'（将来可能有 'admin'）
 ALTER TABLE members ADD COLUMN role_since TEXT;
 
--- 每场活动的负责人和收款人（迁移时都回填为群主）
+-- 每场活动的负责人和收款人（迁移时都回填为群主；下面 inbound_payments.payee_id 也一样）
 ALTER TABLE events ADD COLUMN manager_id TEXT REFERENCES members (id);
 ALTER TABLE events ADD COLUMN payee_id   TEXT REFERENCES members (id);
+CREATE INDEX events_manager ON events (manager_id);   -- 组织者的活动列表按负责人查
+CREATE INDEX events_payee ON events (payee_id);
 
 -- 组织者的收款设置（群主的仍留在 settings 里，不搬，见下方「回滚注意」）
 CREATE TABLE payment_profiles (
-  member_id      TEXT PRIMARY KEY REFERENCES members (id),
-  venmo_username TEXT COLLATE NOCASE UNIQUE,
-  venmo_email    TEXT COLLATE NOCASE UNIQUE,
+  member_id      TEXT NOT NULL PRIMARY KEY REFERENCES members (id),
+  venmo_username TEXT COLLATE NOCASE UNIQUE CHECK (venmo_username != ''),   -- 没填时存 NULL，不存空字符串
+  venmo_email    TEXT COLLATE NOCASE UNIQUE CHECK (venmo_email != ''),
   zelle_account  TEXT,
   email_last_at  TEXT,          -- 最近一次收到这个账户的 Venmo 邮件（健康检查、「转发已生效」用）
   gmail_confirm  TEXT,          -- 最近一封转发确认邮件的内容（显示在收款设置页，24 小时后清掉）
@@ -115,10 +117,12 @@ CREATE TABLE payment_aliases (
 
 -- 收款进了谁的账户
 ALTER TABLE inbound_payments ADD COLUMN payee_id TEXT REFERENCES members (id);
+UPDATE inbound_payments SET payee_id = (SELECT id FROM members WHERE is_owner = 1);
+CREATE INDEX inbound_payee ON inbound_payments (payee_id, state);   -- 组织者的「待确认」列表
 
 -- 组织者的 Telegram 接收人（群主的仍留在 settings 里）
 CREATE TABLE telegram_bindings (
-  member_id TEXT PRIMARY KEY REFERENCES members (id),
+  member_id TEXT NOT NULL PRIMARY KEY REFERENCES members (id),
   chat_id   TEXT UNIQUE,        -- 还没连上时为空（SQLite 的 UNIQUE 允许多个空值）
   chat_name TEXT,
   bind_hash TEXT,               -- 这个人的一次性绑定码（SHA-256），点「连接 Telegram」时写入，连上后清空

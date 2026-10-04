@@ -5,6 +5,7 @@ import { syncDeadline } from "./deadlines";
 import { codeOf, eventNumberBase, nextEventNumber, parsePaymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
+import { ownerId } from "./organizers";
 
 export interface EventRow {
   id: number;
@@ -24,6 +25,9 @@ export interface EventRow {
   settled_at: string | null;
   dunning_stopped: number;
   created_at: string;
+  /** 负责人 and 收款人; NULL means the Owner. Read them through eventManager / eventPayee. */
+  manager_id: string | null;
+  payee_id: string | null;
 }
 
 interface RosterRow {
@@ -147,6 +151,7 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     env.DB.prepare("DELETE FROM settlements WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM event_audit WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM events WHERE id = ?").bind(e.id),
     env.DB.prepare("INSERT INTO deleted_events (id, number, code, date, deleted_at) VALUES (?, ?, ?, ?, ?)").bind(
       e.id,
@@ -238,6 +243,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const address = input.address.trim();
   const title = cleanTitle(input.title);
   const ts = now();
+  // The Owner manages and is paid for every event until organizers can create their own (card 3).
+  const owner = await ownerId(env.DB);
   // The 活动编号 skips every number an event created on this date has ever had (including events
   // since moved to another date or deleted), so no number is handed out twice. If two requests race
   // for the same one, the unique index refuses the second insert and it takes the next letter.
@@ -264,8 +271,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     if (!number) throw badRequest("同一天的活动太多了");
     try {
       const res = await env.DB.prepare(
-        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?) RETURNING id`,
+        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?) RETURNING id`,
       )
         .bind(
           number,
@@ -279,6 +286,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
           v.deadlineAt,
           v.offsetMin,
           ts,
+          owner,
+          owner,
         )
         .first<{ id: number }>();
       id = res!.id;

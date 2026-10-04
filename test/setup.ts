@@ -5,6 +5,10 @@ import { beforeEach } from "vitest";
 await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 
 const TABLES = [
+  "event_audit",
+  "payment_aliases",
+  "payment_profiles",
+  "telegram_bindings",
   "member_sessions",
   "oauth_states",
   "notification_log",

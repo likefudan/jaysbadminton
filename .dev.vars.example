@@ -1,5 +1,7 @@
 TOKEN_KEY="dev"
 ADMIN_PASSWORD="local-password"
+# 组织者 features (off in production until card 11 of docs/design/organizers-tasks.zh.md):
+ORGANIZERS="1"
 # Optional until a Google OAuth Web Client is created:
 # GOOGLE_CLIENT_ID="...apps.googleusercontent.com"
 # GOOGLE_CLIENT_SECRET="..."
