@@ -41,7 +41,11 @@ interface Rule {
 }
 
 const forbidden = () => new HttpError(403, "forbidden", "没有权限做这个操作");
-const num = (v: unknown) => Number(v);
+/** An id from the path or body; anything else is null (and refused), never NaN bound into D1. */
+const num = (v: unknown) => {
+  const n = Number(v);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+};
 
 /** Whether the actor runs this event: every event with `group`, otherwise the ones they manage. */
 async function managesEvent(env: Env, actor: Actor, eventId: number): Promise<boolean> {
@@ -52,9 +56,10 @@ async function managesEvent(env: Env, actor: Actor, eventId: number): Promise<bo
   return !!e && (await eventManager(env.DB, e)) === actor.memberId;
 }
 
-const eventOf = async (env: Env, sql: string, id: number) =>
-  (await env.DB.prepare(sql).bind(id).first<{ event_id: number }>())?.event_id ?? null;
-const paymentEventId = (env: Env, pid: number) => eventOf(env, "SELECT event_id FROM payments WHERE id = ?", pid);
+const eventOf = async (env: Env, sql: string, id: number | null) =>
+  id === null ? null : ((await env.DB.prepare(sql).bind(id).first<{ event_id: number }>())?.event_id ?? null);
+const paymentEventId = (env: Env, pid: number | null) =>
+  eventOf(env, "SELECT event_id FROM payments WHERE id = ?", pid);
 
 async function requireEvent(env: Env, actor: Actor, eventId: number | null): Promise<void> {
   // A missing event or bill reads the same as someone else's, so ids can't be probed; with
@@ -105,8 +110,9 @@ const receipt = (): Rule => ({
     ),
 });
 
-async function requirePayee(env: Env, actor: Actor, inboundId: number): Promise<void> {
+async function requirePayee(env: Env, actor: Actor, inboundId: number | null): Promise<void> {
   if (can(actor.role, "group")) return;
+  if (inboundId === null) throw forbidden();
   const i = await env.DB.prepare("SELECT payee_id FROM inbound_payments WHERE id = ?")
     .bind(inboundId)
     .first<{ payee_id: string | null }>();
@@ -125,7 +131,6 @@ const inboundToBill = (): Rule => ({
   check: async (c, actor, p) => {
     if (can(actor.role, "group")) return;
     await requirePayee(c.env, actor, num(p.iid));
-    if (!can(actor.role, "event")) throw forbidden();
     const body = await readJson(c.req.raw.clone());
     await requireEvent(c.env, actor, await paymentEventId(c.env, num(body.paymentId)));
   },

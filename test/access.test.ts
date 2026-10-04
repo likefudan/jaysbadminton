@@ -189,6 +189,13 @@ describe("organizers on the admin pages", () => {
     ).toBe(200);
   });
 
+  it("refuses ids that aren't numbers instead of failing", async () => {
+    const { org } = await scenario();
+    expect((await request(`${GOOGLE}/events/abc/edit`, org, {})).status).toBe(403);
+    expect((await request(`${GOOGLE}/inbound/x/ignore`, org, {})).status).toBe(403);
+    expect((await request(`${GOOGLE}/payments/1.5/mark-paid`, org, {})).status).toBe(403);
+  });
+
   it("links only their own payment, and only to a bill of their own event", async () => {
     const { org, ids } = await scenario();
     const link = (iid: number, pid: number) => request(`${GOOGLE}/inbound/${iid}/link`, org, { paymentId: pid });
