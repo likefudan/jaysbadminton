@@ -43,6 +43,12 @@ function load() {
         setSiteTitle(r.title);
         setSiteTheme(r.theme);
         staging = !!r.staging;
+        if (staging)
+          document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]').forEach((icon) => {
+            icon.href = "/favicon-staging.svg";
+            icon.type = "image/svg+xml";
+            icon.removeAttribute("sizes");
+          });
         stagingListeners.forEach((l) => l(staging));
       })
       .catch(() => undefined);

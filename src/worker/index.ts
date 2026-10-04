@@ -1,3 +1,4 @@
+import { developerRoutes } from "./developer";
 import { Hono } from "hono";
 import type { Env } from "./env";
 import { closeExpired } from "./events";
@@ -91,6 +92,7 @@ app.get("/robots.txt", (c) =>
 app.get("/", async (c) => sharePage(c.env, c.req.raw, await homeMeta(c.env)));
 app.get("/e/:code", async (c) => sharePage(c.env, c.req.raw, await eventMeta(c.env, c.req.param("code"))));
 
+app.route("/api/developer", developerRoutes);
 app.route("/api/public", publicRoutes);
 app.route("/api/auth", googleRoutes);
 app.route("/api/m", memberRoutes);

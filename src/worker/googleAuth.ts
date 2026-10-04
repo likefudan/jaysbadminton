@@ -1,3 +1,4 @@
+import { developerMember, endDeveloperSession } from "./developer";
 import { sendApplicationNotice } from "./approvalEmail";
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -61,6 +62,8 @@ export const memberByGoogle = (env: Env, sub: string) =>
   env.DB.prepare("SELECT * FROM members WHERE google_sub = ? AND deleted_at IS NULL").bind(sub).first<MemberRow>();
 
 export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow> {
+  const developer = await developerMember(c);
+  if (developer) return developer;
   const session = await googleSession(c);
   if (!session) throw loginRequired();
   const m = await memberByGoogle(c.env, session.google_sub);
@@ -84,6 +87,17 @@ googleRoutes.use("*", async (c, next) => {
   await next();
 });
 googleRoutes.get("/session", async (c) => {
+  if (await developerMember(c))
+    return c.json({
+      enabled: googleEnabled(c.env),
+      signedIn: true,
+      email: null,
+      picture: null,
+      hasMember: true,
+      pending: false,
+      isAdmin: false,
+      developer: true,
+    });
   const session = await googleSession(c);
   const member = session ? await memberByGoogle(c.env, session.google_sub) : null;
   return c.json({
@@ -256,6 +270,7 @@ googleRoutes.post("/link", async (c) => {
   return c.json({ ok: true });
 });
 googleRoutes.post("/logout", async (c) => {
+  await endDeveloperSession(c);
   const raw = getCookie(c, MEMBER_COOKIE);
   if (raw)
     await c.env.DB.prepare("DELETE FROM member_sessions WHERE id_hash = ?")
