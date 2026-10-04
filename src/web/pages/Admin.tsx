@@ -511,7 +511,13 @@ function revokeSummary(events: RevokeImpact[]): string {
     payee_to_owner: "还没结算：收款人转给群主，负责人不变",
   };
   return `\n\n会受影响的活动：\n${events
-    .map((e) => `· ${formatDateZh(e.date, false)}${e.title ? ` ${e.title}` : ""}：${what[e.outcome]}`)
+    .map((e) => {
+      const label =
+        e.outcome === "manager_only" && e.status !== "finalized"
+          ? "还没结算：负责人转给群主，收款人不变"
+          : what[e.outcome];
+      return `· ${formatDateZh(e.date, false)}${e.title ? ` ${e.title}` : ""}：${label}`;
+    })
     .join("\n")}`;
 }
 

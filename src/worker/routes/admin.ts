@@ -55,7 +55,10 @@ adminRoutes.get("/:token/members", async (c) => {
   const { results } = await c.env.DB.prepare("SELECT * FROM members ORDER BY id").all<MemberRow>();
   // 未付 counts only the events one runs, without `group`: other people's fees stay theirs.
   const actor = c.get("actor");
-  const owing = await owingByMember(c.env, can(actor.role, "group") ? null : actor.memberId);
+  const [owing, organizers] = await Promise.all([
+    owingByMember(c.env, can(actor.role, "group") ? null : actor.memberId),
+    organizersBlock(c.env, can(actor.role, "group")),
+  ]);
   const all = results.map((m) => ({
     ...toSummary(m),
     owingCents: owing.get(m.id) ?? 0,
@@ -66,7 +69,7 @@ adminRoutes.get("/:token/members", async (c) => {
     active: all.filter((m) => m.status === "active"),
     inactive: all.filter((m) => m.status === "inactive" && !m.deletedAt),
     deleted: all.filter((m) => !!m.deletedAt),
-    organizers: await organizersBlock(c.env, can(actor.role, "group")),
+    organizers,
   });
 });
 
@@ -231,8 +234,11 @@ adminRoutes.post("/:token/settings/backup-key", async (c) => {
 adminRoutes.post("/:token/members/:id/reactivate", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能恢复已停用的成员");
-  // Back as a plain member: being an organizer again takes a new appointment (with its checks).
-  await c.env.DB.prepare("UPDATE members SET status = 'active', role = 'member' WHERE id = ?").bind(m.id).run();
+  const back = c.env.DB.prepare("UPDATE members SET status = 'active' WHERE id = ? AND status = 'inactive'").bind(m.id);
+  // Back as a plain member: an organizer disabled without being revoked (before 停用 did that) is
+  // revoked now, so being one again takes a new appointment.
+  if (m.role === "organizer") await revokeOrganizer(c.env, m, "owner", [back]);
+  else await back.run();
   const link = m.token_enc ? null : memberLink(origin(c.req.url), await issueMemberToken(c.env, m.id));
   return c.json({ ok: true, link });
 });

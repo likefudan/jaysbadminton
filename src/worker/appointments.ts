@@ -24,31 +24,33 @@ export function assertOrganizersOn(env: Env): void {
 /** 组织者区块 on the members page: who runs what, and whether their payments can be matched. */
 export async function organizersBlock(env: Env, canManage: boolean): Promise<OrganizersBlock | null> {
   if (!organizersEnabled(env)) return null;
-  const { results: list } = await env.DB.prepare(
-    `SELECT m.id, m.username, m.role_since, p.venmo_username, p.venmo_email, p.email_last_at, t.chat_id,
+  const [{ results: list }, { results: former }] = await Promise.all([
+    env.DB.prepare(
+      `SELECT m.id, m.username, m.role_since, p.venmo_username, p.venmo_email, p.email_last_at, t.chat_id,
        (SELECT COUNT(*) FROM events e WHERE e.manager_id = m.id AND e.status IN ${LIVE}) AS events
      FROM members m
      LEFT JOIN payment_profiles p ON p.member_id = m.id
      LEFT JOIN telegram_bindings t ON t.member_id = m.id
      WHERE m.role = 'organizer' AND m.is_owner = 0 AND m.status = 'active' AND m.deleted_at IS NULL
      ORDER BY m.role_since, m.id`,
-  ).all<{
-    id: string;
-    username: string;
-    role_since: string | null;
-    venmo_username: string | null;
-    venmo_email: string | null;
-    email_last_at: string | null;
-    chat_id: string | null;
-    events: number;
-  }>();
-  // 历史收款人: no longer organizers, but members still pay into their account.
-  const { results: former } = await env.DB.prepare(
-    `SELECT m.id, m.username, COUNT(*) AS collecting FROM members m JOIN events e ON e.payee_id = m.id
+    ).all<{
+      id: string;
+      username: string;
+      role_since: string | null;
+      venmo_username: string | null;
+      venmo_email: string | null;
+      email_last_at: string | null;
+      chat_id: string | null;
+      events: number;
+    }>(),
+    // 历史收款人: no longer organizers, but members still pay into their account.
+    env.DB.prepare(
+      `SELECT m.id, m.username, COUNT(*) AS collecting FROM members m JOIN events e ON e.payee_id = m.id
      WHERE m.is_owner = 0 AND NOT (m.role = 'organizer' AND m.status = 'active' AND m.deleted_at IS NULL)
        AND e.status IN ${LIVE}
      GROUP BY m.id ORDER BY m.id`,
-  ).all<{ id: string; username: string; collecting: number }>();
+    ).all<{ id: string; username: string; collecting: number }>(),
+  ]);
   return {
     canManage,
     list: list.map((o) => ({
@@ -74,7 +76,7 @@ function assertAppointable(m: MemberRow): void {
 }
 
 /** Appoints an active member who signs in with Google (only that way reaches the admin pages). */
-export async function appointOrganizer(env: Env, id: string): Promise<{ emailStatus: RevokeEmail }> {
+export async function appointOrganizer(env: Env, id: string): Promise<{ emailStatus: NoticeEmail }> {
   const m = await requireMember(env, id);
   assertAppointable(m);
   const ts = now();
@@ -153,8 +155,8 @@ export async function revokeImpact(env: Env, id: string): Promise<RevokeImpact[]
 }
 
 export type RevokeBy = "owner" | "self" | "deactivate";
-/** What happened to the email telling them; no_address: they have no email to send it to. */
-export type RevokeEmail = SendResult | "no_address";
+/** What happened to an appointment or revoke email; no_address: they have no email to send it to. */
+export type NoticeEmail = SendResult | "no_address";
 
 /**
  * 撤销组织者 (by the Owner, by themselves 不再当组织者, or as part of 停用): their events go back to
@@ -167,7 +169,7 @@ export async function revokeOrganizer(
   m: MemberRow,
   by: RevokeBy,
   with_: D1PreparedStatement[] = [],
-): Promise<{ emailStatus: RevokeEmail } | null> {
+): Promise<{ emailStatus: NoticeEmail } | null> {
   if (m.role !== "organizer") throw badRequest(`${m.username} 不是组织者`);
   const owner = await ownerId(env.DB);
   if (!owner) throw new HttpError(409, "no_owner", "找不到群主的成员记录");
@@ -190,6 +192,7 @@ export async function revokeOrganizer(
       m.id,
       ts,
     ),
+    // retired_at marks a 历史收款人 for auto-matching (card 8).
     env.DB.prepare(`UPDATE payment_profiles SET retired_at = ?3 WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
     // Their Telegram goes (design §8): what is left for them as a 历史收款人 goes to the Owner.
     env.DB.prepare(`DELETE FROM telegram_bindings WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
@@ -201,11 +204,11 @@ export async function revokeOrganizer(
     if (with_.length) return null;
     throw badRequest(`${m.username} 不是组织者`);
   }
-  return { emailStatus: await sendRevokeEmail(env, m, by, ts) };
+  return { emailStatus: await sendNoticeEmail(env, m, by, ts) };
 }
 
 /** They can no longer open the admin pages, so this is how they learn what happens to their events. */
-async function sendRevokeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string): Promise<RevokeEmail> {
+async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string): Promise<NoticeEmail> {
   const to = m.google_email ?? m.email;
   if (!to) return "no_address";
   const venmo = await env.DB.prepare("SELECT venmo_username FROM payment_profiles WHERE member_id = ?")

@@ -1,5 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { finalize } from "../src/worker/billing";
+import { getEvent } from "../src/worker/events";
 import { issueMemberToken } from "../src/worker/members";
 import {
   approveMember,
@@ -294,5 +296,24 @@ describe("an organizer's member link", () => {
     // And members have no way to unlink Google themselves.
     expect((await request(`/api/m/${token}/google/unlink`, "", {})).status).toBe(404);
     expect((await request("/api/auth/unlink", mallory, {})).status).toBe(404);
+  });
+});
+
+describe("a 转交 racing a Finalize", () => {
+  it("refuses the Finalize instead of billing for the payee it read before the change", async () => {
+    const { ctx, call, cookie } = await withOrganizer();
+    const bob = await approveMember(ctx, "Bob");
+    const id = await organizerEvent(cookie);
+    await new Client().call(`${bob.base}/events/${id}/signup`, { friends: [] });
+    await expire(id);
+    const stale = await getEvent(env as any, id); // what Finalize read: Alice is the payee
+    expect((await call(`/events/${id}/transfer`, { to: "M001" })).status).toBe(200);
+    await expect(
+      finalize(env as any, stale, { courtTotalCents: 4000, shuttleCount: 2, shuttlePriceCents: 300 }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM payments WHERE event_id = ?").bind(id).first()).toEqual({
+      n: 0,
+    });
+    expect(await eventRow(id)).toMatchObject({ status: "closed", payee_id: "M001" });
   });
 });

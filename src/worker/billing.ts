@@ -5,7 +5,7 @@ import { notifyCollected, notifyFinalized } from "./notify";
 import { paymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
-import { badRequest } from "./http";
+import { HttpError, badRequest } from "./http";
 import { eventPayee } from "./organizers";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
@@ -35,6 +35,8 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
  * loses a bill that never received anything; one with payments on it (even if all refunded) is
  * kept at nothing owed, so its history stays and linked Venmo payments still point at it.
  */
+const PAYEE_CHANGED = "payee changed";
+
 export async function applySettlement(env: Env, e: EventRow, input: SettleInput): Promise<Settlement> {
   const result = settle(await settleRows(env, e.id), input);
   const ts = now();
@@ -60,9 +62,13 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   const billed = new Set(result.bills.map((b) => b.memberId));
 
   const stmts: D1PreparedStatement[] = [
-    // The bills follow this payee, so it is the one written down: a 转交 or 撤销 landing between
-    // the read above and this write must not leave the event pointing at someone else.
-    ...(payee ? [env.DB.prepare("UPDATE events SET payee_id = ? WHERE id = ?").bind(payee, e.id)] : []),
+    // The bills below follow `e`'s payee. A 转交 or 撤销 that moved it since `e` was read fails the
+    // whole batch rather than billing for the wrong person: json() of a non-JSON string is an error,
+    // raised only when the row matches.
+    env.DB.prepare(`SELECT json('${PAYEE_CHANGED}') FROM events WHERE id = ? AND payee_id IS NOT ?`).bind(
+      e.id,
+      e.payee_id,
+    ),
     env.DB.prepare(
       `INSERT INTO settlements (event_id, court_total_cents, shuttle_count, shuttle_price_cents, registered_count,
          attended_count, court_share_cents, shuttle_share_cents, finalized_at)
@@ -155,7 +161,13 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
     }
   }
   stmts.push(...syncPayments(env.DB, "event_id = ?", e.id));
-  await env.DB.batch(stmts);
+  try {
+    await env.DB.batch(stmts);
+  } catch (err) {
+    if (String(err).includes("malformed JSON"))
+      throw new HttpError(409, "payee_changed", "这场活动的负责人或收款人刚刚换了，请刷新页面后再试");
+    throw err;
+  }
   return result;
 }
 
