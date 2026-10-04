@@ -87,7 +87,7 @@
 ALTER TABLE members ADD COLUMN role TEXT NOT NULL DEFAULT 'member';   -- 'member' | 'organizer'（将来可能有 'admin'）
 ALTER TABLE members ADD COLUMN role_since TEXT;
 
--- 每场活动的负责人和收款人（迁移时都回填为群主）
+-- 每场活动的负责人和收款人（迁移时都回填为群主；下面 inbound_payments.payee_id 也一样）
 ALTER TABLE events ADD COLUMN manager_id TEXT REFERENCES members (id);
 ALTER TABLE events ADD COLUMN payee_id   TEXT REFERENCES members (id);
 CREATE INDEX events_manager ON events (manager_id);   -- 组织者的活动列表按负责人查
@@ -117,6 +117,7 @@ CREATE TABLE payment_aliases (
 
 -- 收款进了谁的账户
 ALTER TABLE inbound_payments ADD COLUMN payee_id TEXT REFERENCES members (id);
+UPDATE inbound_payments SET payee_id = (SELECT id FROM members WHERE is_owner = 1);
 CREATE INDEX inbound_payee ON inbound_payments (payee_id, state);   -- 组织者的「待确认」列表
 
 -- 组织者的 Telegram 接收人（群主的仍留在 settings 里）

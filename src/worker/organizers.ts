@@ -72,26 +72,21 @@ export interface PayeeProfile {
 
 /**
  * Where to pay someone: the Owner's settings (they stay in `settings`, so a rollback loses nothing),
- * or an organizer's payment_profiles row. Null if the member has no profile or does not exist.
+ * or an organizer's payment_profiles row. Null when nothing is filled in (no Venmo username and no
+ * Zelle), whoever they are, or when the member does not exist.
  */
 export async function payeeProfile(db: D1Database, memberId: string | null): Promise<PayeeProfile | null> {
   if (!memberId) return null;
   const m = await db.prepare("SELECT is_owner FROM members WHERE id = ?").bind(memberId).first<{ is_owner: number }>();
   if (!m) return null;
-  if (m.is_owner === 1) {
-    const s = await getSettings(db, ["venmo_username", "venmo_email", "zelle_account"]);
-    return {
-      memberId,
-      venmoUsername: s.venmo_username ?? "",
-      venmoEmail: s.venmo_email ?? "",
-      zelleAccount: s.zelle_account ?? "",
-    };
-  }
-  const p = await db
-    .prepare("SELECT venmo_username, venmo_email, zelle_account FROM payment_profiles WHERE member_id = ?")
-    .bind(memberId)
-    .first<{ venmo_username: string | null; venmo_email: string | null; zelle_account: string | null }>();
-  if (!p) return null;
+  let p: { venmo_username?: string | null; venmo_email?: string | null; zelle_account?: string | null } | null;
+  if (m.is_owner === 1) p = await getSettings(db, ["venmo_username", "venmo_email", "zelle_account"]);
+  else
+    p = await db
+      .prepare("SELECT venmo_username, venmo_email, zelle_account FROM payment_profiles WHERE member_id = ?")
+      .bind(memberId)
+      .first();
+  if (!p?.venmo_username && !p?.zelle_account) return null;
   return {
     memberId,
     venmoUsername: p.venmo_username ?? "",

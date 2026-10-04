@@ -59,8 +59,8 @@ describe("migration 0023 on data from before it", () => {
       { id: "M001", role: "member", role_since: null },
       { id: "M002", role: "member", role_since: null },
     ]);
-    // Payments already received stay NULL, which means the Owner.
-    expect(await mdb.prepare("SELECT payee_id FROM inbound_payments").first()).toEqual({ payee_id: null });
+    // Every payment so far went into the Owner's account.
+    expect(await mdb.prepare("SELECT payee_id FROM inbound_payments").first()).toEqual({ payee_id: "M001" });
     for (const t of ["payment_profiles", "payment_aliases", "telegram_bindings", "event_audit"])
       expect(await mdb.prepare(`SELECT COUNT(*) AS n FROM ${t}`).first()).toEqual({ n: 0 });
     // The new tables' rules: one Venmo account per person, compared without case.
@@ -156,14 +156,12 @@ describe("payeeProfile", () => {
     expect(await payeeProfile(db, null)).toBeNull();
   });
 
-  it("gives the Owner an empty profile before their payment settings are filled in", async () => {
-    await setUpAdmin();
-    expect(await payeeProfile(db, "M001")).toEqual({
-      memberId: "M001",
-      venmoUsername: "",
-      venmoEmail: "",
-      zelleAccount: "",
-    });
+  it("is null for anyone with nothing filled in, the Owner included", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    expect(await payeeProfile(db, "M001")).toBeNull();
+    await db.prepare("INSERT INTO payment_profiles (member_id, updated_at) VALUES (?, 'x')").bind(alice.id).run();
+    expect(await payeeProfile(db, alice.id)).toBeNull();
   });
 });
 
@@ -207,9 +205,16 @@ describe("the ORGANIZERS flag", () => {
     expect(organizersEnabled({ ORGANIZERS: "0" })).toBe(false);
     expect(organizersEnabled({})).toBe(false);
     expect(organizersEnabled({ ORGANIZERS: "1" })).toBe(true);
-    const staging = wrangler.slice(wrangler.indexOf('"staging"'));
-    expect(staging).toMatch(/"ORGANIZERS":\s*"1"/);
-    expect(wrangler.slice(0, wrangler.indexOf('"staging"'))).toMatch(/"ORGANIZERS":\s*"0"/);
+    // JSONC: drop whole-line comments and trailing commas (strings hold URLs, so not every //).
+    const config = JSON.parse(
+      wrangler
+        .split("\n")
+        .filter((l) => !l.trim().startsWith("//"))
+        .join("\n")
+        .replace(/,(\s*[}\]])/g, "$1"),
+    );
+    expect(config.vars.ORGANIZERS).toBe("0");
+    expect(config.env.staging.vars.ORGANIZERS).toBe("1");
   });
 });
 

@@ -43,8 +43,9 @@ CREATE TABLE payment_aliases (
   PRIMARY KEY (venmo_username, venmo_email)
 );
 
--- Whose account a received payment went into. NULL means the Owner.
+-- Whose account a received payment went into. NULL means the Owner; every payment so far went to them.
 ALTER TABLE inbound_payments ADD COLUMN payee_id TEXT REFERENCES members (id);
+UPDATE inbound_payments SET payee_id = (SELECT id FROM members WHERE is_owner = 1);
 CREATE INDEX inbound_payee ON inbound_payments (payee_id, state);
 
 -- Organizers' Telegram chats. The Owner's stays in settings (telegram_chat_id).
