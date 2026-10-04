@@ -243,13 +243,13 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const address = input.address.trim();
   const title = cleanTitle(input.title);
   const ts = now();
+  // The Owner manages and is paid for every event until organizers can create their own (card 3).
+  const owner = await ownerId(env.DB);
   // The 活动编号 skips every number an event created on this date has ever had (including events
   // since moved to another date or deleted), so no number is handed out twice. If two requests race
   // for the same one, the unique index refuses the second insert and it takes the next letter.
   // From before numbers existed, codes of moved events and the numbers printed on bills count too:
   // either may be one this day's number would otherwise repeat.
-  // The Owner manages and is paid for every event until organizers can create their own (card 3).
-  const owner = await ownerId(env.DB);
   const base = eventNumberBase(input.date);
   let id: number | undefined;
   for (let attempt = 0; id === undefined; attempt++) {

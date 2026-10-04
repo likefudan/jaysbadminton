@@ -96,8 +96,8 @@ CREATE INDEX events_payee ON events (payee_id);
 -- 组织者的收款设置（群主的仍留在 settings 里，不搬，见下方「回滚注意」）
 CREATE TABLE payment_profiles (
   member_id      TEXT NOT NULL PRIMARY KEY REFERENCES members (id),
-  venmo_username TEXT COLLATE NOCASE UNIQUE,
-  venmo_email    TEXT COLLATE NOCASE UNIQUE,
+  venmo_username TEXT COLLATE NOCASE UNIQUE CHECK (venmo_username != ''),   -- 没填时存 NULL，不存空字符串
+  venmo_email    TEXT COLLATE NOCASE UNIQUE CHECK (venmo_email != ''),
   zelle_account  TEXT,
   email_last_at  TEXT,          -- 最近一次收到这个账户的 Venmo 邮件（健康检查、「转发已生效」用）
   gmail_confirm  TEXT,          -- 最近一封转发确认邮件的内容（显示在收款设置页，24 小时后清掉）

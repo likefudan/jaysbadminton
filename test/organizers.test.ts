@@ -47,7 +47,10 @@ describe("migration 0023 on data from before it", () => {
         .bind(ts),
     ]);
 
-    await applyD1Migrations(mdb, env.TEST_MIGRATIONS);
+    await applyD1Migrations(
+      mdb,
+      env.TEST_MIGRATIONS.filter((m) => m.name < "0024"),
+    );
 
     const events = await mdb.prepare("SELECT id, manager_id, payee_id FROM events ORDER BY id").all();
     expect(events.results).toEqual([
@@ -74,6 +77,13 @@ describe("migration 0023 on data from before it", () => {
         .bind(ts)
         .run(),
     ).rejects.toThrow(/UNIQUE/);
+    // Blank means NULL, so any number of people can leave it blank.
+    await expect(
+      mdb
+        .prepare("INSERT INTO payment_profiles (member_id, venmo_username, updated_at) VALUES ('M001', '', ?)")
+        .bind(ts)
+        .run(),
+    ).rejects.toThrow(/CHECK/);
   });
 });
 
@@ -90,7 +100,10 @@ describe("migration 0023 on a site not yet set up", () => {
          VALUES (7, 'jbm20261006', '1006', '2026-10-06', 'x', 'x', 'Gym', 'x', 1440, 'open', 'x')`,
       )
       .run();
-    await applyD1Migrations(mdb, env.TEST_MIGRATIONS);
+    await applyD1Migrations(
+      mdb,
+      env.TEST_MIGRATIONS.filter((m) => m.name < "0024"),
+    );
     const e = await mdb.prepare("SELECT manager_id, payee_id FROM events WHERE id = 7").first<{
       manager_id: string | null;
       payee_id: string | null;

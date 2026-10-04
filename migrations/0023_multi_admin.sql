@@ -24,8 +24,9 @@ CREATE INDEX events_payee ON events (payee_id);
 -- back loses nothing of theirs.
 CREATE TABLE payment_profiles (
   member_id        TEXT NOT NULL PRIMARY KEY REFERENCES members (id),
-  venmo_username   TEXT COLLATE NOCASE UNIQUE,
-  venmo_email      TEXT COLLATE NOCASE UNIQUE,
+  -- NULL when not filled in, never '' (UNIQUE would let only one person leave it blank).
+  venmo_username   TEXT COLLATE NOCASE UNIQUE CHECK (venmo_username != ''),
+  venmo_email      TEXT COLLATE NOCASE UNIQUE CHECK (venmo_email != ''),
   zelle_account    TEXT,
   email_last_at    TEXT,  -- the last Venmo email for this account (health check, 转发已生效)
   gmail_confirm    TEXT,  -- the last Gmail forwarding confirmation, shown for 24 hours
