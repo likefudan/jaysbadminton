@@ -182,6 +182,11 @@ export async function friendCount(env: Env, eventId: number, memberId: string): 
 export interface CreateEventInput {
   /** Who runs it and is paid for it: whoever creates it (the Owner when left out). */
   managerId?: string | null;
+  /**
+   * Whether this event's time, venue and deadline become the next 新建活动 form's defaults. Shared
+   * by everyone, so only the group's own (the Owner's) events set them; an organizer's leave them.
+   */
+  rememberDefaults?: boolean;
   date: string;
   startTime: string;
   endTime: string;
@@ -299,10 +304,14 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   }
   await env.DB.batch([
     saveVenue(env, location, address, ts),
-    setSetting(env.DB, "last_start_time", input.startTime),
-    setSetting(env.DB, "last_end_time", input.endTime),
-    setSetting(env.DB, "last_location", location),
-    setSetting(env.DB, "last_deadline_offset_min", String(v.offsetMin)),
+    ...(input.rememberDefaults === false
+      ? []
+      : [
+          setSetting(env.DB, "last_start_time", input.startTime),
+          setSetting(env.DB, "last_end_time", input.endTime),
+          setSetting(env.DB, "last_location", location),
+          setSetting(env.DB, "last_deadline_offset_min", String(v.offsetMin)),
+        ]),
   ]);
   await syncDeadline(env, id);
   return getEvent(env, id);

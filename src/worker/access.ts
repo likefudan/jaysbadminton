@@ -71,14 +71,15 @@ const event = (param = "id"): Rule => ({
 
 /**
  * event: the event in the path, and a roster row that must belong to it, so nobody pairs their
- * own event with a row from someone else's. Checked for everyone, the Owner too.
+ * own event with a row from someone else's. Checked for everyone, the Owner too. A row that is
+ * gone already (a second click on 移除) is left to the handler, which changes nothing.
  */
 const rosterRow = (): Rule => ({
   cap: "event",
   check: async (c, actor, p) => {
     const eventId = num(p.id);
-    if ((await eventOf(c.env, "SELECT event_id FROM registrations WHERE id = ?", num(p.rid))) !== eventId)
-      throw new HttpError(403, "forbidden", "这一行不在这场活动的名单上");
+    const rowEvent = await eventOf(c.env, "SELECT event_id FROM registrations WHERE id = ?", num(p.rid));
+    if (rowEvent !== null && rowEvent !== eventId) throw new HttpError(403, "forbidden", "这一行不在这场活动的名单上");
     await requireEvent(c.env, actor, eventId);
   },
 });
@@ -122,6 +123,7 @@ const inbound = (): Rule => ({
 const inboundToBill = (): Rule => ({
   cap: "payee",
   check: async (c, actor, p) => {
+    if (can(actor.role, "group")) return;
     await requirePayee(c.env, actor, num(p.iid));
     if (!can(actor.role, "event")) throw forbidden();
     const body = await readJson(c.req.raw.clone());
@@ -221,19 +223,22 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
 /** The admin routes' paths start with this (the mount point, then the token). */
 const TOKEN_PREFIX = "/:token";
 
-/** The endpoint a request will reach, as `METHOD path` relative to /:token, with its path params. */
+/**
+ * The endpoint a request will reach, as `METHOD path` relative to /:token, with its path params.
+ * Hono runs the matching routes in the order they were registered and the first handler answers
+ * (handlers never pass on), so that is the endpoint: GET /events/defaults, not GET /events/:id.
+ */
 function endpoint(c: Ctx): { key: string; params: Params } | null {
-  const route = matchedRoutes(c)
-    .filter((r) => r.method !== "ALL" && r.path.includes(`${TOKEN_PREFIX}/`))
-    .at(-1);
+  const routes = matchedRoutes(c);
+  const index = routes.findIndex((r) => r.method !== "ALL" && r.path.includes(`${TOKEN_PREFIX}/`));
+  const route = routes[index];
   if (!route) return null;
+  // That route's params, decoded by Hono itself.
+  const own = c.req.routeIndex;
+  c.req.routeIndex = index;
+  const params = c.req.param() as Params;
+  c.req.routeIndex = own;
   const pattern = route.path.slice(route.path.indexOf(TOKEN_PREFIX) + TOKEN_PREFIX.length);
-  const pat = pattern.split("/");
-  const actual = c.req.path.split("/").slice(-pat.length);
-  const params: Params = {};
-  pat.forEach((seg, i) => {
-    if (seg.startsWith(":")) params[seg.slice(1)] = decodeURIComponent(actual[i] ?? "");
-  });
   return { key: `${route.method} ${pattern}`, params };
 }
 

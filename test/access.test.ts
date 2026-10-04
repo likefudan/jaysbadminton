@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import worker from "../src/worker/index";
 import { ADMIN_ACCESS } from "../src/worker/access";
+import { can } from "../src/worker/organizers";
 import { sha256 } from "../src/worker/lib/crypto";
 import { adminRoutes } from "../src/worker/routes/admin";
 import { approveMember, Client, createTestEvent, expire, futureDate, setUpAdmin } from "./helpers";
@@ -144,18 +145,29 @@ describe("organizers on the admin pages", () => {
     ).toBe("open");
   });
 
-  it("lets them use every event and payee endpoint on their own event and payments", async () => {
+  it("lets them use exactly the endpoints their capabilities allow, on their own event and payments", async () => {
     const { org, ids } = await scenario();
-    for (const [key] of scoped) {
+    for (const [key, rule] of Object.entries(ADMIN_ACCESS)) {
       const [method, pattern] = key.split(" ") as [string, string];
       const res = await request(
         `${GOOGLE}${fill(pattern, ids.mine)}`,
         org,
         method === "POST" ? { paymentId: ids.mine.pid, friends: [], ...fees } : undefined,
       );
-      // Some refuse for the event's state (already paid, already finalized); none for who is asking.
-      expect([401, 403], `${key} → ${res.status}`).not.toContain(res.status);
+      if (rule.cap === null || can("organizer", rule.cap))
+        // Some refuse for the event's state (already paid, already finalized); none for who is asking.
+        expect([401, 403], `${key} → ${res.status}`).not.toContain(res.status);
+      else expect(res.status, key).toBe(403);
     }
+  });
+
+  it("gives /events/defaults its own rule rather than /events/:id's, and keeps the shared defaults the Owner's", async () => {
+    const { ctx, org } = await scenario();
+    const defaults = await request(`${GOOGLE}/events/defaults`, org);
+    expect(defaults.status).toBe(200);
+    // Alice's event (created at Alice Gym in the scenario) doesn't change the next 新建活动 form.
+    expect(((await defaults.json()) as any).location).toBe("Bay Badminton Center");
+    expect((await ctx.admin.call(`${ctx.base}/events/defaults`)).data.location).toBe("Bay Badminton Center");
   });
 
   it("checks the roster row belongs to the event in the path", async () => {
@@ -168,6 +180,10 @@ describe("organizers on the admin pages", () => {
     expect(
       await env.DB.prepare("SELECT 1 FROM registrations WHERE id = ?").bind(ids.theirs.rid).first(),
     ).not.toBeNull();
+    // A second 移除 of a row that is gone already changes nothing, as before.
+    const own = `${ctx.base}/events/${ids.theirs.id}/roster/${ids.theirs.rid}/remove`;
+    expect((await ctx.admin.call(own, {})).status).toBe(200);
+    expect((await ctx.admin.call(own, {})).status).toBe(200);
     expect(
       (await request(`${GOOGLE}/events/${ids.mine.id}/roster/${ids.mine.rid}/rename`, org, { name: "T" })).status,
     ).toBe(200);

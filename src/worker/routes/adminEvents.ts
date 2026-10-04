@@ -134,6 +134,7 @@ adminEventRoutes.post("/events", async (c) => {
   // Whoever creates it runs it and is paid for it (the Owner's own events, as before, are theirs).
   const e = await createEvent(c.env, {
     managerId: actor.memberId,
+    rememberDefaults: can(actor.role, "group"),
     date: str(b.date),
     startTime: str(b.startTime),
     endTime: str(b.endTime),
