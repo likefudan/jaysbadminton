@@ -235,6 +235,7 @@ test("a signed-in member sees the roster and can sign up on the shared event pag
             ...event,
             headcount: signedUp ? 3 : 2,
             canEdit: true,
+            friendCap: 3,
             payment: null,
             myFriends: signedUp ? [] : null,
             selfSignedUp: signedUp,

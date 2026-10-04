@@ -612,10 +612,10 @@ describe("我的报名 (the Owner signs up from the admin page)", () => {
     const e = await createTestEvent(ctx, { joinSelf: false });
     const c = new Client();
     expect((await c.call(`${base}/events/${e.id}/signup`, { friends: ["a", "b", "c", "d", "e"] })).status).toBe(200); // past the cap of 3
-    expect((await c.call(`${base}/events`)).data).toMatchObject({ friendCap: 20 });
+    const mine = async () => (await c.call(`${base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
+    expect(await mine()).toMatchObject({ friendCap: 20 });
     await expire(e.id);
-    const ev = (await c.call(`${base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
-    expect(ev).toMatchObject({ status: "closed", canEdit: true });
+    expect(await mine()).toMatchObject({ status: "closed", canEdit: true });
     expect((await c.call(`${base}/events/${e.id}/signup`, { friends: ["a"] })).status).toBe(200);
     expect((await c.call(`${base}/events/${e.id}/cancel`, {})).status).toBe(200);
     // A normal member is locked out after the deadline.

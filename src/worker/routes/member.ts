@@ -12,7 +12,8 @@ import type {
 import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
-import { getSettings } from "../db";
+import { eventManager, eventPayee, payeeProfile } from "../organizers";
+import { payeeName } from "../payees";
 import {
   closeExpired,
   friendCap,
@@ -90,7 +91,22 @@ memberRoutes.get("/:token/events", async (c) => {
     payment_code: string;
     status: PaymentStatus;
   }>();
-  const s = await getSettings(c.env.DB, ["venmo_username", "zelle_account"]);
+  // Where each event's money goes: its payee's accounts, looked up once per payee.
+  const payees = new Map<string | null, Promise<{ name: string; venmo: string; zelle: string }>>();
+  const payTo = (id: string | null) => {
+    let p = payees.get(id);
+    if (!p) {
+      p = Promise.all([payeeName(c.env.DB, id), payeeProfile(c.env.DB, id)]).then(([name, profile]) => ({
+        name,
+        venmo: profile?.venmoUsername ?? "",
+        zelle: profile?.zelleAccount ?? "",
+      }));
+      payees.set(id, p);
+    }
+    return p;
+  };
+  const rowOf = new Map(results.map((e) => [e.id, e]));
+  const generalCap = await friendCap(c.env);
   const mine = await c.env.DB.prepare(
     "SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?",
   )
@@ -125,6 +141,8 @@ memberRoutes.get("/:token/events", async (c) => {
   );
   const events: MyEvent[] = [];
   for (const e of list) {
+    const row = rowOf.get(e.id)!;
+    const runs = await runsEvent(c.env, m, row);
     const rows = mine.results.filter((r) => r.event_id === e.id);
     const friends = rows.filter((r) => r.friend_index > 0).sort((a, b) => a.friend_index - b.friend_index);
     const pay = payOf(e.id);
@@ -138,6 +156,7 @@ memberRoutes.get("/:token/events", async (c) => {
     if (pay && settled) {
       const input = await savedInput(c.env, e.id);
       const bill = input ? settle(toSettleRows(people), input).bills.find((b) => b.memberId === m.id) : undefined;
+      const to = await payTo(await eventPayee(c.env.DB, row));
       payment = {
         amountCents: pay.amount_due_cents,
         paidCents: pay.amount_paid_cents,
@@ -145,8 +164,9 @@ memberRoutes.get("/:token/events", async (c) => {
         status: pay.status,
         code: pay.payment_code,
         shares: bill?.shares ?? [],
-        venmoUsername: s.venmo_username ?? "",
-        zelleAccount: s.zelle_account ?? "",
+        payeeName: to.name,
+        venmoUsername: to.venmo,
+        zelleAccount: to.zelle,
       };
     }
     // Who else is coming: only for members on the list themselves (the public pages show a count).
@@ -163,7 +183,8 @@ memberRoutes.get("/:token/events", async (c) => {
       ...e,
       myFriends: rows.length === 0 ? null : friends.map((f) => f.friend_name ?? ""),
       selfSignedUp: selfOn,
-      canEdit: m.status === "active" && (e.status === "open" || (ownerRules(m) && e.status === "closed")),
+      canEdit: m.status === "active" && (e.status === "open" || (runs && e.status === "closed")),
+      friendCap: runs ? MANAGER_FRIEND_MAX : generalCap,
       payment,
       roster: names,
     });
@@ -171,42 +192,43 @@ memberRoutes.get("/:token/events", async (c) => {
   return c.json<MyEventsResponse>({
     events,
     history,
-    friendCap: ownerRules(m) ? OWNER_FRIEND_MAX : await friendCap(c.env),
+    friendCap: generalCap,
   });
 });
 
 /**
- * The Owner signing up from their own member page (via Google) follows the same rules as 我的报名
- * on the admin page: no friend cap, and changes allowed after the deadline until Finalize.
+ * Whoever runs the event (本场负责人: the Owner on theirs, an organizer on theirs) signing up from
+ * their own member page follows the same rules as 我的报名 on the admin page: no friend cap, and
+ * changes allowed after the deadline until Finalize. On someone else's event they are a player
+ * like anyone else (the Owner can still change any list from the admin page).
  */
-const ownerRules = (m: MemberRow) => m.is_owner === 1;
-const OWNER_FRIEND_MAX = 20;
+const runsEvent = async (env: Env, m: MemberRow, e: EventRow) => (await eventManager(env.DB, e)) === m.id;
+const MANAGER_FRIEND_MAX = 20;
 
-async function openEventFor(c: { env: import("../env").Env; get: (k: "member") => MemberRow }, id: string) {
+async function openEventFor(c: { env: Env; get: (k: "member") => MemberRow }, id: string) {
   const m = c.get("member");
   if (m.status !== "active") throw badRequest("你的账号已停用，不能报名。有疑问请联系群主。");
   await closeExpired(c.env);
   const e = await getEvent(c.env, Number(id));
-  if (ownerRules(m) && e.status === "closed") return e;
+  const runs = await runsEvent(c.env, m, e);
+  if (runs && e.status === "closed") return { e, runs };
   if (e.status !== "open")
-    throw badRequest(
-      ownerRules(m) ? "已经结算，不能再改自己的报名；需要调整请在管理页直接改名单" : "报名已截止，不能再修改",
-    );
-  return e;
+    throw badRequest(runs ? "已经结算，不能再改自己的报名；需要调整请在管理页直接改名单" : "报名已截止，不能再修改");
+  return { e, runs };
 }
 
 memberRoutes.post("/:token/events/:id/signup", async (c) => {
-  const e = await openEventFor(c, c.req.param("id"));
+  const { e, runs } = await openEventFor(c, c.req.param("id"));
   const body = await readJson(c.req.raw);
   const m = c.get("member");
-  const [cap, keep] = await Promise.all([ownerRules(m) ? null : friendCap(c.env), friendCount(c.env, e.id, m.id)]);
+  const [cap, keep] = await Promise.all([runs ? null : friendCap(c.env), friendCount(c.env, e.id, m.id)]);
   const friends = validateFriends(body.friends ?? [], cap, keep);
   await setSignup(c.env, e.id, m.id, friends, false);
   return c.json({ ok: true });
 });
 
 memberRoutes.post("/:token/events/:id/cancel", async (c) => {
-  const e = await openEventFor(c, c.req.param("id"));
+  const { e } = await openEventFor(c, c.req.param("id"));
   await removeSignup(c.env, e.id, c.get("member").id);
   return c.json({ ok: true });
 });

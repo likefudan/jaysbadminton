@@ -1,4 +1,6 @@
 import { env, exports } from "cloudflare:workers";
+import worker from "../src/worker/index";
+import { sha256 } from "../src/worker/lib/crypto";
 
 export const ORIGIN = "https://jaysbadminton.test";
 
@@ -98,4 +100,37 @@ export async function billingScenario() {
   await ctx.admin.call(`${ctx.base}/events/${e.id}/attendance`, { registrationId: tom.id, attended: false });
   const fees = { courtTotal: "100", shuttleCount: 6, shuttlePrice: "3" }; // court 25.00, shuttle 18/3 = 6.00
   return { ...ctx, e, alice, bob, owner, fees, eb: `${ctx.base}/events/${e.id}` };
+}
+
+/** The admin pages as reached through a Google account (the Owner's or an organizer's). */
+export const GOOGLE = "/api/admin/google";
+
+/** A request through the Worker with the organizer feature switched on (or off). */
+export const request = (path: string, cookie = "", body?: unknown, organizers = "1") =>
+  worker.fetch(
+    new Request(`${ORIGIN}${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { Cookie: cookie, Origin: ORIGIN, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+    { ...env, SITE_ORIGIN: ORIGIN, ORGANIZERS: organizers },
+    {} as ExecutionContext,
+  );
+
+export async function googleCookie(sub: string, email: string) {
+  const token = crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO member_sessions (id_hash, google_sub, email, expires_at) VALUES (?, ?, ?, ?)")
+    .bind(await sha256(token), sub, email, new Date(Date.now() + 3600_000).toISOString())
+    .run();
+  return `jb_member=${token}`;
+}
+
+/** Makes an approved member an organizer signed in with Google; returns their session cookie. */
+export async function appoint(memberId: string, name: string) {
+  await env.DB.prepare(
+    "UPDATE members SET role = 'organizer', role_since = ?, google_sub = ?, google_email = ? WHERE id = ?",
+  )
+    .bind(new Date().toISOString(), `google-${name}`, `${name}@gmail.com`, memberId)
+    .run();
+  return googleCookie(`google-${name}`, `${name}@gmail.com`);
 }

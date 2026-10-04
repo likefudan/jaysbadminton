@@ -155,13 +155,13 @@ function MyEvents(props: { base: string }) {
               </Card>
             )}
             {mine.map((e) => (
-              <SignupCard key={e.id} base={props.base} e={e} cap={r.friendCap} onChange={reload} />
+              <SignupCard key={e.id} base={props.base} e={e} onChange={reload} />
             ))}
             {open.length > 0 && (
               <>
                 <SectionTitle>可以报名</SectionTitle>
                 {open.map((e) => (
-                  <SignupCard key={e.id} base={props.base} e={e} cap={r.friendCap} onChange={reload} />
+                  <SignupCard key={e.id} base={props.base} e={e} onChange={reload} />
                 ))}
               </>
             )}
@@ -200,7 +200,7 @@ function History(props: { list: MyHistoryEvent[] }) {
   );
 }
 
-export function SignupCard(props: { base: string; e: MyEvent; cap: number; onChange: () => void }) {
+export function SignupCard(props: { base: string; e: MyEvent; onChange: () => void }) {
   const e = props.e;
   const [editing, setEditing] = useState(false);
   const [friends, setFriends] = useState<string[]>(e.myFriends ?? []);
@@ -243,7 +243,11 @@ export function SignupCard(props: { base: string; e: MyEvent; cap: number; onCha
       {!editing && <EventActions e={e} calendar={signedUp && !e.payment} />}
       {e.canEdit && editing && (
         <>
-          <FriendsEditor friends={friends} max={Math.max(props.cap, e.myFriends?.length ?? 0)} onChange={setFriends} />
+          <FriendsEditor
+            friends={friends}
+            max={Math.max(e.friendCap, e.myFriends?.length ?? 0)}
+            onChange={setFriends}
+          />
           {error && <p class="error">{error}</p>}
           <button type="button" class="button block" disabled={busy} onClick={save}>
             {signedUp ? "保存修改" : "确认报名"}

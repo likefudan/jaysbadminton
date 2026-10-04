@@ -1,44 +1,20 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import worker from "../src/worker/index";
 import { ADMIN_ACCESS } from "../src/worker/access";
 import { can } from "../src/worker/organizers";
-import { sha256 } from "../src/worker/lib/crypto";
 import { adminRoutes } from "../src/worker/routes/admin";
-import { approveMember, Client, createTestEvent, expire, futureDate, setUpAdmin } from "./helpers";
-
-const ORIGIN = "https://jaysbadminton.test";
-const GOOGLE = "/api/admin/google";
-
-/** A request through the Worker with the organizer feature switched on (or off). */
-const request = (path: string, cookie = "", body?: unknown, organizers = "1") =>
-  worker.fetch(
-    new Request(`${ORIGIN}${path}`, {
-      method: body === undefined ? "GET" : "POST",
-      headers: { Cookie: cookie, Origin: ORIGIN, "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }),
-    { ...env, SITE_ORIGIN: ORIGIN, ORGANIZERS: organizers },
-    {} as ExecutionContext,
-  );
-
-async function googleCookie(sub: string, email: string) {
-  const token = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO member_sessions (id_hash, google_sub, email, expires_at) VALUES (?, ?, ?, ?)")
-    .bind(await sha256(token), sub, email, new Date(Date.now() + 3600_000).toISOString())
-    .run();
-  return `jb_member=${token}`;
-}
-
-/** Makes an approved member an organizer signed in with Google; returns their session cookie. */
-async function appoint(memberId: string, name: string) {
-  await env.DB.prepare(
-    "UPDATE members SET role = 'organizer', role_since = ?, google_sub = ?, google_email = ? WHERE id = ?",
-  )
-    .bind(new Date().toISOString(), `google-${name}`, `${name}@gmail.com`, memberId)
-    .run();
-  return googleCookie(`google-${name}`, `${name}@gmail.com`);
-}
+import {
+  approveMember,
+  appoint,
+  Client,
+  createTestEvent,
+  expire,
+  futureDate,
+  GOOGLE,
+  googleCookie,
+  request,
+  setUpAdmin,
+} from "./helpers";
 
 type Ids = { id: number; rid: number; pid: number; receipt: number; iid: number };
 
@@ -53,6 +29,11 @@ async function scenario() {
   const alice = await approveMember(ctx, "Alice");
   const bob = await approveMember(ctx, "Bob");
   const org = await appoint(alice.id, "alice");
+  // Her events are paid into her own Venmo, which Finalize needs.
+  expect(
+    (await request(`${GOOGLE}/payment-profile`, org, { venmoUsername: "alice-v", venmoEmail: "alice@venmo.test" }))
+      .status,
+  ).toBe(200);
   const ownerId = (await env.DB.prepare("SELECT id FROM members WHERE is_owner = 1").first<{ id: string }>())!.id;
 
   const theirs = await createTestEvent(ctx);

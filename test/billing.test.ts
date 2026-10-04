@@ -261,7 +261,7 @@ describe("a long run of corrections after Finalize", () => {
   interface Pay {
     id: number;
     memberName: string;
-    isOwner: boolean;
+    isPayee: boolean;
     amountDueCents: number;
     amountPaidCents: number;
     refundCents: number;
@@ -297,7 +297,7 @@ describe("a long run of corrections after Finalize", () => {
         expect(p.refundCents, `${step}: ${name}'s refund`).toBe(Math.max(0, sum - p.amountDueCents));
         const status = sum >= p.amountDueCents ? "paid" : sum > 0 ? "partial" : "unpaid";
         expect(p.status, `${step}: ${name}'s status`).toBe(status);
-        if (p.isOwner)
+        if (p.isPayee)
           expect(p.receipts, `${step}: Owner pays exactly their share`).toMatchObject([
             { method: "manual", amountCents: p.amountDueCents },
           ]);
