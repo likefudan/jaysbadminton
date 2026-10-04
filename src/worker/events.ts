@@ -5,6 +5,7 @@ import { syncDeadline } from "./deadlines";
 import { codeOf, eventNumberBase, nextEventNumber, parsePaymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
+import { ownerId } from "./organizers";
 
 export interface EventRow {
   id: number;
@@ -150,6 +151,7 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     env.DB.prepare("DELETE FROM settlements WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM event_audit WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM events WHERE id = ?").bind(e.id),
     env.DB.prepare("INSERT INTO deleted_events (id, number, code, date, deleted_at) VALUES (?, ?, ?, ?, ?)").bind(
       e.id,
@@ -246,6 +248,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   // for the same one, the unique index refuses the second insert and it takes the next letter.
   // From before numbers existed, codes of moved events and the numbers printed on bills count too:
   // either may be one this day's number would otherwise repeat.
+  // The Owner manages and is paid for every event until organizers can create their own (card 3).
+  const owner = await ownerId(env.DB);
   const base = eventNumberBase(input.date);
   let id: number | undefined;
   for (let attempt = 0; id === undefined; attempt++) {
@@ -267,10 +271,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     if (!number) throw badRequest("同一天的活动太多了");
     try {
       const res = await env.DB.prepare(
-        // The Owner manages and is paid for every event until organizers can create their own (card 3).
         `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, (SELECT id FROM members WHERE is_owner = 1), (SELECT id FROM members WHERE is_owner = 1))
-         RETURNING id`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?) RETURNING id`,
       )
         .bind(
           number,
@@ -284,6 +286,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
           v.deadlineAt,
           v.offsetMin,
           ts,
+          owner,
+          owner,
         )
         .first<{ id: number }>();
       id = res!.id;

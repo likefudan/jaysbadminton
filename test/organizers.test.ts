@@ -11,6 +11,7 @@ import {
   ownerId,
   payeeProfile,
 } from "../src/worker/organizers";
+import { deleteEvent, getEvent } from "../src/worker/events";
 import wrangler from "../wrangler.jsonc?raw";
 import { approveMember, createTestEvent, setUpAdmin } from "./helpers";
 
@@ -77,21 +78,26 @@ describe("migration 0023 on data from before it", () => {
 });
 
 describe("migration 0023 on a site not yet set up", () => {
-  it("leaves manager and payee empty when there is no Owner", async () => {
-    // The main test database ran every migration on an empty site; an event with NULLs still reads as the Owner's.
-    await db
+  it("leaves manager and payee empty when there is no Owner, which still reads as the Owner", async () => {
+    const mdb = env.MIGRATION_DB_EMPTY;
+    await applyD1Migrations(
+      mdb,
+      env.TEST_MIGRATIONS.filter((m) => m.name < "0023"),
+    );
+    await mdb
       .prepare(
         `INSERT INTO events (id, number, code, date, start_at, end_at, location, deadline_at, deadline_offset_min, status, created_at)
          VALUES (7, 'jbm20261006', '1006', '2026-10-06', 'x', 'x', 'Gym', 'x', 1440, 'open', 'x')`,
       )
       .run();
-    const e = await db.prepare("SELECT manager_id, payee_id FROM events WHERE id = 7").first<{
+    await applyD1Migrations(mdb, env.TEST_MIGRATIONS);
+    const e = await mdb.prepare("SELECT manager_id, payee_id FROM events WHERE id = 7").first<{
       manager_id: string | null;
       payee_id: string | null;
     }>();
     expect(e).toEqual({ manager_id: null, payee_id: null });
-    expect(await eventManager(db, e!)).toBeNull();
-    expect(await eventPayee(db, e!)).toBeNull();
+    expect(await eventManager(mdb, e!)).toBeNull();
+    expect(await eventPayee(mdb, e!)).toBeNull();
   });
 });
 
@@ -198,9 +204,9 @@ describe("capabilities", () => {
 
 describe("the ORGANIZERS flag", () => {
   it("is off in production and on on the test site", () => {
-    // Tests run with the top-level (production) vars.
-    expect(env.ORGANIZERS).toBe("0");
-    expect(organizersEnabled(env)).toBe(false);
+    expect(organizersEnabled({ ORGANIZERS: "0" })).toBe(false);
+    expect(organizersEnabled({})).toBe(false);
+    expect(organizersEnabled({ ORGANIZERS: "1" })).toBe(true);
     const staging = wrangler.slice(wrangler.indexOf('"staging"'));
     expect(staging).toMatch(/"ORGANIZERS":\s*"1"/);
     expect(wrangler.slice(0, wrangler.indexOf('"staging"'))).toMatch(/"ORGANIZERS":\s*"0"/);
@@ -231,5 +237,19 @@ describe("清空所有数据", () => {
     expect(res.status).toBe(200);
     for (const t of ["payment_profiles", "payment_aliases", "telegram_bindings", "event_audit"])
       expect(await db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).first()).toEqual({ n: 0 });
+  });
+});
+
+describe("从数据库永久删除", () => {
+  it("takes the event's 操作记录 with it", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    await db
+      .prepare("INSERT INTO event_audit (event_id, actor_id, action, at) VALUES (?, 'M001', 'roster_add', 'x')")
+      .bind(e.id)
+      .run();
+    await db.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e.id).run();
+    await deleteEvent(env, await getEvent(env, e.id));
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM event_audit").first()).toEqual({ n: 0 });
   });
 });
