@@ -26,6 +26,9 @@ export interface MemberRow {
   email: string | null;
   admin_note: string | null;
   link_resent_at: string | null;
+  /** 'member' or 'organizer'; read it through memberRole, which also checks status and the flag. */
+  role: string;
+  role_since: string | null;
 }
 
 export const toSummary = (m: MemberRow): MemberSummary => ({

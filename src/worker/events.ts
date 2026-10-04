@@ -24,6 +24,9 @@ export interface EventRow {
   settled_at: string | null;
   dunning_stopped: number;
   created_at: string;
+  /** 负责人 and 收款人; NULL means the Owner. Read them through eventManager / eventPayee. */
+  manager_id: string | null;
+  payee_id: string | null;
 }
 
 interface RosterRow {
@@ -264,8 +267,10 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     if (!number) throw badRequest("同一天的活动太多了");
     try {
       const res = await env.DB.prepare(
-        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?) RETURNING id`,
+        // The Owner manages and is paid for every event until organizers can create their own (card 3).
+        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, (SELECT id FROM members WHERE is_owner = 1), (SELECT id FROM members WHERE is_owner = 1))
+         RETURNING id`,
       )
         .bind(
           number,

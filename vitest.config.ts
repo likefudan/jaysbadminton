@@ -6,6 +6,8 @@ export default defineConfig({
     cloudflareTest(async () => ({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
+        // A second, empty database for checking a migration against data from before it.
+        d1Databases: { MIGRATION_DB: "migration-test" },
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations("./migrations"),
           TOKEN_KEY: "test-token-key",

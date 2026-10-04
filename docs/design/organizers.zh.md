@@ -90,6 +90,8 @@ ALTER TABLE members ADD COLUMN role_since TEXT;
 -- 每场活动的负责人和收款人（迁移时都回填为群主）
 ALTER TABLE events ADD COLUMN manager_id TEXT REFERENCES members (id);
 ALTER TABLE events ADD COLUMN payee_id   TEXT REFERENCES members (id);
+CREATE INDEX events_manager ON events (manager_id);   -- 组织者的活动列表按负责人查
+CREATE INDEX events_payee ON events (payee_id);
 
 -- 组织者的收款设置（群主的仍留在 settings 里，不搬，见下方「回滚注意」）
 CREATE TABLE payment_profiles (
