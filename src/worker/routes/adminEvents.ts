@@ -161,7 +161,7 @@ adminEventRoutes.post("/events", async (c) => {
     const self = await activeSelf(c.env, actor.memberId);
     if (self) await setSignup(c.env, e.id, self, [], false);
   }
-  return c.json(await detail(c.env, e, c.get("actor").memberId));
+  return c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
 });
 
 /** The signed-in person's member id while they are an active member (they can play), else null. */

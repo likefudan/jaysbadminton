@@ -276,12 +276,11 @@ export async function transferEvent(env: Env, eventId: number, to: string): Prom
 /** A new event by someone revoked a moment ago goes to the Owner, as revoking did with their others. */
 export async function handBackIfRevoked(env: Env, eventId: number, creator: string | null): Promise<void> {
   await env.DB.prepare(
-    `UPDATE events SET manager_id = (SELECT id FROM members WHERE is_owner = 1),
-       payee_id = (SELECT id FROM members WHERE is_owner = 1)
+    `UPDATE events SET manager_id = ?3, payee_id = ?3
      WHERE id = ?1 AND manager_id = ?2
        AND NOT EXISTS (SELECT 1 FROM members WHERE id = ?2 AND role = 'organizer' AND status = 'active')`,
   )
-    .bind(eventId, creator)
+    .bind(eventId, creator, await ownerId(env.DB))
     .run();
 }
 

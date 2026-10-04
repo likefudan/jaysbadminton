@@ -26,6 +26,8 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
     : null;
 }
 
+const PAYEE_CHANGED = "payee changed";
+
 /**
  * Writes the settlement and brings the payment rows in line with it. Every row follows the new
  * amounts, paid ones included, so a corrected fee is shared by everyone: a member who already paid
@@ -35,8 +37,6 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
  * loses a bill that never received anything; one with payments on it (even if all refunded) is
  * kept at nothing owed, so its history stays and linked Venmo payments still point at it.
  */
-const PAYEE_CHANGED = "payee changed";
-
 export async function applySettlement(env: Env, e: EventRow, input: SettleInput): Promise<Settlement> {
   const result = settle(await settleRows(env, e.id), input);
   const ts = now();
@@ -62,13 +62,12 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   const billed = new Set(result.bills.map((b) => b.memberId));
 
   const stmts: D1PreparedStatement[] = [
-    // The bills below follow `e`'s payee. A 转交 or 撤销 that moved it since `e` was read fails the
-    // whole batch rather than billing for the wrong person: json() of a non-JSON string is an error,
-    // raised only when the row matches.
-    env.DB.prepare(`SELECT json('${PAYEE_CHANGED}') FROM events WHERE id = ? AND payee_id IS NOT ?`).bind(
-      e.id,
-      e.payee_id,
-    ),
+    // The bills below follow `e`'s payee, and whoever is acting was allowed to by `e`'s manager. A
+    // 转交 or 撤销 that moved either since `e` was read fails the whole batch rather than billing
+    // for the wrong person: json() of a non-JSON string is an error, raised only when the row matches.
+    env.DB.prepare(
+      `SELECT json('${PAYEE_CHANGED}') FROM events WHERE id = ?1 AND (payee_id IS NOT ?2 OR manager_id IS NOT ?3)`,
+    ).bind(e.id, e.payee_id, e.manager_id),
     env.DB.prepare(
       `INSERT INTO settlements (event_id, court_total_cents, shuttle_count, shuttle_price_cents, registered_count,
          attended_count, court_share_cents, shuttle_share_cents, finalized_at)

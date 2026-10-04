@@ -255,6 +255,24 @@ describe("revoking an organizer", () => {
   });
 });
 
+describe("an organizer disabled by older code (still role organizer)", () => {
+  it("can't be deleted until 恢复 revokes them", async () => {
+    const { call, alice, cookie } = await withOrganizer();
+    const open = await organizerEvent(cookie);
+    await db.prepare("UPDATE members SET status = 'inactive' WHERE id = ?").bind(alice.id).run();
+    const refused = await call(`/members/${alice.id}/delete`, {});
+    expect(refused.status).toBe(400);
+    expect(refused.data.error.message).toContain("恢复");
+    expect(await eventRow(open)).toMatchObject({ manager_id: alice.id });
+    expect((await call(`/members/${alice.id}/reactivate`, {})).status).toBe(200);
+    expect(await db.prepare("SELECT role, status FROM members WHERE id = ?").bind(alice.id).first()).toEqual({
+      role: "member",
+      status: "active",
+    });
+    expect(await eventRow(open)).toMatchObject({ manager_id: "M001", payee_id: "M001" });
+  });
+});
+
 describe("transferring an event", () => {
   it("moves the payee with the manager before Finalize, and only the manager after", async () => {
     const { ctx, call, alice, cookie } = await withOrganizer();
