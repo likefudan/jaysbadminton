@@ -7,7 +7,8 @@ import { HttpError, badRequest } from "./http";
 import { ROSTER_EDITABLE } from "./events";
 import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
-import { payeeUnlockedSql } from "./payees";
+import { once } from "./notify";
+import { payeeExpired, payeeUnlockedSql } from "./payees";
 
 /**
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
@@ -299,4 +300,46 @@ export async function assertNotRunning(env: Env, m: MemberRow): Promise<void> {
     throw badRequest(
       `${m.username} 是 ${e.date} 活动的${e.paid ? "收款人" : "负责人"}，这场还没收齐归档。请等这场收齐归档${e.paid ? "" : "（或把它转交给别人）"}后再删除成员`,
     );
+}
+
+/**
+ * 失效 (design §8): once the last event paying into a former organizer's account is archived,
+ * cancelled or deleted, nothing more is matched there, so they are told by email that they can
+ * remove their Gmail forwarding filter. Once per revocation. Someone revoked with nothing still
+ * collecting expired right then, and the revoke email already said so.
+ */
+export async function remindIfExpired(env: Env, payeeId: string | null): Promise<void> {
+  if (!payeeId || !(await payeeExpired(env.DB, payeeId))) return;
+  const m = await env.DB.prepare(
+    `SELECT m.username, m.google_email, m.email, p.retired_at, p.venmo_username
+     FROM members m JOIN payment_profiles p ON p.member_id = m.id WHERE m.id = ?`,
+  )
+    .bind(payeeId)
+    .first<{
+      username: string;
+      google_email: string | null;
+      email: string | null;
+      retired_at: string;
+      venmo_username: string | null;
+    }>();
+  const to = m?.google_email ?? m?.email;
+  if (!m || !to) return;
+  const account = m.venmo_username ? `你的 Venmo（@${m.venmo_username}）` : "你的账户";
+  await once(env, 0, `filter_reminder:${payeeId}`, m.retired_at, async () => {
+    const sent = await sendEmail(env, {
+      to,
+      subject: "可以删掉转发 Venmo 邮件的过滤器了",
+      text: [
+        `${m.username}，你好！`,
+        `你当组织者时收款的活动都已经收齐、取消或删除，羽毛球群不会再把钱记到${account}。`,
+        "如果你在 Gmail 里设置过把 Venmo 邮件转发给羽毛球群的过滤器，现在可以删掉了。",
+        "",
+        site(env, "/"),
+        "",
+        SPAM_HINT,
+      ].join("\n"),
+      key: `organizer-expired/${payeeId}/${m.retired_at}`,
+    });
+    return sent === "sent";
+  });
 }

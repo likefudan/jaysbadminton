@@ -49,7 +49,7 @@ import {
   ownerId,
   payeeProfile,
 } from "../organizers";
-import { assertOrganizersOn, handBackIfRevoked, transferEvent } from "../appointments";
+import { assertOrganizersOn, handBackIfRevoked, remindIfExpired, transferEvent } from "../appointments";
 import {
   assertAccountFree,
   assertPayeeReady,
@@ -66,6 +66,7 @@ import {
   LINKABLE,
   LINK_ARCHIVED_DAYS,
   emailStatus,
+  GMAIL_CONFIRM_HOURS,
   inboundRows,
   linkCutoff,
   openPayments,
@@ -260,6 +261,7 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
   if (e.status !== "open" && e.status !== "closed") throw badRequest("只能在 Finalize 之前取消活动");
   await c.env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e.id).run();
   await syncDeadline(c.env, e.id);
+  await remindIfExpired(c.env, e.payee_id);
   return c.json({ ok: true });
 });
 
@@ -274,6 +276,7 @@ adminEventRoutes.post("/events/:id/delete", async (c) => {
     throw new HttpError(401, "wrong_password", "群主密码不正确");
   if (!isDeletable(e)) throw badRequest("只能删除已收齐归档或已取消的活动");
   await deleteEvent(c.env, e);
+  await remindIfExpired(c.env, e.payee_id);
   await clearDeadline(c.env, e.id);
   const label = `${e.date} ${e.code}${e.title ? ` ${e.title}` : ""}`;
   await sendToOwner(
@@ -514,22 +517,38 @@ adminEventRoutes.post("/settings/payment", async (c) => {
 adminEventRoutes.get("/payment-profile", async (c) => {
   const actor = c.get("actor");
   const me = actor.memberId;
+  if (actor.role === "owner") {
+    const p = await payeeProfile(c.env.DB, me);
+    return c.json({
+      venmoUsername: p?.venmoUsername ?? "",
+      venmoEmail: p?.venmoEmail ?? "",
+      zelleAccount: p?.zelleAccount ?? "",
+      outstandingBills: me ? await outstandingBills(c.env.DB, me) : 0,
+      lastVenmoEmailAt: null,
+      gmailConfirm: null,
+      gmailConfirmAt: null,
+    });
+  }
   // The saved row as is (payeeProfile drops one with only an email, which still counts as taken).
-  const p =
-    actor.role === "owner"
-      ? await payeeProfile(c.env.DB, me)
-      : await c.env.DB.prepare(
-          `SELECT venmo_username AS venmoUsername, venmo_email AS venmoEmail, zelle_account AS zelleAccount
-           FROM payment_profiles WHERE member_id = ?`,
-        )
-          .bind(me)
-          .first<{ venmoUsername: string | null; venmoEmail: string | null; zelleAccount: string | null }>();
+  const p = await c.env.DB.prepare(
+    `SELECT venmo_username, venmo_email, zelle_account, email_last_at,
+       CASE WHEN gmail_confirm_at > ?2 THEN gmail_confirm END AS gmail_confirm,
+       CASE WHEN gmail_confirm_at > ?2 THEN gmail_confirm_at END AS gmail_confirm_at
+     FROM payment_profiles WHERE member_id = ?1`,
+  )
+    .bind(me, new Date(Date.now() - GMAIL_CONFIRM_HOURS * 3600_000).toISOString())
+    .first<Record<string, string | null>>();
   return c.json({
-    venmoUsername: p?.venmoUsername ?? "",
-    venmoEmail: p?.venmoEmail ?? "",
-    zelleAccount: p?.zelleAccount ?? "",
+    venmoUsername: p?.venmo_username ?? "",
+    venmoEmail: p?.venmo_email ?? "",
+    zelleAccount: p?.zelle_account ?? "",
     // Changing the Venmo account now keeps the old one recognized for a while (the page warns).
     outstandingBills: me ? await outstandingBills(c.env.DB, me) : 0,
+    // Their own forwarding: 转发已生效 once a Venmo email for their account arrived, and Gmail's
+    // confirmation code for 24 hours (design §6.3).
+    lastVenmoEmailAt: p?.email_last_at ?? null,
+    gmailConfirm: p?.gmail_confirm ?? null,
+    gmailConfirmAt: p?.gmail_confirm_at ?? null,
   });
 });
 
@@ -717,12 +736,13 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
            AND EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2) ${keepsPaid}`,
       ).bind(r.inbound_id, r.id, r.venmo_txn_id),
       // Auto-matched, or its 待确认 row is gone: it gets a row now, so the payment is never lost.
+      // Auto-matching only takes money that went into the event's payee's account, so that's whose it is.
       c.env.DB.prepare(
-        `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason)
-         SELECT ?3, ?4, ?5, ?6, ?7, 'unmatched', '从账单撤销的 Venmo 付款'
+        `INSERT INTO inbound_payments (venmo_txn_id, payer_name, amount_cents, note, received_at, kind, reason, payee_id)
+         SELECT ?3, ?4, ?5, ?6, ?7, 'unmatched', '从账单撤销的 Venmo 付款', ?8
          WHERE EXISTS (SELECT 1 FROM payment_receipts WHERE id = ?2)
            AND NOT EXISTS (SELECT 1 FROM inbound_payments WHERE id = ?1 OR venmo_txn_id = ?3) ${keepsPaid}`,
-      ).bind(r.inbound_id, r.id, r.venmo_txn_id, r.payer_name, r.amount_cents, r.note, r.received_at),
+      ).bind(r.inbound_id, r.id, r.venmo_txn_id, r.payer_name, r.amount_cents, r.note, r.received_at, payee),
     );
   }
   const res = await c.env.DB.batch([

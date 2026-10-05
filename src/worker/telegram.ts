@@ -131,13 +131,37 @@ export async function sendToManager(
   html: string,
   adminPage = false,
 ): Promise<ManagerDelivery> {
-  const id = await eventManager(env.DB, e);
+  return sendToResponsible(env, await eventManager(env.DB, e), html, adminPage, {
+    off: (name) => `这场由 ${name} 负责，但组织者功能已关闭`,
+    former: (name) => `这场的负责人 ${name} 已经不是组织者`,
+  });
+}
+
+/**
+ * A notice about money that went into someone's account (待确认, 转发可能中断) goes to that
+ * account's owner (design §7): a current organizer, else the Owner, opening with why when it
+ * falls back. A 历史收款人's go to the Owner, who handles them now.
+ */
+export async function sendToPayee(env: Env, payeeId: string | null, html: string): Promise<ManagerDelivery> {
+  return sendToResponsible(env, payeeId, html, true, {
+    off: (name) => `钱进了 ${name} 的账户，但组织者功能已关闭`,
+    former: (name) => `钱进了历史收款人 ${name} 的账户（已经不是组织者）`,
+  });
+}
+
+async function sendToResponsible(
+  env: Env,
+  id: string | null,
+  html: string,
+  adminPage: boolean,
+  why_: { off: (name: string) => string; former: (name: string) => string },
+): Promise<ManagerDelivery> {
   const m = id ? await recipient(env.DB, id) : null;
   if (!m || m.is_owner === 1) return { ok: await sendToOwner(env, html), owner: true, organizer: null, chatId: null };
   const name = escapeHtml(m.username);
   let why: string;
-  if (!organizersEnabled(env)) why = `这场由 ${name} 负责，但组织者功能已关闭`;
-  else if (memberRole(env, m) !== "organizer") why = `这场的负责人 ${name} 已经不是组织者`;
+  if (!organizersEnabled(env)) why = why_.off(name);
+  else if (memberRole(env, m) !== "organizer") why = why_.former(name);
   else if (!m.chat_id) why = `组织者 ${name} 还没连接 Telegram`;
   else if (await sendTo(env, m.chat_id, withAdminLink(env, html, adminPage)))
     return { ok: true, owner: false, organizer: m.username, chatId: m.chat_id };

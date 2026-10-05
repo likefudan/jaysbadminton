@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { checkPassword } from "../../shared/rules";
-import type { AdminViewer, LinkResponse, OrganizersBlock, RevokeImpact } from "../../shared/types";
+import type { LinkResponse, RevokeImpact } from "../../shared/types";
 import { formatInstantZh } from "../../shared/time";
 import { STYLES, type ThemeId } from "../../shared/themes";
 import { api } from "../api";
@@ -124,12 +124,11 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
  * 设置 for an organizer (design §10.2): their own payment settings with the Venmo forwarding steps,
  * their Telegram, and 不再当组织者. The group's settings, export and passwords stay the Owner's.
  */
-export function OrganizerSettings(props: { base: string; viewer: AdminViewer; organizers: OrganizersBlock | null }) {
-  const me = props.organizers?.list.find((o) => o.id === props.viewer.id);
+export function OrganizerSettings(props: { base: string }) {
   return (
     <>
       <MyPaymentCard base={props.base} />
-      <ForwardingCard lastAt={me?.lastVenmoEmailAt ?? null} />
+      <ForwardingCard base={props.base} />
       <TelegramCard base={props.base} organizer />
       <RetireCard base={props.base} />
       <button
@@ -149,6 +148,11 @@ interface PaymentProfile {
   zelleAccount: string;
   /** Bills of their events not paid up yet: a changed Venmo account stays recognized for 60 days. */
   outstandingBills: number;
+  /** When the last Venmo email for their account arrived (转发已生效). */
+  lastVenmoEmailAt: string | null;
+  /** Gmail's forwarding confirmation for their address, kept 24 hours. */
+  gmailConfirm: string | null;
+  gmailConfirmAt: string | null;
 }
 
 /** 我的收款设置: where members pay for the events this organizer runs. Finalize needs Venmo and its email. */
@@ -256,7 +260,9 @@ function MyPaymentForm(props: {
 }
 
 /** Venmo 邮件转发: the same Gmail filter the Owner sets up, pointed at the one forwarding address. */
-function ForwardingCard(props: { lastAt: string | null }) {
+function ForwardingCard(props: { base: string }) {
+  const [res] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
+  const p = res.state === "ok" ? res.data : null;
   return (
     <Card title="Venmo 邮件转发">
       <p class="small">
@@ -271,12 +277,20 @@ function ForwardingCard(props: { lastAt: string | null }) {
             待确认」里有没有这笔，再检查上面几步；实在对不上，可以在活动的账单里手动标记已付。
           </>
         }
-        confirm="Gmail 会往这个地址发一封确认邮件，里面有确认码。目前这封邮件会转到群主那里，请向群主要确认码，填回 Gmail。"
+        confirm="Gmail 会往这个地址发一封确认邮件，里面有确认码。系统收到后会显示在下面（保留 24 小时），连了 Telegram 的话也会发给你。把确认码填回 Gmail，或打开里面的确认链接。"
       />
-      {/* Filled in once forwarded emails are matched to each payee (card 8); until then it stays hidden. */}
-      {props.lastAt && (
+      {p?.gmailConfirm && (
         <div class="status-line">
-          <b>转发状态：</b>已生效（{formatInstantZh(props.lastAt)} 收到）
+          <b>Gmail 转发确认邮件</b>（{formatInstantZh(p.gmailConfirmAt ?? "")} 收到）：
+          <pre class="gmail-confirm">{p.gmailConfirm}</pre>
+        </div>
+      )}
+      {p && (
+        <div class="status-line">
+          <b>转发状态：</b>
+          {p.lastVenmoEmailAt
+            ? `已生效（最近一封在 ${formatInstantZh(p.lastVenmoEmailAt)} 收到）`
+            : "还没收到你的 Venmo 账户的邮件"}
         </div>
       )}
     </Card>

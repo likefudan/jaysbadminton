@@ -6,7 +6,9 @@ import type { EmailOutcome } from "./inbound";
 import { message, once, type NotifySettings } from "./notify";
 import { sheetsStatus } from "./sheets";
 import { isStaging } from "./site";
-import { sendToOwner } from "./telegram";
+import { escapeHtml, sendToOwner, sendToPayee } from "./telegram";
+import { ownerId } from "./organizers";
+import { payeeSql } from "./payees";
 
 /**
  * Telling the Owner when the machinery itself goes wrong: a Venmo email the system could not use,
@@ -35,35 +37,70 @@ export async function emailProblemAlert(env: Env, outcome: EmailOutcome, at: Dat
 }
 
 /**
- * Daily at the bill-reminder hour: bills have been out for a few days, yet no Venmo email of any
- * kind has arrived for as long. Most likely the Gmail filter or forwarding stopped. Once per quiet
- * spell (keyed by the last email), so it does not nag; the weekly digest repeats the state.
+ * Daily at the bill-reminder hour, for each payee's account (design §7): bills paying into it have
+ * been out for a few days, yet no Venmo email of any kind has arrived for it for as long. Most
+ * likely that person's Gmail filter or forwarding stopped. Once per quiet spell (keyed by the last
+ * email), so it does not nag; the weekly digest repeats the Owner's state. The Owner's account is
+ * told to the Owner; a current organizer's to them (the Owner when they have no Telegram) with a
+ * copy for the Owner; a former organizer's to the Owner.
  */
 export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): Promise<void> {
   if (isStaging(env)) return; // the test site never receives forwarded Venmo mail
   if (Number(toPacific(at).time.slice(0, 2)) !== cfg.dunningHour) return;
-  const s = await getSettings(env.DB, ["venmo_username", "email_last_at"]);
-  if (!s.venmo_username) return;
   const since = new Date(at.getTime() - QUIET_DAYS * DAY).toISOString();
-  if (s.email_last_at && s.email_last_at >= since) return;
-  const owing = await env.DB.prepare(
+  const s = await getSettings(env.DB, ["venmo_username", "email_last_at"]);
+  if (s.venmo_username) {
+    const owner = await ownerId(env.DB);
+    const owing = await owingInto(env, owner, since, s.email_last_at);
+    if (owing)
+      await once(env, SITE, "forward_silent", s.email_last_at ?? "never", () =>
+        sendToOwner(
+          env,
+          message(
+            `📭 ${quietFor(at, s.email_last_at, "任何 Venmo 邮件")}，但还有 ${owing} 笔账单没付清。\n如果最近确实有人用 Venmo 付过款，说明 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（管理页「设置 → 使用指南」第二部分）。`,
+          ),
+        ),
+      );
+  }
+  const { results } = await env.DB.prepare(
+    `SELECT p.member_id, p.venmo_username, p.email_last_at, m.username FROM payment_profiles p
+     JOIN members m ON m.id = p.member_id WHERE p.venmo_username IS NOT NULL`,
+  ).all<{ member_id: string; venmo_username: string; email_last_at: string | null; username: string }>();
+  for (const p of results) {
+    const owing = await owingInto(env, p.member_id, since, p.email_last_at);
+    if (!owing) continue;
+    const account = `@${p.venmo_username}（${p.username}）`;
+    const text = message(
+      `📭 ${quietFor(at, p.email_last_at, ` ${account}的 Venmo 邮件`)}，但付到这个账户的账单还有 ${owing} 笔没付清。\n如果最近确实有人用 Venmo 付过款，说明这个账户的 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（组织者的管理页「设置 › Venmo 邮件转发」）。`,
+    );
+    await once(env, SITE, `forward_silent:${p.member_id}`, p.email_last_at ?? "never", async () => {
+      const d = await sendToPayee(env, p.member_id, text);
+      if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：组织者 ${escapeHtml(p.username)} 的收款账户\n${text}`);
+      return d.ok;
+    });
+  }
+}
+
+/**
+ * Unpaid bills paying into `payee`'s account whose event was finalized before `since`, when that
+ * account has been quiet since then (`lastAt`); 0 otherwise.
+ */
+async function owingInto(env: Env, payee: string | null, since: string, lastAt: string | undefined | null) {
+  if (lastAt && lastAt >= since) return 0;
+  const r = await env.DB.prepare(
     `SELECT COUNT(*) AS n FROM payments p JOIN events e ON e.id = p.event_id
-     WHERE p.status IN ('unpaid', 'partial') AND e.status = 'finalized' AND e.finalized_at <= ?`,
+     WHERE p.status IN ('unpaid', 'partial') AND e.status = 'finalized' AND e.finalized_at <= ?1
+       AND ${payeeSql("e")} IS ?2`,
   )
-    .bind(since)
+    .bind(since, payee)
     .first<{ n: number }>();
-  if (!owing?.n) return;
-  const quiet = s.email_last_at
-    ? `已经 ${Math.floor((at.getTime() - Date.parse(s.email_last_at)) / DAY)} 天没收到任何 Venmo 邮件了`
-    : "系统还没收到过任何 Venmo 邮件";
-  await once(env, SITE, "forward_silent", s.email_last_at ?? "never", () =>
-    sendToOwner(
-      env,
-      message(
-        `📭 ${quiet}，但还有 ${owing.n} 笔账单没付清。\n如果最近确实有人用 Venmo 付过款，说明 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（管理页「设置 → 使用指南」第二部分）。`,
-      ),
-    ),
-  );
+  return r?.n ?? 0;
+}
+
+/** "已经 N 天没收到<what>了", or "系统还没收到过<what>". */
+function quietFor(at: Date, lastAt: string | undefined | null, what: string): string {
+  if (!lastAt) return `系统还没收到过${what}`;
+  return `已经 ${Math.floor((at.getTime() - Date.parse(lastAt)) / DAY)} 天没收到${what}了`;
 }
 
 /** From every cron run, whether or not the weekly digest is on: email_log keeps 120 days. */

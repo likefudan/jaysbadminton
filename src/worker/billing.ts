@@ -7,6 +7,8 @@ import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
 import { HttpError, badRequest } from "./http";
 import { eventManager, eventPayee, lastKey, ownerId } from "./organizers";
+import { payeeName, payeeSql } from "./payees";
+import { remindIfExpired } from "./appointments";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
   return toSettleRows(await roster(env, eventId));
@@ -237,6 +239,10 @@ export async function checkCollected(env: Env, eventId: number): Promise<boolean
     .run();
   if (res.meta.changes === 0) return false;
   await notifyCollected(env, eventId);
+  const e = await env.DB.prepare("SELECT payee_id FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ payee_id: string | null }>();
+  await remindIfExpired(env, e?.payee_id ?? null);
   return true;
 }
 
@@ -347,13 +353,22 @@ export async function markPaid(env: Env, paymentId: number): Promise<boolean> {
 export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<number, Receipt[]>> {
   const out = new Map<number, Receipt[]>();
   if (paymentIds.length === 0) return out;
+  // Whose account a linked Venmo payment went into, from its 待确认 row (older receipts find it by
+  // transaction); auto-matched ones have none and always went to the event's payee.
   const { results } = await env.DB.prepare(
-    `SELECT * FROM payment_receipts WHERE payment_id IN (${paymentIds.map(() => "?").join(",")}) ORDER BY received_at, id`,
+    `SELECT r.*, ${payeeSql("e")} AS event_payee,
+       (SELECT ${payeeSql("i")} FROM inbound_payments i
+        WHERE i.id = r.inbound_id OR (r.venmo_txn_id IS NOT NULL AND i.venmo_txn_id = r.venmo_txn_id) LIMIT 1) AS money_in
+     FROM payment_receipts r JOIN payments p ON p.id = r.payment_id JOIN events e ON e.id = p.event_id
+     WHERE r.payment_id IN (${paymentIds.map(() => "?").join(",")}) ORDER BY r.received_at, r.id`,
   )
     .bind(...paymentIds)
     .all<Record<string, any>>();
+  const names = new Map<string, Promise<string>>();
   for (const r of results) {
     const list = out.get(r.payment_id) ?? [];
+    const elsewhere = r.money_in && r.money_in !== r.event_payee ? r.money_in : null;
+    if (elsewhere && !names.has(elsewhere)) names.set(elsewhere, payeeName(env.DB, elsewhere));
     list.push({
       id: r.id,
       amountCents: r.amount_cents,
@@ -361,6 +376,7 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
       method: r.method === "manual" && r.venmo_txn_id ? "venmo" : r.method,
       payerName: r.payer_name,
       receivedAt: r.received_at,
+      elsewhere: elsewhere ? await names.get(elsewhere)! : null,
     });
     out.set(r.payment_id, list);
   }

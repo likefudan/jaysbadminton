@@ -5,7 +5,15 @@ import type { Env } from "./env";
 import { type EventRow, closeExpired, roster } from "./events";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { eventManager, organizersEnabled } from "./organizers";
-import { WECHAT_BLOCK, escapeHtml, sendLikewise, sendToManager, sendToManagerAndOwner, sendToOwner } from "./telegram";
+import {
+  WECHAT_BLOCK,
+  escapeHtml,
+  sendLikewise,
+  sendToManager,
+  sendToManagerAndOwner,
+  sendToOwner,
+  sendToPayee,
+} from "./telegram";
 
 /**
  * Every notification goes to Telegram: an event's to whoever runs it (sendToManager), the rest to
@@ -364,17 +372,25 @@ export async function notifyCollected(env: Env, eventId: number): Promise<void> 
 }
 
 /**
- * A Venmo payment that needs someone: 待确认 goes to the Owner, a partial payment or an
- * over-payment to whoever runs that event.
+ * A Venmo payment that needs someone: 待确认 goes to whoever owns the account it went into, a
+ * partial payment or an over-payment to whoever runs that event.
  */
 export async function notifyPayment(
   env: Env,
   kind: "review" | "partial" | "overpaid",
-  info: { payer: string; amountCents: number; note: string; reason?: string; paymentId?: number },
+  info: {
+    payer: string;
+    amountCents: number;
+    note: string;
+    reason?: string;
+    paymentId?: number;
+    payee?: string | null;
+  },
 ): Promise<void> {
   if (kind === "review") {
-    await sendToOwner(
+    await sendToPayee(
       env,
+      info.payee ?? null,
       message(
         `❓ 有一笔 Venmo 付款需要确认：${info.payer} $${dollars(info.amountCents)}，备注「${info.note}」。\n原因：${info.reason}\n请到管理页「收款」把它关联到某人名下，或者忽略。`,
       ),

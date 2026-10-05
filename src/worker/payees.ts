@@ -1,6 +1,7 @@
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import { badRequest, str } from "./http";
+import { ROSTER_EDITABLE } from "./events";
 import { eventPayee, ownerId } from "./organizers";
 
 /**
@@ -180,4 +181,20 @@ export async function assertPayeeUnlocked(db: D1Database, eventId: number): Prom
     .bind(eventId)
     .first();
   if (locked) throw badRequest("这场已经结算发出账单，收款人不能再换");
+}
+
+/**
+ * A 历史收款人 whose account no longer takes the group's money (design §8): they were revoked, and
+ * none of the events paying into their account is still unarchived. From then on nothing is matched
+ * to a bill there; emails carrying our code go to 待确认 for the Owner, the rest are dropped quietly.
+ */
+export async function payeeExpired(db: D1Database, memberId: string): Promise<boolean> {
+  const r = await db
+    .prepare(
+      `SELECT 1 FROM payment_profiles p WHERE p.member_id = ?1 AND p.retired_at IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM events WHERE payee_id = ?1 AND status IN (${ROSTER_EDITABLE.map((s) => `'${s}'`).join(", ")}))`,
+    )
+    .bind(memberId)
+    .first();
+  return !!r;
 }

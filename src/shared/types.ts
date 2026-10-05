@@ -300,6 +300,11 @@ export interface Receipt {
   method: "venmo" | "manual" | "refund"; // a refund has a negative amount
   payerName: string | null;
   receivedAt: string;
+  /**
+   * A Venmo payment linked from 待确认 that went into another account than the event's payee's
+   * (钱在 某某 的账户): whose, 群主 or the organizer's name. Null when it is where it should be.
+   */
+  elsewhere: string | null;
 }
 
 export interface PaymentRow {
@@ -361,6 +366,8 @@ export interface InboundRow {
   /** Why it needs review, or what was done with it. */
   reason: string | null;
   linked: { paymentId: number; memberName: string; eventLabel: string } | null;
+  /** Whose account it went into, when that is an organizer's (current or former); null for the Owner's. */
+  payee: string | null;
   /** In 已删除: when it was deleted (UTC ISO); it is removed for good 30 days later. */
   deletedAt: string | null;
 }

@@ -95,7 +95,7 @@ export function Admin(props: { token?: string }) {
               (m.viewer.role === "owner" ? (
                 <Settings base={base} viaGoogle={props.token === "google"} />
               ) : (
-                <OrganizerSettings base={base} viewer={m.viewer} organizers={m.organizers} />
+                <OrganizerSettings base={base} />
               ))}
           </>
         )}

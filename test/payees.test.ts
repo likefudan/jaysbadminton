@@ -268,6 +268,9 @@ describe("我的收款设置", () => {
       venmoEmail: "alice@venmo.test",
       zelleAccount: "a@z",
       outstandingBills: 0,
+      lastVenmoEmailAt: null,
+      gmailConfirm: null,
+      gmailConfirmAt: null,
     });
     // The Owner's own stay behind the password.
     const owner = await s.admin.call(`${s.base}/payment-profile`, { venmoUsername: "x1", venmoEmail: "x@y.z" });
