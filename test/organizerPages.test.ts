@@ -103,12 +103,14 @@ describe("the admin pages for an organizer", () => {
     // An organizer can't ask for someone else's list.
     expect(ids((await get(`${GOOGLE}/events?manager=${owner}`, org)).data)).toEqual([mine]);
 
-    const all = (await ctx.admin.call(`${ctx.base}/events`)).data;
+    const all = (await get(`${ctx.base}/events`, ctx.admin.cookie)).data;
     expect(ids(all).sort()).toEqual([theirs, mine].sort());
     expect(all.current.find((e: { id: number }) => e.id === theirs).manager).toEqual({ id: owner, name: "群主" });
     expect(ids((await ctx.admin.call(`${ctx.base}/events?manager=${alice.id}`)).data)).toEqual([mine]);
     // Everyone who has run an event, for the filter (organizers get none: they can't filter).
     expect(all.managers).toEqual(expect.arrayContaining([{ id: alice.id, name: "Alice" }]));
+    // With the feature off the filter is not shown, so the list is not worked out.
+    expect((await ctx.admin.call(`${ctx.base}/events`)).data.managers).toEqual([]);
     expect(own.managers).toEqual([]);
     // The Owner's own include events from before 0023 (manager_id NULL).
     await env.DB.prepare("UPDATE events SET manager_id = NULL, payee_id = NULL WHERE id = ?").bind(theirs).run();

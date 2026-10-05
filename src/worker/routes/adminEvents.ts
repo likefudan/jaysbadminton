@@ -39,7 +39,16 @@ import {
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
 import type { AdminEnv } from "../access";
-import { can, eventManager, eventPayee, lastValues, ownerId, payeeProfile } from "../organizers";
+import {
+  can,
+  eventManager,
+  eventPayee,
+  forgetLastValue,
+  lastValues,
+  organizersEnabled,
+  ownerId,
+  payeeProfile,
+} from "../organizers";
 import { assertOrganizersOn, handBackIfRevoked, transferEvent } from "../appointments";
 import {
   assertAccountFree,
@@ -89,7 +98,11 @@ adminEventRoutes.get("/events", async (c) => {
   const owner = group && wanted ? await ownerId(c.env.DB) : null;
   const filtered = !group || !!wanted;
   const mine = filtered ? [wanted] : [];
-  const only = !filtered ? "" : wanted === owner ? "AND (manager_id = ? OR manager_id IS NULL)" : "AND manager_id = ?";
+  const only = !filtered
+    ? ""
+    : group && wanted === owner
+      ? "AND (manager_id = ? OR manager_id IS NULL)"
+      : "AND manager_id = ?";
   const current = await c.env.DB.prepare(
     `SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ${only} ORDER BY start_at`,
   )
@@ -124,7 +137,7 @@ adminEventRoutes.get("/events", async (c) => {
   const [cur, old, managers] = await Promise.all([
     withManager(current.results),
     withManager(shown),
-    group ? everyone() : [],
+    group && organizersEnabled(c.env) ? everyone() : [],
   ]);
   return c.json({ current: cur, past: old, morePast: past.results.length > limit, managers });
 });
@@ -161,9 +174,7 @@ adminEventRoutes.post("/locations/remove", async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM locations WHERE name = ?").bind(name),
     // Otherwise the next new event would still start with it filled in.
-    c.env.DB.prepare("DELETE FROM settings WHERE key = 'last_location' AND value = ?").bind(name),
-    // An organizer's own is emptied rather than deleted, so their form doesn't take the Owner's venue.
-    c.env.DB.prepare("UPDATE settings SET value = '' WHERE key LIKE 'last_location:%' AND value = ?").bind(name),
+    ...forgetLastValue(c.env.DB, "last_location", name),
   ]);
   return c.json({ ok: true });
 });

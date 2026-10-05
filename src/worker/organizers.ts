@@ -61,6 +61,15 @@ export async function ownerId(db: D1Database): Promise<string | null> {
 export const lastKey = (key: string, memberId: string | null, owner: string | null) =>
   !memberId || memberId === owner ? key : `${key}:${memberId}`;
 
+/**
+ * Forgets `value` as everyone's remembered `key` (e.g. a venue removed from 最近的场馆). An
+ * organizer's own is emptied rather than deleted, so they don't fall back to the Owner's.
+ */
+export const forgetLastValue = (db: D1Database, key: string, value: string) => [
+  db.prepare("DELETE FROM settings WHERE key = ? AND value = ?").bind(key, value),
+  db.prepare("UPDATE settings SET value = '' WHERE key LIKE ? AND value = ?").bind(`${key}:%`, value),
+];
+
 /** The person's remembered values for `keys`, each from their own key or else the Owner's. */
 export async function lastValues(
   db: D1Database,

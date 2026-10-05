@@ -4,8 +4,11 @@ import { useApi } from "./hooks";
 
 /** Ends the Google session (and a half-done link to a member page), then goes to 登录. */
 export async function signOutGoogle(): Promise<void> {
-  await api("/api/auth/logout", {});
-  sessionStorage.removeItem("google-link-member");
+  try {
+    await api("/api/auth/logout", {});
+  } finally {
+    sessionStorage.removeItem("google-link-member");
+  }
   window.location.assign("/login");
 }
 
