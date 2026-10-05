@@ -217,7 +217,7 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await expect(detail.locator(".profile-info")).toContainText("xm@example.com");
   await expect(detail.locator(".heatmap-grid .upcoming")).toHaveCount(1);
   await detail.getByRole("button", { name: "添加" }).click();
-  await field(page, "备注名（只有群主能看到）").fill("周六队长");
+  await field(page, "备注名（只有群主和组织者能看到）").fill("周六队长");
   await detail.getByRole("button", { name: "保存" }).click();
   await expect(detail.locator(".profile-info")).toContainText("周六队长");
   await page.getByRole("button", { name: "‹ 成员" }).click();
@@ -370,6 +370,92 @@ test("the Owner appoints an organizer, hands them an event and revokes them", as
   expect(dialogs.pop()).toContain("负责人转给群主，收款人不变");
   await expect(ming.locator(".badge")).toHaveCount(0);
   await expect(block).toContainText("还没有组织者");
+});
+
+test("an organizer signs in with Google and runs their own event", async ({ page, context, baseURL }) => {
+  const dialogs: string[] = [];
+  page.on("dialog", (d) => {
+    dialogs.push(d.message());
+    void d.accept();
+  });
+  await openAdmin(page);
+  await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
+  await page.locator(".row", { hasText: "小明" }).getByRole("button", { name: "设为组织者" }).click();
+  await expect(page.getByText(/小明 已成为组织者/)).toBeVisible();
+
+  // 小明 signs in with Google; his own page offers 管理页.
+  const ming = googleSession("google-ming", "ming@example.com");
+  await context.addCookies([{ name: "jb_member", value: ming, url: baseURL! }]);
+  await page.goto("/me");
+  await page.getByRole("link", { name: "管理页", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/google$/);
+  const tabs = page.locator(".tabs");
+  await expect(tabs.getByRole("button")).toHaveText(["活动", "收款", "待审核", "成员", "设置"]);
+
+  // 成员 and 待审核 read-only: the same people, no buttons; Owner-only endpoints refuse.
+  await tabs.getByRole("button", { name: "成员" }).click();
+  await expect(page.locator(".row", { hasText: "Jay" }).first()).toBeVisible();
+  for (const name of ["停用", "链接", "重新生成", "生成备用链接", "设为组织者", "撤销组织者", "撤销"])
+    await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
+  await tabs.getByRole("button", { name: /待审核/ }).click();
+  await expect(page.getByText("只有群主可以通过或拒绝申请。")).toBeVisible();
+  expect((await page.request.get("/api/admin/google/sheets")).status()).toBe(403);
+
+  // Only his own events: the Owner's are not listed.
+  await tabs.getByRole("button", { name: "活动" }).click();
+  await expect(page.getByText("没有进行中的活动")).toBeVisible();
+  await expect(page.locator(".event-link", { hasText: VENUE })).toHaveCount(0);
+  await page.getByRole("button", { name: "＋ 新建活动" }).click();
+  await expect(page.locator(".chip-remove")).toHaveCount(0); // forgetting a venue is the Owner's
+  await field(page, "日期").fill(inAWeek());
+  await field(page, "场馆").fill("Ming Gym");
+  await page.getByRole("button", { name: "创建活动" }).click();
+  await expect(page.getByText("✓ 你已报名")).toBeVisible();
+
+  // He changes his list: Jay comes too.
+  const add = page.locator(".card", { has: page.getByRole("heading", { name: "添加人员" }) });
+  await add.locator("select").selectOption({ label: "Jay" });
+  await add.getByRole("button", { name: "添加", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "名单（2）" })).toBeVisible();
+  await expect(page.locator(".badge", { hasText: "代为添加" })).toBeVisible();
+
+  // Finalize waits for his own Venmo.
+  await page.getByRole("button", { name: "立即截止报名" }).click();
+  const settle = async () => {
+    await field(page, "场地总费用（美元）").fill("30");
+    await field(page, "用球个数").fill("2");
+    await field(page, "球单价（美元）").fill("4");
+    await page.getByRole("button", { name: "预览每人金额" }).click();
+    await page.getByRole("button", { name: "Finalize" }).click();
+  };
+  await settle();
+  await expect(page.getByText("请先在收款设置里填好 Venmo 和通知邮箱")).toBeVisible();
+
+  await page.getByRole("button", { name: "‹ 所有活动" }).click();
+  await tabs.getByRole("button", { name: "设置" }).click();
+  await expect(page.getByRole("heading", { name: "修改群主密码" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "不再当组织者" })).toBeVisible();
+  await field(page, "你的 Venmo 用户名").fill("ming-venmo");
+  await field(page, "Venmo 通知邮箱").fill("ming@venmo.test");
+  await page.getByRole("button", { name: "保存收款设置" }).click();
+  await expect(page.locator(".card", { has: page.getByRole("heading", { name: "我的收款设置" }) })).toContainText(
+    "@ming-venmo",
+  );
+
+  await tabs.getByRole("button", { name: "活动" }).click();
+  await page.locator(".event-link", { hasText: "Ming Gym" }).click();
+  await settle();
+  await expect(page.getByText("费用（已 Finalize，可修改）")).toBeVisible();
+
+  // Jay's bill for it names the organizer and pays into his Venmo.
+  const jay = googleSession("google-jay", "jay@example.com");
+  await context.addCookies([{ name: "jb_member", value: jay, url: baseURL! }]);
+  await page.goto("/me");
+  const card = page.locator(".card", { hasText: "Ming Gym" });
+  await expect(card).toContainText("组织：小明");
+  await expect(card).toContainText("本次应付 · 付给小明");
+  const venmo = new URL((await card.getByRole("link", { name: "用 Venmo 付 $19.00" }).getAttribute("href"))!);
+  expect(venmo.searchParams.get("recipients")).toBe("ming-venmo");
 });
 
 test("a visitor's appearance choice survives a reload", async ({ page }) => {

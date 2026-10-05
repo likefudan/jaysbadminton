@@ -1,9 +1,10 @@
 import { useState } from "preact/hooks";
 import { AddressInput } from "../AddressInput";
 import type {
+  AdminEventSummary,
+  AdminViewer,
   EventDefaults,
   EventDetail,
-  EventSummary,
   MemberSummary,
   OrganizersBlock,
   RosterEntry,
@@ -18,17 +19,40 @@ import { Billing } from "./AdminSettle";
 
 const PAST_PAGE = 30;
 
-export function EventsTab(props: { base: string; members: MemberSummary[]; organizers: OrganizersBlock | null }) {
+export function EventsTab(props: {
+  base: string;
+  members: MemberSummary[];
+  organizers: OrganizersBlock | null;
+  viewer: AdminViewer;
+}) {
   const [pastShown, setPastShown] = useState(PAST_PAGE);
-  const [list, reload] = useApi<{ current: EventSummary[]; past: EventSummary[]; morePast: boolean }>(
-    `${props.base}/events?past=${pastShown}`,
-  );
+  // The Owner, with the 组织者 feature on, sees who runs each event and can show one person's.
+  const byManager = props.viewer.role === "owner" && !!props.organizers;
+  const [manager, setManager] = useState("");
+  const path = `${props.base}/events?past=${pastShown}${byManager && manager ? `&manager=${encodeURIComponent(manager)}` : ""}`;
+  const [list, reload] = useApi<{
+    current: AdminEventSummary[];
+    past: AdminEventSummary[];
+    morePast: boolean;
+    /** With `group`: everyone who has run an event. */
+    managers?: { id: string; name: string }[];
+  }>(path);
   const [mode, setMode] = useState<"list" | "create" | number>("list");
+  const owner = props.members.find((m) => m.isOwner);
+  // Past managers (organizers since revoked) can be picked too: the list names everyone who ran one.
+  const current = new Set([owner?.id, ...(props.organizers?.list ?? []).map((o) => o.id)]);
+  const formerManagers = list.state === "ok" ? (list.data.managers ?? []).filter((m) => !current.has(m.id)) : [];
+  // Until the new filter's list arrives, show it loading rather than the previous person's events
+  // (显示更早的活动 only changes past=, and keeps the list on screen meanwhile).
+  const filterOf = (p: string | undefined) => new URLSearchParams(p?.split("?")[1] ?? "").get("manager") ?? "";
+  const shown: typeof list =
+    list.state !== "loading" && filterOf(list.path) !== filterOf(path) ? { state: "loading" } : list;
 
   if (mode === "create") {
     return (
       <CreateEvent
         base={props.base}
+        owner={props.viewer.role === "owner"}
         onDone={(id) => {
           reload();
           setMode(id ?? "list");
@@ -43,6 +67,7 @@ export function EventsTab(props: { base: string; members: MemberSummary[]; organ
         id={mode}
         members={props.members}
         organizers={props.organizers}
+        viewer={props.viewer}
         onBack={() => {
           reload();
           setMode("list");
@@ -55,19 +80,38 @@ export function EventsTab(props: { base: string; members: MemberSummary[]; organ
       <button type="button" class="button block" onClick={() => setMode("create")}>
         ＋ 新建活动
       </button>
-      <Load result={list}>
+      {byManager && (
+        <label class="field">
+          <span>负责人</span>
+          <select value={manager} onChange={(e) => setManager((e.target as HTMLSelectElement).value)}>
+            <option value="">全部</option>
+            {owner && <option value={owner.id}>群主（{owner.username}）</option>}
+            {props.organizers!.list.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.username}
+              </option>
+            ))}
+            {formerManagers.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}（已不是组织者）
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <Load result={shown}>
         {(l) => (
           <>
             <Card title="进行中">
               {l.current.length === 0 && <Empty>没有进行中的活动</Empty>}
               {l.current.map((e) => (
-                <EventRow key={e.id} e={e} onOpen={() => setMode(e.id)} />
+                <EventRow key={e.id} e={e} manager={byManager} onOpen={() => setMode(e.id)} />
               ))}
             </Card>
             {l.past.length > 0 && (
               <Card title="已结束">
                 {l.past.map((e) => (
-                  <EventRow key={e.id} e={e} onOpen={() => setMode(e.id)} />
+                  <EventRow key={e.id} e={e} manager={byManager} onOpen={() => setMode(e.id)} />
                 ))}
                 {l.morePast && (
                   <button
@@ -87,21 +131,25 @@ export function EventsTab(props: { base: string; members: MemberSummary[]; organ
   );
 }
 
-function EventRow(props: { e: EventSummary; onOpen: () => void }) {
+function EventRow(props: { e: AdminEventSummary; manager: boolean; onOpen: () => void }) {
   return (
     <button type="button" class="event-link" onClick={props.onOpen}>
-      <EventInfo e={props.e} />
+      <EventInfo e={props.e} runBy={props.manager ? `负责人：${props.e.manager.name}` : undefined} />
       <span class="chevron">›</span>
     </button>
   );
 }
 
-function CreateEvent(props: { base: string; onDone: (id?: number) => void }) {
+function CreateEvent(props: { base: string; owner: boolean; onDone: (id?: number) => void }) {
   const [defaults] = useApi<EventDefaults>(`${props.base}/events/defaults`);
-  return <Load result={defaults}>{(d) => <CreateForm base={props.base} d={d} onDone={props.onDone} />}</Load>;
+  return (
+    <Load result={defaults}>
+      {(d) => <CreateForm base={props.base} owner={props.owner} d={d} onDone={props.onDone} />}
+    </Load>
+  );
 }
 
-function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: number) => void }) {
+function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onDone: (id?: number) => void }) {
   const d = props.d;
   const [date, setDate] = useState("");
   const [startTime, setStart] = useState(d.startTime);
@@ -160,6 +208,7 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
         </div>
         <VenueFields
           base={props.base}
+          canForget={props.owner}
           venues={d.locations}
           venue={location}
           address={address}
@@ -201,9 +250,10 @@ function CreateForm(props: { base: string; d: EventDefaults; onDone: (id?: numbe
   );
 }
 
-/** 场馆 + 地址, with one-tap 最近的场馆 that fill both. */
+/** 场馆 + 地址, with one-tap 最近的场馆 that fill both (the Owner can also forget one with ✕). */
 function VenueFields(props: {
   base: string;
+  canForget?: boolean;
   venues: { name: string; address: string }[];
   venue: string;
   address: string;
@@ -235,14 +285,16 @@ function VenueFields(props: {
                 <button type="button" class={v.name === props.venue ? "chip on" : "chip"} onClick={() => pick(v)}>
                   {v.name}
                 </button>
-                <button
-                  type="button"
-                  class="chip-remove"
-                  aria-label={`从最近的场馆中删除「${v.name}」`}
-                  onClick={() => forget(v.name)}
-                >
-                  ✕
-                </button>
+                {props.canForget && (
+                  <button
+                    type="button"
+                    class="chip-remove"
+                    aria-label={`从最近的场馆中删除「${v.name}」`}
+                    onClick={() => forget(v.name)}
+                  >
+                    ✕
+                  </button>
+                )}
               </span>
             ))}
           </div>
@@ -272,6 +324,7 @@ function EventAdmin(props: {
   id: number;
   members: MemberSummary[];
   organizers: OrganizersBlock | null;
+  viewer: AdminViewer;
   onBack: () => void;
 }) {
   const [ev, reload] = useApi<EventDetail>(`${props.base}/events/${props.id}`);
@@ -287,6 +340,7 @@ function EventAdmin(props: {
             e={e}
             members={props.members}
             organizers={props.organizers}
+            viewer={props.viewer}
             onChange={reload}
             onBack={props.onBack}
           />
@@ -301,10 +355,16 @@ function EventAdminBody(props: {
   e: EventDetail;
   members: MemberSummary[];
   organizers: OrganizersBlock | null;
+  viewer: AdminViewer;
   onChange: () => void;
   onBack: () => void;
 }) {
   const e = props.e;
+  const isOwner = props.viewer.role === "owner";
+  const owner = props.members.find((m) => m.isOwner);
+  // Rows added from the admin page. With organizers, events change hands and either may have added
+  // them, so the badge doesn't say who.
+  const addedBy = props.organizers ? "代为添加" : "群主添加";
   const eb = `${props.base}/events/${e.id}`;
   const editable = e.status === "open" || e.status === "closed" || e.status === "finalized";
   const publicLink = `${location.origin}/e/${e.code}`;
@@ -336,14 +396,27 @@ function EventAdminBody(props: {
         <CopyButton text={publicLink} label="复制活动链接" />
       </Card>
 
-      <MySignup eb={eb} e={e} owner={props.members.find((m) => m.isOwner)} onDone={props.onChange} />
+      <MySignup
+        eb={eb}
+        e={e}
+        me={props.members.find((m) => m.id === props.viewer.id)}
+        asOwner={isOwner}
+        onDone={props.onChange}
+      />
 
       {e.status === "open" && <CloseNow eb={eb} onDone={props.onChange} />}
       {e.status === "closed" && <Reopen eb={eb} e={e} onDone={props.onChange} />}
 
       {/* Workflow order: add walk-ins, check the roster, then fill in the costs. */}
       {editable && (
-        <AddPeople eb={eb} members={props.members} roster={e.roster} payee={e.payee} onDone={props.onChange} />
+        <AddPeople
+          eb={eb}
+          members={props.members}
+          me={props.viewer.id}
+          roster={e.roster}
+          payee={e.payee}
+          onDone={props.onChange}
+        />
       )}
 
       <Card title={`名单（${e.roster.length}）`}>
@@ -354,7 +427,7 @@ function EventAdminBody(props: {
             <div class="who">
               {r.friendIndex > 0 && "　↳ "}
               {r.name}
-              {r.addedByOwner && <span class="badge">群主添加</span>}
+              {r.addedByOwner && <span class="badge">{addedBy}</span>}
               {r.friendIndex > 0 && <small>　{r.memberName} 带的朋友</small>}
             </div>
             {editable && (
@@ -388,13 +461,7 @@ function EventAdminBody(props: {
       {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
 
       {editable && props.organizers?.canManage && (
-        <Transfer
-          eb={eb}
-          e={e}
-          owner={props.members.find((m) => m.isOwner)}
-          organizers={props.organizers}
-          onDone={props.onChange}
-        />
+        <Transfer eb={eb} e={e} owner={owner} organizers={props.organizers} onDone={props.onChange} />
       )}
 
       {(e.status === "open" || e.status === "closed") && (
@@ -403,7 +470,7 @@ function EventAdminBody(props: {
         </button>
       )}
 
-      {e.deletable && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
+      {e.deletable && isOwner && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
     </>
   );
 }
@@ -520,12 +587,19 @@ function DeleteEvent(props: { eb: string; e: EventDetail; onDone: () => void }) 
 }
 
 /**
- * 我的报名: the Owner plays too, and signs up here rather than through a member link. Editable
- * until Finalize (after the deadline as well, since the Owner can change the roster anyway).
+ * 我的报名: whoever is on the admin page (the Owner, or the organizer running it) plays too, and signs
+ * up here rather than through a member link. Editable until Finalize (after the deadline as well,
+ * since they can change the roster anyway).
  */
-function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | undefined; onDone: () => void }) {
-  const { e, owner } = props;
-  const mine = owner ? e.roster.filter((r) => r.memberId === owner.id) : [];
+function MySignup(props: {
+  eb: string;
+  e: EventDetail;
+  me: MemberSummary | undefined;
+  asOwner: boolean;
+  onDone: () => void;
+}) {
+  const { e, me } = props;
+  const mine = me ? e.roster.filter((r) => r.memberId === me.id) : [];
   const signedUp = mine.some((r) => r.friendIndex === 0);
   const myFriends = mine.filter((r) => r.friendIndex > 0);
   // Unnamed friends show as "<name>的朋友<n>"; edit them as blank again.
@@ -534,7 +608,7 @@ function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | un
   const [friends, setFriends] = useState<string[]>(current);
   const { busy, error, run } = useAction();
   const canEdit = e.status === "open" || e.status === "closed";
-  if (!owner) return null;
+  if (!me) return null;
 
   async function save() {
     if (await run(() => api(`${props.eb}/self-signup`, { friends }))) {
@@ -600,7 +674,11 @@ function MySignup(props: { eb: string; e: EventDetail; owner: MemberSummary | un
               报名
             </button>
           )}
-          {e.status === "closed" && <p class="muted small">报名已截止，你作为群主仍可以修改自己的报名，直到结算。</p>}
+          {e.status === "closed" && (
+            <p class="muted small">
+              报名已截止，你作为{props.asOwner ? "群主" : "负责人"}仍可以修改自己的报名，直到结算。
+            </p>
+          )}
         </>
       )}
     </Card>
@@ -638,6 +716,8 @@ function Reopen(props: { eb: string; e: EventDetail; onDone: () => void }) {
 function AddPeople(props: {
   eb: string;
   members: MemberSummary[];
+  /** Who is adding: shown as （我） in the list. */
+  me: string | null;
   roster: RosterEntry[];
   payee: EventDetail["payee"];
   onDone: () => void;
@@ -674,7 +754,7 @@ function AddPeople(props: {
           {props.members.map((m) => (
             <option key={m.id} value={m.id}>
               {m.username}
-              {m.isOwner ? "（我）" : ""}
+              {m.id === props.me ? "（我）" : ""}
             </option>
           ))}
         </select>

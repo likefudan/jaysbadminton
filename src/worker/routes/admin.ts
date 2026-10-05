@@ -70,6 +70,7 @@ adminRoutes.get("/:token/members", async (c) => {
     inactive: all.filter((m) => m.status === "inactive" && !m.deletedAt),
     deleted: all.filter((m) => !!m.deletedAt),
     organizers,
+    viewer: { id: actor.memberId, role: actor.role },
   });
 });
 

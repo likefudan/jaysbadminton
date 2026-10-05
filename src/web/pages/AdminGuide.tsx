@@ -46,11 +46,48 @@ function Section(props: { title: string; open?: boolean; children: ComponentChil
   );
 }
 
+/**
+ * Setting up Venmo 邮件转发: the same Gmail filter for the Owner and for organizers, pointed at the
+ * one forwarding address. `confirm` is the step about Gmail's confirmation email, which differs.
+ */
+export function ForwardingSteps(props: { confirm: ComponentChildren; otherMail?: boolean; test?: ComponentChildren }) {
+  const forward = `venmo@${location.hostname}`;
+  return (
+    <ol class="steps">
+      <li>
+        Venmo App →「Settings → Notifications」，确认收款（You receive a payment）的<b>邮件通知</b>是打开的。
+      </li>
+      <li>
+        电脑上打开 Gmail →「设置 ⚙ → 查看所有设置 → 转发和 POP/IMAP → 添加转发地址」，填：
+        <div class="inline-copy">
+          <code>{forward}</code> <CopyButton text={forward} label="复制" />
+        </div>
+      </li>
+      <li>{props.confirm}</li>
+      <li>
+        回到 Gmail，在搜索框输入 <code>from:venmo@venmo.com</code> → 点搜索框右边的「显示搜索选项」→「创建过滤器」→
+        勾选「转发到」并选择上面的地址（建议同时加一个「Venmo」标签，<b>不要</b>勾删除）→ 创建过滤器。
+      </li>
+      {props.otherMail && (
+        <li>
+          Venmo 通知邮箱不是 Gmail 的话（例如 Outlook），在那个邮箱里设一条规则，把 venmo@venmo.com
+          发来的邮件自动转发到上面的地址。
+        </li>
+      )}
+      <li>
+        {props.test ?? (
+          <>
+            <b>测试</b>：请朋友用 Venmo 付你 $1（备注随便写，之后退回），过一两分钟刷新本页，看下面的「转发状态」。
+          </>
+        )}
+      </li>
+    </ol>
+  );
+}
+
 /** 使用指南: what to set up, how Venmo forwarding works and is tested, and how to recover access. */
 export function AdminGuide(props: { base: string }) {
   const s = useStatus(props.base);
-  const host = location.hostname;
-  const forward = `venmo@${host}`;
   const join = `${location.origin}/login`; // 登录 / 注册: Google or email
 
   return (
@@ -105,28 +142,14 @@ export function AdminGuide(props: { base: string }) {
           系统读取 Venmo 发来的收款通知邮件，按备注里的付款编号自动记账。你的邮箱密码系统拿不到，只是用 Gmail 把 Venmo
           的邮件转发过来；和羽毛球无关的收款会被忽略，不会保存。
         </p>
-        <ol class="steps">
-          <li>
-            Venmo App →「Settings → Notifications」，确认收款（You receive a payment）的<b>邮件通知</b>是打开的。
-          </li>
-          <li>
-            电脑上打开 Gmail →「设置 ⚙ → 查看所有设置 → 转发和 POP/IMAP → 添加转发地址」，填：
-            <div class="inline-copy">
-              <code>{forward}</code> <CopyButton text={forward} label="复制" />
-            </div>
-          </li>
-          <li>
-            Gmail 会往这个地址发一封确认邮件，系统会把它<b>转到你的 Telegram</b>（需要先连接
-            Telegram）。把里面的确认码填回 Gmail，或打开里面的确认链接。
-          </li>
-          <li>
-            回到 Gmail，在搜索框输入 <code>from:venmo@venmo.com</code> → 点搜索框右边的「显示搜索选项」→「创建过滤器」→
-            勾选「转发到」并选择上面的地址（建议同时加一个「Venmo」标签，<b>不要</b>勾删除）→ 创建过滤器。
-          </li>
-          <li>
-            <b>测试</b>：请朋友用 Venmo 付你 $1（备注随便写，之后退回），过一两分钟刷新本页，看下面的「转发状态」。
-          </li>
-        </ol>
+        <ForwardingSteps
+          confirm={
+            <>
+              Gmail 会往这个地址发一封确认邮件，系统会把它<b>转到你的 Telegram</b>（需要先连接
+              Telegram）。把里面的确认码填回 Gmail，或打开里面的确认链接。
+            </>
+          }
+        />
         <div class="status-line">
           <b>转发状态：</b>
           {!s ? (

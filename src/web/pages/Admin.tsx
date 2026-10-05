@@ -9,14 +9,15 @@ import type {
   OrganizersBlock,
   RevokeImpact,
 } from "../../shared/types";
-import { formatDateZh, formatInstantZh } from "../../shared/time";
+import { formatInstantZh } from "../../shared/time";
 import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
 import { EventsTab } from "./AdminEvents";
 import { InboundTab } from "./AdminInbound";
-import { Settings } from "./AdminSettings";
+import { OrganizerSettings, Settings } from "./AdminSettings";
 import { ProfileCard } from "../Profile";
+import { revokeSummary } from "../organizers";
 
 type Tab = "events" | "inbound" | "pending" | "members" | "settings";
 
@@ -82,11 +83,20 @@ export function Admin(props: { token?: string }) {
                 设置
               </button>
             </div>
-            {tab === "events" && <EventsTab base={base} members={m.active} organizers={m.organizers} />}
-            {tab === "inbound" && <InboundTab base={base} />}
-            {tab === "pending" && <Pending base={base} list={m.pending} onChange={reload} />}
+            {tab === "events" && (
+              <EventsTab base={base} members={m.active} organizers={m.organizers} viewer={m.viewer} />
+            )}
+            {tab === "inbound" && <InboundTab base={base} owner={m.viewer.role === "owner"} />}
+            {tab === "pending" && (
+              <Pending base={base} list={m.pending} readOnly={m.viewer.role !== "owner"} onChange={reload} />
+            )}
             {tab === "members" && <Members base={base} data={m} onChange={reload} />}
-            {tab === "settings" && <Settings base={base} viaGoogle={props.token === "google"} />}
+            {tab === "settings" &&
+              (m.viewer.role === "owner" ? (
+                <Settings base={base} viaGoogle={props.token === "google"} />
+              ) : (
+                <OrganizerSettings base={base} viewer={m.viewer} organizers={m.organizers} />
+              ))}
           </>
         )}
       </Load>
@@ -94,14 +104,20 @@ export function Admin(props: { token?: string }) {
   );
 }
 
-/** /admin/google without the bound Google account signed in (or with a different one). */
+/** /admin/google without the bound Google account (or an organizer's) signed in, or with another one. */
 function GoogleAdminLogin() {
-  const [session] = useApi<{ signedIn: boolean; email: string | null }>("/api/auth/session");
+  const [session] = useApi<{ signedIn: boolean; email: string | null; organizers?: boolean }>("/api/auth/session");
   const other = session.state === "ok" && session.data.signedIn ? session.data.email : null;
+  // With the 组织者 feature on, organizers come in this way too.
+  const organizers = session.state === "ok" && !!session.data.organizers;
   return (
-    <Page title="群主登录">
+    <Page title={organizers ? "管理页登录" : "群主登录"}>
       <Card>
-        {other && <p class="error">当前登录的 Google 账号 {other} 不是群主绑定的账号。</p>}
+        {other && (
+          <p class="error">
+            当前登录的 Google 账号 {other} {organizers ? "不是群主绑定的账号，也不是组织者。" : "不是群主绑定的账号。"}
+          </p>
+        )}
         <button
           type="button"
           class="button block"
@@ -110,7 +126,9 @@ function GoogleAdminLogin() {
           {other ? "换一个 Google 账号登录" : "使用 Google 登录"}
         </button>
         <p class="muted small">
-          只有在管理页「设置」里绑定过的那个 Google 账号能进。没绑定的话，请用管理链接和密码登录。
+          {organizers
+            ? "群主在管理页「设置」里绑定过的 Google 账号，以及组织者自己的 Google 账号能进。群主没绑定的话，请用管理链接和密码登录。"
+            : "只有在管理页「设置」里绑定过的那个 Google 账号能进。没绑定的话，请用管理链接和密码登录。"}
         </p>
       </Card>
     </Page>
@@ -176,7 +194,14 @@ const who = (m: MemberSummary, onOpen?: (m: MemberSummary) => void) => {
 };
 
 /** 成员详情: the member's 个人信息 as they see it, plus the admin-only 备注名. */
-function MemberDetail(props: { base: string; id: string; onBack: () => void; onChange: () => void }) {
+function MemberDetail(props: {
+  base: string;
+  id: string;
+  readOnly: boolean;
+  organizers: boolean;
+  onBack: () => void;
+  onChange: () => void;
+}) {
   const base = `${props.base}/members/${props.id}`;
   const [res, reload] = useApi<MemberProfile>(`${base}/profile`);
   return (
@@ -190,6 +215,8 @@ function MemberDetail(props: { base: string; id: string; onBack: () => void; onC
             profile={p}
             base={base}
             mode="admin"
+            noteReadOnly={props.readOnly}
+            organizers={props.organizers}
             onChange={() => {
               reload();
               props.onChange();
@@ -211,7 +238,8 @@ function approvalEmailMessage(status?: ApprovalEmailStatus, byEmail = false): st
   return "成员已通过审核，可以使用 Google 账号登录。";
 }
 
-function Pending(props: { base: string; list: MemberSummary[]; onChange: () => void }) {
+/** 待审核; organizers see it read-only (Ke Li 2026-10-04): the same list, without 通过 / 拒绝. */
+function Pending(props: { base: string; list: MemberSummary[]; readOnly: boolean; onChange: () => void }) {
   const [issued, setIssued] = useState<{
     name: string;
     link: string | null;
@@ -264,6 +292,7 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
         </Card>
       )}
       <Card title="待审核申请">
+        {props.readOnly && <p class="muted small">只有群主可以通过或拒绝申请。</p>}
         {error && <p class="error">{error}</p>}
         {props.list.length === 0 && <Empty>没有待审核的申请</Empty>}
         {props.list.map((m) => (
@@ -272,14 +301,16 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
               {who(m)}
               {m.applicationMessage && <p class="application-message">留言：{m.applicationMessage}</p>}
             </div>
-            <div class="actions">
-              <button type="button" class="button" disabled={busy} onClick={() => approve(m)}>
-                通过
-              </button>
-              <button type="button" class="button danger" disabled={busy} onClick={() => reject(m)}>
-                拒绝
-              </button>
-            </div>
+            {!props.readOnly && (
+              <div class="actions">
+                <button type="button" class="button" disabled={busy} onClick={() => approve(m)}>
+                  通过
+                </button>
+                <button type="button" class="button danger" disabled={busy} onClick={() => reject(m)}>
+                  拒绝
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </Card>
@@ -287,7 +318,9 @@ function Pending(props: { base: string; list: MemberSummary[]; onChange: () => v
   );
 }
 
+/** 成员; organizers see the same lists read-only (no links, notes, appointing or 停用). */
 function Members(props: { base: string; data: MembersResponse; onChange: () => void }) {
+  const readOnly = props.data.viewer.role !== "owner";
   const [shown, setShown] = useState<{ name: string; link: string; fresh: boolean } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const { busy, error, run } = useAction();
@@ -387,7 +420,17 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     if (await run(() => api(`${props.base}/members/${m.id}/delete`, {}))) props.onChange();
   }
 
-  if (open) return <MemberDetail base={props.base} id={open} onBack={() => setOpen(null)} onChange={props.onChange} />;
+  if (open)
+    return (
+      <MemberDetail
+        base={props.base}
+        id={open}
+        readOnly={readOnly}
+        organizers={!!props.data.organizers}
+        onBack={() => setOpen(null)}
+        onChange={props.onChange}
+      />
+    );
 
   return (
     <>
@@ -411,36 +454,38 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
         {props.data.active.map((m) => (
           <div class="row" key={m.id}>
             {who(m, openMember)}
-            <div class="actions">
-              {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && (
-                <button type="button" class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>
-                  重试审核邮件
+            {!readOnly && (
+              <div class="actions">
+                {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && (
+                  <button type="button" class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>
+                    重试审核邮件
+                  </button>
+                )}
+                {m.hasLink && (
+                  <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
+                    链接
+                  </button>
+                )}
+                <button type="button" class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
+                  {m.hasLink ? "重新生成" : "生成备用链接"}
                 </button>
-              )}
-              {m.hasLink && (
-                <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
-                  链接
-                </button>
-              )}
-              <button type="button" class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
-                {m.hasLink ? "重新生成" : "生成备用链接"}
-              </button>
-              {props.data.organizers?.canManage && !m.isOwner && !m.isOrganizer && (
-                <button type="button" class="button secondary" disabled={busy} onClick={() => appoint(m)}>
-                  设为组织者
-                </button>
-              )}
-              {props.data.organizers?.canManage && m.isOrganizer && (
-                <button type="button" class="button secondary" disabled={busy} onClick={() => revoke(m)}>
-                  撤销组织者
-                </button>
-              )}
-              {!m.isOwner && (
-                <button type="button" class="button danger" disabled={busy} onClick={() => deactivate(m)}>
-                  停用
-                </button>
-              )}
-            </div>
+                {props.data.organizers?.canManage && !m.isOwner && !m.isOrganizer && (
+                  <button type="button" class="button secondary" disabled={busy} onClick={() => appoint(m)}>
+                    设为组织者
+                  </button>
+                )}
+                {props.data.organizers?.canManage && m.isOrganizer && (
+                  <button type="button" class="button secondary" disabled={busy} onClick={() => revoke(m)}>
+                    撤销组织者
+                  </button>
+                )}
+                {!m.isOwner && (
+                  <button type="button" class="button danger" disabled={busy} onClick={() => deactivate(m)}>
+                    停用
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </Card>
@@ -461,28 +506,30 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
                     {m.owingCents > 0 && <span class="error"> · 欠 ${(m.owingCents / 100).toFixed(2)}</span>}
                   </small>
                 </div>
-                <div class="actions">
-                  {m.hasLink ? (
-                    <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
-                      链接
+                {!readOnly && (
+                  <div class="actions">
+                    {m.hasLink ? (
+                      <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
+                        链接
+                      </button>
+                    ) : (
+                      <button type="button" class="button secondary" disabled={busy} onClick={() => newLink(m)}>
+                        生成链接
+                      </button>
+                    )}
+                    <button type="button" class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
+                      恢复
                     </button>
-                  ) : (
-                    <button type="button" class="button secondary" disabled={busy} onClick={() => newLink(m)}>
-                      生成链接
+                    <button
+                      type="button"
+                      class="button danger"
+                      disabled={busy || m.owingCents > 0}
+                      onClick={() => remove(m)}
+                    >
+                      删除
                     </button>
-                  )}
-                  <button type="button" class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
-                    恢复
-                  </button>
-                  <button
-                    type="button"
-                    class="button danger"
-                    disabled={busy || m.owingCents > 0}
-                    onClick={() => remove(m)}
-                  >
-                    删除
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
             ))}
           </details>
@@ -503,30 +550,6 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
       )}
     </>
   );
-}
-
-/** The revoke confirmation: what happens to each of their events that is not archived (design §8). */
-function revokeSummary(events: RevokeImpact[]): string {
-  if (events.length === 0) return "\n\n他没有未归档的活动。";
-  const own = events.some((e) => e.outcome === "to_owner" || e.outcome === "payee_to_owner")
-    ? "\n\n还没结算的活动换了收款人以后，他本人和挂在他名下的朋友也要和别人一样付钱。"
-    : "";
-  const what: Record<RevokeImpact["outcome"], string> = {
-    to_owner: "还没结算：负责人和收款人都转给群主",
-    payee_stays: "收款中：由群主接手管理，钱继续付到他的账户，直到收齐",
-    manager_only: "收款中：负责人转给群主，收款人不变",
-    payee_only: "收款中：负责人不变，钱继续付到他的账户，直到收齐",
-    payee_to_owner: "还没结算：收款人转给群主，负责人不变",
-  };
-  return `\n\n会受影响的活动：\n${events
-    .map((e) => {
-      const label =
-        e.outcome === "manager_only" && e.status !== "finalized"
-          ? "还没结算：负责人转给群主，收款人不变"
-          : what[e.outcome];
-      return `· ${formatDateZh(e.date, false)}${e.title ? ` ${e.title}` : ""}：${label}`;
-    })
-    .join("\n")}${own}`;
 }
 
 /** Why an appointment or revoke email did not go out. */

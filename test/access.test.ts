@@ -145,12 +145,12 @@ describe("organizers on the admin pages", () => {
     }
   });
 
-  it("gives /events/defaults its own rule rather than /events/:id's, and keeps the shared defaults the Owner's", async () => {
+  it("gives /events/defaults its own rule rather than /events/:id's, and remembers each person's own", async () => {
     const { ctx, org } = await scenario();
     const defaults = await request(`${GOOGLE}/events/defaults`, org);
     expect(defaults.status).toBe(200);
-    // Alice's event (created at Alice Gym in the scenario) doesn't change the next 新建活动 form.
-    expect(((await defaults.json()) as any).location).toBe("Bay Badminton Center");
+    // Alice's event (created at Alice Gym in the scenario) is her next form's default, not the Owner's.
+    expect(((await defaults.json()) as any).location).toBe("Alice Gym");
     expect((await ctx.admin.call(`${ctx.base}/events/defaults`)).data.location).toBe("Bay Badminton Center");
   });
 
@@ -305,7 +305,10 @@ describe("organizers on the admin pages", () => {
 
   it("reports the role in the Google session", async () => {
     const { org } = await scenario();
-    expect(await (await request("/api/auth/session", org)).json()).toMatchObject({ role: "organizer", isAdmin: false });
+    expect(await (await request("/api/auth/session", org)).json()).toMatchObject({
+      role: "organizer",
+      organizers: true,
+    });
     expect(await (await request("/api/auth/session", org, undefined, "0")).json()).toMatchObject({ role: "member" });
     const bob = await googleCookie("google-nobody", "nobody@gmail.com");
     expect(await (await request("/api/auth/session", bob)).json()).toMatchObject({ role: "member" });

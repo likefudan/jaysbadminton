@@ -2,9 +2,19 @@ import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { api } from "./api";
 import { useApi } from "./hooks";
 
+/** Ends the Google session (and a half-done link to a member page), then goes to 登录. */
+export async function signOutGoogle(): Promise<void> {
+  try {
+    await api("/api/auth/logout", {});
+  } finally {
+    sessionStorage.removeItem("google-link-member");
+  }
+  window.location.assign("/login");
+}
+
 /** Shows the avatar received from the verified Google profile, with a fallback. */
 export function GoogleAccount() {
-  const [session] = useApi<{ signedIn: boolean; email: string | null; picture: string | null; isAdmin?: boolean }>(
+  const [session] = useApi<{ signedIn: boolean; email: string | null; picture: string | null; role?: string }>(
     "/api/auth/session",
   );
   const [failedPicture, setFailedPicture] = useState<string | null>(null);
@@ -37,9 +47,7 @@ export function GoogleAccount() {
     setBusy(true);
     setError("");
     try {
-      await api("/api/auth/logout", {});
-      sessionStorage.removeItem("google-link-member");
-      window.location.assign("/login");
+      await signOutGoogle();
     } catch (e) {
       setError(e instanceof Error ? e.message : "退出失败，请重试");
       setBusy(false);
@@ -90,7 +98,7 @@ export function GoogleAccount() {
         <section class="google-account-panel" aria-label="Google 账号信息">
           <p class="google-account-label">已登录 Google</p>
           <p class="google-account-email">{email}</p>
-          {session.data.isAdmin && (
+          {!!session.data.role && session.data.role !== "member" && (
             <a class="button secondary block" href="/admin/google" onClick={() => setOpen(false)}>
               管理页
             </a>

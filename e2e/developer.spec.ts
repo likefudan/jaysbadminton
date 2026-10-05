@@ -28,7 +28,16 @@ test("staging offers developer login, a recolored logo and a floating role switc
     route.fulfill({ status: 503, json: { error: { message: "暂无统计" } } }),
   );
   await page.route("**/api/admin/developer/members", (route) =>
-    route.fulfill({ json: { active: [], pending: [], inactive: [], deleted: [] } }),
+    route.fulfill({
+      json: {
+        active: [],
+        pending: [],
+        inactive: [],
+        deleted: [],
+        organizers: null,
+        viewer: { id: "MDEV", role: "owner" },
+      },
+    }),
   );
   await page.route("**/api/admin/developer/events", (route) => route.fulfill({ json: { events: [] } }));
   await page.goto("/login");

@@ -53,6 +53,34 @@ export async function ownerId(db: D1Database): Promise<string | null> {
   return (await db.prepare("SELECT id FROM members WHERE is_owner = 1").first<{ id: string }>())?.id ?? null;
 }
 
+/**
+ * 记住上次的值 (time, deadline, venue, shuttle price) are kept per person: the Owner's in the
+ * original `last_xxx` keys (so nothing moves for them, and a rollback still finds them), an
+ * organizer's in `last_xxx:<member id>`. Reading falls back to the Owner's until they have their own.
+ */
+export const lastKey = (key: string, memberId: string | null, owner: string | null) =>
+  !memberId || memberId === owner ? key : `${key}:${memberId}`;
+
+/**
+ * Forgets `value` as everyone's remembered `key` (e.g. a venue removed from 最近的场馆). An
+ * organizer's own is emptied rather than deleted, so they don't fall back to the Owner's.
+ */
+export const forgetLastValue = (db: D1Database, key: string, value: string) => [
+  db.prepare("DELETE FROM settings WHERE key = ? AND value = ?").bind(key, value),
+  db.prepare("UPDATE settings SET value = '' WHERE key LIKE ? AND value = ?").bind(`${key}:%`, value),
+];
+
+/** The person's remembered values for `keys`, each from their own key or else the Owner's. */
+export async function lastValues(
+  db: D1Database,
+  memberId: string | null,
+  keys: string[],
+): Promise<Record<string, string | undefined>> {
+  const owner = await ownerId(db);
+  const saved = await getSettings(db, [...new Set([...keys, ...keys.map((k) => lastKey(k, memberId, owner))])]);
+  return Object.fromEntries(keys.map((k) => [k, saved[lastKey(k, memberId, owner)] ?? saved[k]]));
+}
+
 /** 本场负责人: who manages the event. */
 export async function eventManager(db: D1Database, e: { manager_id: string | null }): Promise<string | null> {
   return e.manager_id ?? ownerId(db);

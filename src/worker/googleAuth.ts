@@ -8,7 +8,7 @@ import { now } from "./db";
 import { randomToken, sha256, timingSafeEqual } from "./lib/crypto";
 import { assertPendingRoom, createMember, emailTaken, memberByToken, type MemberRow } from "./members";
 import { HttpError, readJson, str } from "./http";
-import { memberRole } from "./organizers";
+import { memberRole, organizersEnabled } from "./organizers";
 
 type Ctx = Context<{ Bindings: Env }>;
 export const MEMBER_COOKIE = "jb_member";
@@ -89,7 +89,7 @@ googleRoutes.get("/session", async (c) => {
       hasMember: true,
       pending: false,
       role: "member",
-      isAdmin: false,
+      organizers: organizersEnabled(c.env),
       developer: true,
     });
   const session = await googleSession(c);
@@ -102,9 +102,10 @@ googleRoutes.get("/session", async (c) => {
     hasMember: !!member && member.status !== "pending",
     pending: member?.status === "pending",
     emailNotificationsEnabled: !!(c.env.RESEND_API_KEY && c.env.EMAIL_FROM),
-    // What the admin pages let them do. isAdmin (the Owner) stays until the pages read role (card 6).
+    // What the admin pages let them do: owner, organizer (only while the flag is on) or member.
     role: member && member.status === "active" ? memberRole(c.env, member) : "member",
-    isAdmin: !!member && member.is_owner === 1 && member.status === "active",
+    // Whether the 组织者 feature is on, so pages keep their old wording while it is off.
+    organizers: organizersEnabled(c.env),
   });
 });
 googleRoutes.get("/google", async (c) => {

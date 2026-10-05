@@ -53,6 +53,8 @@ export function EventInfo(props: {
   inLink?: boolean;
   publicView?: boolean;
   status?: { cls: string; label: string }; // overrides the event status, e.g. a member's own bill
+  /** Who runs it, e.g. 组织：A on a member's card or 负责人：A on the Owner's list; never on public pages. */
+  runBy?: string;
 }) {
   const e = props.e;
   const badge =
@@ -73,6 +75,7 @@ export function EventInfo(props: {
               {e.address} ↗
             </a>
           ))}
+        {props.runBy && <div class="ev-meta">{props.runBy}</div>}
         {e.status === "open" && <div class="ev-meta">报名截止 {formatInstantZh(e.deadlineAt)}</div>}
         <div class="ev-foot">
           {props.showStatus !== false && badge ? <StatusPill cls={badge.cls} label={badge.label} /> : <span />}

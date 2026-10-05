@@ -40,7 +40,7 @@ export function Member(props: { token?: string }) {
           title={`你好，${m.username}`}
           subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}
         >
-          <MemberNav token={props.token} owner={m.isOwner} current="events" />
+          <MemberNav token={props.token} admin={m.canAdmin} current="events" />
           {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
           <MyEvents base={base} />
         </Page>
@@ -51,9 +51,9 @@ export function Member(props: { token?: string }) {
 
 /**
  * 我的活动 ⇄ 个人信息: the same row on both pages, the current one highlighted (and 管理页 for the
- * Owner signed in with Google).
+ * Owner or an organizer signed in with Google).
  */
-function MemberNav(props: { token?: string; owner: boolean; current: "events" | "profile" }) {
+function MemberNav(props: { token?: string; admin: boolean; current: "events" | "profile" }) {
   const home = props.token ? `/m/${props.token}` : "/me";
   const link = (key: "events" | "profile", href: string, label: string) => (
     <a
@@ -66,7 +66,7 @@ function MemberNav(props: { token?: string; owner: boolean; current: "events" | 
   );
   return (
     <nav class="page-links" aria-label="我的页面">
-      {!props.token && props.owner && (
+      {!props.token && props.admin && (
         <a class="button secondary" href="/admin/google">
           管理页
         </a>
@@ -85,7 +85,7 @@ export function MemberProfilePage(props: { token?: string }) {
     <Load result={me}>
       {(m) => (
         <Page title="个人信息" subtitle="你的统计、资料和账号设置。">
-          <MemberNav token={props.token} owner={m.isOwner} current="profile" />
+          <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
           <MyStatsCard base={base} />
           <MyProfile base={base} />
           <Rename base={base} current={m.username} onDone={reload} />
@@ -206,7 +206,11 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   const [friends, setFriends] = useState<string[]>(e.myFriends ?? []);
   const { busy, error, run } = useAction();
   const signedUp = e.selfSignedUp;
-  // The Owner may hang friends under a member who isn't coming: they are on the bill, not the list.
+  // Who runs it: the organizer by name on theirs, else 群主 (as before).
+  const runner = e.organizer ?? "群主";
+  // Friends added for them come from the admin page: the organizer's, or the Owner's on any event.
+  const adder = e.organizer ? `组织者 ${e.organizer} 或群主` : "群主";
+  // Whoever runs it may hang friends under a member who isn't coming: they are on the bill, not the list.
   const friendsOnly = !signedUp && (e.myFriends?.length ?? 0) > 0;
 
   async function save() {
@@ -216,7 +220,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
     }
   }
   async function cancel() {
-    // Friends hung under them go too, the ones the Owner added included (Ke Li's call).
+    // Friends hung under them go too, the ones added for them from the admin page included (Ke Li's call).
     const n = e.myFriends?.length ?? 0;
     const question = friendsOnly
       ? `把名下的 ${n} 个朋友从名单上去掉？`
@@ -229,15 +233,24 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
 
   return (
     <Card>
-      <EventInfo e={e} status={e.payment ? BILL_STATUS[e.payment.status] : undefined} />
+      <EventInfo
+        e={e}
+        status={e.payment ? BILL_STATUS[e.payment.status] : undefined}
+        runBy={e.organizer ? `组织：${e.organizer}` : undefined}
+      />
       {e.roster && e.roster.length > 0 && (
         <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
       )}
       {signedUp && !editing && !e.payment && (
         <p class="ok">✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}</p>
       )}
-      {friendsOnly && !editing && (
-        <p class="muted">你本人没有报名；群主在你名下加了 {e.myFriends!.length} 个朋友，费用算在你的账单上。</p>
+      {friendsOnly && !editing && e.runByMe && (
+        <p class="muted">你本人没有报名；名单上有挂在你名下的 {e.myFriends!.length} 个朋友，费用算在你的账单上。</p>
+      )}
+      {friendsOnly && !editing && !e.runByMe && (
+        <p class="muted">
+          你本人没有报名；{adder}在你名下加了 {e.myFriends!.length} 个朋友，费用算在你的账单上。
+        </p>
       )}
       {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
       {!editing && <EventActions e={e} calendar={signedUp && !e.payment} />}
@@ -308,7 +321,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         </>
       )}
       {!e.canEdit && e.status === "closed" && (signedUp || friendsOnly) && (
-        <p class="muted small">报名已截止，需要修改请联系群主。费用会在活动后公布。</p>
+        <p class="muted small">报名已截止，需要修改请联系{runner}。费用会在活动后公布。</p>
       )}
       {e.payment && <PaymentBox p={e.payment} />}
     </Card>

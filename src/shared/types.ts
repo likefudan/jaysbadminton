@@ -74,6 +74,15 @@ export interface MembersResponse {
   deleted: MemberSummary[]; // 已删除: link gone, history kept
   /** Null while the 组织者 feature is off. */
   organizers: OrganizersBlock | null;
+  /** Who is looking: the pages show an organizer only what they may do. */
+  viewer: AdminViewer;
+}
+
+/** The person on the admin pages: the Owner, or an organizer signed in with Google. */
+export interface AdminViewer {
+  /** Null only for the Owner before their member record exists. */
+  id: string | null;
+  role: "owner" | "organizer";
 }
 
 export interface LinkResponse {
@@ -120,6 +129,8 @@ export interface MeResponse {
   username: string;
   wechatNickname: string;
   isOwner: boolean;
+  /** Signed in with Google as the Owner or an organizer: the page offers 管理页. */
+  canAdmin: boolean;
   /** False for a disabled member: the page only shows bills. */
   active: boolean;
 }
@@ -138,6 +149,11 @@ export interface EventSummary {
   deadlineAt: string; // UTC ISO
   status: EventStatus;
   headcount: number; // members + friends
+}
+
+/** The admin event list: each event with who runs it (the Owner filters by it). */
+export interface AdminEventSummary extends EventSummary {
+  manager: { id: string | null; name: string };
 }
 
 export interface RosterEntry {
@@ -169,6 +185,10 @@ export interface MyEvent extends EventSummary {
   canEdit: boolean;
   /** How many friends they may bring to this event (more for the person running it). */
   friendCap: number;
+  /** 组织：the organizer running it; null when the Owner does (members see no name then, as before) or the viewer does. */
+  organizer: string | null;
+  /** The viewer runs it themselves (as the Owner or its organizer); only while the 组织者 feature is on. */
+  runByMe: boolean;
   /** Present once the event is finalized and the member owes something. */
   payment: MyPayment | null;
   /** Everyone signed up, friends right after the member who brought them; only for members who signed up themselves. */

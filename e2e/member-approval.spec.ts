@@ -38,6 +38,8 @@ test("the admin reviews application details, sees email failure and retries with
         active: approved ? [{ ...member, approvalEmailStatus: emailStatus }] : [],
         inactive: [],
         deleted: [],
+        organizers: null,
+        viewer: { id: "M001", role: "owner" },
       },
     }),
   );

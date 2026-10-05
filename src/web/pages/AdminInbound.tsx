@@ -7,7 +7,7 @@ import { Card, Empty, Field, Load, useAction } from "../components";
 import { useApi } from "../hooks";
 
 /** Forwarded Venmo payments that carry our code but could not be pinned to one bill. */
-export function InboundTab(props: { base: string }) {
+export function InboundTab(props: { base: string; owner: boolean }) {
   const [data, reload] = useApi<InboundResponse>(`${props.base}/inbound`);
   return (
     <Load result={data}>
@@ -41,7 +41,7 @@ export function InboundTab(props: { base: string }) {
               ))}
             </Card>
           )}
-          {d.deleted.length > 0 && <Trash base={props.base} list={d.deleted} onDone={reload} />}
+          {d.deleted.length > 0 && <Trash base={props.base} list={d.deleted} owner={props.owner} onDone={reload} />}
         </>
       )}
     </Load>
@@ -187,8 +187,11 @@ function DeleteButton(props: { base: string; item: InboundRow; onDone: () => voi
 
 const TRASH_DAYS = 30;
 
-/** 已删除: restore or delete for good, one at a time; 清空 needs the admin password. */
-function Trash(props: { base: string; list: InboundRow[]; onDone: () => void }) {
+/**
+ * 已删除: restore or delete for good, one at a time; 清空 needs the admin password. Deleting for
+ * good is the Owner's alone; an organizer can only restore (it goes away by itself after 30 days).
+ */
+function Trash(props: { base: string; list: InboundRow[]; owner: boolean; onDone: () => void }) {
   const [clearing, setClearing] = useState(false);
   const [password, setPassword] = useState("");
   const { busy, error, run } = useAction();
@@ -227,13 +230,15 @@ function Trash(props: { base: string; list: InboundRow[]; onDone: () => void }) 
             <button type="button" class="button secondary" disabled={busy} onClick={() => restore(i)}>
               恢复
             </button>
-            <button type="button" class="button danger" disabled={busy} onClick={() => purge(i)}>
-              永久删除
-            </button>
+            {props.owner && (
+              <button type="button" class="button danger" disabled={busy} onClick={() => purge(i)}>
+                永久删除
+              </button>
+            )}
           </div>
         </div>
       ))}
-      {!clearing ? (
+      {!props.owner ? null : !clearing ? (
         <button type="button" class="button danger block" disabled={busy} onClick={() => setClearing(true)}>
           清空
         </button>

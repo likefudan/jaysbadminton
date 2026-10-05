@@ -176,11 +176,11 @@ test("an existing member confirms binding before the account is linked", async (
 });
 
 test("the admin gets in with the bound Google account; another account is told so", async ({ page }) => {
-  let isAdmin = false;
+  let role = "member";
   await page.route("**/api/public/admin-setup", (route) => route.fulfill({ json: { needed: false } }));
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({
-      json: { enabled: true, signedIn: true, email: "someone@gmail.com", hasMember: false, pending: false, isAdmin },
+      json: { enabled: true, signedIn: true, email: "someone@gmail.com", hasMember: false, pending: false, role },
     }),
   );
   await page.route("**/api/admin/google/members", (route) =>
@@ -200,7 +200,7 @@ test("the admin gets in with the bound Google account; another account is told s
 
   await page.goto("/admin");
   await expect(page.getByRole("button", { name: "用 Google 登录管理页" })).toBeVisible();
-  isAdmin = true;
+  role = "owner";
   await page.reload();
   await expect(page.getByRole("link", { name: "进入管理页" })).toHaveAttribute("href", "/admin/google");
 });
