@@ -356,6 +356,7 @@ async function matchReceipt(
   // Last, as it is the one step that waits on an outside service.
   await sendPaymentReceipt(env, p.id, {
     amountCents: r.amountCents,
+    venmo: true,
     payer: r.payer,
     ref: r.txnId,
     receiver: account.id,

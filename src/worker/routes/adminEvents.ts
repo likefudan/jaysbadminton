@@ -814,6 +814,14 @@ adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
     async () => `把 ${await billOwner(c.env, p.member_id)} 的账单标记为已付（记一笔 ${money(amount)}）`,
   );
   const settled = await checkCollected(c.env, e.id);
+  // Last, as it is the one step that waits on an outside service.
+  await sendPaymentReceipt(c.env, id, {
+    amountCents: amount,
+    venmo: false,
+    payer: null,
+    ref: "manual",
+    receiver: await eventPayee(c.env.DB, e),
+  });
   return c.json({ ok: true, settled });
 });
 
@@ -1055,6 +1063,7 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
   if (added)
     await sendPaymentReceipt(c.env, paymentId, {
       amountCents: amount,
+      venmo: true,
       payer: i.payer_name,
       ref: i.venmo_txn_id ?? `inbound-${i.id}`,
       receiver: i.payee_id,

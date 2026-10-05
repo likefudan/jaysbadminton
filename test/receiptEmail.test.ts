@@ -77,7 +77,7 @@ describe("payment receipt email", () => {
     expect(emails).toHaveLength(3);
   });
 
-  it("is sent when a 待确认 payment is linked, but not for 标记已付", async () => {
+  it("is sent when a 待确认 payment is linked, and for 标记已付", async () => {
     const s = await scenario();
     const { Alice: alice, Bob: bob } = await s.bills();
     // No code in the bill's format: lands in 待确认 because the name doesn't match the member.
@@ -94,7 +94,12 @@ describe("payment receipt email", () => {
     expect(emails[0].text).toContain(`还差 $${dollars(alice.amountDueCents - 700)}`);
 
     expect((await worker(s, `${s.base}/payments/${bob.id}/mark-paid`, {})).status).toBe(200);
-    expect(emails).toHaveLength(1);
+    expect(emails).toHaveLength(2);
+    expect(emails[1].to).toEqual([await s.email(s.bob.id)]);
+    expect(emails[1].subject).toBe(`已收到你的付款 $${dollars(bob.amountDueCents)}`);
+    expect(emails[1].text).toContain(`已收到你的付款 $${dollars(bob.amountDueCents)}`);
+    expect(emails[1].text).toContain("已全部付清");
+    expect(emails[1].text).not.toContain("Venmo");
   });
 
   it("is skipped for a member without an email, and when email is not set up", async () => {
