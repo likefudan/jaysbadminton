@@ -128,7 +128,10 @@ describe("organizers on the admin pages", () => {
 
   it("lets them use exactly the endpoints their capabilities allow, on their own event and payments", async () => {
     const { org, ids } = await scenario();
-    for (const [key, rule] of Object.entries(ADMIN_ACCESS)) {
+    // 不再当组织者 ends their admin access, so it goes last.
+    const last = "POST /organizer/retire";
+    const entries = Object.entries(ADMIN_ACCESS).sort(([a], [b]) => Number(a === last) - Number(b === last));
+    for (const [key, rule] of entries) {
       const [method, pattern] = key.split(" ") as [string, string];
       const res = await request(
         `${GOOGLE}${fill(pattern, ids.mine)}`,

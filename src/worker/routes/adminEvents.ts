@@ -40,6 +40,7 @@ import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
 import type { AdminEnv } from "../access";
 import { can, eventPayee, payeeProfile } from "../organizers";
+import { assertOrganizersOn, handBackIfRevoked, transferEvent } from "../appointments";
 import {
   assertAccountFree,
   assertPayeeReady,
@@ -153,12 +154,14 @@ adminEventRoutes.post("/events", async (c) => {
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
+  // Revoked while this request was on its way: the event goes to the Owner like their others did.
+  if (actor.role === "organizer") await handBackIfRevoked(c.env, e.id, actor.memberId);
   // "我自己也报名": the creator signs up as a normal player (ticked by default in the form).
   if (b.joinSelf === true) {
     const self = await activeSelf(c.env, actor.memberId);
     if (self) await setSignup(c.env, e.id, self, [], false);
   }
-  return c.json(await detail(c.env, e, c.get("actor").memberId));
+  return c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
 });
 
 /** The signed-in person's member id while they are an active member (they can play), else null. */
@@ -201,6 +204,14 @@ adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
 
 adminEventRoutes.get("/events/:id", async (c) => {
   return c.json(await detail(c.env, await getEvent(c.env, Number(c.req.param("id"))), c.get("actor").memberId));
+});
+
+/** 转交 (Owner): another organizer, or the Owner, runs the event; before Finalize the money goes too. */
+adminEventRoutes.post("/events/:id/transfer", async (c) => {
+  assertOrganizersOn(c.env);
+  const id = Number(c.req.param("id"));
+  await transferEvent(c.env, (await getEvent(c.env, id)).id, str((await readJson(c.req.raw)).to));
+  return c.json(await detail(c.env, await getEvent(c.env, id), c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/cancel", async (c) => {

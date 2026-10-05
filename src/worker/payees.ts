@@ -166,15 +166,17 @@ export async function assertPayeeReady(env: Env, e: { payee_id: string | null },
   );
 }
 
+/** The same rule inside SQL (`alias` is the events table's alias): no Finalize yet and no bills. */
+export const payeeUnlockedSql = (alias: string) =>
+  `(${alias}.finalized_at IS NULL AND NOT EXISTS (SELECT 1 FROM payments WHERE event_id = ${alias}.id))`;
+
 /**
  * The payee is fixed once bills exist (from the first Finalize): bills already sent, and members
  * who already paid, point at that account. Anything that changes events.payee_id checks this first.
  */
 export async function assertPayeeUnlocked(db: D1Database, eventId: number): Promise<void> {
   const locked = await db
-    .prepare(
-      "SELECT 1 FROM events WHERE id = ?1 AND (finalized_at IS NOT NULL OR EXISTS (SELECT 1 FROM payments WHERE event_id = ?1))",
-    )
+    .prepare(`SELECT 1 FROM events e WHERE e.id = ? AND NOT ${payeeUnlockedSql("e")}`)
     .bind(eventId)
     .first();
   if (locked) throw badRequest("这场已经结算发出账单，收款人不能再换");

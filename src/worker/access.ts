@@ -196,6 +196,10 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "GET /settings": cap("group"),
   "POST /settings": cap("group"),
   "POST /locations/remove": cap("group"),
+  "POST /members/:id/appoint": cap("group"),
+  "GET /members/:id/revoke": cap("group"),
+  "POST /members/:id/revoke": cap("group"),
+  "POST /events/:id/transfer": cap("group"),
 
   // members.read: the member and pending pages (they carry no personal links)
   "GET /members": cap("members.read"),
@@ -237,6 +241,8 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   // self: one's own data. The Owner's payment settings stay behind the password (/settings/payment).
   "GET /payment-profile": cap("self"),
   "POST /payment-profile": cap("self"),
+  "GET /organizer/retire": cap("self"),
+  "POST /organizer/retire": cap("self"),
 
   // Anyone signed in; the handler returns only what they may see
   "GET /events": cap(null),

@@ -6,7 +6,10 @@ import type {
   MemberProfile,
   MemberSummary,
   MembersResponse,
+  OrganizersBlock,
+  RevokeImpact,
 } from "../../shared/types";
+import { formatDateZh, formatInstantZh } from "../../shared/time";
 import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
@@ -79,7 +82,7 @@ export function Admin(props: { token?: string }) {
                 设置
               </button>
             </div>
-            {tab === "events" && <EventsTab base={base} members={m.active} />}
+            {tab === "events" && <EventsTab base={base} members={m.active} organizers={m.organizers} />}
             {tab === "inbound" && <InboundTab base={base} />}
             {tab === "pending" && <Pending base={base} list={m.pending} onChange={reload} />}
             {tab === "members" && <Members base={base} data={m} onChange={reload} />}
@@ -161,6 +164,7 @@ const who = (m: MemberSummary, onOpen?: (m: MemberSummary) => void) => {
         name
       )}
       {m.isOwner && <span class="badge">群主</span>}
+      {m.isOrganizer && <span class="badge">组织者</span>}
       <small>
         {m.id} · 微信：{m.wechatAccount || m.wechatNickname}
         {m.applicantName && ` · 身份：${m.applicantName}`}
@@ -309,9 +313,60 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     if (r) setShown({ name: m.username, link: r.link, fresh: true });
   }
   async function deactivate(m: MemberSummary) {
-    if (!confirm(`停用后 ${m.username} 不能再报名，正在报名中的活动会被取消报名；他的链接还能用来付清欠款。继续吗？`))
+    // No preview (they stopped being an organizer meanwhile): 停用 still works, so ask without it.
+    const impact = m.isOrganizer
+      ? await api<{ events: RevokeImpact[] }>(`${props.base}/members/${m.id}/revoke`).then(
+          (r) => r.events,
+          () => null,
+        )
+      : null;
+    const revoke = impact ? `\n\n${m.username} 是组织者，停用会先撤销组织者身份。${revokeSummary(impact)}` : "";
+    if (
+      !confirm(
+        `停用后 ${m.username} 不能再报名，正在报名中的活动会被取消报名；他的链接还能用来付清欠款。${revoke}\n\n继续吗？`,
+      )
+    )
       return;
-    if (await run(() => api(`${props.base}/members/${m.id}/deactivate`, {}))) props.onChange();
+    const r = await run(() =>
+      api<{ revoked: { emailStatus: string } | null }>(`${props.base}/members/${m.id}/deactivate`, {}),
+    );
+    if (!r) return;
+    if (r.revoked) setEmailMessage(revokeEmailMessage(m.username, r.revoked.emailStatus));
+    props.onChange();
+  }
+  async function revokePreview(m: { id: string }) {
+    const r = await run(() => api<{ events: RevokeImpact[] }>(`${props.base}/members/${m.id}/revoke`));
+    return r ? r.events : null;
+  }
+  async function appoint(m: MemberSummary) {
+    if (
+      !confirm(
+        `把 ${m.username} 设为组织者？\n\n他用 Google 登录后可以发起活动、管理自己的活动，钱付到他自己的 Venmo；也能只读查看成员和待审核。`,
+      )
+    )
+      return;
+    const r = await run(() => api<{ emailStatus: string }>(`${props.base}/members/${m.id}/appoint`, {}));
+    if (!r) return;
+    setEmailMessage(
+      r.emailStatus === "sent"
+        ? `${m.username} 已成为组织者，已发邮件告诉他用 Google 登录后在「管理」里发起活动。`
+        : `${m.username} 已成为组织者，但${emailProblem(r.emailStatus)}。请你自己告诉他：用 Google 登录后打开 ${location.origin}/admin/google，先填好收款设置。`,
+    );
+    props.onChange();
+  }
+  async function revoke(m: { id: string; username: string }) {
+    const events = await revokePreview(m);
+    if (!events) return;
+    if (
+      !confirm(
+        `撤销 ${m.username} 的组织者身份？${revokeSummary(events)}\n\n撤销后他马上进不了管理页，系统会发邮件告诉他。`,
+      )
+    )
+      return;
+    const done = await run(() => api<{ emailStatus: string }>(`${props.base}/members/${m.id}/revoke`, {}));
+    if (!done) return;
+    setEmailMessage(revokeEmailMessage(m.username, done.emailStatus));
+    props.onChange();
   }
   /** For members disabled before links were kept: a fresh link so they can pay what they owe. */
   async function newLink(m: MemberSummary) {
@@ -348,6 +403,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
           </button>
         </Card>
       )}
+      {props.data.organizers && <Organizers block={props.data.organizers} busy={busy} onRevoke={revoke} />}
       <Card title={`成员（${props.data.active.length}）`}>
         {emailMessage && <p role="status">{emailMessage}</p>}
         {error && <p class="error">{error}</p>}
@@ -369,6 +425,16 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
               <button type="button" class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
                 {m.hasLink ? "重新生成" : "生成备用链接"}
               </button>
+              {props.data.organizers?.canManage && !m.isOwner && !m.isOrganizer && (
+                <button type="button" class="button secondary" disabled={busy} onClick={() => appoint(m)}>
+                  设为组织者
+                </button>
+              )}
+              {props.data.organizers?.canManage && m.isOrganizer && (
+                <button type="button" class="button secondary" disabled={busy} onClick={() => revoke(m)}>
+                  撤销组织者
+                </button>
+              )}
               {!m.isOwner && (
                 <button type="button" class="button danger" disabled={busy} onClick={() => deactivate(m)}>
                   停用
@@ -436,5 +502,88 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
         </Card>
       )}
     </>
+  );
+}
+
+/** The revoke confirmation: what happens to each of their events that is not archived (design §8). */
+function revokeSummary(events: RevokeImpact[]): string {
+  if (events.length === 0) return "\n\n他没有未归档的活动。";
+  const own = events.some((e) => e.outcome === "to_owner" || e.outcome === "payee_to_owner")
+    ? "\n\n还没结算的活动换了收款人以后，他本人和挂在他名下的朋友也要和别人一样付钱。"
+    : "";
+  const what: Record<RevokeImpact["outcome"], string> = {
+    to_owner: "还没结算：负责人和收款人都转给群主",
+    payee_stays: "收款中：由群主接手管理，钱继续付到他的账户，直到收齐",
+    manager_only: "收款中：负责人转给群主，收款人不变",
+    payee_only: "收款中：负责人不变，钱继续付到他的账户，直到收齐",
+    payee_to_owner: "还没结算：收款人转给群主，负责人不变",
+  };
+  return `\n\n会受影响的活动：\n${events
+    .map((e) => {
+      const label =
+        e.outcome === "manager_only" && e.status !== "finalized"
+          ? "还没结算：负责人转给群主，收款人不变"
+          : what[e.outcome];
+      return `· ${formatDateZh(e.date, false)}${e.title ? ` ${e.title}` : ""}：${label}`;
+    })
+    .join("\n")}${own}`;
+}
+
+/** Why an appointment or revoke email did not go out. */
+function emailProblem(status: string): string {
+  if (status === "failed") return "通知邮件发送失败";
+  if (status === "no_address") return "他没有可以收信的邮箱，通知邮件没有发出";
+  return "邮件服务没有配置，通知邮件没有发出";
+}
+
+function revokeEmailMessage(name: string, status: string): string {
+  if (status === "sent") return `已撤销 ${name} 的组织者身份，并发邮件告诉了他。`;
+  return `已撤销 ${name} 的组织者身份，但${emailProblem(status)}。请你自己告诉他：还在收款的活动钱继续付到他的账户，收到后和你核对；之后可以删掉 Venmo 邮件转发。`;
+}
+
+/** 组织者 block at the top of the members page: the Owner and (read-only) organizers see it. */
+function Organizers(props: {
+  block: OrganizersBlock;
+  busy: boolean;
+  onRevoke: (o: { id: string; username: string }) => void;
+}) {
+  const { list, former, canManage } = props.block;
+  return (
+    <Card title={`组织者（${list.length}）`}>
+      {list.length === 0 && former.length === 0 && (
+        <Empty>{canManage ? "还没有组织者。在下面的成员列表点「设为组织者」。" : "还没有组织者"}</Empty>
+      )}
+      {list.map((o) => (
+        <div class="row" key={o.id}>
+          <div class="who">
+            <span class="who-name">{o.username}</span>
+            <small>
+              {o.since && `${formatInstantZh(o.since)} 任命 · `}
+              {o.paymentReady ? "收款设置已填好" : <span class="error">收款设置没填好</span>}
+              {" · "}
+              {o.lastVenmoEmailAt ? `转发已生效（${formatInstantZh(o.lastVenmoEmailAt)}）` : "还没收到 Venmo 邮件"}
+              {" · "}
+              {o.telegram ? "Telegram 已连接" : "Telegram 未连接"}
+              {` · 负责 ${o.events} 场未归档活动`}
+            </small>
+          </div>
+          {canManage && (
+            <div class="actions">
+              <button type="button" class="button secondary" disabled={props.busy} onClick={() => props.onRevoke(o)}>
+                撤销
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+      {former.map((f) => (
+        <div class="row" key={f.id}>
+          <div class="who">
+            <span class="who-name">{f.username}</span>
+            <small>已撤销，还有 {f.collecting} 场在收款</small>
+          </div>
+        </div>
+      ))}
+    </Card>
   );
 }

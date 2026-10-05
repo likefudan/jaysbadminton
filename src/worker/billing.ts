@@ -5,7 +5,7 @@ import { notifyCollected, notifyFinalized } from "./notify";
 import { paymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
-import { badRequest } from "./http";
+import { HttpError, badRequest } from "./http";
 import { eventPayee } from "./organizers";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
@@ -25,6 +25,8 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
     ? { courtTotalCents: s.court_total_cents, shuttleCount: s.shuttle_count, shuttlePriceCents: s.shuttle_price_cents }
     : null;
 }
+
+const PAYEE_CHANGED = "payee changed";
 
 /**
  * Writes the settlement and brings the payment rows in line with it. Every row follows the new
@@ -60,6 +62,12 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   const billed = new Set(result.bills.map((b) => b.memberId));
 
   const stmts: D1PreparedStatement[] = [
+    // The bills below follow `e`'s payee, and whoever is acting was allowed to by `e`'s manager. A
+    // 转交 or 撤销 that moved either since `e` was read fails the whole batch rather than billing
+    // for the wrong person: json() of a non-JSON string is an error, raised only when the row matches.
+    env.DB.prepare(
+      `SELECT json('${PAYEE_CHANGED}') FROM events WHERE id = ?1 AND (payee_id IS NOT ?2 OR manager_id IS NOT ?3)`,
+    ).bind(e.id, e.payee_id, e.manager_id),
     env.DB.prepare(
       `INSERT INTO settlements (event_id, court_total_cents, shuttle_count, shuttle_price_cents, registered_count,
          attended_count, court_share_cents, shuttle_share_cents, finalized_at)
@@ -152,7 +160,13 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
     }
   }
   stmts.push(...syncPayments(env.DB, "event_id = ?", e.id));
-  await env.DB.batch(stmts);
+  try {
+    await env.DB.batch(stmts);
+  } catch (err) {
+    if (String(err).includes("malformed JSON"))
+      throw new HttpError(409, "payee_changed", "这场活动的负责人或收款人刚刚换了，请刷新页面后再试");
+    throw err;
+  }
   return result;
 }
 

@@ -334,6 +334,44 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   });
 });
 
+test("the Owner appoints an organizer, hands them an event and revokes them", async ({ page }) => {
+  const dialogs: string[] = [];
+  page.on("dialog", (d) => {
+    dialogs.push(d.message());
+    void d.accept();
+  });
+  await openAdmin(page);
+  await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
+  const block = page.locator(".card", { has: page.getByRole("heading", { name: /^组织者（/ }) });
+  await expect(block).toContainText("还没有组织者");
+  const ming = page.locator(".row", { hasText: "小明" });
+  await ming.getByRole("button", { name: "设为组织者" }).click();
+  // Linked to Google here without an email, so nobody could be told: the Owner is asked to.
+  await expect(page.getByText(/小明 已成为组织者，但他没有可以收信的邮箱/)).toBeVisible();
+  await expect(ming.locator(".badge")).toHaveText("组织者");
+  await expect(block).toContainText("收款设置没填好");
+  await expect(block).toContainText("负责 0 场未归档活动");
+
+  // The finalized event: only who runs it changes, the money still goes to the Owner.
+  await page.locator(".tabs").getByRole("button", { name: "活动" }).click();
+  await page.locator(".event-link", { hasText: VENUE }).click();
+  const owner = page.locator(".card", { has: page.getByRole("heading", { name: "负责人" }) });
+  await expect(owner).toContainText("负责人：群主 · 收款人：群主");
+  await owner.locator("select").selectOption({ label: "小明" });
+  await owner.getByRole("button", { name: "转交" }).click();
+  await expect(owner).toContainText("负责人：小明 · 收款人：群主");
+  expect(dialogs.pop()).toContain("只换负责人");
+
+  await page.getByRole("button", { name: "‹ 所有活动" }).click();
+  await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
+  await expect(block).toContainText("负责 1 场未归档活动");
+  await block.getByRole("button", { name: "撤销" }).click();
+  await expect(page.getByText("已撤销 小明 的组织者身份")).toBeVisible();
+  expect(dialogs.pop()).toContain("负责人转给群主，收款人不变");
+  await expect(ming.locator(".badge")).toHaveCount(0);
+  await expect(block).toContainText("还没有组织者");
+});
+
 test("a visitor's appearance choice survives a reload", async ({ page }) => {
   await page.goto(memberPath);
   await expect(page.locator("html")).toHaveAttribute("data-style", "minimal");

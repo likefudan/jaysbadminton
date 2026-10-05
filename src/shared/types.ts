@@ -24,6 +24,47 @@ export interface MemberSummary {
   adminNote: string;
   /** Still owed across all bills (only filled in for the admin's member list). */
   owingCents: number;
+  /** A current 组织者 (only on the admin member list, and only while the feature is on). */
+  isOrganizer?: boolean;
+}
+
+/** One row of the 组织者 block on the members page. */
+export interface OrganizerInfo {
+  id: string;
+  username: string;
+  /** 任命时间. */
+  since: string | null;
+  /** Venmo username and notification email both filled in (Finalize needs them). */
+  paymentReady: boolean;
+  /** The last Venmo email for their account: forwarding works (filled in from card 8). */
+  lastVenmoEmailAt: string | null;
+  telegram: boolean;
+  /** Events they run that are not archived yet. */
+  events: number;
+}
+
+export interface OrganizersBlock {
+  /** May appoint, revoke and transfer (the Owner); organizers see the block read-only. */
+  canManage: boolean;
+  list: OrganizerInfo[];
+  /** 历史收款人: revoked, but members still pay into their account for this many events. */
+  former: { id: string; username: string; collecting: number }[];
+}
+
+/** What revoking an organizer does to one of their events that is not archived. */
+export interface RevokeImpact {
+  id: number;
+  code: string;
+  date: string;
+  title: string;
+  status: EventStatus;
+  /**
+   * to_owner: manager and payee go to the Owner; payee_stays: the Owner runs it, money still goes
+   * to them; manager_only: only who runs it changes; payee_only: someone else runs it already and
+   * nothing changes, but members still pay them; payee_to_owner: before Finalize, only the payee
+   * was theirs and it goes to the Owner.
+   */
+  outcome: "to_owner" | "payee_stays" | "manager_only" | "payee_only" | "payee_to_owner";
 }
 
 export interface MembersResponse {
@@ -31,6 +72,8 @@ export interface MembersResponse {
   active: MemberSummary[];
   inactive: MemberSummary[]; // 已停用: can pay, cannot sign up
   deleted: MemberSummary[]; // 已删除: link gone, history kept
+  /** Null while the 组织者 feature is off. */
+  organizers: OrganizersBlock | null;
 }
 
 export interface LinkResponse {
@@ -114,6 +157,8 @@ export interface EventDetail extends EventSummary {
   deletable: boolean;
   /** 收款人: walk-ins can be hung under them (their bill pays itself). */
   payee: { id: string | null; name: string; isMe: boolean };
+  /** 负责人: who runs it (群主, or the organizer's name). */
+  manager: { id: string | null; name: string; isMe: boolean };
 }
 
 export interface MyEvent extends EventSummary {
