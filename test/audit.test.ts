@@ -62,13 +62,13 @@ describe("what the Owner does", () => {
       await added(e.id, () =>
         ctx.admin.call(`${eb}/roster/add`, { memberId: alice.id, includeSelf: true, friends: ["Tom"] }),
       ),
-    ).toEqual([{ actor_id: owner, action: "roster_add", detail: "添加 Alice、Alice 带的朋友 Tom" }]);
+    ).toEqual([{ actor_id: owner, action: "roster_add", detail: "添加 Alice、Tom（Alice 带的朋友）" }]);
     const tom = (await ctx.admin.call(eb)).data.roster.find((r: { name: string }) => r.name === "Tom");
     expect(await added(e.id, () => ctx.admin.call(`${eb}/roster/${tom.id}/rename`, { name: "Tommy" }))).toEqual([
       { actor_id: owner, action: "roster_rename", detail: "把 Tom（Alice 带的朋友） 改名为 Tommy（Alice 带的朋友）" },
     ]);
     expect(await added(e.id, () => ctx.admin.call(`${eb}/self-signup`, { friends: ["Ann"] }))).toEqual([
-      { actor_id: owner, action: "self_signup", detail: "修改自己的报名，带 1 个朋友：Ann" },
+      { actor_id: owner, action: "self_signup", detail: "修改自己的报名，带 1 个朋友：Ann（Jay 带的朋友）" },
     ]);
     // Saved again unchanged: nothing.
     expect(await added(e.id, () => ctx.admin.call(`${eb}/self-signup`, { friends: ["Ann"] }))).toEqual([]);

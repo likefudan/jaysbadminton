@@ -351,7 +351,7 @@ async function matchReceipt(
 }
 
 /** True when the note's name is someone's in the group, now or as printed on an earlier bill. */
-async function isGroupName(env: Env, name: string): Promise<boolean> {
+export async function isGroupName(env: Env, name: string): Promise<boolean> {
   const { results: members } = await env.DB.prepare("SELECT username FROM members").all<{ username: string }>();
   if (members.some((m) => noteName(m.username) === name)) return true;
   const { results: codes } = await env.DB.prepare("SELECT DISTINCT payment_code FROM payments").all<{

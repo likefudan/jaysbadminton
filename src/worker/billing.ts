@@ -173,19 +173,17 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   return result;
 }
 
-/** `logged` records the change in 操作记录 before an archive it may cause is recorded. */
-export async function finalize(
-  env: Env,
-  e: EventRow,
-  input: SettleInput,
-  logged: () => Promise<void> = async () => {},
-): Promise<void> {
-  const first = e.status !== "finalized";
+/**
+ * Finalize, or a later fee change. Returns whether this request was the first Finalize (of two at
+ * once, only one is). The caller then runs checkCollected, after recording the change, as every
+ * bill may already be paid.
+ */
+export async function finalize(env: Env, e: EventRow, input: SettleInput): Promise<boolean> {
   await applySettlement(env, e, input);
   const owner = await ownerId(env.DB);
-  await env.DB.batch([
+  const [moved] = await env.DB.batch([
     env.DB.prepare(
-      "UPDATE events SET status = 'finalized', finalized_at = COALESCE(finalized_at, ?) WHERE id = ?",
+      "UPDATE events SET status = 'finalized', finalized_at = COALESCE(finalized_at, ?) WHERE id = ? AND status = 'closed'",
     ).bind(now(), e.id),
     // The price is remembered for whoever runs the event, for their next one.
     setSetting(
@@ -194,9 +192,9 @@ export async function finalize(
       String(input.shuttlePriceCents),
     ),
   ]);
-  await logged();
+  const first = (moved?.meta.changes ?? 0) > 0;
   if (first) await notifyFinalized(env, e);
-  await checkCollected(env, e.id);
+  return first;
 }
 
 /**

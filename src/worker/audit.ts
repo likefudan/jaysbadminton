@@ -115,7 +115,11 @@ export async function auditRows(env: Env, eventId: number): Promise<AuditEntry[]
   }));
 }
 
-/** How the log names a roster row: the member, or "<member>的朋友<n>" / the friend's name. */
+/** How the log names a friend: "Tom（Alice 带的朋友）", or "Alice的朋友2" when unnamed (as the roster does). */
+export const friendName = (member: string, index: number, name: string | null) =>
+  name?.trim() ? `${name.trim()}（${member} 带的朋友）` : friendLabel(member, index, null);
+
+/** How the log names a roster row: the member, or the friend as friendName does. */
 export async function rosterLabel(env: Env, registrationId: number): Promise<string | null> {
   const r = await env.DB.prepare(
     `SELECT r.friend_index, r.friend_name, m.username FROM registrations r JOIN members m ON m.id = r.member_id
@@ -124,9 +128,7 @@ export async function rosterLabel(env: Env, registrationId: number): Promise<str
     .bind(registrationId)
     .first<{ friend_index: number; friend_name: string | null; username: string }>();
   if (!r) return null;
-  return r.friend_index === 0
-    ? r.username
-    : `${friendLabel(r.username, r.friend_index, r.friend_name)}（${r.username} 带的朋友）`;
+  return r.friend_index === 0 ? r.username : friendName(r.username, r.friend_index, r.friend_name);
 }
 
 /** Whose bill it is, as the log names it: the member's name. */
