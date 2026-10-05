@@ -4,12 +4,12 @@ import type { AdminViewer, LinkResponse, OrganizersBlock, RevokeImpact } from ".
 import { formatInstantZh } from "../../shared/time";
 import { STYLES, type ThemeId } from "../../shared/themes";
 import { api } from "../api";
-import { Card, CopyButton, Field, LinkCard, Load, useAction } from "../components";
+import { Card, Field, LinkCard, Load, useAction } from "../components";
 import { revokeSummary } from "../organizers";
 import { useApi } from "../hooks";
 import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
-import { AdminGuide } from "./AdminGuide";
+import { AdminGuide, ForwardingSteps } from "./AdminGuide";
 import { RemindersCard, TelegramCard } from "./AdminTelegram";
 
 /** 设置: the admin page's settings tab, one card per setting. */
@@ -257,35 +257,16 @@ function MyPaymentForm(props: {
 
 /** Venmo 邮件转发: the same Gmail filter the Owner sets up, pointed at the one forwarding address. */
 function ForwardingCard(props: { lastAt: string | null }) {
-  const forward = `venmo@${location.hostname}`;
   return (
     <Card title="Venmo 邮件转发">
       <p class="small">
         系统读取 Venmo 发给你的收款通知邮件，按备注里的付款编号自动记账。你的邮箱密码系统拿不到，只是把 Venmo
         的邮件转发过来；和羽毛球无关的收款会被忽略，不会保存。没设好转发的话，成员付款后要你手动标记已付。
       </p>
-      <ol class="steps">
-        <li>
-          Venmo App →「Settings → Notifications」，确认收款（You receive a payment）的<b>邮件通知</b>是打开的。
-        </li>
-        <li>
-          电脑上打开 Gmail →「设置 ⚙ → 查看所有设置 → 转发和 POP/IMAP → 添加转发地址」，填：
-          <div class="inline-copy">
-            <code>{forward}</code> <CopyButton text={forward} label="复制" />
-          </div>
-        </li>
-        <li>
-          Gmail 会往这个地址发一封确认邮件，里面有确认码。目前这封邮件会转到群主那里，请向群主要确认码，填回 Gmail。
-        </li>
-        <li>
-          回到 Gmail，在搜索框输入 <code>from:venmo@venmo.com</code> → 点搜索框右边的「显示搜索选项」→「创建过滤器」→
-          勾选「转发到」并选择上面的地址（<b>不要</b>勾删除）→ 创建过滤器。
-        </li>
-        <li>
-          Venmo 通知邮箱不是 Gmail 的话（例如 Outlook），在那个邮箱里设一条规则，把 venmo@venmo.com
-          发来的邮件自动转发到上面的地址。
-        </li>
-      </ol>
+      <ForwardingSteps
+        otherMail
+        confirm="Gmail 会往这个地址发一封确认邮件，里面有确认码。目前这封邮件会转到群主那里，请向群主要确认码，填回 Gmail。"
+      />
       <div class="status-line">
         <b>转发状态：</b>
         {props.lastAt ? `已生效（${formatInstantZh(props.lastAt)} 收到）` : "还没有收到过你账户的 Venmo 邮件"}

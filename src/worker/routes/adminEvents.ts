@@ -45,7 +45,6 @@ import {
   assertAccountFree,
   assertPayeeReady,
   outstandingBills,
-  managerSql,
   payeeName,
   payeeSql,
   readPaymentInput,
@@ -86,7 +85,8 @@ adminEventRoutes.get("/events", async (c) => {
   const owner = await ownerId(c.env.DB);
   const wanted = can(actor.role, "group") ? (c.req.query("manager") ?? "") : actor.memberId;
   const mine = wanted ? [wanted] : [];
-  const only = wanted ? `AND ${managerSql("events")} = ?` : "";
+  // Plain manager_id = ? keeps the events_manager index; NULL counts only when the Owner is wanted.
+  const only = !wanted ? "" : wanted === owner ? "AND (manager_id = ? OR manager_id IS NULL)" : "AND manager_id = ?";
   const current = await c.env.DB.prepare(
     `SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ${only} ORDER BY start_at`,
   )
@@ -150,10 +150,9 @@ adminEventRoutes.post("/locations/remove", async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM locations WHERE name = ?").bind(name),
     // Otherwise the next new event would still start with it filled in.
-    // Everyone's (organizers keep their own, last_location:<id>).
-    c.env.DB.prepare(
-      "DELETE FROM settings WHERE (key = 'last_location' OR key LIKE 'last_location:%') AND value = ?",
-    ).bind(name),
+    c.env.DB.prepare("DELETE FROM settings WHERE key = 'last_location' AND value = ?").bind(name),
+    // An organizer's own is emptied rather than deleted, so their form doesn't take the Owner's venue.
+    c.env.DB.prepare("UPDATE settings SET value = '' WHERE key LIKE 'last_location:%' AND value = ?").bind(name),
   ]);
   return c.json({ ok: true });
 });

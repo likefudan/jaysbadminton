@@ -5,7 +5,7 @@ import { syncDeadline } from "./deadlines";
 import { codeOf, eventNumberBase, nextEventNumber, parsePaymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
-import { eventManager, eventPayee, lastKeys, ownerId } from "./organizers";
+import { eventManager, eventPayee, lastKey, ownerId } from "./organizers";
 import { payeeName } from "./payees";
 
 export interface EventRow {
@@ -255,7 +255,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const address = input.address.trim();
   const title = cleanTitle(input.title);
   const ts = now();
-  const manager = input.managerId ?? (await ownerId(env.DB));
+  const owner = await ownerId(env.DB);
+  const manager = input.managerId ?? owner;
   // The 活动编号 skips every number an event created on this date has ever had (including events
   // since moved to another date or deleted), so no number is handed out twice. If two requests race
   // for the same one, the unique index refuses the second insert and it takes the next letter.
@@ -307,13 +308,13 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
       if (attempt >= 2) throw badRequest("同时创建的活动太多，请稍后再试");
     }
   }
-  const key = await lastKeys(env.DB, manager);
+  const key = (k: string) => lastKey(k, manager, owner);
   await env.DB.batch([
     saveVenue(env, location, address, ts),
-    setSetting(env.DB, key("last_start_time")[0]!, input.startTime),
-    setSetting(env.DB, key("last_end_time")[0]!, input.endTime),
-    setSetting(env.DB, key("last_location")[0]!, location),
-    setSetting(env.DB, key("last_deadline_offset_min")[0]!, String(v.offsetMin)),
+    setSetting(env.DB, key("last_start_time"), input.startTime),
+    setSetting(env.DB, key("last_end_time"), input.endTime),
+    setSetting(env.DB, key("last_location"), location),
+    setSetting(env.DB, key("last_deadline_offset_min"), String(v.offsetMin)),
   ]);
   await syncDeadline(env, id);
   return getEvent(env, id);

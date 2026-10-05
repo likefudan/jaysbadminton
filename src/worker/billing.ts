@@ -6,7 +6,7 @@ import { paymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
 import { HttpError, badRequest } from "./http";
-import { eventManager, eventPayee, lastKey } from "./organizers";
+import { eventManager, eventPayee, lastKey, ownerId } from "./organizers";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
   return toSettleRows(await roster(env, eventId));
@@ -173,6 +173,7 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
 export async function finalize(env: Env, e: EventRow, input: SettleInput): Promise<void> {
   const first = e.status !== "finalized";
   await applySettlement(env, e, input);
+  const owner = await ownerId(env.DB);
   await env.DB.batch([
     env.DB.prepare(
       "UPDATE events SET status = 'finalized', finalized_at = COALESCE(finalized_at, ?) WHERE id = ?",
@@ -180,7 +181,7 @@ export async function finalize(env: Env, e: EventRow, input: SettleInput): Promi
     // The price is remembered for whoever runs the event, for their next one.
     setSetting(
       env.DB,
-      await lastKey(env.DB, await eventManager(env.DB, e), "last_shuttle_price_cents"),
+      lastKey("last_shuttle_price_cents", await eventManager(env.DB, e), owner),
       String(input.shuttlePriceCents),
     ),
   ]);

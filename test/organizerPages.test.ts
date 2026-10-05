@@ -146,9 +146,9 @@ describe("the admin pages for an organizer", () => {
     const venues = (await get(`${GOOGLE}/events/defaults`, org)).data.locations.map((l: { name: string }) => l.name);
     expect(venues).toEqual(expect.arrayContaining(["Alice Gym", "Owner Hall"]));
 
-    // Forgetting a venue (the Owner's ✕) forgets it as everyone's default.
+    // Forgetting a venue (the Owner's ✕) forgets it as everyone's default, without handing her the Owner's.
     await ctx.admin.call(`${ctx.base}/locations/remove`, { name: "Alice Gym" });
-    expect((await get(`${GOOGLE}/events/defaults`, org)).data.location).toBe("Owner Hall");
+    expect((await get(`${GOOGLE}/events/defaults`, org)).data.location).toBe("");
   });
 
   it("keeps the shuttle price each person used last", async () => {
@@ -177,10 +177,13 @@ describe("the admin pages for an organizer", () => {
 describe("the member pages", () => {
   it("names the organizer on the events they run, and nobody on the Owner's", async () => {
     const { bob, theirs, mine } = await scenario();
-    const { data } = await new Client().call(`${bob.base}/events`);
+    const { data } = await get(`${bob.base}/events`, "");
     const of = (id: number) => data.events.find((e: { id: number }) => e.id === id);
     expect(of(mine).organizer).toBe("Alice");
     expect(of(theirs).organizer).toBeNull();
+    // With the feature off nobody is named, as before.
+    const off = (await get(`${bob.base}/events`, "", "0")).data;
+    expect(off.events.find((e: { id: number }) => e.id === mine).organizer).toBeNull();
   });
 
   it("offers 管理页 to the Owner and organizers signed in with Google, and only while they are one", async () => {

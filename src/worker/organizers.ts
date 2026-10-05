@@ -58,10 +58,8 @@ export async function ownerId(db: D1Database): Promise<string | null> {
  * original `last_xxx` keys (so nothing moves for them, and a rollback still finds them), an
  * organizer's in `last_xxx:<member id>`. Reading falls back to the Owner's until they have their own.
  */
-export async function lastKeys(db: D1Database, memberId: string | null): Promise<(key: string) => string[]> {
-  const owner = await ownerId(db);
-  return (key) => (!memberId || memberId === owner ? [key] : [`${key}:${memberId}`, key]);
-}
+export const lastKey = (key: string, memberId: string | null, owner: string | null) =>
+  !memberId || memberId === owner ? key : `${key}:${memberId}`;
 
 /** The person's remembered values for `keys`, each from their own key or else the Owner's. */
 export async function lastValues(
@@ -69,21 +67,10 @@ export async function lastValues(
   memberId: string | null,
   keys: string[],
 ): Promise<Record<string, string | undefined>> {
-  const of = await lastKeys(db, memberId);
-  const saved = await getSettings(db, keys.flatMap(of));
-  return Object.fromEntries(
-    keys.map((k) => [
-      k,
-      of(k)
-        .map((x) => saved[x])
-        .find((v) => v !== undefined),
-    ]),
-  );
+  const owner = await ownerId(db);
+  const saved = await getSettings(db, [...keys, ...keys.map((k) => lastKey(k, memberId, owner))]);
+  return Object.fromEntries(keys.map((k) => [k, saved[lastKey(k, memberId, owner)] ?? saved[k]]));
 }
-
-/** Where to save a remembered value for this person. */
-export const lastKey = async (db: D1Database, memberId: string | null, key: string) =>
-  (await lastKeys(db, memberId))(key)[0]!;
 
 /** 本场负责人: who manages the event. */
 export async function eventManager(db: D1Database, e: { manager_id: string | null }): Promise<string | null> {

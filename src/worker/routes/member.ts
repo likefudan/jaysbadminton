@@ -12,7 +12,7 @@ import type {
 import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
-import { eventManager, eventPayee, memberRole, ownerId, payeeProfile } from "../organizers";
+import { eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payeeProfile } from "../organizers";
 import { payeeName } from "../payees";
 import {
   closeExpired,
@@ -29,6 +29,7 @@ import {
 import type { Env } from "../env";
 import { badRequest, invalidLink, readJson, str } from "../http";
 import { type MemberRow, memberByToken, renameMember } from "../members";
+import { developerMember } from "../developer";
 import { googleMember, requireSameOrigin } from "../googleAuth";
 
 type Vars = { member: MemberRow };
@@ -43,15 +44,20 @@ memberRoutes.use("/:token/*", async (c, next) => {
   await next();
 });
 
-memberRoutes.get("/:token/me", (c) => {
+memberRoutes.get("/:token/me", async (c) => {
   const m = c.get("member");
   return c.json<MeResponse>({
     id: m.id,
     username: m.username,
     wechatNickname: m.wechat_nickname,
     isOwner: m.is_owner === 1,
-    // 管理页 is reached through Google (/admin/google), so only offered on the signed-in page.
-    canAdmin: c.req.param("token") === "session" && m.status === "active" && memberRole(c.env, m) !== "member",
+    // 管理页 is reached through Google (/admin/google), so only offered on the Google-signed-in
+    // page (not the staging developer login, which has its own switch to the admin pages).
+    canAdmin:
+      c.req.param("token") === "session" &&
+      !(await developerMember(c)) &&
+      m.status === "active" &&
+      memberRole(c.env, m) !== "member",
     active: m.status === "active",
   });
 });
@@ -112,6 +118,8 @@ memberRoutes.get("/:token/events", async (c) => {
   const owner = await ownerId(c.env.DB);
   const organizers = new Map<string, Promise<string>>();
   const organizerOf = async (e: EventRow) => {
+    // Only while the feature is on: with it off, nobody is shown as running an event (as before).
+    if (!organizersEnabled(c.env)) return null;
     const id = await eventManager(c.env.DB, e);
     if (!id || id === owner) return null;
     if (!organizers.has(id)) organizers.set(id, payeeName(c.env.DB, id));

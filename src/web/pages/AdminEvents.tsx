@@ -78,6 +78,11 @@ export function EventsTab(props: {
                 {o.username}
               </option>
             ))}
+            {props.organizers!.former.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.username}（已撤销）
+              </option>
+            ))}
           </select>
         </label>
       )}
