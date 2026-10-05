@@ -216,6 +216,31 @@ describe("who an event's notices go to", () => {
     await remind(alices, off);
     expect(to(ALICE_CHAT)).toEqual([]);
     expect(to(OWNER_CHAT)[0]).toContain("这场由 Alice 负责，但组织者功能已关闭");
+    // With the feature off the WeChat text is as before.
+    expect(to(OWNER_CHAT)[0]).not.toContain("组织：");
+  });
+
+  it("sends the daily summary and every bill reminder to the organizer together", async () => {
+    const { alices, alice, ctx } = await scenario();
+    const bob = await approveMember(ctx, "Bob");
+    await connectOwner();
+    await connectAlice(alice.id);
+    await env.DB.prepare(
+      "UPDATE events SET status = 'finalized', finalized_at = '2000-01-01T00:00:00.000Z' WHERE id = ?",
+    )
+      .bind(alices)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO payments (event_id, member_id, amount_due_cents, amount_paid_cents, status, payment_code)
+       VALUES (?, ?, 1500, 0, 'unpaid', 'code-bob')`,
+    )
+      .bind(alices, bob.id)
+      .run();
+    await runScheduled(on, new Date("2026-10-06T17:05:00Z")); // 10:05 Pacific, the default bill-reminder hour
+    expect(to(OWNER_CHAT)).toEqual([]);
+    expect(to(ALICE_CHAT)).toHaveLength(2);
+    expect(to(ALICE_CHAT)[0]).toContain("收款汇总");
+    expect(to(ALICE_CHAT)[1]).toContain("账单提醒：Bob");
   });
 
   it("retries next run when neither the organizer nor the Owner can get it", async () => {

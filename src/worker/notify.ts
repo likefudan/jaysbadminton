@@ -4,8 +4,8 @@ import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import { type EventRow, closeExpired, roster } from "./events";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
-import { eventManager } from "./organizers";
-import { WECHAT_BLOCK, escapeHtml, sendToManager, sendToManagerAndOwner, sendToOwner } from "./telegram";
+import { eventManager, organizersEnabled } from "./organizers";
+import { WECHAT_BLOCK, escapeHtml, sendLikewise, sendToManager, sendToManagerAndOwner, sendToOwner } from "./telegram";
 
 /**
  * Every notification goes to Telegram: an event's to whoever runs it (sendToManager), the rest to
@@ -82,8 +82,9 @@ async function organizerOf(env: Env, e: EventRow): Promise<string | null> {
   return !m || m.is_owner === 1 ? null : m.username;
 }
 
-/** 「（组织：某某）」 in the WeChat group texts of an organizer's event; nothing for the Owner's, as before. */
+/** 「（组织：某某）」 in the WeChat group texts of an organizer's event; nothing for the Owner's or with the feature off, as before. */
 async function runBy(env: Env, e: EventRow): Promise<string> {
+  if (!organizersEnabled(env)) return "";
   const name = await organizerOf(env, e);
   return name ? `（组织：${name}）` : "";
 }
@@ -257,14 +258,14 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
     const lines = owing
       .map((x) => `${x.username} 还差 $${dollars(x.amount_due_cents - x.amount_paid_cents)}`)
       .join("\n");
-    const ok = await toManager(
+    const d = await sendToManager(
       env,
       e,
       message(
         `📋 ${day(e)} 收款汇总：应收 $${dollars(due)}，已收 $${dollars(paid)}；已付清 ${pays.length - owing.length} 人，未付清 ${owing.length} 人：\n${lines}\n\n下面是每个人的账单提醒，可以分别复制到微信私聊。`,
       ),
     );
-    if (!ok) return false;
+    if (!d.ok) return false;
     for (const x of owing) {
       const owed = dollars(x.amount_due_cents - x.amount_paid_cents);
       // Members who joined with Google have no link: they sign in instead. With neither, the
@@ -274,7 +275,8 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
         x.status === "partial"
           ? `${x.username}，${day(e)}羽毛球的费用还差 $${owed} 没付哦，麻烦${via}补一下，谢谢！`
           : `${x.username}，${day(e)}羽毛球的费用 $${owed} 还没付哦，麻烦${via}付一下，谢谢！`;
-      await toManager(env, e, message(`账单提醒：${x.username}（微信：${x.wechat_nickname}）`, text));
+      // Each bill reminder follows the summary, so one person gets the whole set.
+      await sendLikewise(env, d, message(`账单提醒：${x.username}（微信：${x.wechat_nickname}）`, text));
     }
     return true;
   });

@@ -108,6 +108,13 @@ export interface ManagerDelivery {
   owner: boolean;
   /** The organizer who runs the event, when that is not the Owner. */
   organizer: string | null;
+  /** The organizer's chat when it went there. */
+  chatId: string | null;
+}
+
+/** Sends a follow-up to wherever an earlier sendToManager went, so a run of messages stays together. */
+export async function sendLikewise(env: Env, d: ManagerDelivery, html: string): Promise<boolean> {
+  return d.owner || !d.chatId ? sendToOwner(env, html) : sendTo(env, d.chatId, withAdminLink(env, html));
 }
 
 /**
@@ -122,16 +129,17 @@ export async function sendToManager(
 ): Promise<ManagerDelivery> {
   const id = await eventManager(env.DB, e);
   const m = id ? await recipient(env.DB, id) : null;
-  if (!m || m.is_owner === 1) return { ok: await sendToOwner(env, html), owner: true, organizer: null };
+  if (!m || m.is_owner === 1) return { ok: await sendToOwner(env, html), owner: true, organizer: null, chatId: null };
   const name = escapeHtml(m.username);
   let why: string;
   if (!organizersEnabled(env)) why = `这场由 ${name} 负责，但组织者功能已关闭`;
   else if (memberRole(env, m) !== "organizer") why = `这场的负责人 ${name} 已经不是组织者`;
   else if (!m.chat_id) why = `组织者 ${name} 还没连接 Telegram`;
   else if (await sendTo(env, m.chat_id, withAdminLink(env, html)))
-    return { ok: true, owner: false, organizer: m.username };
+    return { ok: true, owner: false, organizer: m.username, chatId: m.chat_id };
   else why = `发给组织者 ${name} 的 Telegram 没有成功`;
-  return { ok: await sendToOwner(env, `ℹ️ ${why}，这条发给群主。\n${html}`), owner: true, organizer: m.username };
+  const ok = await sendToOwner(env, `ℹ️ ${why}，这条发给群主。\n${html}`);
+  return { ok, owner: true, organizer: m.username, chatId: null };
 }
 
 /**
