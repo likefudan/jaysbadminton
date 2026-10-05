@@ -70,6 +70,7 @@ export async function once(
 /** "HappyTuesday 比赛 2026年10月7日 周三", or just the date when there is no title. */
 const day = (e: EventRow) => (e.title ? `${e.title} ${formatDateZh(e.date)}` : formatDateZh(e.date));
 const when = (e: EventRow) => `${day(e)} ${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`;
+const venue = (e: EventRow) => `${e.location}${e.address ? `（${e.address}）` : ""}`;
 const eventLink = (env: Env, e: EventRow) => `${env.SITE_ORIGIN}/e/${e.code}`;
 
 /** The name of the organizer who runs the event; null for the Owner's events. */
@@ -168,7 +169,7 @@ async function closedNotice(env: Env, e: EventRow, at: Date): Promise<void> {
       e,
       message(
         `🔒 ${day(e)} 的活动报名已截止，共 ${list.length} 人。`,
-        `${when(e)} 羽毛球${await runBy(env, e)}报名已截止，共 ${list.length} 人。\n地点：${e.location}${e.address ? `（${e.address}）` : ""}\n${names}`,
+        `${when(e)} 羽毛球${await runBy(env, e)}报名已截止，共 ${list.length} 人。\n地点：${venue(e)}\n${names}`,
       ),
     );
   });
@@ -409,6 +410,8 @@ export async function notifyPayment(
 export async function notifyCreated(env: Env, e: EventRow): Promise<void> {
   const name = await organizerOf(env, e);
   if (!name) return;
-  const where = `${e.location}${e.address ? `（${e.address}）` : ""}`;
-  await sendToOwner(env, message(`🆕 组织者 ${name} 发起了新活动：\n${when(e)}\n地点：${where}\n${eventLink(env, e)}`));
+  await sendToOwner(
+    env,
+    message(`🆕 组织者 ${name} 发起了新活动：\n${when(e)}\n地点：${venue(e)}\n${eventLink(env, e)}`),
+  );
 }

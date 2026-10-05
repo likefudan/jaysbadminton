@@ -3,7 +3,7 @@ import type { Env } from "./env";
 import { HttpError } from "./http";
 import { hmac, randomToken, sha256 } from "./lib/crypto";
 import { currentAdminToken } from "./auth";
-import { eventManager, memberRole, organizersEnabled } from "./organizers";
+import { currentOrganizerSql, eventManager, memberRole, organizersEnabled } from "./organizers";
 
 /**
  * One bot (created by whoever hosts the site) talks to one chat per person: the Owner's, kept in
@@ -320,19 +320,20 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
   if (!organizersEnabled(env)) return;
   // Spends the code and binds in one transaction, only while the code is valid and its owner is
   // still an organizer, so a revoke or a second /start with the same code can't slip in between.
+  const ts = now();
   const claim = `(SELECT t.member_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
      WHERE t.bind_hash = ?1 AND t.bind_expires >= ?2
-       AND m.is_owner = 0 AND m.role = 'organizer' AND m.status = 'active' AND m.deleted_at IS NULL)`;
+       AND ${currentOrganizerSql("m")})`;
   const [, bound] = await env.DB.batch([
     // One chat belongs to one organizer: the same Telegram account connected again moves here.
     env.DB.prepare(
       `UPDATE telegram_bindings SET chat_id = NULL, chat_name = NULL
        WHERE chat_id = ?3 AND EXISTS ${claim} AND member_id != ${claim}`,
-    ).bind(hash, now(), chatId),
+    ).bind(hash, ts, chatId),
     env.DB.prepare(
       `UPDATE telegram_bindings SET chat_id = ?3, chat_name = ?4, bind_hash = NULL, bind_expires = NULL
        WHERE member_id = ${claim}`,
-    ).bind(hash, now(), chatId, name),
+    ).bind(hash, ts, chatId, name),
   ]);
   if (!bound?.meta.changes) return;
   await sendTo(
@@ -350,7 +351,7 @@ async function organizerAdminEntry(env: Env, chatId: string): Promise<void> {
   if (!organizersEnabled(env)) return;
   const o = await env.DB.prepare(
     `SELECT 1 FROM telegram_bindings t JOIN members m ON m.id = t.member_id
-     WHERE t.chat_id = ? AND m.is_owner = 0 AND m.role = 'organizer' AND m.status = 'active' AND m.deleted_at IS NULL`,
+     WHERE t.chat_id = ? AND ${currentOrganizerSql("m")}`,
   )
     .bind(chatId)
     .first();
