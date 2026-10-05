@@ -183,7 +183,7 @@ GitHub 仓库需要的 secrets：
 | `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` | Google 登录，可选；配置方法见 [docs/google-login.zh.md](docs/google-login.zh.md) |
 | `TELEGRAM_DEV_BOT_TOKEN`、`TELEGRAM_DEV_CHAT_ID` | 可选：开发群通知。每个 PR 合并、每次正式发布（成功或失败）都发一条消息到开发者的 Telegram 群。用一个单独的机器人，不要用网站的机器人 |
 | `GOOGLE_MAPS_API_KEY` | 地址联想，可选；没有时使用免费的 Photon |
-| `RESEND_API_KEY`、`EMAIL_FROM` | 用邮箱注册的成员审核通过后自动发链接邮件、找回链接，可选 |
+| `RESEND_API_KEY`、`EMAIL_FROM` | 用邮箱注册的成员审核通过后自动发链接邮件、找回链接、Venmo 付款回执，可选 |
 | `LINK_ENCRYPTION_KEY`、`LINK_ENCRYPTION_KEY_STAGING` | 正式网站和测试网站 `TOKEN_KEY` 的备份。在管理页「设置 → 备份网站密钥」把密钥发到 Telegram 后存进来。每次部署都会核对它。核对在 `wrangler deploy` 之后进行，对不上时这次部署任务会失败，但新版本已经上线，后面的 `reset_admin_link` 步骤和冒烟测试也不会运行；万一 Worker 的 `TOKEN_KEY` 丢了，部署时自动用它填回去 |
 
 每个网站的 `TOKEN_KEY` 由 CI 在第一次部署时自动生成，之后不再更换（它加密保存成员链接、管理链接和 Google 表格同步的密钥，群主密码的哈希也由它派生；丢了的话，成员链接无法再显示或通过邮件找回（只能重新生成），Telegram 找回管理链接时会换一个新的，群主密码会被重置，Google 表格同步要重新生成密钥并粘贴新脚本）。Cloudflare 里看不到它的值，所以要用上面的 `LINK_ENCRYPTION_KEY` 备份。

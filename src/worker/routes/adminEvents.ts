@@ -81,6 +81,7 @@ import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
 import { actorId, audit, auditRows, billOwner, friendName, money, record, rosterLabel } from "../audit";
+import { sendPaymentReceipt } from "../receiptEmail";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -1034,6 +1035,11 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
     payerName: i.payer_name,
     note: i.note,
     inboundId: i.id,
+  });
+  await sendPaymentReceipt(c.env, paymentId, {
+    amountCents: i.amount_cents,
+    ref: i.venmo_txn_id ?? `inbound-${i.id}`,
+    receiver: i.payee_id,
   });
   // Money paid into someone else's account than the event's payee: the two settle it between them.
   const amount = i.amount_cents;

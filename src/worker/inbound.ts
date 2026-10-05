@@ -12,6 +12,7 @@ import { eventPayee, memberRole, ownerId } from "./organizers";
 import { sendToMember, sendToOwner } from "./telegram";
 import { codeName, noteName, parsePaymentCode } from "./paymentCode";
 import { payeeExpired, payeeName, payeeSql } from "./payees";
+import { sendPaymentReceipt } from "./receiptEmail";
 import type { RefundRow } from "../shared/types";
 
 export const MAX_EMAIL_BYTES = 512 * 1024;
@@ -337,6 +338,7 @@ async function matchReceipt(
     async () =>
       `Venmo 自动对账：${r.payer ?? "付款人不明"} 付 ${money(r.amountCents)}，记到 ${await billOwner(env, code.memberId)} 的账单`,
   );
+  await sendPaymentReceipt(env, p.id, { amountCents: r.amountCents, ref: r.txnId, receiver: account.id });
   const after = (await env.DB.prepare("SELECT status, amount_due_cents, amount_paid_cents FROM payments WHERE id = ?")
     .bind(p.id)
     .first<{ status: string; amount_due_cents: number; amount_paid_cents: number }>())!;
