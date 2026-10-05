@@ -272,6 +272,21 @@ describe("转发已生效 for an organizer", () => {
     expect(await deliver({ note: b.Jay.paymentCode, txnId: "F2", amount: due(b.Jay), ...ALICE })).toBe("paid");
     expect(await last()).toBeNull();
   });
+
+  it("counts an old username's emails when the notification email stayed the same", async () => {
+    const s = await scenario();
+    expect(
+      (
+        await request(`${GOOGLE}/payment-profile`, s.org, {
+          venmoUsername: "Alice-New",
+          venmoEmail: "alice@venmo.test",
+        })
+      ).status,
+    ).toBe(200);
+    const b = await s.aliceBills();
+    expect(await deliver({ note: b.Bob.paymentCode, txnId: "F3", amount: due(b.Bob), ...ALICE })).toBe("paid");
+    expect((await json(await request(`${GOOGLE}/payment-profile`, s.org))).lastVenmoEmailAt).toBeTruthy();
+  });
 });
 
 describe("taking a payment back off a bill", () => {

@@ -1,7 +1,7 @@
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import { badRequest, str } from "./http";
-import { ROSTER_EDITABLE } from "./events";
+import { LIVE_SQL } from "./events";
 import { eventPayee, ownerId } from "./organizers";
 
 /**
@@ -194,7 +194,7 @@ export async function payeeExpired(db: D1Database, memberId: string): Promise<bo
   const r = await db
     .prepare(
       `SELECT 1 FROM payment_profiles p WHERE p.member_id = ?1 AND p.retired_at IS NOT NULL
-         AND NOT EXISTS (SELECT 1 FROM events WHERE payee_id = ?1 AND status IN (${ROSTER_EDITABLE.map((s) => `'${s}'`).join(", ")}))`,
+         AND NOT EXISTS (SELECT 1 FROM events WHERE payee_id = ?1 AND status IN ${LIVE_SQL})`,
     )
     .bind(memberId)
     .first();

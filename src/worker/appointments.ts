@@ -4,7 +4,7 @@ import { SPAM_HINT, type SendResult, sendEmail, site } from "./approvalEmail";
 import { now } from "./db";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
-import { ROSTER_EDITABLE } from "./events";
+import { LIVE_SQL } from "./events";
 import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
 import { once } from "./notify";
@@ -14,9 +14,6 @@ import { payeeExpired, payeeUnlockedSql } from "./payees";
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
  * ORGANIZERS flag; revoking as part of 停用 runs whatever the flag says, as it only hands events back.
  */
-
-/** Events that are not archived yet: still taking sign-ups, waiting for Finalize, or collecting. */
-const LIVE = `(${ROSTER_EDITABLE.map((s) => `'${s}'`).join(", ")})`;
 
 /** The appoint / revoke / transfer endpoints: refused while the feature is off. */
 export function assertOrganizersOn(env: Env): void {
@@ -29,7 +26,7 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
   const [{ results: list }, { results: former }] = await Promise.all([
     env.DB.prepare(
       `SELECT m.id, m.username, m.role_since, p.venmo_username, p.venmo_email, p.email_last_at, t.chat_id,
-       (SELECT COUNT(*) FROM events e WHERE e.manager_id = m.id AND e.status IN ${LIVE}) AS events
+       (SELECT COUNT(*) FROM events e WHERE e.manager_id = m.id AND e.status IN ${LIVE_SQL}) AS events
      FROM members m
      LEFT JOIN payment_profiles p ON p.member_id = m.id
      LEFT JOIN telegram_bindings t ON t.member_id = m.id
@@ -49,7 +46,7 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
     env.DB.prepare(
       `SELECT m.id, m.username, COUNT(*) AS collecting FROM members m JOIN events e ON e.payee_id = m.id
      WHERE m.is_owner = 0 AND NOT (m.role = 'organizer' AND m.status = 'active' AND m.deleted_at IS NULL)
-       AND e.status IN ${LIVE}
+       AND e.status IN ${LIVE_SQL}
      GROUP BY m.id ORDER BY m.id`,
     ).all<{ id: string; username: string; collecting: number }>(),
   ]);
@@ -142,7 +139,7 @@ function outcome(e: ImpactRow, id: string): RevokeImpact["outcome"] {
 export async function revokeImpact(env: Env, id: string): Promise<RevokeImpact[]> {
   const { results } = await env.DB.prepare(
     `SELECT id, code, date, title, status, manager_id, payee_id, ${payeeUnlockedSql("events")} AS unlocked FROM events
-     WHERE (manager_id = ?1 OR payee_id = ?1) AND status IN ${LIVE} ORDER BY start_at`,
+     WHERE (manager_id = ?1 OR payee_id = ?1) AND status IN ${LIVE_SQL} ORDER BY start_at`,
   )
     .bind(id)
     .all<ImpactRow>();
@@ -189,11 +186,9 @@ export async function revokeOrganizer(
       `UPDATE events SET payee_id = ?1 WHERE payee_id = ?2 AND status IN ('open', 'closed')
          AND ${payeeUnlockedSql("events")} AND ${mine}`,
     ).bind(owner, m.id, ts),
-    env.DB.prepare(`UPDATE events SET manager_id = ?1 WHERE manager_id = ?2 AND status IN ${LIVE} AND ${mine}`).bind(
-      owner,
-      m.id,
-      ts,
-    ),
+    env.DB.prepare(
+      `UPDATE events SET manager_id = ?1 WHERE manager_id = ?2 AND status IN ${LIVE_SQL} AND ${mine}`,
+    ).bind(owner, m.id, ts),
     // retired_at marks a 历史收款人 for auto-matching (card 8).
     env.DB.prepare(`UPDATE payment_profiles SET retired_at = ?3 WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
     // Their Telegram goes (design §8): what is left for them as a 历史收款人 goes to the Owner.
@@ -218,7 +213,9 @@ async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string)
       .bind(m.id)
       .first<{ venmo_username: string | null }>(),
     // Read after the change: exactly the events members still pay into their account.
-    env.DB.prepare(`SELECT code, date, title FROM events WHERE payee_id = ? AND status IN ${LIVE} ORDER BY start_at`)
+    env.DB.prepare(
+      `SELECT code, date, title FROM events WHERE payee_id = ? AND status IN ${LIVE_SQL} ORDER BY start_at`,
+    )
       .bind(m.id)
       .all<{ code: string; date: string; title: string }>(),
   ]);
@@ -263,7 +260,7 @@ export async function transferEvent(env: Env, eventId: number, to: string): Prom
     `UPDATE events SET manager_id = ?1,
        payee_id = CASE WHEN status IN ('open', 'closed') AND ${payeeUnlockedSql("events")}
                        THEN ?1 ELSE payee_id END
-     WHERE id = ?2 AND status IN ${LIVE}
+     WHERE id = ?2 AND status IN ${LIVE_SQL}
        AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND deleted_at IS NULL
                      AND (is_owner = 1 OR (role = 'organizer' AND status = 'active')))`,
   )
@@ -292,7 +289,7 @@ export async function handBackIfRevoked(env: Env, eventId: number, creator: stri
 export async function assertNotRunning(env: Env, m: MemberRow): Promise<void> {
   const e = await env.DB.prepare(
     `SELECT e.date, e.payee_id = ?1 AS paid FROM events e
-     WHERE (e.payee_id = ?1 OR e.manager_id = ?1) AND e.status IN ${LIVE} ORDER BY e.start_at LIMIT 1`,
+     WHERE (e.payee_id = ?1 OR e.manager_id = ?1) AND e.status IN ${LIVE_SQL} ORDER BY e.start_at LIMIT 1`,
   )
     .bind(m.id)
     .first<{ date: string; paid: number }>();

@@ -22,7 +22,7 @@ const GMAIL_FORWARDING = "forwarding-noreply@google.com";
  * here. It goes to whoever asked (design §6.3): a current organizer whose Venmo notification email
  * the message names gets it on their 收款设置 page for 24 hours, and on their Telegram if connected;
  * anyone else's goes to the Owner's Telegram, as before. Only genuine (DKIM-signed by google.com)
- * messages are passed on.
+ * messages are passed on. `organizer` is who it went to, so it doesn't count as the Owner's email.
  */
 async function gmailConfirmation(
   env: Env,
@@ -30,11 +30,11 @@ async function gmailConfirmation(
   subject: string,
   text: string,
   opts: EmailOptions,
-): Promise<EmailOutcome> {
+): Promise<{ outcome: EmailOutcome; organizer: string | null }> {
   const dkim = await verifyDkim(raw, "google.com", opts.resolveKey);
   if (!dkim.ok) {
     console.warn("gmail confirmation not verified:", dkim.reason);
-    return "gmail_unverified";
+    return { outcome: "gmail_unverified", organizer: null };
   }
   const body = text.split("\n").slice(0, 25).join("\n").slice(0, 1500);
   const content = `${subject}\n\n${body}`;
@@ -48,13 +48,13 @@ async function gmailConfirmation(
       organizer,
       message(`📮 Gmail 转发确认邮件\n${content}\n\n把上面的确认码填到 Gmail 设置里，或打开里面的确认链接。`),
     );
-    return "gmail_confirm_organizer";
+    return { outcome: "gmail_confirm_organizer", organizer };
   }
   await sendToOwner(
     env,
     message(`📮 Gmail 转发确认邮件\n${content}\n\n把上面的确认码填到 Gmail 设置里，或打开里面的确认链接。`),
   );
-  return "gmail_confirm";
+  return { outcome: "gmail_confirm", organizer: null };
 }
 
 /** How long a Gmail confirmation stays on the organizer's 收款设置 page. */
@@ -119,8 +119,6 @@ interface Account {
   /** The Owner's member id (null before first-time setup), or an organizer's, current or former. */
   id: string | null;
   owner: boolean;
-  /** An organizer's old account (payment_aliases), not the one in their 收款设置 now. */
-  alias: boolean;
   /** How 待确认 names it: "@username（name）". */
   label: () => Promise<string>;
 }
@@ -138,21 +136,20 @@ async function receivingAccount(env: Env, sentTo: string, to: string[]): Promise
     "venmo_email",
   ]);
   if (owner && sentTo.toLowerCase() === owner.toLowerCase() && ownerEmail && mail === ownerEmail)
-    return { id: await ownerId(env.DB), owner: true, alias: false, label: async () => `@${sentTo}（群主）` };
+    return { id: await ownerId(env.DB), owner: true, label: async () => `@${sentTo}（群主）` };
   // The columns are COLLATE NOCASE, as the Owner's username is compared above.
   const found = await env.DB.prepare(
-    `SELECT member_id, 0 AS alias FROM payment_profiles WHERE venmo_username = ?1 AND venmo_email = ?2
+    `SELECT member_id FROM payment_profiles WHERE venmo_username = ?1 AND venmo_email = ?2
      UNION ALL
-     SELECT member_id, 1 FROM payment_aliases WHERE venmo_username = ?1 AND venmo_email = ?2 AND until > ?3
+     SELECT member_id FROM payment_aliases WHERE venmo_username = ?1 AND venmo_email = ?2 AND until > ?3
      LIMIT 1`,
   )
     .bind(sentTo, mail, now())
-    .first<{ member_id: string; alias: number }>();
+    .first<{ member_id: string }>();
   if (!found) return null;
   return {
     id: found.member_id,
     owner: false,
-    alias: found.alias === 1,
     label: async () => `@${sentTo}（${await payeeName(env.DB, found.member_id)}）`,
   };
 }
@@ -162,22 +159,27 @@ async function receivingAccount(env: Env, sentTo: string, to: string[]): Promise
  * the one whose notification email (now, or within 60 days) it was addressed to. Such emails say
  * nothing about the Owner's own forwarding, and their problems are the organizer's to fix.
  */
-async function mailedTo(env: Env, to: string[]): Promise<{ id: string; alias: boolean } | null> {
+async function mailedTo(env: Env, to: string[]): Promise<string | null> {
   if (to.length !== 1) return null;
   const { venmo_email: ownerEmail = "" } = await getSettings(env.DB, ["venmo_email"]);
   if (ownerEmail && to[0] === ownerEmail) return null;
   const r = await env.DB.prepare(
-    `SELECT member_id, 0 AS alias FROM payment_profiles WHERE venmo_email = ?1
-     UNION ALL SELECT member_id, 1 FROM payment_aliases WHERE venmo_email = ?1 AND until > ?2 LIMIT 1`,
+    `SELECT member_id FROM payment_profiles WHERE venmo_email = ?1
+     UNION ALL SELECT member_id FROM payment_aliases WHERE venmo_email = ?1 AND until > ?2 LIMIT 1`,
   )
     .bind(to[0], now())
-    .first<{ member_id: string; alias: number }>();
-  return r ? { id: r.member_id, alias: r.alias === 1 } : null;
+    .first<{ member_id: string }>();
+  return r?.member_id ?? null;
 }
 
-/** 转发已生效 and the 转发可能中断 check read this: a Venmo email for their current account arrived. */
-const forwarded = (env: Env, memberId: string) =>
-  env.DB.prepare("UPDATE payment_profiles SET email_last_at = ? WHERE member_id = ?").bind(now(), memberId).run();
+/**
+ * 转发已生效 and the 转发可能中断 check read this: a signed Venmo email reached us from the inbox of
+ * their current notification email (an old account with the same email shares that inbox).
+ */
+const forwarded = (env: Env, memberId: string, to: string) =>
+  env.DB.prepare("UPDATE payment_profiles SET email_last_at = ? WHERE member_id = ? AND venmo_email = ?")
+    .bind(now(), memberId, to)
+    .run();
 
 /**
  * The Owner forwards every Venmo receipt, most of them unrelated to badminton, and so does each
@@ -205,36 +207,36 @@ export async function receiveEmail(
 ): Promise<{ outcome: EmailOutcome; organizer: string | null }> {
   if (raw.byteLength > MAX_EMAIL_BYTES) return { outcome: "too_large", organizer: null };
   const mail = await parseEmail(raw);
-  if (mail.fromAddress === GMAIL_FORWARDING)
-    return { outcome: await gmailConfirmation(env, raw, mail.subject, mail.text, opts), organizer: null };
+  if (mail.fromAddress === GMAIL_FORWARDING) return gmailConfirmation(env, raw, mail.subject, mail.text, opts);
   if (mail.fromAddress !== VENMO) return { outcome: "not_venmo", organizer: null };
   // Not matched to an account. Addressed to an organizer, it is theirs; a genuine Venmo email still
   // proves their forwarding works, as any email past the From check does for the Owner.
-  const unknown = async (outcome: EmailOutcome) => {
+  // The To header of an unsigned (or forged) email proves nothing, so only signed ones count.
+  const unknown = async (outcome: EmailOutcome, signed: boolean) => {
+    if (!signed) return { outcome, organizer: null };
     const to = await mailedTo(env, mail.toAddresses);
-    if (to && !to.alias && outcome !== "bad_signature") await forwarded(env, to.id);
-    return { outcome, organizer: to?.id ?? null };
+    if (to) await forwarded(env, to, mail.toAddresses[0]!);
+    return { outcome, organizer: to };
   };
   if (!/ paid \$[\d,]+\.\d{2} to your Venmo account/.test(mail.subject.replace(/\s+/g, " ")))
-    return unknown("not_receipt");
+    return unknown("not_receipt", false);
   const dkim = await verifyDkim(raw, "venmo.com", opts.resolveKey);
   if (!dkim.ok && !dkim.retryable) {
     console.warn("venmo email rejected:", dkim.reason);
-    return unknown("bad_signature");
+    return unknown("bad_signature", false);
   }
   // DNS was down so the signature is unchecked: never act on it, at most ask the Owner.
   const unverified = !dkim.ok;
 
   const r = mail.receipt;
-  if (!r) return unknown("parse_failed");
+  if (!r) return unknown("parse_failed", !unverified);
 
   const account = await receivingAccount(env, r.sentTo, mail.toAddresses);
-  if (!account) return unknown("wrong_recipient");
+  if (!account) return unknown("wrong_recipient", !unverified);
   if (account.owner)
     return { outcome: await matchReceipt(env, r, mail.messageId, account, unverified), organizer: null };
-  // Only signed emails into the account they have now: an old one's forwarding says nothing about
-  // the new one's.
-  if (!unverified && !account.alias && account.id) await forwarded(env, account.id);
+  // Only signed emails, from the inbox of their current account (forwarded() checks the address).
+  if (!unverified && account.id) await forwarded(env, account.id, mail.toAddresses[0]!);
   return { outcome: await matchReceipt(env, r, mail.messageId, account, unverified), organizer: account.id };
 }
 
@@ -516,7 +518,7 @@ export async function recordEmailOutcome(
   if (outcome === "not_venmo" || outcome === "too_large") return; // spam and noise
   const at = now();
   const log = env.DB.prepare("INSERT INTO email_log (received_at, outcome) VALUES (?, ?)").bind(at, outcome);
-  if (organizer || outcome === "gmail_confirm_organizer") {
+  if (organizer) {
     await log.run();
     return;
   }
