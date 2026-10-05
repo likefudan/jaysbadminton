@@ -64,13 +64,13 @@ describe("payment receipt email", () => {
     expect(emails[0].text).toContain(`活动组织人 ${owner} 已收到你的 Venmo 付款 $10.00`);
     expect(emails[0].text).toContain("Venmo 付款人：Bob B");
     expect(emails[0].text).toContain(`还差 $${dollars(due - 1000)}`);
-    expect(emails[0].key).toBe(`payment-receipt/${bob.id}/R1`);
+    expect(emails[0].key).toBe(`payment-receipt/${bob.id}/R1/1000/${due}`);
 
     expect(await deliver({ note: bob.paymentCode, txnId: "R2", amount: dollars(due - 1000) })).toBe("paid");
     expect(emails[1].text).toContain("已全部付清");
 
     expect(await deliver({ note: bob.paymentCode, txnId: "R3", amount: "5.00" })).toBe("overpaid");
-    expect(emails[2].text).toContain(`多付了 $5.00，${owner} 会把多付的钱退给你`);
+    expect(emails[2].text).toContain("多付了 $5.00，多付的钱会退给你");
 
     // The same Venmo email again changes nothing and sends nothing.
     expect(await deliver({ note: bob.paymentCode, txnId: "R3", amount: "5.00" })).toBe("duplicate");

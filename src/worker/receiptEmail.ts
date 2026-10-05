@@ -36,7 +36,8 @@ export async function sendPaymentReceipt(
         deleted_at: string | null;
       }>();
     if (!p || p.deleted_at) return "not_needed";
-    const to = (p.google_sub ? p.google_email || p.email : p.email || p.google_email)?.trim();
+    // Where the site mails them otherwise (sendApprovalEmail).
+    const to = (p.google_sub ? p.google_email : p.email)?.trim();
     if (!to) return "not_needed";
     const receiverId = receipt.receiver ?? (await ownerId(env.DB));
     const receiver = receiverId
@@ -51,14 +52,14 @@ export async function sendPaymentReceipt(
       paid < due
         ? `这场活动你应付 ${money(due)}，目前共收到 ${money(paid)}，还差 ${money(due - paid)}，请按账单上的付款方式补齐。`
         : paid > due
-          ? `这场活动你应付 ${money(due)}，目前共收到 ${money(paid)}，多付了 ${money(paid - due)}，${who} 会把多付的钱退给你。`
+          ? `这场活动你应付 ${money(due)}，目前共收到 ${money(paid)}，多付了 ${money(paid - due)}，多付的钱会退给你。`
           : `这场活动你应付 ${money(due)}，已全部付清，谢谢！`;
     const text = [
       `${p.username}，你好！`,
       `活动组织人 ${who} 已收到你的 Venmo 付款 ${money(receipt.amountCents)}（${event}${receipt.payer ? `，Venmo 付款人：${receipt.payer}` : ""}）。`,
       standing,
       "",
-      `查看账单：打开你的专属链接，或用 Google 账号登录 ${site(env, "/login")}`,
+      p.google_sub ? `查看账单：用 Google 账号登录 ${site(env, "/login")}` : "查看账单：打开你的专属链接。",
       "",
       "这封邮件由系统自动发送，请不要直接回复。",
     ].join("\n");
@@ -66,7 +67,8 @@ export async function sendPaymentReceipt(
       to,
       subject: `已收到你的 Venmo 付款 ${money(receipt.amountCents)}`,
       text,
-      key: `payment-receipt/${paymentId}/${receipt.ref}`,
+      // The standing is in the key too: a payment linked again after an undo gets its own email.
+      key: `payment-receipt/${paymentId}/${receipt.ref}/${paid}/${due}`,
     });
   } catch (err) {
     console.error("payment receipt email failed", err);
