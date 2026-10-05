@@ -9,7 +9,7 @@ import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
 import { once } from "./notify";
 import { payeeExpired, payeeUnlockedSql } from "./payees";
-import { SYSTEM, audit } from "./audit";
+import { type AuditAction, DETAIL_MAX, SYSTEM, audit } from "./audit";
 
 /**
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
@@ -189,12 +189,14 @@ export async function revokeOrganizer(
       ts,
     ),
     // Before the events move, so it finds the ones that are theirs.
+    // The money stays with them exactly where the payee statement below leaves payee_id alone.
     env.DB.prepare(
       `INSERT INTO event_audit (event_id, actor_id, action, detail, at)
-       SELECT id, ?4, 'reassign', ?5 || CASE WHEN payee_id = ?2 AND status NOT IN ('open', 'closed')
-                                           THEN '（账单已发出，钱仍付到 ' || ?6 || ' 的账户）' ELSE '' END, ?3
+       SELECT id, ?4, ?7, substr(?5 || CASE WHEN payee_id = ?2
+                                                 AND NOT (status IN ('open', 'closed') AND ${payeeUnlockedSql("events")})
+                                            THEN '（账单已发出，钱仍付到 ' || ?6 || ' 的账户）' ELSE '' END, 1, ${DETAIL_MAX}), ?3
        FROM events WHERE manager_id = ?2 AND status IN ${LIVE_SQL} AND ${mine}`,
-    ).bind(null, m.id, ts, by === "self" ? m.id : owner, why, m.username),
+    ).bind(null, m.id, ts, by === "self" ? m.id : owner, why, m.username, "reassign" satisfies AuditAction),
     // Before Finalize nobody has a bill, so the money moves with the event.
     env.DB.prepare(
       `UPDATE events SET payee_id = ?1 WHERE payee_id = ?2 AND status IN ('open', 'closed')

@@ -47,26 +47,26 @@ export type AuditAction =
 /** Who did it, as stored: the admin page's caller. */
 export const actorId = (actor: Actor): string => actor.memberId ?? OWNER;
 
-/** The statement that records one entry, for a batch that should record it only alongside its change. */
-export function auditStatement(
-  db: D1Database,
+/** The longest detail kept. */
+export const DETAIL_MAX = 500;
+
+/**
+ * Records one entry after the change it describes has happened. `detail` may be a function, for
+ * text that needs a lookup. A failure here (the lookup or the insert) is logged rather than thrown:
+ * the change itself already went through, and an error would invite a second click.
+ */
+export async function audit(
+  env: Env,
   eventId: number,
   actor: string,
   action: AuditAction,
-  detail: string,
-): D1PreparedStatement {
-  return db
-    .prepare("INSERT INTO event_audit (event_id, actor_id, action, detail, at) VALUES (?, ?, ?, ?, ?)")
-    .bind(eventId, actor, action, detail.slice(0, 500), now());
-}
-
-/**
- * Records one entry after the change it describes has happened. A failure here is logged rather
- * than thrown: the change itself already went through, and an error would invite a second click.
- */
-export async function audit(env: Env, eventId: number, actor: string, action: AuditAction, detail: string) {
+  detail: string | (() => Promise<string> | string),
+) {
   try {
-    await auditStatement(env.DB, eventId, actor, action, detail).run();
+    const text = typeof detail === "string" ? detail : await detail();
+    await env.DB.prepare("INSERT INTO event_audit (event_id, actor_id, action, detail, at) VALUES (?, ?, ?, ?, ?)")
+      .bind(eventId, actor, action, text.slice(0, DETAIL_MAX), now())
+      .run();
   } catch (err) {
     console.error("event_audit insert failed", { eventId, action, err });
   }
@@ -113,18 +113,12 @@ export async function rosterLabel(env: Env, registrationId: number): Promise<str
     : `${friendLabel(r.username, r.friend_index, r.friend_name)}（${r.username} 带的朋友）`;
 }
 
-/** A bill as the log names it: whose it is and the event it belongs to. */
-export async function billInfo(
-  env: Env,
-  paymentId: number,
-): Promise<{ eventId: number; who: string; dueCents: number } | null> {
-  const p = await env.DB.prepare(
-    `SELECT p.event_id, p.amount_due_cents, m.username FROM payments p JOIN members m ON m.id = p.member_id
-     WHERE p.id = ?`,
-  )
-    .bind(paymentId)
-    .first<{ event_id: number; amount_due_cents: number; username: string }>();
-  return p && { eventId: p.event_id, who: p.username, dueCents: p.amount_due_cents };
+/** Whose bill it is, as the log names it: the member's name. */
+export async function billOwner(env: Env, memberId: string): Promise<string> {
+  const m = await env.DB.prepare("SELECT username FROM members WHERE id = ?")
+    .bind(memberId)
+    .first<{ username: string }>();
+  return m?.username ?? memberId;
 }
 
 export const money = (cents: number) => `$${dollars(cents)}`;

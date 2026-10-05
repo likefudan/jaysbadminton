@@ -68,6 +68,7 @@ import {
   LINK_ARCHIVED_DAYS,
   emailStatus,
   GMAIL_CONFIRM_HOURS,
+  codeTarget,
   inboundRows,
   linkCutoff,
   openPayments,
@@ -78,7 +79,7 @@ import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
-import { actorId, audit, auditRows, billInfo, money, rosterLabel } from "../audit";
+import { actorId, audit, auditRows, billOwner, money, rosterLabel } from "../audit";
 import { parsePaymentCode } from "../paymentCode";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
@@ -236,27 +237,43 @@ async function selfSignupEvent(env: Env, id: string, memberId: string | null) {
   return { e, self };
 }
 
+/** One's own rows on the roster (themselves and friends, with names), for telling whether a save changed them. */
+async function ownSignup(env: Env, eventId: number, memberId: string): Promise<string> {
+  const { results } = await env.DB.prepare(
+    "SELECT friend_index, friend_name FROM registrations WHERE event_id = ? AND member_id = ? ORDER BY friend_index",
+  )
+    .bind(eventId, memberId)
+    .all();
+  return results.length ? JSON.stringify(results) : "";
+}
+
 adminEventRoutes.post("/events/:id/self-signup", async (c) => {
   const { e, self } = await selfSignupEvent(c.env, c.req.param("id"), c.get("actor").memberId);
   const body = await readJson(c.req.raw);
   // No cap here, but friends already on the list (some may be added from 添加人员) may stay.
   const keep = await friendCount(c.env, e.id, self);
   const friends = validateFriends(body.friends ?? [], null, keep);
+  const before = await ownSignup(c.env, e.id, self);
   await setSignup(c.env, e.id, self, friends, false);
-  await audit(
-    c.env,
-    e.id,
-    actorId(c.get("actor")),
-    "self_signup",
-    friends.length ? `自己报名，带 ${friends.length} 个朋友` : "自己报名",
-  );
+  // Saved again without a change: nothing to record.
+  if (before !== (await ownSignup(c.env, e.id, self)))
+    await audit(
+      c.env,
+      e.id,
+      actorId(c.get("actor")),
+      "self_signup",
+      friends.length
+        ? `自己报名，带 ${friends.length} 个朋友：${friends.map((f) => f || "（未填名字）").join("、")}`
+        : "自己报名",
+    );
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
   const { e, self } = await selfSignupEvent(c.env, c.req.param("id"), c.get("actor").memberId);
+  const before = await ownSignup(c.env, e.id, self);
   await removeSignup(c.env, e.id, self);
-  await audit(c.env, e.id, actorId(c.get("actor")), "self_cancel", "取消自己的报名（连同带的朋友）");
+  if (before) await audit(c.env, e.id, actorId(c.get("actor")), "self_cancel", "取消自己的报名（连同带的朋友）");
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
@@ -277,13 +294,19 @@ adminEventRoutes.post("/events/:id/transfer", async (c) => {
   const before = await getEvent(c.env, id);
   await transferEvent(c.env, before.id, str((await readJson(c.req.raw)).to));
   const after = await getEvent(c.env, id);
-  const [from, to, payee] = await Promise.all([
-    eventManager(c.env.DB, before).then((m) => payeeName(c.env.DB, m)),
-    eventManager(c.env.DB, after).then((m) => payeeName(c.env.DB, m)),
-    eventPayee(c.env.DB, after).then((m) => payeeName(c.env.DB, m)),
+  // Compared as people (NULL is the Owner), so handing an event to whoever already runs it records nothing.
+  const [from, to, paidBefore, paidAfter] = await Promise.all([
+    eventManager(c.env.DB, before),
+    eventManager(c.env.DB, after),
+    eventPayee(c.env.DB, before),
+    eventPayee(c.env.DB, after),
   ]);
-  const money_ = before.payee_id === after.payee_id ? `，收款人仍是 ${payee}` : "，收款人一起换";
-  await audit(c.env, id, actorId(c.get("actor")), "transfer", `把活动从 ${from} 转交给 ${to}${money_}`);
+  if (from !== to)
+    await audit(c.env, id, actorId(c.get("actor")), "transfer", async () => {
+      const payee =
+        paidBefore === paidAfter ? `，收款人仍是 ${await payeeName(c.env.DB, paidAfter)}` : "，收款人一起换";
+      return `把活动从 ${await payeeName(c.env.DB, from)} 转交给 ${await payeeName(c.env.DB, to)}${payee}`;
+    });
   return c.json(await detail(c.env, after, c.get("actor").memberId));
 });
 
@@ -657,7 +680,7 @@ adminEventRoutes.post("/events/:id/attendance", async (c) => {
       e.id,
       actorId(c.get("actor")),
       "attendance",
-      `把 ${await rosterLabel(c.env, rid)} 标为${attended ? "到场" : "未出席"}`,
+      async () => `把 ${await rosterLabel(c.env, rid)} 标为${attended ? "到场" : "未出席"}`,
     );
   await recomputeIfFinalized(c.env, e);
   return c.json(await detail(c.env, e, c.get("actor").memberId));
@@ -728,7 +751,8 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
     `场地 ${money(i.courtTotalCents)}，用球 ${i.shuttleCount} 个 × ${money(i.shuttlePriceCents)}`;
   if (e.status !== "finalized")
     await audit(c.env, e.id, actorId(c.get("actor")), "finalize", `Finalize 发出账单：${fees(input)}`);
-  else
+  // Saved again with the same fees: nothing changed.
+  else if (!was || fees(was) !== fees(input))
     await audit(
       c.env,
       e.id,
@@ -761,13 +785,13 @@ adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
   const id = Number(c.req.param("pid"));
   const { p, e } = await paymentEvent(c.env, id);
   if (!(await markPaid(c.env, id))) throw badRequest("这笔已经付清了");
-  const bill = await billInfo(c.env, id);
   await audit(
     c.env,
     e.id,
     actorId(c.get("actor")),
     "mark_paid",
-    `把 ${bill?.who} 的账单标记为已付（记一笔 ${money(Math.max(0, p.amount_due_cents - p.amount_paid_cents))}）`,
+    async () =>
+      `把 ${await billOwner(c.env, p.member_id)} 的账单标记为已付（记一笔 ${money(Math.max(0, p.amount_due_cents - p.amount_paid_cents))}）`,
   );
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });
@@ -851,13 +875,14 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
       r.method === "venmo" || r.venmo_txn_id
         ? `Venmo 付款${r.payer_name ? `（${r.payer_name}）` : ""}`
         : "手动记的付款";
-    const where = back.length ? "，钱移回待确认" : "";
+    // Only when its 待确认 row really reopened (or was made); another receipt may still count it.
+    const where = res.slice(0, back.length).some((x) => x.meta.changes) ? "，钱移回待确认" : "";
     await audit(
       c.env,
       e.id,
       actorId(c.get("actor")),
       "receipt_remove",
-      `撤销 ${(await billInfo(c.env, p.id))?.who} 账单上的一笔${how} ${money(r.amount_cents)}${where}`,
+      async () => `撤销 ${await billOwner(c.env, p.member_id)} 账单上的一笔${how} ${money(r.amount_cents)}${where}`,
     );
   }
   return c.json({ ok: true });
@@ -870,24 +895,23 @@ adminEventRoutes.post("/payments/:pid/refunded", async (c) => {
   const [res] = await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
-       SELECT id, amount_due_cents - amount_paid_cents, 'refund', ? FROM payments WHERE id = ? AND amount_paid_cents > amount_due_cents`,
+       SELECT id, amount_due_cents - amount_paid_cents, 'refund', ? FROM payments WHERE id = ? AND amount_paid_cents > amount_due_cents
+       RETURNING amount_cents`,
     ).bind(now(), id),
     ...syncPayments(c.env.DB, "id = ?", id),
   ]);
   if ((res?.meta.changes ?? 0) === 0) throw badRequest("这笔没有需要退的钱");
-  const refund = await c.env.DB.prepare(
-    "SELECT amount_cents FROM payment_receipts WHERE payment_id = ? AND method = 'refund' ORDER BY id DESC LIMIT 1",
-  )
+  const refunded = -((res?.results[0] as { amount_cents: number } | undefined)?.amount_cents ?? 0);
+  const p = await c.env.DB.prepare("SELECT event_id, member_id FROM payments WHERE id = ?")
     .bind(id)
-    .first<{ amount_cents: number }>();
-  const bill = await billInfo(c.env, id);
-  if (bill)
+    .first<{ event_id: number; member_id: string }>();
+  if (p)
     await audit(
       c.env,
-      bill.eventId,
+      p.event_id,
       actorId(c.get("actor")),
       "refund",
-      `${bill.who} 多付的 ${money(Math.abs(refund?.amount_cents ?? 0))} 已退款`,
+      async () => `${await billOwner(c.env, p.member_id)} 多付的 ${money(refunded)} 已退款`,
     );
   return c.json({ ok: true });
 });
@@ -977,14 +1001,18 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
     inboundId: i.id,
   });
   // Money paid into someone else's account than the event's payee: the two settle it between them.
-  const into = await inboundPayee(c.env.DB, i);
-  const elsewhere = into !== bill.payee ? `；钱在 ${await payeeName(c.env.DB, into)} 的账户` : "";
+  const amount = i.amount_cents;
+  const elsewhere = async () => {
+    const into = await inboundPayee(c.env.DB, i);
+    return into !== bill.payee ? `；钱在 ${await payeeName(c.env.DB, into)} 的账户` : "";
+  };
   await audit(
     c.env,
     bill.event_id,
     actorId(c.get("actor")),
     "inbound_link",
-    `把待确认的 Venmo 收款（${i.payer_name ?? "付款人不明"} ${money(i.amount_cents)}）关联到 ${(await billInfo(c.env, paymentId))?.who} 的账单${elsewhere}`,
+    async () =>
+      `把待确认的 Venmo 收款（${i.payer_name ?? "付款人不明"} ${money(amount)}）关联到 ${await billOwner(c.env, bill.member_id)} 的账单${await elsewhere()}`,
   );
   const settled = await checkCollected(c.env, bill.event_id);
   return c.json({ ok: true, settled });
@@ -999,18 +1027,16 @@ adminEventRoutes.post("/inbound/:iid/ignore", async (c) => {
   if (!res.meta.changes) throw badRequest("这笔收款已经处理过了");
   // Recorded on the event its note names, when there is one (a payment with no code has no event).
   const code = i.note ? parsePaymentCode(i.note) : null;
-  const e = code
-    ? await c.env.DB.prepare("SELECT id FROM events WHERE number = ?").bind(code.number).first<{ id: number }>()
-    : null;
+  const e = code ? (await codeTarget(c.env, code)).e : null;
   if (e) {
-    const into = await payeeName(c.env.DB, await inboundPayee(c.env.DB, i));
     const amount = i.amount_cents === null ? "" : ` ${money(i.amount_cents)}`;
     await audit(
       c.env,
       e.id,
       actorId(c.get("actor")),
       "inbound_ignore",
-      `忽略付到 ${into} 账户的 Venmo 收款（${i.payer_name ?? "付款人不明"}${amount}）`,
+      async () =>
+        `忽略付到 ${await payeeName(c.env.DB, await inboundPayee(c.env.DB, i))} 账户的 Venmo 收款（${i.payer_name ?? "付款人不明"}${amount}）`,
     );
   }
   return c.json({ ok: true });

@@ -1,7 +1,7 @@
 import { formatDateZh } from "../shared/time";
 import type { InboundRow, OpenPayment } from "../shared/types";
 import { addReceipt, checkCollected, receiptsFor, refundOf } from "./billing";
-import { SYSTEM, audit, billInfo, money } from "./audit";
+import { SYSTEM, audit, billOwner, money } from "./audit";
 import { getSettings, now, setSetting } from "./db";
 import { type KeyResolver, verifyDkim } from "./email/dkim";
 import { parseEmail, type VenmoReceipt } from "./email/parse";
@@ -10,7 +10,7 @@ import type { EventRow } from "./events";
 import { message, notifyPayment } from "./notify";
 import { eventPayee, memberRole, ownerId } from "./organizers";
 import { sendToMember, sendToOwner } from "./telegram";
-import { codeName, noteName, parsePaymentCode } from "./paymentCode";
+import { type ParsedCode, codeName, noteName, parsePaymentCode } from "./paymentCode";
 import { payeeExpired, payeeName, payeeSql } from "./payees";
 import type { RefundRow } from "../shared/types";
 
@@ -246,19 +246,12 @@ export async function receiveEmail(
   return { outcome: await matchReceipt(env, r, mail.messageId, account, unverified), organizer: account.id };
 }
 
-/** One verified-enough receipt into a known account: onto a bill, into 待确认, or ignored. */
-async function matchReceipt(
-  env: Env,
-  r: VenmoReceipt,
-  emailId: string,
-  account: Account,
-  unverified: boolean,
-): Promise<EmailOutcome> {
-  const code = parsePaymentCode(r.note);
-  if (!code?.name || !(await isGroupName(env, code.name))) return "ignored";
-  // First the bill whose printed code has this event number and member (bills made before event
-  // numbers existed may carry another date than their event's number); then the event by its
-  // fixed number, which a date edit never changes.
+/**
+ * The bill and event a payment code names: first the bill whose printed code has this event number
+ * and member (bills made before event numbers existed may carry another date than their event's
+ * number); then the event by its fixed number, which a date edit never changes.
+ */
+export async function codeTarget(env: Env, code: ParsedCode) {
   const billed = await env.DB.prepare(
     `SELECT p.id, p.payment_code, p.event_id FROM payments p JOIN events e ON e.id = p.event_id
      WHERE p.member_id = ?1 AND instr(lower(p.payment_code), ?2) > 0
@@ -269,6 +262,20 @@ async function matchReceipt(
   const e = billed
     ? await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(billed.event_id).first<EventRow>()
     : await env.DB.prepare("SELECT * FROM events WHERE number = ?").bind(code.number).first<EventRow>();
+  return { billed, e };
+}
+
+/** One verified-enough receipt into a known account: onto a bill, into 待确认, or ignored. */
+async function matchReceipt(
+  env: Env,
+  r: VenmoReceipt,
+  emailId: string,
+  account: Account,
+  unverified: boolean,
+): Promise<EmailOutcome> {
+  const code = parsePaymentCode(r.note);
+  if (!code?.name || !(await isGroupName(env, code.name))) return "ignored";
+  const { billed, e } = await codeTarget(env, code);
   // A payment for an event the Owner deleted is still a group member's money: 待确认, not ignored.
   const deleted =
     !e && (await env.DB.prepare("SELECT 1 FROM deleted_events WHERE number = ?").bind(code.number).first());
@@ -324,7 +331,8 @@ async function matchReceipt(
     e.id,
     SYSTEM,
     "auto_match",
-    `Venmo 自动对账：${r.payer ?? "付款人不明"} 付 ${money(r.amountCents)}，记到 ${(await billInfo(env, p.id))?.who} 的账单`,
+    async () =>
+      `Venmo 自动对账：${r.payer ?? "付款人不明"} 付 ${money(r.amountCents)}，记到 ${await billOwner(env, code.memberId)} 的账单`,
   );
   const after = (await env.DB.prepare("SELECT status, amount_due_cents, amount_paid_cents FROM payments WHERE id = ?")
     .bind(p.id)

@@ -38,7 +38,7 @@ const log = async (eventId: number) =>
       .all<Row>()
   ).results;
 /** The entries added by `fn`, so each step asserts exactly what it recorded. */
-async function added(eventId: number, fn: () => Promise<unknown>): Promise<Row[]> {
+async function added(eventId: number, fn: () => unknown): Promise<Row[]> {
   const before = (await log(eventId)).length;
   await fn();
   return (await log(eventId)).slice(before);
@@ -68,11 +68,14 @@ describe("what the Owner does", () => {
       { actor_id: owner, action: "roster_rename", detail: "把 Tom（Alice 带的朋友） 改名为 Tommy（Alice 带的朋友）" },
     ]);
     expect(await added(e.id, () => ctx.admin.call(`${eb}/self-signup`, { friends: ["Ann"] }))).toEqual([
-      { actor_id: owner, action: "self_signup", detail: "自己报名，带 1 个朋友" },
+      { actor_id: owner, action: "self_signup", detail: "自己报名，带 1 个朋友：Ann" },
     ]);
+    // Saved again unchanged: nothing.
+    expect(await added(e.id, () => ctx.admin.call(`${eb}/self-signup`, { friends: ["Ann"] }))).toEqual([]);
     expect((await added(e.id, () => ctx.admin.call(`${eb}/self-cancel`, {}))).map((r) => r.action)).toEqual([
       "self_cancel",
     ]);
+    expect(await added(e.id, () => ctx.admin.call(`${eb}/self-cancel`, {}))).toEqual([]);
     expect((await added(e.id, () => ctx.admin.call(`${eb}/close-now`, {}))).map((r) => r.action)).toEqual([
       "close_now",
     ]);
@@ -145,6 +148,7 @@ describe("what the Owner does", () => {
         detail: "修改费用：场地 $120.00，用球 6 个 × $3.00（原来：场地 $100.00，用球 6 个 × $3.00）",
       },
     ]);
+    expect(await added(id, () => s.admin.call(`${s.eb}/finalize`, { ...s.fees, courtTotal: "120" }))).toEqual([]);
     const bills = async () =>
       Object.fromEntries(
         (await s.admin.call(`${s.eb}/settlement`)).data.payments.map((p: { memberName: string }) => [p.memberName, p]),
@@ -277,19 +281,36 @@ describe("organizers and the log", () => {
   });
 
   it("records 转交 and the hand-back when an organizer is revoked", async () => {
-    const { ctx, owner, alice, theirs, mine } = await scenario();
+    const { ctx, owner, alice, bob, org, theirs, mine } = await scenario();
     const res = await request(`${ctx.base}/events/${theirs}/transfer`, ctx.admin.cookie, { to: alice.id });
     expect(res.status).toBe(200);
     expect((await log(theirs)).filter((r) => r.action === "transfer")).toEqual([
       { actor_id: owner, action: "transfer", detail: "把活动从 群主 转交给 Alice，收款人一起换" },
     ]);
 
+    // Again to the same person: nothing changes, nothing recorded.
+    expect(
+      await added(theirs, () => request(`${ctx.base}/events/${theirs}/transfer`, ctx.admin.cookie, { to: alice.id })),
+    ).toEqual([]);
+
+    // Her own event has bills out, so its money stays in her account after she is revoked.
+    await request(`${GOOGLE}/events/${mine}/roster/add`, org, { memberId: bob.id, includeSelf: true });
+    await expire(mine);
+    const fin = { courtTotal: "40", shuttleCount: 2, shuttlePrice: "3" };
+    expect((await request(`${GOOGLE}/events/${mine}/finalize`, org, fin)).status).toBe(200);
+
     // Revoked by the Owner: both of her events go back, each recorded under the Owner.
     await revokeOrganizer(on, await requireMember(on, alice.id), "owner");
-    for (const id of [theirs, mine])
-      expect((await log(id)).filter((r) => r.action === "reassign")).toEqual([
-        { actor_id: owner, action: "reassign", detail: "撤销 Alice 的组织者身份，活动交回群主" },
-      ]);
+    expect((await log(theirs)).filter((r) => r.action === "reassign")).toEqual([
+      { actor_id: owner, action: "reassign", detail: "撤销 Alice 的组织者身份，活动交回群主" },
+    ]);
+    expect((await log(mine)).filter((r) => r.action === "reassign")).toEqual([
+      {
+        actor_id: owner,
+        action: "reassign",
+        detail: "撤销 Alice 的组织者身份，活动交回群主（账单已发出，钱仍付到 Alice 的账户）",
+      },
+    ]);
     // An event created a moment after being revoked goes to the Owner, recorded as the system's.
     const late = await createTestEvent(ctx);
     await env.DB.prepare("UPDATE events SET manager_id = ?, payee_id = ? WHERE id = ?")
