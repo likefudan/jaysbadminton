@@ -169,6 +169,8 @@ export async function revokeOrganizer(
   m: MemberRow,
   by: RevokeBy,
   with_: D1PreparedStatement[] = [],
+  /** Receives the results of `with_`, once the transaction has run. */
+  withResults: (r: D1Result[]) => void = () => {},
 ): Promise<{ emailStatus: NoticeEmail } | null> {
   if (m.role !== "organizer") throw badRequest(`${m.username} 不是组织者`);
   const owner = await ownerId(env.DB);
@@ -198,6 +200,7 @@ export async function revokeOrganizer(
     env.DB.prepare(`DELETE FROM telegram_bindings WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
     ...with_,
   ]);
+  withResults(done.slice(done.length - with_.length));
   // Someone else revoked them in between: that request did all of this and told them. `with_`
   // (停用) has still happened, so that is not an error; null says there was nothing to revoke.
   if (!done[0]!.meta.changes) {

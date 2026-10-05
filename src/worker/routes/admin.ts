@@ -16,7 +16,7 @@ import {
 import { checkPassword, endSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
 import { closeExpired } from "../events";
-import { actorId, record } from "../audit";
+import { actorId, audit } from "../audit";
 import type { Env } from "../env";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { adminEventRoutes } from "./adminEvents";
@@ -183,21 +183,17 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   if (m.is_owner) throw badRequest("不能停用群主本人");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
   await closeExpired(c.env); // an event past its deadline keeps its sign-ups
-  // The open events they are on, for 操作记录 once they have been taken off.
-  const { results: signedUp } = await c.env.DB.prepare(
-    `SELECT DISTINCT event_id FROM registrations
-     WHERE member_id = ? AND event_id IN (SELECT id FROM events WHERE status = 'open')`,
-  )
-    .bind(m.id)
-    .all<{ event_id: number }>();
-  const recordLeft = async () => {
-    for (const { event_id } of signedUp)
-      await record(c.env, actorId(c.get("actor")), "deactivate", async () => {
-        const still = await c.env.DB.prepare("SELECT 1 FROM registrations WHERE event_id = ? AND member_id = ?")
-          .bind(event_id, m.id)
-          .first();
-        return still ? null : { eventId: event_id, detail: `停用 ${m.username}，${m.username} 和带的朋友一起移出名单` };
-      });
+  // 操作记录 on each open event this request took them off (RETURNING, so a second click records nothing).
+  const recordLeft = async (removed: D1Result | undefined) => {
+    const events = new Set((removed?.results ?? []).map((r) => (r as { event_id: number }).event_id));
+    for (const id of events)
+      await audit(
+        c.env,
+        id,
+        actorId(c.get("actor")),
+        "deactivate",
+        `停用 ${m.username}，${m.username} 和带的朋友一起移出名单`,
+      );
   };
   const deactivate = (onlyIfNotOrganizer: boolean) => [
     // The link keeps working so they can still pay what they owe; sign-up is refused.
@@ -207,21 +203,25 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
     // Requirements: deactivating cancels sign-ups for events still open; closed events keep theirs.
     c.env.DB.prepare(
       `DELETE FROM registrations WHERE member_id = ?1 AND event_id IN (SELECT id FROM events WHERE status = 'open')
-         AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND status = 'inactive')`,
+         AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND status = 'inactive')
+       RETURNING event_id`,
     ).bind(m.id),
   ];
   // An organizer stops being one in the same transaction (design §8), whatever the flag says:
   // their events go back to the Owner and they are told what still pays into their account.
   const revoke = async (who: MemberRow) => {
-    const revoked = await revokeOrganizer(c.env, who, "deactivate", deactivate(false));
-    await recordLeft();
+    let removed: D1Result | undefined;
+    const revoked = await revokeOrganizer(c.env, who, "deactivate", deactivate(false), (r) => {
+      removed = r[1];
+    });
+    await recordLeft(removed);
     return c.json({ ok: true, revoked });
   };
   if (m.role === "organizer") return revoke(m);
   // Not an organizer when read, and still not one when written (an appointment may land in between).
-  const [plain] = await c.env.DB.batch(deactivate(true));
+  const [plain, removed] = await c.env.DB.batch(deactivate(true));
   if (plain!.meta.changes) {
-    await recordLeft();
+    await recordLeft(removed);
     return c.json({ ok: true, revoked: null });
   }
   const fresh = await requireMember(c.env, m.id);

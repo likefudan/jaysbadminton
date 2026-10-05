@@ -355,6 +355,16 @@ describe("organizers and the log", () => {
     expect((await log(late.id)).at(-1)).toMatchObject({ actor_id: "system", action: "reassign" });
   });
 
+  it("records 停用 of an organizer on the open events they leave, once", async () => {
+    const { ctx, owner, alice, theirs } = await scenario();
+    await new Client().call(`${alice.base}/events/${theirs}/signup`, { friends: [] });
+    const call = () => request(`${ctx.base}/members/${alice.id}/deactivate`, ctx.admin.cookie, {});
+    expect(await added(theirs, async () => expect((await call()).status).toBe(200))).toEqual([
+      { actor_id: owner, action: "deactivate", detail: "停用 Alice，Alice 和带的朋友一起移出名单" },
+    ]);
+    expect(await added(theirs, call)).toEqual([]);
+  });
+
   it("names the account the money is in when the Owner links a payment made to the wrong payee", async () => {
     const s = await billingScenario();
     await s.admin.call(`${s.eb}/finalize`, s.fees);

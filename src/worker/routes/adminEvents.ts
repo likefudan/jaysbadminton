@@ -890,7 +890,9 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
     const how =
       r.method === "venmo" || r.venmo_txn_id
         ? `Venmo 付款${r.payer_name ? `（${r.payer_name}）` : ""}`
-        : "手动记的付款";
+        : r.method === "refund"
+          ? "退款记录"
+          : "手动记的付款";
     // Only when its 待确认 row really reopened (or was made); another receipt may still count it.
     const where = res.slice(0, back.length).some((x) => x.meta.changes) ? "，钱移回待确认" : "";
     await audit(
@@ -898,7 +900,8 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
       e.id,
       actorId(c.get("actor")),
       "receipt_remove",
-      async () => `撤销 ${await billOwner(c.env, p.member_id)} 账单上的一笔${how} ${money(r.amount_cents)}${where}`,
+      async () =>
+        `撤销 ${await billOwner(c.env, p.member_id)} 账单上的一笔${how} ${money(Math.abs(r.amount_cents))}${where}`,
     );
   }
   return c.json({ ok: true });
