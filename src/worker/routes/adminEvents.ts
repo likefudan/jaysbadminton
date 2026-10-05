@@ -1028,18 +1028,13 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
     .bind(linkCutoff(), paymentId, i.id)
     .run();
   if (!claimed.meta.changes) throw badRequest("这笔收款已经处理过了");
-  await addReceipt(c.env, paymentId, {
+  const added = await addReceipt(c.env, paymentId, {
     amountCents: i.amount_cents,
     method: "venmo",
     txnId: i.venmo_txn_id,
     payerName: i.payer_name,
     note: i.note,
     inboundId: i.id,
-  });
-  await sendPaymentReceipt(c.env, paymentId, {
-    amountCents: i.amount_cents,
-    ref: i.venmo_txn_id ?? `inbound-${i.id}`,
-    receiver: i.payee_id,
   });
   // Money paid into someone else's account than the event's payee: the two settle it between them.
   const amount = i.amount_cents;
@@ -1056,6 +1051,14 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
       `把待确认的 Venmo 收款（${i.payer_name ?? "付款人不明"} ${money(amount)}）关联到 ${await billOwner(c.env, bill.member_id)} 的账单${await elsewhere()}`,
   );
   const settled = await checkCollected(c.env, bill.event_id);
+  // Last, as it is the one step that waits on an outside service; never for money already on a bill.
+  if (added)
+    await sendPaymentReceipt(c.env, paymentId, {
+      amountCents: amount,
+      payer: i.payer_name,
+      ref: i.venmo_txn_id ?? `inbound-${i.id}`,
+      receiver: i.payee_id,
+    });
   return c.json({ ok: true, settled });
 });
 

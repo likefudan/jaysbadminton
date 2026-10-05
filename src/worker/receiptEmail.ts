@@ -15,11 +15,11 @@ import { ownerId } from "./organizers";
 export async function sendPaymentReceipt(
   env: Env,
   paymentId: number,
-  receipt: { amountCents: number; ref: string; receiver: string | null },
+  receipt: { amountCents: number; payer: string | null; ref: string; receiver: string | null },
 ): Promise<SendResult | "not_needed"> {
   try {
     const p = await env.DB.prepare(
-      `SELECT p.amount_due_cents, p.amount_paid_cents, p.refunded_cents, e.date, e.title,
+      `SELECT p.amount_due_cents, p.amount_paid_cents, e.date, e.title,
          m.username, m.email, m.google_sub, m.google_email, m.deleted_at
        FROM payments p JOIN events e ON e.id = p.event_id JOIN members m ON m.id = p.member_id WHERE p.id = ?`,
     )
@@ -27,7 +27,6 @@ export async function sendPaymentReceipt(
       .first<{
         amount_due_cents: number;
         amount_paid_cents: number;
-        refunded_cents: number;
         date: string;
         title: string;
         username: string;
@@ -46,19 +45,20 @@ export async function sendPaymentReceipt(
     const who = receiver?.username ?? "群主";
     const event = `${formatDateZh(p.date)}${p.title ? ` ${p.title}` : ""}`;
     const due = p.amount_due_cents;
-    const paid = p.amount_paid_cents - p.refunded_cents;
+    // Net of refunds already sent back, as syncPayments keeps it.
+    const paid = p.amount_paid_cents;
     const standing =
       paid < due
-        ? `这场活动你应付 ${money(due)}，目前共收到 ${money(paid)}，还差 ${money(due - paid)}。请用账单上的付款编号把差额付给 ${who}。`
+        ? `这场活动你应付 ${money(due)}，目前共收到 ${money(paid)}，还差 ${money(due - paid)}，请按账单上的付款方式补齐。`
         : paid > due
           ? `这场活动你应付 ${money(due)}，目前共收到 ${money(paid)}，多付了 ${money(paid - due)}，${who} 会把多付的钱退给你。`
           : `这场活动你应付 ${money(due)}，已全部付清，谢谢！`;
     const text = [
       `${p.username}，你好！`,
-      `活动组织人 ${who} 已收到你的 Venmo 付款 ${money(receipt.amountCents)}（${event}）。`,
+      `活动组织人 ${who} 已收到你的 Venmo 付款 ${money(receipt.amountCents)}（${event}${receipt.payer ? `，Venmo 付款人：${receipt.payer}` : ""}）。`,
       standing,
       "",
-      `查看账单：${site(env, "/")}`,
+      `查看账单：打开你的专属链接，或用 Google 账号登录 ${site(env, "/login")}`,
       "",
       "这封邮件由系统自动发送，请不要直接回复。",
     ].join("\n");

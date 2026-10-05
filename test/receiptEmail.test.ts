@@ -62,6 +62,7 @@ describe("payment receipt email", () => {
     expect(emails[0].to).toEqual([await s.email(s.bob.id)]);
     expect(emails[0].subject).toBe("已收到你的 Venmo 付款 $10.00");
     expect(emails[0].text).toContain(`活动组织人 ${owner} 已收到你的 Venmo 付款 $10.00`);
+    expect(emails[0].text).toContain("Venmo 付款人：Bob B");
     expect(emails[0].text).toContain(`还差 $${dollars(due - 1000)}`);
     expect(emails[0].key).toBe(`payment-receipt/${bob.id}/R1`);
 

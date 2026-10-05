@@ -338,21 +338,29 @@ async function matchReceipt(
     async () =>
       `Venmo 自动对账：${r.payer ?? "付款人不明"} 付 ${money(r.amountCents)}，记到 ${await billOwner(env, code.memberId)} 的账单`,
   );
-  await sendPaymentReceipt(env, p.id, { amountCents: r.amountCents, ref: r.txnId, receiver: account.id });
   const after = (await env.DB.prepare("SELECT status, amount_due_cents, amount_paid_cents FROM payments WHERE id = ?")
     .bind(p.id)
     .first<{ status: string; amount_due_cents: number; amount_paid_cents: number }>())!;
   const info = { payer: r.payer, amountCents: r.amountCents, note: r.note, paymentId: p.id };
+  let outcome: EmailOutcome = "paid";
   if (after.status === "partial") {
     await notifyPayment(env, "partial", info);
-    return "partial";
+    outcome = "partial";
+  } else {
+    if (e.status === "finalized") await checkCollected(env, e.id);
+    if (after.amount_paid_cents > after.amount_due_cents) {
+      await notifyPayment(env, "overpaid", info);
+      outcome = "overpaid";
+    }
   }
-  if (e.status === "finalized") await checkCollected(env, e.id);
-  if (after.amount_paid_cents > after.amount_due_cents) {
-    await notifyPayment(env, "overpaid", info);
-    return "overpaid";
-  }
-  return "paid";
+  // Last, as it is the one step that waits on an outside service.
+  await sendPaymentReceipt(env, p.id, {
+    amountCents: r.amountCents,
+    payer: r.payer,
+    ref: r.txnId,
+    receiver: account.id,
+  });
+  return outcome;
 }
 
 /** True when the note's name is someone's in the group, now or as printed on an earlier bill. */
