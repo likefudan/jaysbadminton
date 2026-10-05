@@ -244,7 +244,10 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
       {signedUp && !editing && !e.payment && (
         <p class="ok">✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}</p>
       )}
-      {friendsOnly && !editing && (
+      {friendsOnly && !editing && e.runByMe && (
+        <p class="muted">你本人没有报名；名单上有挂在你名下的 {e.myFriends!.length} 个朋友，费用算在你的账单上。</p>
+      )}
+      {friendsOnly && !editing && !e.runByMe && (
         <p class="muted">
           你本人没有报名；{adder}在你名下加了 {e.myFriends!.length} 个朋友，费用算在你的账单上。
         </p>

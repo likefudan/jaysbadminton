@@ -114,17 +114,18 @@ adminEventRoutes.get("/events", async (c) => {
       }),
     );
   };
-  const [cur, old] = await Promise.all([withManager(current.results), withManager(shown)]);
   // For the Owner's 负责人 filter: everyone who has run an event, organizers since revoked too.
-  const managers = group
-    ? await Promise.all(
-        (
-          await c.env.DB.prepare("SELECT DISTINCT manager_id AS id FROM events WHERE manager_id IS NOT NULL").all<{
-            id: string;
-          }>()
-        ).results.map(async (m) => ({ id: m.id, name: await payeeName(c.env.DB, m.id) })),
-      )
-    : [];
+  const everyone = async () => {
+    const { results } = await c.env.DB.prepare(
+      "SELECT DISTINCT manager_id AS id FROM events WHERE manager_id IS NOT NULL",
+    ).all<{ id: string }>();
+    return Promise.all(results.map(async (m) => ({ id: m.id, name: await payeeName(c.env.DB, m.id) })));
+  };
+  const [cur, old, managers] = await Promise.all([
+    withManager(current.results),
+    withManager(shown),
+    group ? everyone() : [],
+  ]);
   return c.json({ current: cur, past: old, morePast: past.results.length > limit, managers });
 });
 

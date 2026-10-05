@@ -207,6 +207,7 @@ memberRoutes.get("/:token/events", async (c) => {
       canEdit: m.status === "active" && (e.status === "open" || (runs && e.status === "closed")),
       friendCap: runs ? MANAGER_FRIEND_MAX : generalCap,
       organizer: await organizerOf(row),
+      runByMe: runs && named,
       payment,
       roster: names,
     });

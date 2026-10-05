@@ -42,8 +42,11 @@ export function EventsTab(props: {
   // Past managers (organizers since revoked) can be picked too: the list names everyone who ran one.
   const current = new Set([owner?.id, ...(props.organizers?.list ?? []).map((o) => o.id)]);
   const formerManagers = list.state === "ok" ? (list.data.managers ?? []).filter((m) => !current.has(m.id)) : [];
-  // Until the new filter's list arrives, show it loading rather than the previous person's events.
-  const shown: typeof list = list.state === "ok" && list.path !== path ? { state: "loading" } : list;
+  // Until the new filter's list arrives, show it loading rather than the previous person's events
+  // (显示更早的活动 only changes past=, and keeps the list on screen meanwhile).
+  const filterOf = (p: string | undefined) => new URLSearchParams(p?.split("?")[1] ?? "").get("manager") ?? "";
+  const shown: typeof list =
+    list.state !== "loading" && filterOf(list.path) !== filterOf(path) ? { state: "loading" } : list;
 
   if (mode === "create") {
     return (
