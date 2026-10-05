@@ -357,8 +357,8 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
   // transaction); auto-matched ones have none and always went to the event's payee.
   const { results } = await env.DB.prepare(
     `SELECT r.*, ${payeeSql("e")} AS event_payee,
-       (SELECT ${payeeSql("i")} FROM inbound_payments i
-        WHERE i.id = r.inbound_id OR (r.venmo_txn_id IS NOT NULL AND i.venmo_txn_id = r.venmo_txn_id) LIMIT 1) AS money_in
+       COALESCE((SELECT ${payeeSql("i")} FROM inbound_payments i WHERE i.id = r.inbound_id),
+                (SELECT ${payeeSql("i")} FROM inbound_payments i WHERE i.venmo_txn_id = r.venmo_txn_id)) AS money_in
      FROM payment_receipts r JOIN payments p ON p.id = r.payment_id JOIN events e ON e.id = p.event_id
      WHERE r.payment_id IN (${paymentIds.map(() => "?").join(",")}) ORDER BY r.received_at, r.id`,
   )

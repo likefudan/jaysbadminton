@@ -253,7 +253,7 @@
 
 **发布影响：** 开关关着时只有群主的账户，行为不变。
 
-实际实现（卡 8 已完成）：`inbound.ts` 的 `receivingAccount` 按「Sent to」+ To 依次查群主的 `settings`、`payment_profiles`（含历史收款人）、60 天内的 `payment_aliases`；`receiveEmail` 在 `handleEmail` 之外还返回是哪位组织者的账户，这样组织者账户的邮件只记进 `email_log`，不改群主的「转发状态」。历史收款人是否失效由 `payees.ts` 的 `payeeExpired` 判断（已撤销，并且没有他收款的未归档活动），失效后带编号的进待确认（原因「这个账户已经不再收本群的款」），其他按 `ignored` 静默丢弃。失效提醒邮件是 `appointments.ts` 的 `remindIfExpired`，在收齐归档、取消、永久删除时检查，`notification_log` 按「人 + 撤销时间」去重，所以再任命又撤销后还能再提醒一次；邮件服务没配置时不记为已发。待确认通知用 `telegram.ts` 新加的 `sendToPayee`（和 `sendToManager` 共用退回群主的逻辑），「转发可能中断」在 `health.ts` 里按账户逐个检查。Gmail 确认邮件里出现群主的 Venmo 通知邮箱时总是发群主，防止有人借用。收款页上群主看到的「进了 某某 的账户」只标组织者的账户（群主自己的不标，开关关着时页面和以前一样）；「钱在 某某 的账户」标在账单的那条付款记录上。
+实际实现（卡 8 已完成）：`inbound.ts` 的 `receivingAccount` 按「Sent to」+ To 依次查群主的 `settings`、`payment_profiles`（含历史收款人）、60 天内的 `payment_aliases`；`receiveEmail` 在 `handleEmail` 之外还返回是哪位组织者的账户，这样组织者账户的邮件只记进 `email_log`，不改群主的「转发状态」。历史收款人是否失效由 `payees.ts` 的 `payeeExpired` 判断（已撤销，并且没有他收款的未归档活动），失效后带编号的进待确认（原因「这个账户已经不再收本群的款」），其他按 `ignored` 静默丢弃。失效提醒邮件是 `appointments.ts` 的 `remindIfExpired`，在收齐归档、取消时检查（永久删除只能删已归档或已取消的活动，不会改变是否失效，所以不查，免得给撤销时已经提醒过的人再发一封），`notification_log` 按「人 + 撤销时间」去重，所以再任命又撤销后还能再提醒一次；邮件服务没配置时不记为已发。待确认通知用 `telegram.ts` 新加的 `sendToPayee`（和 `sendToManager` 共用退回群主的逻辑），「转发可能中断」在 `health.ts` 里按账户逐个检查；组织者换了 Venmo 账户后「转发已生效」清零，旧账户的邮件不算。对不上账户、但收件邮箱是某位组织者通知邮箱的邮件也算他的：不改群主的转发状态，「读不懂」「收款账号不一致」的提醒发给他（签名失败仍只发群主）。Gmail 确认邮件里出现群主的 Venmo 通知邮箱时总是发群主，防止有人借用。收款页上群主看到的「进了 某某 的账户」只标组织者的账户（群主自己的不标，开关关着时页面和以前一样）；「钱在 某某 的账户」标在账单的那条付款记录上。
 
 ---
 

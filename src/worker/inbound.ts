@@ -63,9 +63,17 @@ export const GMAIL_CONFIRM_HOURS = 24;
 /** The current organizer whose Venmo notification email the confirmation names, if any. */
 async function confirmationOrganizer(env: Env, text: string): Promise<string | null> {
   const mails = [...new Set((text.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) ?? []).map((m) => m.toLowerCase()))];
-  // The Owner's own account wins, so nobody can take their confirmation by naming it somewhere.
+  // Any of the Owner's own addresses wins, so nobody can take their confirmation by saving one of
+  // them as their Venmo notification email.
   const { venmo_email: ownerEmail } = await getSettings(env.DB, ["venmo_email"]);
-  if (mails.length === 0 || (ownerEmail && mails.includes(ownerEmail.toLowerCase()))) return null;
+  const owner = await env.DB.prepare("SELECT google_email, email FROM members WHERE is_owner = 1").first<{
+    google_email: string | null;
+    email: string | null;
+  }>();
+  const owners = [ownerEmail, owner?.google_email, owner?.email]
+    .filter((m): m is string => !!m)
+    .map((m) => m.toLowerCase());
+  if (mails.length === 0 || mails.some((m) => owners.includes(m))) return null;
   const { results } = await env.DB.prepare(
     `SELECT m.* FROM payment_profiles p JOIN members m ON m.id = p.member_id
      WHERE p.venmo_email IN (${mails.map(() => "?").join(",")})`,
@@ -111,10 +119,10 @@ interface Account {
   /** The Owner's member id (null before first-time setup), or an organizer's, current or former. */
   id: string | null;
   owner: boolean;
+  /** An organizer's old account (payment_aliases), not the one in their 收款设置 now. */
+  alias: boolean;
   /** How 待确认 names it: "@username（name）". */
-  label: string;
-  /** A 历史收款人 none of whose events still collect: nothing is matched to a bill any more. */
-  expired: boolean;
+  label: () => Promise<string>;
 }
 
 /**
@@ -130,23 +138,41 @@ async function receivingAccount(env: Env, sentTo: string, to: string[]): Promise
     "venmo_email",
   ]);
   if (owner && sentTo.toLowerCase() === owner.toLowerCase() && ownerEmail && mail === ownerEmail)
-    return { id: await ownerId(env.DB), owner: true, label: `@${sentTo}（群主）`, expired: false };
+    return { id: await ownerId(env.DB), owner: true, alias: false, label: async () => `@${sentTo}（群主）` };
   // The columns are COLLATE NOCASE, as the Owner's username is compared above.
   const found = await env.DB.prepare(
-    `SELECT member_id FROM payment_profiles WHERE venmo_username = ?1 AND venmo_email = ?2
+    `SELECT member_id, 0 AS alias FROM payment_profiles WHERE venmo_username = ?1 AND venmo_email = ?2
      UNION ALL
-     SELECT member_id FROM payment_aliases WHERE venmo_username = ?1 AND venmo_email = ?2 AND until > ?3
+     SELECT member_id, 1 FROM payment_aliases WHERE venmo_username = ?1 AND venmo_email = ?2 AND until > ?3
      LIMIT 1`,
   )
     .bind(sentTo, mail, now())
-    .first<{ member_id: string }>();
+    .first<{ member_id: string; alias: number }>();
   if (!found) return null;
   return {
     id: found.member_id,
     owner: false,
-    label: `@${sentTo}（${await payeeName(env.DB, found.member_id)}）`,
-    expired: await payeeExpired(env.DB, found.member_id),
+    alias: found.alias === 1,
+    label: async () => `@${sentTo}（${await payeeName(env.DB, found.member_id)}）`,
   };
+}
+
+/**
+ * The organizer an email that could not be matched to an account was most likely forwarded by:
+ * the one whose notification email (now, or within 60 days) it was addressed to. Such emails say
+ * nothing about the Owner's own forwarding, and their problems are the organizer's to fix.
+ */
+async function mailedTo(env: Env, to: string[]): Promise<string | null> {
+  if (to.length !== 1) return null;
+  const { venmo_email: ownerEmail = "" } = await getSettings(env.DB, ["venmo_email"]);
+  if (ownerEmail && to[0] === ownerEmail) return null;
+  const r = await env.DB.prepare(
+    `SELECT member_id FROM payment_profiles WHERE venmo_email = ?1
+     UNION ALL SELECT member_id FROM payment_aliases WHERE venmo_email = ?1 AND until > ?2 LIMIT 1`,
+  )
+    .bind(to[0], now())
+    .first<{ member_id: string }>();
+  return r?.member_id ?? null;
 }
 
 /**
@@ -178,25 +204,27 @@ export async function receiveEmail(
   if (mail.fromAddress === GMAIL_FORWARDING)
     return { outcome: await gmailConfirmation(env, raw, mail.subject, mail.text, opts), organizer: null };
   if (mail.fromAddress !== VENMO) return { outcome: "not_venmo", organizer: null };
+  const unknown = async (outcome: EmailOutcome) => ({ outcome, organizer: await mailedTo(env, mail.toAddresses) });
   if (!/ paid \$[\d,]+\.\d{2} to your Venmo account/.test(mail.subject.replace(/\s+/g, " ")))
-    return { outcome: "not_receipt", organizer: null };
+    return unknown("not_receipt");
   const dkim = await verifyDkim(raw, "venmo.com", opts.resolveKey);
   if (!dkim.ok && !dkim.retryable) {
     console.warn("venmo email rejected:", dkim.reason);
-    return { outcome: "bad_signature", organizer: null };
+    return unknown("bad_signature");
   }
   // DNS was down so the signature is unchecked: never act on it, at most ask the Owner.
   const unverified = !dkim.ok;
 
   const r = mail.receipt;
-  if (!r) return { outcome: "parse_failed", organizer: null };
+  if (!r) return unknown("parse_failed");
 
   const account = await receivingAccount(env, r.sentTo, mail.toAddresses);
-  if (!account) return { outcome: "wrong_recipient", organizer: null };
+  if (!account) return unknown("wrong_recipient");
   if (account.owner)
     return { outcome: await matchReceipt(env, r, mail.messageId, account, unverified), organizer: null };
-  // 转发已生效 on their 收款设置 page, and the 转发可能中断 check, read this; only signed emails count.
-  if (!unverified)
+  // 转发已生效 on their 收款设置 page, and the 转发可能中断 check, read this: only signed emails
+  // into the account they have now (an old one's forwarding says nothing about the new one's).
+  if (!unverified && !account.alias)
     await env.DB.prepare("UPDATE payment_profiles SET email_last_at = ? WHERE member_id = ?")
       .bind(now(), account.id)
       .run();
@@ -241,10 +269,11 @@ async function matchReceipt(
   const review = (reason: string) => record(env, r, emailId, reason, account.id);
   if (!e) return review("这次活动已从数据库永久删除");
   // A former organizer's account still forwards: group money that lands there is the Owner's to sort out.
-  if (account.expired) return review(`付到了 ${account.label}的账户，这个账户已经不再收本群的款`);
+  if (!account.owner && account.id && (await payeeExpired(env.DB, account.id)))
+    return review(`付到了 ${await account.label()}的账户，这个账户已经不再收本群的款`);
   const payee = await eventPayee(env.DB, e);
   if (payee !== account.id)
-    return review(`付到了 ${account.label}的账户，但这场的收款人是 ${await payeeName(env.DB, payee)}`);
+    return review(`付到了 ${await account.label()}的账户，但这场的收款人是 ${await payeeName(env.DB, payee)}`);
   const p =
     billed ??
     (await env.DB.prepare("SELECT id, payment_code FROM payments WHERE event_id = ? AND member_id = ?")

@@ -141,7 +141,7 @@ export default {
       const { outcome, organizer } = await receiveEmail(env, raw);
       console.log("email:", outcome);
       await recordEmailOutcome(env, outcome, organizer);
-      await emailProblemAlert(env, outcome);
+      await emailProblemAlert(env, outcome, new Date(), organizer);
     } catch (err) {
       console.error("email handler failed:", err);
     }

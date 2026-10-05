@@ -29,8 +29,38 @@ const PROBLEMS: Partial<Record<EmailOutcome, string>> = {
     "⚠️ 收到一封 Venmo 收款邮件，但收款账号或收件邮箱和「收款设置」里的不一致，已忽略。\n请检查设置里的 Venmo 用户名和 Venmo 通知邮箱是否填对。",
 };
 
-/** Right after an email is handled: a problem worth knowing about, at most once a day per kind. */
-export async function emailProblemAlert(env: Env, outcome: EmailOutcome, at: Date = new Date()): Promise<void> {
+/** The same, for an email addressed to an organizer's notification email (`emailProblemAlert`). */
+const ORGANIZER_PROBLEMS: Partial<Record<EmailOutcome, (name: string) => string>> = {
+  parse_failed: (name) =>
+    `⚠️ 收到一封转发到 ${name} 的 Venmo 收款邮件，但系统读不懂它的格式（可能是 Venmo 改版了），这笔付款没有自动记账。\n请在 Venmo App 里核对最近的收款，必要时在管理页手动标记已付，并告诉群主。`,
+  wrong_recipient: (name) =>
+    `⚠️ 收到一封转发到 ${name} 的 Venmo 收款邮件，但收款账号和 ${name} 的收款设置里的 Venmo 用户名不一致，已忽略。\n请检查管理页「设置 › 我的收款设置」里的 Venmo 用户名和通知邮箱是否填对。`,
+};
+
+/**
+ * Right after an email is handled: a problem worth knowing about, at most once a day per kind.
+ * One addressed to an organizer (`organizer`, from receiveEmail) is theirs to fix and goes to them
+ * (the Owner when they can't get it); a signature failure always goes to the Owner, as the To
+ * header of a forged email proves nothing.
+ */
+export async function emailProblemAlert(
+  env: Env,
+  outcome: EmailOutcome,
+  at: Date = new Date(),
+  organizer: string | null = null,
+): Promise<void> {
+  const theirs = organizer ? ORGANIZER_PROBLEMS[outcome] : undefined;
+  if (organizer && theirs) {
+    const m = await env.DB.prepare("SELECT username FROM members WHERE id = ?")
+      .bind(organizer)
+      .first<{ username: string }>();
+    const text = message(theirs(m?.username ?? organizer));
+    await once(env, SITE, `email_${outcome}:${organizer}`, toPacific(at).date, async () => {
+      const d = await sendToPayee(env, organizer, text);
+      return d.ok;
+    });
+    return;
+  }
   const text = PROBLEMS[outcome];
   if (!text) return;
   await once(env, SITE, `email_${outcome}`, toPacific(at).date, () => sendToOwner(env, message(text)));

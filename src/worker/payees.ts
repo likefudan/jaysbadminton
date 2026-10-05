@@ -130,9 +130,11 @@ export async function savePaymentProfile(env: Env, memberId: string, input: Paym
       .prepare(
         `INSERT INTO payment_profiles (member_id, venmo_username, venmo_email, zelle_account, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT (member_id) DO UPDATE SET venmo_username = ?2, venmo_email = ?3, zelle_account = ?4, updated_at = ?5`,
+         ON CONFLICT (member_id) DO UPDATE SET venmo_username = ?2, venmo_email = ?3, zelle_account = ?4, updated_at = ?5,
+           -- A new account's forwarding is not proven by the old one's emails.
+           email_last_at = CASE WHEN ?6 THEN NULL ELSE email_last_at END`,
       )
-      .bind(memberId, input.venmo || null, input.mail || null, input.zelle || null, ts),
+      .bind(memberId, input.venmo || null, input.mail || null, input.zelle || null, ts, accountChanged ? 1 : 0),
   );
   try {
     await db.batch(stmts);

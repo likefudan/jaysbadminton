@@ -276,7 +276,6 @@ adminEventRoutes.post("/events/:id/delete", async (c) => {
     throw new HttpError(401, "wrong_password", "群主密码不正确");
   if (!isDeletable(e)) throw badRequest("只能删除已收齐归档或已取消的活动");
   await deleteEvent(c.env, e);
-  await remindIfExpired(c.env, e.payee_id);
   await clearDeadline(c.env, e.id);
   const label = `${e.date} ${e.code}${e.title ? ` ${e.title}` : ""}`;
   await sendToOwner(

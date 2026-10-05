@@ -7,7 +7,7 @@ import { api } from "../api";
 import { Card, Field, LinkCard, Load, useAction } from "../components";
 import { signOutGoogle } from "../GoogleAccount";
 import { revokeSummary } from "../organizers";
-import { useApi } from "../hooks";
+import { type Loaded, useApi } from "../hooks";
 import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps } from "./AdminGuide";
@@ -125,10 +125,12 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
  * their Telegram, and 不再当组织者. The group's settings, export and passwords stay the Owner's.
  */
 export function OrganizerSettings(props: { base: string }) {
+  // One read for both cards, so saving the payment settings refreshes the forwarding status too.
+  const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
   return (
     <>
-      <MyPaymentCard base={props.base} />
-      <ForwardingCard base={props.base} />
+      <MyPaymentCard base={props.base} profile={profile} reload={reload} />
+      <ForwardingCard profile={profile.state === "ok" ? profile.data : null} />
       <TelegramCard base={props.base} organizer />
       <RetireCard base={props.base} />
       <button
@@ -156,11 +158,11 @@ interface PaymentProfile {
 }
 
 /** 我的收款设置: where members pay for the events this organizer runs. Finalize needs Venmo and its email. */
-function MyPaymentCard(props: { base: string }) {
-  const [res, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
+function MyPaymentCard(props: { base: string; profile: Loaded<PaymentProfile>; reload: () => void }) {
+  const reload = props.reload;
   const [editing, setEditing] = useState(false);
   return (
-    <Load result={res}>
+    <Load result={props.profile}>
       {(p) => {
         // Nothing saved yet: straight to the form. Finalize needs Venmo and its email, so a profile
         // without them (Zelle only) shows what is missing instead.
@@ -260,9 +262,8 @@ function MyPaymentForm(props: {
 }
 
 /** Venmo 邮件转发: the same Gmail filter the Owner sets up, pointed at the one forwarding address. */
-function ForwardingCard(props: { base: string }) {
-  const [res] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
-  const p = res.state === "ok" ? res.data : null;
+function ForwardingCard(props: { profile: PaymentProfile | null }) {
+  const p = props.profile;
   return (
     <Card title="Venmo 邮件转发">
       <p class="small">

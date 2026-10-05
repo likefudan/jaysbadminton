@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { remindIfExpired } from "../src/worker/appointments";
-import { forwardingWatch } from "../src/worker/health";
+import { emailProblemAlert, forwardingWatch } from "../src/worker/health";
 import { handleEmail, purgeGmailConfirmations, receiveEmail, recordEmailOutcome } from "../src/worker/inbound";
 import { dollars } from "../src/shared/settle";
 import { pacificToUtc } from "../src/shared/time";
@@ -236,6 +236,42 @@ describe("the Owner's forwarding status", () => {
   });
 });
 
+describe("emails into an organizer's notification email that match no account", () => {
+  it("are theirs: not the Owner's 转发状态, and the problem goes to them", async () => {
+    const s = await scenario();
+    const { outcome, organizer } = await receiveEmail(
+      on,
+      (await venmoEmail({ note: "x", txnId: "P1", sentTo: "Typo-V", to: "alice@venmo.test" })).raw,
+      { resolveKey },
+    );
+    expect([outcome, organizer]).toEqual(["wrong_recipient", s.alice.id]);
+    await recordEmailOutcome(env, outcome, organizer);
+    expect((await s.admin.call(`${s.base}/email-status`)).data.lastAt).toBeNull();
+    await emailProblemAlert(on, outcome, new Date(), organizer);
+    expect(to(ALICE_CHAT)).toHaveLength(1);
+    expect(to(ALICE_CHAT)[0]).toContain("我的收款设置");
+    expect(to(OWNER_CHAT)).toEqual([]);
+  });
+});
+
+describe("转发已生效 for an organizer", () => {
+  it("follows the account they have now, not an old one", async () => {
+    const s = await scenario();
+    const b = await s.aliceBills();
+    expect(await deliver({ note: b.Bob.paymentCode, txnId: "F1", amount: due(b.Bob), ...ALICE })).toBe("paid");
+    const last = async () => (await json(await request(`${GOOGLE}/payment-profile`, s.org))).lastVenmoEmailAt;
+    expect(await last()).toBeTruthy();
+    // A new account starts unproven, and the old one's emails (still matched) don't prove it.
+    expect(
+      (await request(`${GOOGLE}/payment-profile`, s.org, { venmoUsername: "Alice-New", venmoEmail: "new@venmo.test" }))
+        .status,
+    ).toBe(200);
+    expect(await last()).toBeNull();
+    expect(await deliver({ note: b.Jay.paymentCode, txnId: "F2", amount: due(b.Jay), ...ALICE })).toBe("paid");
+    expect(await last()).toBeNull();
+  });
+});
+
 describe("taking a payment back off a bill", () => {
   it("gives an auto-matched one a 待确认 row in the event payee's account", async () => {
     const s = await scenario();
@@ -276,6 +312,17 @@ describe("Gmail forwarding confirmation", () => {
     // Gone after 24 hours.
     await purgeGmailConfirmations(env, new Date(Date.now() + 25 * 3600_000));
     expect((await json(await request(`${GOOGLE}/payment-profile`, s.org))).gmailConfirm).toBeNull();
+  });
+
+  it("never goes to an organizer when it names one of the Owner's own addresses", async () => {
+    const s = await scenario();
+    await env.DB.prepare("UPDATE members SET google_email = 'jay@gmail.com' WHERE id = ?").bind(s.owner).run();
+    await env.DB.prepare("UPDATE payment_profiles SET venmo_email = 'jay@gmail.com' WHERE member_id = ?")
+      .bind(s.alice.id)
+      .run();
+    expect(await handleEmail(on, (await confirmation("jay@gmail.com")).raw, { resolveKey })).toBe("gmail_confirm");
+    expect(to(ALICE_CHAT)).toEqual([]);
+    expect(to(OWNER_CHAT)).toHaveLength(1);
   });
 
   it("goes to the Owner when it names nobody's, or with the feature off", async () => {
