@@ -62,13 +62,13 @@ describe("what the Owner does", () => {
       await added(e.id, () =>
         ctx.admin.call(`${eb}/roster/add`, { memberId: alice.id, includeSelf: true, friends: ["Tom"] }),
       ),
-    ).toEqual([{ actor_id: owner, action: "roster_add", detail: "添加 Alice、Alice 带的 1 个朋友" }]);
+    ).toEqual([{ actor_id: owner, action: "roster_add", detail: "添加 Alice、Alice 带的朋友 Tom" }]);
     const tom = (await ctx.admin.call(eb)).data.roster.find((r: { name: string }) => r.name === "Tom");
     expect(await added(e.id, () => ctx.admin.call(`${eb}/roster/${tom.id}/rename`, { name: "Tommy" }))).toEqual([
       { actor_id: owner, action: "roster_rename", detail: "把 Tom（Alice 带的朋友） 改名为 Tommy（Alice 带的朋友）" },
     ]);
     expect(await added(e.id, () => ctx.admin.call(`${eb}/self-signup`, { friends: ["Ann"] }))).toEqual([
-      { actor_id: owner, action: "self_signup", detail: "自己报名，带 1 个朋友：Ann" },
+      { actor_id: owner, action: "self_signup", detail: "修改自己的报名，带 1 个朋友：Ann" },
     ]);
     // Saved again unchanged: nothing.
     expect(await added(e.id, () => ctx.admin.call(`${eb}/self-signup`, { friends: ["Ann"] }))).toEqual([]);
@@ -188,6 +188,14 @@ describe("what the Owner does", () => {
     expect(await added(id, () => s.admin.call(`${s.base}/inbound/${stray.id}/ignore`, {}))).toEqual([
       { actor_id: s.owner, action: "inbound_ignore", detail: "忽略付到 群主 账户的 Venmo 收款（Alice W $1.00）" },
     ]);
+    expect(await added(id, () => s.admin.call(`${s.base}/inbound/${stray.id}/unignore`, {}))).toEqual([
+      {
+        actor_id: s.owner,
+        action: "inbound_unignore",
+        detail: "把付到 群主 账户的 Venmo 收款（Alice W $1.00）从已忽略移回待确认",
+      },
+    ]);
+    await s.admin.call(`${s.base}/inbound/${stray.id}/ignore`, {});
     await deliver({ amount: dollars(b.Bob.amountDueCents), note: `bob-${day}-m098`, txnId: "W1" });
     const open = (await s.admin.call(`${s.base}/inbound`)).data.open[0];
     expect(await added(id, () => s.admin.call(`${s.base}/inbound/${open.id}/link`, { paymentId: b.Bob.id }))).toEqual([
@@ -215,6 +223,33 @@ describe("what the Owner does", () => {
     ]);
     const read = (await s.admin.call(`${s.eb}/audit`)).data.entries;
     expect(read.find((r: { action: string }) => r.action === "auto_match").actor).toBe("系统");
+  });
+
+  it("records a deactivation on the open events it takes people off", async () => {
+    const ctx = await setUpAdmin();
+    const owner = await ownerId();
+    const bob = await approveMember(ctx, "Bob");
+    const e = await createTestEvent(ctx);
+    await new Client().call(`${bob.base}/events/${e.id}/signup`, { friends: ["Tom"] });
+    expect(await added(e.id, () => ctx.admin.call(`${ctx.base}/members/${bob.id}/deactivate`, {}))).toEqual([
+      { actor_id: owner, action: "deactivate", detail: "停用 Bob，Bob 和带的朋友一起移出名单" },
+    ]);
+  });
+
+  it("records a fee change before the archive it causes", async () => {
+    const s = await billingScenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const bills = (await s.admin.call(`${s.eb}/settlement`)).data.payments;
+    for (const b of bills.filter((p: { status: string }) => p.status !== "paid"))
+      await s.admin.call(`${s.base}/payments/${b.id}/mark-paid`, {});
+    // Archived by the last mark: mark_paid, then collected.
+    expect((await log(s.e.id)).slice(-2).map((r) => r.action)).toEqual(["mark_paid", "collected"]);
+    // A fresh event whose only player is the payee: its bill pays itself at Finalize.
+    const e = await createTestEvent(s);
+    await s.admin.call(`${s.base}/events/${e.id}/roster/add`, { memberId: s.owner, includeSelf: true });
+    await expire(e.id);
+    await s.admin.call(`${s.base}/events/${e.id}/finalize`, s.fees);
+    expect((await log(e.id)).map((r) => r.action)).toEqual(["create", "roster_add", "finalize", "collected"]);
   });
 
   it("a failed change records nothing", async () => {

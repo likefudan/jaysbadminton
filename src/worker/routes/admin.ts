@@ -16,6 +16,7 @@ import {
 import { checkPassword, endSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
 import { closeExpired } from "../events";
+import { type AuditAction, DETAIL_MAX, actorId } from "../audit";
 import type { Env } from "../env";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { adminEventRoutes } from "./adminEvents";
@@ -187,6 +188,19 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
     c.env.DB.prepare(
       `UPDATE members SET status = 'inactive' WHERE id = ? AND status = 'active' ${onlyIfNotOrganizer ? "AND role != 'organizer'" : ""}`,
     ).bind(m.id),
+    // 操作记录 on each open event they leave, before their sign-ups go.
+    c.env.DB.prepare(
+      `INSERT INTO event_audit (event_id, actor_id, action, detail, at)
+       SELECT DISTINCT event_id, ?2, ?3, ?4, ?5 FROM registrations
+       WHERE member_id = ?1 AND event_id IN (SELECT id FROM events WHERE status = 'open')
+         AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND status = 'inactive')`,
+    ).bind(
+      m.id,
+      actorId(c.get("actor")),
+      "deactivate" satisfies AuditAction,
+      `停用 ${m.username}，${m.username} 和带的朋友一起移出名单`.slice(0, DETAIL_MAX),
+      now(),
+    ),
     // Requirements: deactivating cancels sign-ups for events still open; closed events keep theirs.
     c.env.DB.prepare(
       `DELETE FROM registrations WHERE member_id = ?1 AND event_id IN (SELECT id FROM events WHERE status = 'open')

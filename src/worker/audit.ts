@@ -39,6 +39,8 @@ export type AuditAction =
   | "refund"
   | "inbound_link"
   | "inbound_ignore"
+  | "inbound_unignore"
+  | "deactivate"
   | "dunning_stop"
   | "dunning_resume"
   | "auto_match"
@@ -51,26 +53,40 @@ export const actorId = (actor: Actor): string => actor.memberId ?? OWNER;
 export const DETAIL_MAX = 500;
 
 /**
- * Records one entry after the change it describes has happened. `detail` may be a function, for
- * text that needs a lookup. A failure here (the lookup or the insert) is logged rather than thrown:
- * the change itself already went through, and an error would invite a second click.
+ * Records one entry after the change it describes has happened. `entry` works out which event and
+ * what to say, or null when there turns out to be nothing to record. Any failure in it or in the
+ * insert is logged rather than thrown: the change itself already went through, and an error would
+ * invite a second click.
  */
-export async function audit(
+export async function record(
+  env: Env,
+  actor: string,
+  action: AuditAction,
+  entry: () => Promise<{ eventId: number; detail: string } | null>,
+) {
+  try {
+    const e = await entry();
+    if (!e) return;
+    await env.DB.prepare("INSERT INTO event_audit (event_id, actor_id, action, detail, at) VALUES (?, ?, ?, ?, ?)")
+      .bind(e.eventId, actor, action, e.detail.slice(0, DETAIL_MAX), now())
+      .run();
+  } catch (err) {
+    console.error("event_audit insert failed", { action, err });
+  }
+}
+
+/** record() for a known event; `detail` may be a function (for text that needs a lookup) returning null to skip. */
+export const audit = (
   env: Env,
   eventId: number,
   actor: string,
   action: AuditAction,
-  detail: string | (() => Promise<string> | string),
-) {
-  try {
+  detail: string | (() => Promise<string | null> | string | null),
+) =>
+  record(env, actor, action, async () => {
     const text = typeof detail === "string" ? detail : await detail();
-    await env.DB.prepare("INSERT INTO event_audit (event_id, actor_id, action, detail, at) VALUES (?, ?, ?, ?, ?)")
-      .bind(eventId, actor, action, text.slice(0, DETAIL_MAX), now())
-      .run();
-  } catch (err) {
-    console.error("event_audit insert failed", { eventId, action, err });
-  }
-}
+    return text === null ? null : { eventId, detail: text };
+  });
 
 /** The event's log, newest first, with each actor named (群主, the organizer, or 系统). */
 export async function auditRows(env: Env, eventId: number): Promise<AuditEntry[]> {

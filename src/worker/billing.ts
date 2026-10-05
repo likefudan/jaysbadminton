@@ -173,7 +173,13 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   return result;
 }
 
-export async function finalize(env: Env, e: EventRow, input: SettleInput): Promise<void> {
+/** `logged` records the change in 操作记录 before an archive it may cause is recorded. */
+export async function finalize(
+  env: Env,
+  e: EventRow,
+  input: SettleInput,
+  logged: () => Promise<void> = async () => {},
+): Promise<void> {
   const first = e.status !== "finalized";
   await applySettlement(env, e, input);
   const owner = await ownerId(env.DB);
@@ -188,6 +194,7 @@ export async function finalize(env: Env, e: EventRow, input: SettleInput): Promi
       String(input.shuttlePriceCents),
     ),
   ]);
+  await logged();
   if (first) await notifyFinalized(env, e);
   await checkCollected(env, e.id);
 }
@@ -336,18 +343,19 @@ export async function addReceipt(
 /**
  * 标记已付: a manual receipt for whatever is still owed, worked out inside the same transaction,
  * so a second click (another tab, a retried request) finds nothing owed and adds nothing.
- * Returns false when the bill was already paid.
+ * Returns the amount recorded, or null when the bill was already paid.
  */
-export async function markPaid(env: Env, paymentId: number): Promise<boolean> {
+export async function markPaid(env: Env, paymentId: number): Promise<number | null> {
   const [ins] = await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
        SELECT id, amount_due_cents - amount_paid_cents, 'manual', ? FROM payments
-       WHERE id = ? AND amount_paid_cents < amount_due_cents`,
+       WHERE id = ? AND amount_paid_cents < amount_due_cents
+       RETURNING amount_cents`,
     ).bind(now(), paymentId),
     ...syncPayments(env.DB, "id = ?", paymentId),
   ]);
-  return (ins?.meta.changes ?? 0) > 0;
+  return (ins?.results[0] as { amount_cents: number } | undefined)?.amount_cents ?? null;
 }
 
 export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<number, Receipt[]>> {
