@@ -4,7 +4,7 @@ import { useApi } from "./hooks";
 
 /** Shows the avatar received from the verified Google profile, with a fallback. */
 export function GoogleAccount() {
-  const [session] = useApi<{ signedIn: boolean; email: string | null; picture: string | null; isAdmin?: boolean }>(
+  const [session] = useApi<{ signedIn: boolean; email: string | null; picture: string | null; role?: string }>(
     "/api/auth/session",
   );
   const [failedPicture, setFailedPicture] = useState<string | null>(null);
@@ -90,7 +90,7 @@ export function GoogleAccount() {
         <section class="google-account-panel" aria-label="Google 账号信息">
           <p class="google-account-label">已登录 Google</p>
           <p class="google-account-email">{email}</p>
-          {session.data.isAdmin && (
+          {(session.data.role === "owner" || session.data.role === "organizer") && (
             <a class="button secondary block" href="/admin/google" onClick={() => setOpen(false)}>
               管理页
             </a>

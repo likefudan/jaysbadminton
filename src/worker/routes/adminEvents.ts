@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
-import type { EventDefaults, InboundResponse, SettlementView } from "../../shared/types";
+import type { AdminEventSummary, EventDefaults, InboundResponse, SettlementView } from "../../shared/types";
 import {
   addReceipt,
   assertCostsShared,
@@ -39,12 +39,13 @@ import {
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
 import type { AdminEnv } from "../access";
-import { can, eventPayee, payeeProfile } from "../organizers";
+import { can, eventManager, eventPayee, lastValues, ownerId, payeeProfile } from "../organizers";
 import { assertOrganizersOn, handBackIfRevoked, transferEvent } from "../appointments";
 import {
   assertAccountFree,
   assertPayeeReady,
   outstandingBills,
+  managerSql,
   payeeName,
   payeeSql,
   readPaymentInput,
@@ -80,9 +81,12 @@ adminEventRoutes.get("/events", async (c) => {
   const want = Math.floor(Number(c.req.query("past") ?? PAST_PAGE));
   const limit = Number.isFinite(want) ? Math.min(Math.max(want, PAST_PAGE), 2000) : PAST_PAGE;
   // Without `group`, only the events one manages (NULL is the Owner's, so never an organizer's).
+  // With it, ?manager= narrows the list to one person's (the Owner's own include NULL).
   const actor = c.get("actor");
-  const mine = can(actor.role, "group") ? [] : [actor.memberId];
-  const only = mine.length ? "AND manager_id = ?" : "";
+  const owner = await ownerId(c.env.DB);
+  const wanted = can(actor.role, "group") ? (c.req.query("manager") ?? "") : actor.memberId;
+  const mine = wanted ? [wanted] : [];
+  const only = wanted ? `AND ${managerSql("events")} = ?` : "";
   const current = await c.env.DB.prepare(
     `SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ${only} ORDER BY start_at`,
   )
@@ -94,15 +98,28 @@ adminEventRoutes.get("/events", async (c) => {
   )
     .bind(...mine, limit + 1)
     .all<EventRow>();
+  const shown = past.results.slice(0, limit);
+  // Who runs each one, named once per person.
+  const names = new Map<string | null, Promise<string>>();
+  const withManager = async (list: EventRow[]): Promise<AdminEventSummary[]> => {
+    const rows = await summaries(c.env, list);
+    return Promise.all(
+      rows.map(async (e, i) => {
+        const id = list[i]!.manager_id ?? owner;
+        if (!names.has(id)) names.set(id, payeeName(c.env.DB, id));
+        return { ...e, manager: { id, name: await names.get(id)! } };
+      }),
+    );
+  };
   return c.json({
-    current: await summaries(c.env, current.results),
-    past: await summaries(c.env, past.results.slice(0, limit)),
+    current: await withManager(current.results),
+    past: await withManager(shown),
     morePast: past.results.length > limit,
   });
 });
 
 adminEventRoutes.get("/events/defaults", async (c) => {
-  const s = await getSettings(c.env.DB, [
+  const s = await lastValues(c.env.DB, c.get("actor").memberId, [
     "last_start_time",
     "last_end_time",
     "last_location",
@@ -133,7 +150,10 @@ adminEventRoutes.post("/locations/remove", async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM locations WHERE name = ?").bind(name),
     // Otherwise the next new event would still start with it filled in.
-    c.env.DB.prepare("DELETE FROM settings WHERE key = 'last_location' AND value = ?").bind(name),
+    // Everyone's (organizers keep their own, last_location:<id>).
+    c.env.DB.prepare(
+      "DELETE FROM settings WHERE (key = 'last_location' OR key LIKE 'last_location:%') AND value = ?",
+    ).bind(name),
   ]);
   return c.json({ ok: true });
 });
@@ -144,7 +164,6 @@ adminEventRoutes.post("/events", async (c) => {
   // Whoever creates it runs it and is paid for it (the Owner's own events, as before, are theirs).
   const e = await createEvent(c.env, {
     managerId: actor.memberId,
-    rememberDefaults: can(actor.role, "group"),
     date: str(b.date),
     startTime: str(b.startTime),
     endTime: str(b.endTime),
@@ -549,7 +568,7 @@ function assertSettleable(e: EventRow) {
 adminEventRoutes.get("/events/:id/settlement", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   const input = await savedInput(c.env, e.id);
-  const s = await getSettings(c.env.DB, ["last_shuttle_price_cents"]);
+  const s = await lastValues(c.env.DB, await eventManager(c.env.DB, e), ["last_shuttle_price_cents"]);
   const payments = await paymentRows(c.env, e);
   return c.json<SettlementView>({
     inputs: input && {

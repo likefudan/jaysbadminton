@@ -165,7 +165,14 @@ describe("member links", () => {
   it("approval issues a link the member can use; pending members have none", async () => {
     const { token, id, admin, base } = await approvedMember();
     const me = await anon.call(`/api/m/${token}/me`);
-    expect(me.data).toEqual({ id, username: "Dan", wechatNickname: "阿丹", isOwner: false, active: true });
+    expect(me.data).toEqual({
+      id,
+      username: "Dan",
+      wechatNickname: "阿丹",
+      isOwner: false,
+      canAdmin: false,
+      active: true,
+    });
     const shown = await admin.call(`${base}/members/${id}/link`);
     expect(tokenOf(shown.data.link)).toBe(token);
   });

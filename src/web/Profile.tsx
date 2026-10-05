@@ -134,13 +134,25 @@ export function ProfileCard(props: {
   profile: MemberProfile;
   base: string;
   mode: "member" | "admin";
+  /** An organizer looking: the 备注名 shows, but only the Owner changes it. */
+  noteReadOnly?: boolean;
+  /** The 组织者 feature is on: organizers see the 备注名 too, and the label says so. */
+  organizers?: boolean;
   onChange: () => void;
 }) {
   const p = props.profile;
   return (
     <Card title="个人信息" class="profile">
       <dl class="profile-info">
-        {props.mode === "admin" && <NoteRow base={props.base} note={p.adminNote ?? ""} onChange={props.onChange} />}
+        {props.mode === "admin" && (
+          <NoteRow
+            base={props.base}
+            note={p.adminNote ?? ""}
+            readOnly={!!props.noteReadOnly}
+            label={props.organizers ? "备注名（只有群主和组织者能看到）" : "备注名（只有群主能看到）"}
+            onChange={props.onChange}
+          />
+        )}
         <div>
           <dt>名字</dt>
           <dd>{p.username}</dd>
@@ -220,7 +232,7 @@ function EmailRow(props: { base: string; email: string | null; fromGoogle: boole
   );
 }
 
-function NoteRow(props: { base: string; note: string; onChange: () => void }) {
+function NoteRow(props: { base: string; note: string; readOnly: boolean; label: string; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(props.note);
   const { busy, error, run } = useAction();
@@ -234,7 +246,7 @@ function NoteRow(props: { base: string; note: string; onChange: () => void }) {
   if (editing) {
     return (
       <form class="profile-edit" onSubmit={save}>
-        <Field label="备注名（只有群主能看到）" value={value} onInput={setValue} />
+        <Field label={props.label} value={value} onInput={setValue} />
         {error && <p class="error">{error}</p>}
         <div class="inline">
           <button type="submit" class="button" disabled={busy}>
@@ -252,16 +264,18 @@ function NoteRow(props: { base: string; note: string; onChange: () => void }) {
       <dt>备注名</dt>
       <dd>
         {props.note || <span class="muted">未填写</span>}
-        <button
-          type="button"
-          class="profile-action"
-          onClick={() => {
-            setValue(props.note);
-            setEditing(true);
-          }}
-        >
-          {props.note ? "修改" : "添加"}
-        </button>
+        {!props.readOnly && (
+          <button
+            type="button"
+            class="profile-action"
+            onClick={() => {
+              setValue(props.note);
+              setEditing(true);
+            }}
+          >
+            {props.note ? "修改" : "添加"}
+          </button>
+        )}
       </dd>
     </div>
   );

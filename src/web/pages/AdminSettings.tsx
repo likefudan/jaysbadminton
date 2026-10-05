@@ -1,9 +1,11 @@
 import { useState } from "preact/hooks";
 import { checkPassword } from "../../shared/rules";
-import type { LinkResponse } from "../../shared/types";
+import type { AdminViewer, LinkResponse, OrganizersBlock, RevokeImpact } from "../../shared/types";
+import { formatInstantZh } from "../../shared/time";
 import { STYLES, type ThemeId } from "../../shared/themes";
 import { api } from "../api";
-import { Card, Field, LinkCard, Load, useAction } from "../components";
+import { Card, CopyButton, Field, LinkCard, Load, useAction } from "../components";
+import { revokeSummary } from "../organizers";
 import { useApi } from "../hooks";
 import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
@@ -115,6 +117,205 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
       <AdminGuide base={props.base} />
       <ResetAll base={props.base} />
     </>
+  );
+}
+
+/**
+ * 设置 for an organizer (design §10.2): their own payment settings with the Venmo forwarding steps,
+ * their Telegram, and 不再当组织者. The group's settings, export and passwords stay the Owner's.
+ */
+export function OrganizerSettings(props: { base: string; viewer: AdminViewer; organizers: OrganizersBlock | null }) {
+  const me = props.organizers?.list.find((o) => o.id === props.viewer.id);
+  async function logout() {
+    await api("/api/auth/logout", {}).catch(() => undefined);
+    location.assign("/login");
+  }
+  return (
+    <>
+      <MyPaymentCard base={props.base} />
+      <ForwardingCard lastAt={me?.lastVenmoEmailAt ?? null} />
+      <Card title="我的 Telegram">
+        <p class="muted small">
+          {me?.telegram
+            ? "已连接。"
+            : "以后可以在这里连接你自己的 Telegram，接收你负责的活动的提醒（报名截止、账单、收款异常）。现在这些提醒还只发给群主。"}
+        </p>
+      </Card>
+      <RetireCard base={props.base} />
+      <button type="button" class="button secondary block" onClick={logout}>
+        退出登录
+      </button>
+    </>
+  );
+}
+
+interface PaymentProfile {
+  venmoUsername: string;
+  venmoEmail: string;
+  zelleAccount: string;
+  /** Bills of their events not paid up yet: a changed Venmo account stays recognized for 60 days. */
+  outstandingBills: number;
+}
+
+/** 我的收款设置: where members pay for the events this organizer runs. Finalize needs Venmo and its email. */
+function MyPaymentCard(props: { base: string }) {
+  const [res, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
+  const [editing, setEditing] = useState(false);
+  return (
+    <Load result={res}>
+      {(p) => {
+        const empty = !p.venmoUsername || !p.venmoEmail;
+        if (editing || empty)
+          return (
+            <MyPaymentForm
+              base={props.base}
+              initial={p}
+              first={empty}
+              onDone={() => {
+                setEditing(false);
+                reload();
+              }}
+              onCancel={empty ? undefined : () => setEditing(false)}
+            />
+          );
+        return (
+          <Card title="我的收款设置">
+            <dl class="kv">
+              <dt>Venmo</dt>
+              <dd>@{p.venmoUsername}</dd>
+              <dt>通知邮箱</dt>
+              <dd>{p.venmoEmail}</dd>
+              <dt>Zelle</dt>
+              <dd>{p.zelleAccount || "（未填）"}</dd>
+            </dl>
+            <p class="muted small">你负责的活动，成员的钱付到这里。</p>
+            <button type="button" class="link-button" onClick={() => setEditing(true)}>
+              修改收款设置
+            </button>
+          </Card>
+        );
+      }}
+    </Load>
+  );
+}
+
+function MyPaymentForm(props: {
+  base: string;
+  initial: PaymentProfile;
+  first: boolean;
+  onDone: () => void;
+  onCancel?: () => void;
+}) {
+  const [venmo, setVenmo] = useState(props.initial.venmoUsername);
+  const [venmoEmail, setVenmoEmail] = useState(props.initial.venmoEmail);
+  const [zelle, setZelle] = useState(props.initial.zelleAccount);
+  const { busy, error, run } = useAction();
+  const open = props.initial.outstandingBills;
+  async function save(e: Event) {
+    e.preventDefault();
+    const changed = props.initial.venmoUsername && venmo.replace(/^@/, "") !== props.initial.venmoUsername;
+    const note = changed && open > 0 ? `\n\n你还有 ${open} 张账单没收齐：60 天内付到旧账户的钱仍然会自动记账。` : "";
+    if (!props.first && !confirm(`修改后，成员付款页上的收款账号会立即改变。确定修改吗？${note}`)) return;
+    const body = { venmoUsername: venmo, venmoEmail, zelleAccount: zelle };
+    if (await run(() => api(`${props.base}/payment-profile`, body))) props.onDone();
+  }
+  return (
+    <Card title="我的收款设置">
+      <form onSubmit={save}>
+        {props.first && (
+          <p class="muted small">
+            你负责的活动，成员把钱付到这里。填好 Venmo 用户名和通知邮箱之前，你的活动可以报名，但不能结算。
+          </p>
+        )}
+        <Field label="你的 Venmo 用户名" value={venmo} onInput={setVenmo} hint="不用加 @" />
+        <Field
+          label="Venmo 通知邮箱"
+          type="email"
+          value={venmoEmail}
+          onInput={setVenmoEmail}
+          hint="Venmo 账户里登记的、接收收款通知的邮箱。只有发到这个邮箱的 Venmo 收款邮件才会自动对账"
+        />
+        <Field
+          label="你的 Zelle 账号（选填）"
+          value={zelle}
+          onInput={setZelle}
+          hint="手机号或邮箱，显示在付款页作为备选；Zelle 收款需要你手动标记已付"
+        />
+        {error && <p class="error">{error}</p>}
+        <button type="submit" class="button block" disabled={busy}>
+          保存收款设置
+        </button>
+        {props.onCancel && (
+          <button class="button secondary block" type="button" onClick={props.onCancel}>
+            取消
+          </button>
+        )}
+      </form>
+    </Card>
+  );
+}
+
+/** Venmo 邮件转发: the same Gmail filter the Owner sets up, pointed at the one forwarding address. */
+function ForwardingCard(props: { lastAt: string | null }) {
+  const forward = `venmo@${location.hostname}`;
+  return (
+    <Card title="Venmo 邮件转发">
+      <p class="small">
+        系统读取 Venmo 发给你的收款通知邮件，按备注里的付款编号自动记账。你的邮箱密码系统拿不到，只是把 Venmo
+        的邮件转发过来；和羽毛球无关的收款会被忽略，不会保存。没设好转发的话，成员付款后要你手动标记已付。
+      </p>
+      <ol class="steps">
+        <li>
+          Venmo App →「Settings → Notifications」，确认收款（You receive a payment）的<b>邮件通知</b>是打开的。
+        </li>
+        <li>
+          电脑上打开 Gmail →「设置 ⚙ → 查看所有设置 → 转发和 POP/IMAP → 添加转发地址」，填：
+          <div class="inline-copy">
+            <code>{forward}</code> <CopyButton text={forward} label="复制" />
+          </div>
+        </li>
+        <li>
+          Gmail 会往这个地址发一封确认邮件，里面有确认码。目前这封邮件会转到群主那里，请向群主要确认码，填回 Gmail。
+        </li>
+        <li>
+          回到 Gmail，在搜索框输入 <code>from:venmo@venmo.com</code> → 点搜索框右边的「显示搜索选项」→「创建过滤器」→
+          勾选「转发到」并选择上面的地址（<b>不要</b>勾删除）→ 创建过滤器。
+        </li>
+        <li>
+          Venmo 通知邮箱不是 Gmail 的话（例如 Outlook），在那个邮箱里设一条规则，把 venmo@venmo.com
+          发来的邮件自动转发到上面的地址。
+        </li>
+      </ol>
+      <div class="status-line">
+        <b>转发状态：</b>
+        {props.lastAt ? `已生效（${formatInstantZh(props.lastAt)} 收到）` : "还没有收到过你账户的 Venmo 邮件"}
+      </div>
+    </Card>
+  );
+}
+
+/** 不再当组织者: the same as being revoked, by oneself; afterwards the admin page is closed to them. */
+function RetireCard(props: { base: string }) {
+  const { busy, error, run } = useAction();
+  async function retire() {
+    const preview = await run(() => api<{ events: RevokeImpact[] }>(`${props.base}/organizer/retire`));
+    if (!preview) return;
+    if (
+      !confirm(
+        `确定不再当组织者？${revokeSummary(preview.events, "你")}\n\n之后你就进不了管理页了，想再当组织者要请群主重新任命。`,
+      )
+    )
+      return;
+    if (await run(() => api(`${props.base}/organizer/retire`, {}))) location.assign("/me");
+  }
+  return (
+    <Card title="不再当组织者">
+      <p class="muted small">你负责的活动会交给群主。已经结算的活动，成员的钱仍然付到你的账户，直到收齐。</p>
+      {error && <p class="error">{error}</p>}
+      <button type="button" class="button danger block" disabled={busy} onClick={retire}>
+        不再当组织者
+      </button>
+    </Card>
   );
 }
 

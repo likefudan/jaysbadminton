@@ -35,11 +35,11 @@ export function AdminSetup() {
 
 /** The admin's Google way in: straight to the admin page when the bound account is signed in. */
 function GoogleEntry() {
-  const [session] = useApi<{ enabled: boolean; isAdmin?: boolean }>("/api/auth/session");
+  const [session] = useApi<{ enabled: boolean; role?: string }>("/api/auth/session");
   if (session.state !== "ok" || !session.data.enabled) return null;
   return (
     <Card>
-      {session.data.isAdmin ? (
+      {session.data.role === "owner" ? (
         <a class="button block" href="/admin/google">
           进入管理页
         </a>

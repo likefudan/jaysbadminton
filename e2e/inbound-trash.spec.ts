@@ -20,7 +20,16 @@ test("已删除: delete a payment, restore one, and 清空 with the password", a
   const deletedAt = new Date(Date.now() - 2 * 86400_000).toISOString();
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false } }));
   await page.route("**/api/admin/test-token/members", (route) =>
-    route.fulfill({ json: { pending: [], active: [], inactive: [], deleted: [] } }),
+    route.fulfill({
+      json: {
+        pending: [],
+        active: [],
+        inactive: [],
+        deleted: [],
+        organizers: null,
+        viewer: { id: "M001", role: "owner" },
+      },
+    }),
   );
   await page.route("**/api/admin/test-token/inbound", (route) =>
     route.fulfill({

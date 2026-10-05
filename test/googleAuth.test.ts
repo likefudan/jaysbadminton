@@ -405,7 +405,7 @@ describe("Google login for the admin", () => {
     const members = await request("/api/admin/google/members", google);
     expect(members.status).toBe(200);
     expect(((await members.json()) as any).active[0]).toMatchObject({ isOwner: true });
-    expect(await (await request("/api/auth/session", google)).json()).toMatchObject({ isAdmin: true, hasMember: true });
+    expect(await (await request("/api/auth/session", google)).json()).toMatchObject({ role: "owner", hasMember: true });
     expect(await (await request(`${ctx.base}/settings/google`, `${ctx.admin.cookie}; ${google}`)).json()).toMatchObject(
       {
         bound: "jay@gmail.com",
@@ -467,7 +467,7 @@ describe("Google login for the admin", () => {
     expect((await request("/api/admin/google/settings/google/unbind", google, {})).status).toBe(200);
     expect((await request("/api/admin/google/members", google)).status).toBe(401);
     expect((await request(`${ctx.base}/members`, ctx.admin.cookie)).status).toBe(200);
-    expect(await (await request("/api/auth/session", google)).json()).toMatchObject({ isAdmin: false });
+    expect(await (await request("/api/auth/session", google)).json()).toMatchObject({ role: "member" });
   });
 
   it("returns to the page that asked for Google, and only to this site's pages", async () => {

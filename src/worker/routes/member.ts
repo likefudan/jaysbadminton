@@ -12,7 +12,7 @@ import type {
 import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
-import { eventManager, eventPayee, memberRole, payeeProfile } from "../organizers";
+import { eventManager, eventPayee, memberRole, ownerId, payeeProfile } from "../organizers";
 import { payeeName } from "../payees";
 import {
   closeExpired,
@@ -50,6 +50,8 @@ memberRoutes.get("/:token/me", (c) => {
     username: m.username,
     wechatNickname: m.wechat_nickname,
     isOwner: m.is_owner === 1,
+    // 管理页 is reached through Google (/admin/google), so only offered on the signed-in page.
+    canAdmin: c.req.param("token") === "session" && m.status === "active" && memberRole(c.env, m) !== "member",
     active: m.status === "active",
   });
 });
@@ -106,6 +108,15 @@ memberRoutes.get("/:token/events", async (c) => {
     return p;
   };
   const rowOf = new Map(results.map((e) => [e.id, e]));
+  // 组织：the organizer's name on the events they run; nothing on the Owner's, as before.
+  const owner = await ownerId(c.env.DB);
+  const organizers = new Map<string, Promise<string>>();
+  const organizerOf = async (e: EventRow) => {
+    const id = await eventManager(c.env.DB, e);
+    if (!id || id === owner) return null;
+    if (!organizers.has(id)) organizers.set(id, payeeName(c.env.DB, id));
+    return organizers.get(id)!;
+  };
   const generalCap = await friendCap(c.env);
   const mine = await c.env.DB.prepare(
     "SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?",
@@ -185,6 +196,7 @@ memberRoutes.get("/:token/events", async (c) => {
       selfSignedUp: selfOn,
       canEdit: m.status === "active" && (e.status === "open" || (runs && e.status === "closed")),
       friendCap: runs ? MANAGER_FRIEND_MAX : generalCap,
+      organizer: await organizerOf(row),
       payment,
       roster: names,
     });
