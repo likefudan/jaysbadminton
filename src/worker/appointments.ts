@@ -201,15 +201,16 @@ export async function revokeOrganizer(
     if (with_.length) return null;
     throw badRequest(`${m.username} 不是组织者`);
   }
-  // Nothing of theirs still collects: the email below already says the filter can go, so the
-  // later 失效 reminder (remindIfExpired) is marked as sent.
-  if (await payeeExpired(env.DB, m.id))
+  const emailStatus = await sendNoticeEmail(env, m, by, ts);
+  // Nothing of theirs still collects: that email said the filter can go, so the later 失效
+  // reminder (remindIfExpired) counts as sent. If it didn't go out, the sweep sends the reminder.
+  if (emailStatus === "sent" && (await payeeExpired(env.DB, m.id)))
     await env.DB.prepare(
       "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (0, ?, ?, ?)",
     )
       .bind(filterReminder(m.id), ts, ts)
       .run();
-  return { emailStatus: await sendNoticeEmail(env, m, by, ts) };
+  return { emailStatus };
 }
 
 /** They can no longer open the admin pages, so this is how they learn what happens to their events. */

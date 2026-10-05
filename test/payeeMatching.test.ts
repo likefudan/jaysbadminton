@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { remindExpiredPayees, remindIfExpired } from "../src/worker/appointments";
+import { remindExpiredPayees, remindIfExpired, revokeOrganizer } from "../src/worker/appointments";
+import { requireMember } from "../src/worker/members";
 import { digestText, emailProblemAlert, forwardingWatch } from "../src/worker/health";
 import { handleEmail, purgeGmailConfirmations, receiveEmail, recordEmailOutcome } from "../src/worker/inbound";
 import { dollars } from "../src/shared/settle";
@@ -437,13 +438,25 @@ describe("a former organizer's account expiring", () => {
     await remindExpiredPayees(mail);
     expect(emails).toHaveLength(1);
 
-    // Appointed again, then revoked with nothing collecting: the revoke email covers it.
-    emails = [];
-    await env.DB.prepare("UPDATE members SET role = 'organizer' WHERE id = ?").bind(s.alice.id).run();
-    await env.DB.prepare("UPDATE payment_profiles SET retired_at = NULL WHERE member_id = ?").bind(s.alice.id).run();
-    expect((await request(`${s.base}/members/${s.alice.id}/revoke`, s.admin.cookie, {})).status).toBe(200);
+    // Appointed again, then revoked with nothing collecting: the revoke email covers it, once sent.
+    const again = async () => {
+      emails = [];
+      await env.DB.prepare("UPDATE members SET role = 'organizer' WHERE id = ?").bind(s.alice.id).run();
+      await env.DB.prepare("UPDATE payment_profiles SET retired_at = NULL WHERE member_id = ?").bind(s.alice.id).run();
+    };
+    await again();
+    expect((await revokeOrganizer(mail, (await requireMember(mail, s.alice.id))!, "owner"))!.emailStatus).toBe("sent");
     await remindExpiredPayees(mail);
-    expect(emails).toEqual([]);
+    expect(emails.map((e) => e.subject)).toEqual(["你已不再是羽毛球群的组织者"]);
+
+    // Not sent (no email service then): the sweep sends the reminder later.
+    await new Promise((r) => setTimeout(r, 5)); // a new retired_at
+    await again();
+    expect((await revokeOrganizer(on, (await requireMember(on, s.alice.id))!, "owner"))!.emailStatus).toBe(
+      "not_configured",
+    );
+    await remindExpiredPayees(mail);
+    expect(emails.map((e) => e.subject)).toEqual(["可以删掉转发 Venmo 邮件的过滤器了"]);
   });
 
   it("is checked when their last event is archived", async () => {
