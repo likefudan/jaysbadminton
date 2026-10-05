@@ -208,6 +208,8 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   const signedUp = e.selfSignedUp;
   // Who runs it: the organizer by name on theirs, else 群主 (as before).
   const runner = e.organizer ?? "群主";
+  // Friends added for them come from the admin page: the organizer's, or the Owner's on any event.
+  const adder = e.organizer ? `组织者 ${e.organizer} 或群主` : "群主";
   // Whoever runs it may hang friends under a member who isn't coming: they are on the bill, not the list.
   const friendsOnly = !signedUp && (e.myFriends?.length ?? 0) > 0;
 
@@ -244,7 +246,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
       )}
       {friendsOnly && !editing && (
         <p class="muted">
-          你本人没有报名；{runner}在你名下加了 {e.myFriends!.length} 个朋友，费用算在你的账单上。
+          你本人没有报名；{adder}在你名下加了 {e.myFriends!.length} 个朋友，费用算在你的账单上。
         </p>
       )}
       {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}

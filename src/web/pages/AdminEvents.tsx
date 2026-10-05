@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { AddressInput } from "../AddressInput";
 import type {
   AdminEventSummary,
@@ -34,6 +34,20 @@ export function EventsTab(props: {
   );
   const [mode, setMode] = useState<"list" | "create" | number>("list");
   const owner = props.members.find((m) => m.isOwner);
+  // Past events keep whoever ran them, organizers since revoked too: those people can be picked as
+  // well, as soon as the full list has shown one of their events.
+  const [seen, setSeen] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (list.state !== "ok" || manager) return;
+    const all = [...list.data.current, ...list.data.past];
+    setSeen((prev) => {
+      const next = new Map(prev);
+      for (const e of all) if (e.manager.id) next.set(e.manager.id, e.manager.name);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [list, manager]);
+  const current = new Set([owner?.id, ...(props.organizers?.list ?? []).map((o) => o.id)]);
+  const formerManagers = [...seen].filter(([id]) => !current.has(id)).map(([id, name]) => ({ id, name }));
 
   if (mode === "create") {
     return (
@@ -78,9 +92,9 @@ export function EventsTab(props: {
                 {o.username}
               </option>
             ))}
-            {props.organizers!.former.map((o) => (
+            {formerManagers.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.username}（已撤销）
+                {o.name}（已不是组织者）
               </option>
             ))}
           </select>
@@ -349,8 +363,9 @@ function EventAdminBody(props: {
   const e = props.e;
   const isOwner = props.viewer.role === "owner";
   const owner = props.members.find((m) => m.isOwner);
-  // Rows added from the admin page: by the Owner on their own events; on an organizer's, by them or the Owner.
-  const addedBy = !owner || e.manager.id === owner.id ? "群主添加" : "代为添加";
+  // Rows added from the admin page. With organizers, events change hands and either may have added
+  // them, so the badge doesn't say who.
+  const addedBy = props.organizers ? "代为添加" : "群主添加";
   const eb = `${props.base}/events/${e.id}`;
   const editable = e.status === "open" || e.status === "closed" || e.status === "finalized";
   const publicLink = `${location.origin}/e/${e.code}`;
@@ -584,8 +599,8 @@ function MySignup(props: {
   asOwner: boolean;
   onDone: () => void;
 }) {
-  const { e, me: owner } = props;
-  const mine = owner ? e.roster.filter((r) => r.memberId === owner.id) : [];
+  const { e, me } = props;
+  const mine = me ? e.roster.filter((r) => r.memberId === me.id) : [];
   const signedUp = mine.some((r) => r.friendIndex === 0);
   const myFriends = mine.filter((r) => r.friendIndex > 0);
   // Unnamed friends show as "<name>的朋友<n>"; edit them as blank again.
@@ -594,7 +609,7 @@ function MySignup(props: {
   const [friends, setFriends] = useState<string[]>(current);
   const { busy, error, run } = useAction();
   const canEdit = e.status === "open" || e.status === "closed";
-  if (!owner) return null;
+  if (!me) return null;
 
   async function save() {
     if (await run(() => api(`${props.eb}/self-signup`, { friends }))) {

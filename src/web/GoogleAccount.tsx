@@ -2,6 +2,13 @@ import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { api } from "./api";
 import { useApi } from "./hooks";
 
+/** Ends the Google session (and a half-done link to a member page), then goes to 登录. */
+export async function signOutGoogle(): Promise<void> {
+  await api("/api/auth/logout", {});
+  sessionStorage.removeItem("google-link-member");
+  window.location.assign("/login");
+}
+
 /** Shows the avatar received from the verified Google profile, with a fallback. */
 export function GoogleAccount() {
   const [session] = useApi<{ signedIn: boolean; email: string | null; picture: string | null; role?: string }>(
@@ -37,9 +44,7 @@ export function GoogleAccount() {
     setBusy(true);
     setError("");
     try {
-      await api("/api/auth/logout", {});
-      sessionStorage.removeItem("google-link-member");
-      window.location.assign("/login");
+      await signOutGoogle();
     } catch (e) {
       setError(e instanceof Error ? e.message : "退出失败，请重试");
       setBusy(false);

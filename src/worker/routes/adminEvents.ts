@@ -105,17 +105,14 @@ adminEventRoutes.get("/events", async (c) => {
     const rows = await summaries(c.env, list);
     return Promise.all(
       rows.map(async (e, i) => {
-        const id = list[i]!.manager_id ?? owner;
+        const id = await eventManager(c.env.DB, list[i]!);
         if (!names.has(id)) names.set(id, payeeName(c.env.DB, id));
         return { ...e, manager: { id, name: await names.get(id)! } };
       }),
     );
   };
-  return c.json({
-    current: await withManager(current.results),
-    past: await withManager(shown),
-    morePast: past.results.length > limit,
-  });
+  const [cur, old] = await Promise.all([withManager(current.results), withManager(shown)]);
+  return c.json({ current: cur, past: old, morePast: past.results.length > limit });
 });
 
 adminEventRoutes.get("/events/defaults", async (c) => {

@@ -115,11 +115,12 @@ memberRoutes.get("/:token/events", async (c) => {
   };
   const rowOf = new Map(results.map((e) => [e.id, e]));
   // 组织：the organizer's name on the events they run; nothing on the Owner's, as before.
-  const owner = await ownerId(c.env.DB);
+  // Only while the feature is on: with it off, nobody is shown as running an event (as before).
+  const named = organizersEnabled(c.env);
+  const owner = named ? await ownerId(c.env.DB) : null;
   const organizers = new Map<string, Promise<string>>();
   const organizerOf = async (e: EventRow) => {
-    // Only while the feature is on: with it off, nobody is shown as running an event (as before).
-    if (!organizersEnabled(c.env)) return null;
+    if (!named) return null;
     const id = await eventManager(c.env.DB, e);
     if (!id || id === owner) return null;
     if (!organizers.has(id)) organizers.set(id, payeeName(c.env.DB, id));

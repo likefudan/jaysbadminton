@@ -5,6 +5,7 @@ import { formatInstantZh } from "../../shared/time";
 import { STYLES, type ThemeId } from "../../shared/themes";
 import { api } from "../api";
 import { Card, Field, LinkCard, Load, useAction } from "../components";
+import { signOutGoogle } from "../GoogleAccount";
 import { revokeSummary } from "../organizers";
 import { useApi } from "../hooks";
 import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
@@ -35,8 +36,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
   }
   async function logout() {
     if (props.viaGoogle) {
-      await api("/api/auth/logout", {}).catch(() => undefined);
-      location.assign("/login");
+      await signOutGoogle().catch(() => location.assign("/login"));
       return;
     }
     await api(`${props.base}/logout`, {}).catch(() => undefined);
@@ -126,10 +126,6 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
  */
 export function OrganizerSettings(props: { base: string; viewer: AdminViewer; organizers: OrganizersBlock | null }) {
   const me = props.organizers?.list.find((o) => o.id === props.viewer.id);
-  async function logout() {
-    await api("/api/auth/logout", {}).catch(() => undefined);
-    location.assign("/login");
-  }
   return (
     <>
       <MyPaymentCard base={props.base} />
@@ -142,7 +138,11 @@ export function OrganizerSettings(props: { base: string; viewer: AdminViewer; or
         </p>
       </Card>
       <RetireCard base={props.base} />
-      <button type="button" class="button secondary block" onClick={logout}>
+      <button
+        type="button"
+        class="button secondary block"
+        onClick={() => signOutGoogle().catch(() => location.assign("/login"))}
+      >
         退出登录
       </button>
     </>
@@ -164,7 +164,9 @@ function MyPaymentCard(props: { base: string }) {
   return (
     <Load result={res}>
       {(p) => {
-        const empty = !p.venmoUsername || !p.venmoEmail;
+        // Nothing saved yet: straight to the form. Finalize needs Venmo and its email, so a profile
+        // without them (Zelle only) shows what is missing instead.
+        const empty = !p.venmoUsername && !p.venmoEmail && !p.zelleAccount;
         if (editing || empty)
           return (
             <MyPaymentForm
@@ -182,13 +184,17 @@ function MyPaymentCard(props: { base: string }) {
           <Card title="我的收款设置">
             <dl class="kv">
               <dt>Venmo</dt>
-              <dd>@{p.venmoUsername}</dd>
+              <dd>{p.venmoUsername ? `@${p.venmoUsername}` : "（未填）"}</dd>
               <dt>通知邮箱</dt>
-              <dd>{p.venmoEmail}</dd>
+              <dd>{p.venmoEmail || "（未填）"}</dd>
               <dt>Zelle</dt>
               <dd>{p.zelleAccount || "（未填）"}</dd>
             </dl>
-            <p class="muted small">你负责的活动，成员的钱付到这里。</p>
+            {!p.venmoUsername || !p.venmoEmail ? (
+              <p class="error">还没填好 Venmo 用户名和通知邮箱，你的活动不能结算。</p>
+            ) : (
+              <p class="muted small">你负责的活动，成员的钱付到这里。</p>
+            )}
             <button type="button" class="link-button" onClick={() => setEditing(true)}>
               修改收款设置
             </button>
