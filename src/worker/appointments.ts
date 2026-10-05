@@ -9,6 +9,7 @@ import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
 import { once } from "./notify";
 import { payeeExpired, payeeUnlockedSql } from "./payees";
+import { SYSTEM, audit } from "./audit";
 
 /**
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
@@ -168,6 +169,8 @@ export async function revokeOrganizer(
   m: MemberRow,
   by: RevokeBy,
   with_: D1PreparedStatement[] = [],
+  /** Receives the results of `with_`, once the transaction has run. */
+  withResults: (r: D1Result[]) => void = () => {},
 ): Promise<{ emailStatus: NoticeEmail } | null> {
   if (m.role !== "organizer") throw badRequest(`${m.username} 不是组织者`);
   const owner = await ownerId(env.DB);
@@ -181,13 +184,15 @@ export async function revokeOrganizer(
       m.id,
       ts,
     ),
-    // Before Finalize nobody has a bill, so the money moves with the event.
+    // Before Finalize nobody has a bill, so the money moves with the event. Both return the events
+    // they moved, for 操作记录.
     env.DB.prepare(
       `UPDATE events SET payee_id = ?1 WHERE payee_id = ?2 AND status IN ('open', 'closed')
-         AND ${payeeUnlockedSql("events")} AND ${mine}`,
+         AND ${payeeUnlockedSql("events")} AND ${mine} RETURNING id`,
     ).bind(owner, m.id, ts),
     env.DB.prepare(
-      `UPDATE events SET manager_id = ?1 WHERE manager_id = ?2 AND status IN ${LIVE_SQL} AND ${mine}`,
+      `UPDATE events SET manager_id = ?1 WHERE manager_id = ?2 AND status IN ${LIVE_SQL} AND ${mine}
+       RETURNING id, payee_id`,
     ).bind(owner, m.id, ts),
     // retired_at marks a 历史收款人 for auto-matching (card 8).
     env.DB.prepare(`UPDATE payment_profiles SET retired_at = ?3 WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
@@ -195,12 +200,14 @@ export async function revokeOrganizer(
     env.DB.prepare(`DELETE FROM telegram_bindings WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
     ...with_,
   ]);
+  withResults(done.slice(done.length - with_.length));
   // Someone else revoked them in between: that request did all of this and told them. `with_`
   // (停用) has still happened, so that is not an error; null says there was nothing to revoke.
   if (!done[0]!.meta.changes) {
     if (with_.length) return null;
     throw badRequest(`${m.username} 不是组织者`);
   }
+  await recordHandBack(env, m, by, by === "self" ? m.id : owner, done[1]!, done[2]!);
   // Nothing of theirs still collects: the notice email says the filter can go, so the 失效
   // reminder (remindIfExpired) counts as sent. Claimed first so the sweep can't send one meanwhile,
   // and given back if the notice didn't go out, so the sweep sends the reminder later.
@@ -214,6 +221,37 @@ export async function revokeOrganizer(
       .bind(filterReminder(m.id), ts)
       .run();
   return { emailStatus };
+}
+
+/**
+ * 操作记录 for a revoke: each event that went back to the Owner, by whoever revoked (the organizer
+ * themselves for 不再当组织者), and each one where only the money moved.
+ */
+async function recordHandBack(
+  env: Env,
+  m: MemberRow,
+  by: RevokeBy,
+  actor: string,
+  payees: D1Result,
+  managers: D1Result,
+): Promise<void> {
+  const who = {
+    owner: `撤销 ${m.username} 的组织者身份`,
+    self: `${m.username} 不再当组织者`,
+    deactivate: `停用 ${m.username}，组织者身份一并撤销`,
+  }[by];
+  const handed = managers.results as { id: number; payee_id: string | null }[];
+  for (const e of handed)
+    await audit(
+      env,
+      e.id,
+      actor,
+      "reassign",
+      // Bills are out: members keep paying into their account until it is archived.
+      `${who}，活动交回群主${e.payee_id === m.id ? `（账单已发出，钱仍付到 ${m.username} 的账户）` : ""}`,
+    );
+  for (const e of payees.results as { id: number }[])
+    if (!handed.some((h) => h.id === e.id)) await audit(env, e.id, actor, "reassign", `${who}，收款人改为群主`);
 }
 
 /** They can no longer open the admin pages, so this is how they learn what happens to their events. */
@@ -285,13 +323,14 @@ export async function transferEvent(env: Env, eventId: number, to: string): Prom
 
 /** A new event by someone revoked a moment ago goes to the Owner, as revoking did with their others. */
 export async function handBackIfRevoked(env: Env, eventId: number, creator: string | null): Promise<void> {
-  await env.DB.prepare(
+  const r = await env.DB.prepare(
     `UPDATE events SET manager_id = ?3, payee_id = ?3
      WHERE id = ?1 AND manager_id = ?2
        AND NOT EXISTS (SELECT 1 FROM members WHERE id = ?2 AND role = 'organizer' AND status = 'active')`,
   )
     .bind(eventId, creator, await ownerId(env.DB))
     .run();
+  if (r.meta.changes) await audit(env, eventId, SYSTEM, "reassign", "创建者刚被撤销组织者身份，活动交给群主");
 }
 
 /**

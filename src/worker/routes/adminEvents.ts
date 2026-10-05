@@ -13,7 +13,7 @@ import {
   settleRows,
   syncPayments,
 } from "../billing";
-import { isDate, isTime, pacificToUtc } from "../../shared/time";
+import { formatInstantZh, isDate, isTime, pacificToUtc, toPacific } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
 import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
 import type { Env } from "../env";
@@ -44,6 +44,7 @@ import {
   eventManager,
   eventPayee,
   forgetLastValue,
+  inboundPayee,
   lastValues,
   organizersEnabled,
   ownerId,
@@ -68,6 +69,7 @@ import {
   emailStatus,
   GMAIL_CONFIRM_HOURS,
   inboundRows,
+  noteTarget,
   linkCutoff,
   openPayments,
   refundRows,
@@ -77,6 +79,7 @@ import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
+import { actorId, audit, auditRows, billOwner, friendName, money, record, rosterLabel } from "../audit";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -195,13 +198,17 @@ adminEventRoutes.post("/events", async (c) => {
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
+  await audit(c.env, e.id, actorId(actor), "create", `创建活动（${e.date} ${e.location}）`);
   // Revoked while this request was on its way: the event goes to the Owner like their others did.
   if (actor.role === "organizer") await handBackIfRevoked(c.env, e.id, actor.memberId);
   await notifyCreated(c.env, await getEvent(c.env, e.id));
   // "我自己也报名": the creator signs up as a normal player (ticked by default in the form).
   if (b.joinSelf === true) {
     const self = await activeSelf(c.env, actor.memberId);
-    if (self) await setSignup(c.env, e.id, self, [], false);
+    if (self) {
+      await setSignup(c.env, e.id, self, [], false);
+      await audit(c.env, e.id, actorId(actor), "self_signup", "创建时自己报名");
+    }
   }
   return c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
 });
@@ -229,18 +236,43 @@ async function selfSignupEvent(env: Env, id: string, memberId: string | null) {
   return { e, self };
 }
 
+/** One's own rows on the roster (themselves and friends, with names), for telling whether a save changed them. */
+async function ownSignup(env: Env, eventId: number, memberId: string) {
+  const { results } = await env.DB.prepare(
+    "SELECT friend_index, friend_name FROM registrations WHERE event_id = ? AND member_id = ? ORDER BY friend_index",
+  )
+    .bind(eventId, memberId)
+    .all<{ friend_index: number; friend_name: string | null }>();
+  return { rows: results, key: results.length ? JSON.stringify(results) : "" };
+}
+
 adminEventRoutes.post("/events/:id/self-signup", async (c) => {
   const { e, self } = await selfSignupEvent(c.env, c.req.param("id"), c.get("actor").memberId);
   const body = await readJson(c.req.raw);
   // No cap here, but friends already on the list (some may be added from 添加人员) may stay.
   const keep = await friendCount(c.env, e.id, self);
-  await setSignup(c.env, e.id, self, validateFriends(body.friends ?? [], null, keep), false);
+  const friends = validateFriends(body.friends ?? [], null, keep);
+  const before = await ownSignup(c.env, e.id, self);
+  await setSignup(c.env, e.id, self, friends, false);
+  await audit(c.env, e.id, actorId(c.get("actor")), "self_signup", async () => {
+    // Saved again without a change: nothing to record.
+    const after = await ownSignup(c.env, e.id, self);
+    if (before.key === after.key) return null;
+    const what = before.key ? "修改自己的报名" : "自己报名";
+    // Named as the roster now shows them (friend numbers are kept across saves).
+    const me = await billOwner(c.env, self);
+    const names = after.rows
+      .filter((r) => r.friend_index > 0)
+      .map((r) => friendName(me, r.friend_index, r.friend_name));
+    return names.length ? `${what}，带 ${names.length} 个朋友：${names.join("、")}` : `${what}，不带朋友`;
+  });
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
   const { e, self } = await selfSignupEvent(c.env, c.req.param("id"), c.get("actor").memberId);
-  await removeSignup(c.env, e.id, self);
+  if (await removeSignup(c.env, e.id, self))
+    await audit(c.env, e.id, actorId(c.get("actor")), "self_cancel", "取消自己的报名（连同带的朋友）");
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
@@ -248,18 +280,47 @@ adminEventRoutes.get("/events/:id", async (c) => {
   return c.json(await detail(c.env, await getEvent(c.env, Number(c.req.param("id"))), c.get("actor").memberId));
 });
 
+/** 操作记录: the Owner sees every event's, an organizer only those of the events they run (access.ts). */
+adminEventRoutes.get("/events/:id/audit", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  return c.json({ entries: await auditRows(c.env, e.id) });
+});
+
 /** 转交 (Owner): another organizer, or the Owner, runs the event; before Finalize the money goes too. */
 adminEventRoutes.post("/events/:id/transfer", async (c) => {
   assertOrganizersOn(c.env);
   const id = Number(c.req.param("id"));
-  await transferEvent(c.env, (await getEvent(c.env, id)).id, str((await readJson(c.req.raw)).to));
-  return c.json(await detail(c.env, await getEvent(c.env, id), c.get("actor").memberId));
+  const before = await getEvent(c.env, id);
+  await transferEvent(c.env, before.id, str((await readJson(c.req.raw)).to));
+  const after = await getEvent(c.env, id);
+  await audit(c.env, id, actorId(c.get("actor")), "transfer", async () => {
+    // Compared as people (NULL is the Owner, as in eventManager / eventPayee), so handing an event
+    // to whoever already runs it records nothing.
+    const owner = await ownerId(c.env.DB);
+    const [from, to, paidBefore, paidAfter] = [
+      before.manager_id ?? owner,
+      after.manager_id ?? owner,
+      before.payee_id ?? owner,
+      after.payee_id ?? owner,
+    ];
+    if (from === to) return null;
+    const payee = paidBefore === paidAfter ? `，收款人仍是 ${await payeeName(c.env.DB, paidAfter)}` : "，收款人一起换";
+    return `把活动从 ${await payeeName(c.env.DB, from)} 转交给 ${await payeeName(c.env.DB, to)}${payee}`;
+  });
+  return c.json(await detail(c.env, after, c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/cancel", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   if (e.status !== "open" && e.status !== "closed") throw badRequest("只能在 Finalize 之前取消活动");
-  await c.env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e.id).run();
+  // Guarded, so of two clicks at once only the one that cancelled it records it.
+  const res = await c.env.DB.prepare(
+    "UPDATE events SET status = 'cancelled' WHERE id = ? AND status IN ('open', 'closed')",
+  )
+    .bind(e.id)
+    .run();
+  if (!res.meta.changes) throw badRequest("只能在 Finalize 之前取消活动");
+  await audit(c.env, e.id, actorId(c.get("actor")), "cancel", "取消活动");
   await syncDeadline(c.env, e.id);
   await remindIfExpired(c.env, e.payee_id);
   return c.json({ ok: true });
@@ -292,9 +353,12 @@ adminEventRoutes.post("/events/:id/close-now", async (c) => {
   await closeExpired(c.env);
   const e = await getEvent(c.env, Number(c.req.param("id")));
   if (e.status !== "open") throw badRequest("只有报名中的活动可以提前截止");
-  await c.env.DB.prepare("UPDATE events SET status = 'closed', deadline_at = ? WHERE id = ? AND status = 'open'")
+  const closed = await c.env.DB.prepare(
+    "UPDATE events SET status = 'closed', deadline_at = ? WHERE id = ? AND status = 'open'",
+  )
     .bind(now(), e.id)
     .run();
+  if (closed.meta.changes) await audit(c.env, e.id, actorId(c.get("actor")), "close_now", "提前截止报名");
   await syncDeadline(c.env, e.id); // 报名截止 goes out right away
   return c.json({ ok: true });
 });
@@ -332,9 +396,11 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
     if (deadline <= now()) status = "closed";
   }
   const ts = now();
-  await c.env.DB.batch([
+  // Only over what was read: a close, Finalize or archive landing in between is never undone.
+  const [res] = await c.env.DB.batch([
     c.env.DB.prepare(
-      "UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, deadline_at = ?, status = ? WHERE id = ?",
+      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, deadline_at = ?, status = ?
+       WHERE id = ? AND status = ? AND deadline_at = ?`,
     ).bind(
       date,
       startAt,
@@ -345,12 +411,36 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
       deadline,
       status,
       e.id,
+      e.status,
+      e.deadline_at,
     ),
     saveVenue(c.env, location, address, ts),
   ]);
+  if (!res?.meta.changes) throw badRequest("这个活动刚刚有了变化，请刷新后再改");
+  const after = await getEvent(c.env, e.id);
+  const changes = editChanges(e, after);
+  if (changes.length) await audit(c.env, e.id, actorId(c.get("actor")), "edit", `修改活动：${changes.join("；")}`);
   await syncDeadline(c.env, e.id);
-  return c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
+  return c.json(await detail(c.env, after, c.get("actor").memberId));
 });
+
+/** What 修改活动 changed, for the log: each field as 原来 → 现在. */
+function editChanges(a: EventRow, b: EventRow): string[] {
+  const time = (e: EventRow) => `${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`;
+  const fields: [string, string, string][] = [
+    ["日期", a.date, b.date],
+    ["时间", time(a), time(b)],
+    ["场馆", a.location, b.location],
+    ["地址", a.address, b.address],
+    ["标题", a.title || "（无）", b.title || "（无）"],
+  ];
+  const out = fields.filter(([, x, y]) => x !== y).map(([k, x, y]) => `${k} ${x} → ${y}`);
+  // An open event's deadline moves with the start.
+  if (a.deadline_at !== b.deadline_at)
+    out.push(`报名截止 ${formatInstantZh(a.deadline_at)} → ${formatInstantZh(b.deadline_at)}`);
+  if (a.status !== b.status && b.status === "closed") out.push("新的截止时间已过，报名截止");
+  return out;
+}
 
 /** Reopens sign-up with a new deadline, which may be as late as the event's end. */
 adminEventRoutes.post("/events/:id/reopen", async (c) => {
@@ -364,7 +454,13 @@ adminEventRoutes.post("/events/:id/reopen", async (c) => {
   const deadline = pacificToUtc(date, time);
   if (deadline <= now()) throw badRequest("新的截止时间必须晚于现在");
   if (deadline > e.end_at) throw badRequest("截止时间最晚只能到活动结束");
-  await c.env.DB.prepare("UPDATE events SET status = 'open', deadline_at = ? WHERE id = ?").bind(deadline, e.id).run();
+  const res = await c.env.DB.prepare(
+    "UPDATE events SET status = 'open', deadline_at = ? WHERE id = ? AND status = 'closed'",
+  )
+    .bind(deadline, e.id)
+    .run();
+  if (!res.meta.changes) throw badRequest("只能重新开放已截止、还没 Finalize 的活动");
+  await audit(c.env, e.id, actorId(c.get("actor")), "reopen", `重新开放报名，截止到 ${date} ${time}`);
   await syncDeadline(c.env, e.id);
   return c.json({ ok: true });
 });
@@ -399,6 +495,12 @@ adminEventRoutes.post("/events/:id/roster/add", async (c) => {
     ...(includeSelf ? [insert(0, null)] : []),
     ...friends.map((f) => insert(next++, f.trim().slice(0, 20) || null)),
   ]);
+  const first = next - friends.length;
+  const added = [
+    ...(includeSelf ? [m.username] : []),
+    ...friends.map((f, i) => friendName(m.username, first + i, f.trim().slice(0, 20) || null)),
+  ];
+  await audit(c.env, e.id, actorId(c.get("actor")), "roster_add", `添加 ${added.join("、")}`);
   await recomputeIfFinalized(c.env, e);
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
@@ -407,12 +509,16 @@ adminEventRoutes.post("/events/:id/roster/:rid/rename", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   assertRosterEditable(e);
   const b = await readJson(c.req.raw);
+  const rid = Number(c.req.param("rid"));
+  const was = await rosterLabel(c.env, rid);
   const res = await c.env.DB.prepare(
     "UPDATE registrations SET friend_name = ?, updated_at = ? WHERE id = ? AND event_id = ? AND friend_index > 0",
   )
-    .bind(str(b.name).trim().slice(0, 20) || null, now(), Number(c.req.param("rid")), e.id)
+    .bind(str(b.name).trim().slice(0, 20) || null, now(), rid, e.id)
     .run();
   if (!res.meta.changes) throw badRequest("只能修改朋友的名字");
+  const is = await rosterLabel(c.env, rid);
+  if (was !== is) await audit(c.env, e.id, actorId(c.get("actor")), "roster_rename", `把 ${was} 改名为 ${is}`);
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
@@ -421,7 +527,9 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
   assertRosterEditable(e);
   const rid = Number(c.req.param("rid"));
   await assertCostsShared(c.env, e, (list) => list.filter((r) => r.id !== rid));
-  await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?").bind(rid, e.id).run();
+  const who = await rosterLabel(c.env, rid);
+  const res = await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?").bind(rid, e.id).run();
+  if (res.meta.changes) await audit(c.env, e.id, actorId(c.get("actor")), "roster_remove", `把 ${who} 移出名单`);
   await recomputeIfFinalized(c.env, e);
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
@@ -581,9 +689,19 @@ adminEventRoutes.post("/events/:id/attendance", async (c) => {
   const rid = num(b.registrationId);
   const attended = b.attended !== false;
   await assertCostsShared(c.env, e, (list) => list.map((r) => (r.id === rid ? { ...r, attended } : r)));
-  await c.env.DB.prepare("UPDATE registrations SET attended = ?, updated_at = ? WHERE id = ? AND event_id = ?")
-    .bind(attended ? 1 : 0, now(), rid, e.id)
+  const res = await c.env.DB.prepare(
+    "UPDATE registrations SET attended = ?, updated_at = ? WHERE id = ? AND event_id = ? AND attended != ?",
+  )
+    .bind(attended ? 1 : 0, now(), rid, e.id, attended ? 1 : 0)
     .run();
+  if (res.meta.changes)
+    await audit(
+      c.env,
+      e.id,
+      actorId(c.get("actor")),
+      "attendance",
+      async () => `把 ${await rosterLabel(c.env, rid)} 标为${attended ? "到场" : "未出席"}`,
+    );
   await recomputeIfFinalized(c.env, e);
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
@@ -647,7 +765,17 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
   const input = readInput(await readJson(c.req.raw));
   if ((await settleRows(c.env, e.id)).length === 0) throw badRequest("名单是空的，不能结算");
   await assertPayeeReady(c.env, e, c.get("actor").memberId);
-  await finalize(c.env, e, input);
+  const was = await savedInput(c.env, e.id);
+  const fees = (i: SettleInput) =>
+    `场地 ${money(i.courtTotalCents)}，用球 ${i.shuttleCount} 个 × ${money(i.shuttlePriceCents)}`;
+  if (await finalize(c.env, e, input))
+    await audit(c.env, e.id, actorId(c.get("actor")), "finalize", `Finalize 发出账单：${fees(input)}`);
+  // Saved again with the same fees, or a second click on the first Finalize (no fees saved yet when
+  // it read them): nothing changed.
+  else if (was && fees(was) !== fees(input))
+    await audit(c.env, e.id, actorId(c.get("actor")), "fee_edit", `修改费用：${fees(input)}（原来：${fees(was)}）`);
+  // After the entry, so the archive it may cause (every bill already paid) comes after it in the log.
+  await checkCollected(c.env, e.id);
   return c.json({ ok: true });
 });
 
@@ -671,8 +799,16 @@ async function paymentEvent(env: Env, paymentId: number, allowSettled = false) {
 /** Cash, Zelle or anything else: a manual receipt for whatever is still owed. */
 adminEventRoutes.post("/payments/:pid/mark-paid", async (c) => {
   const id = Number(c.req.param("pid"));
-  const { e } = await paymentEvent(c.env, id);
-  if (!(await markPaid(c.env, id))) throw badRequest("这笔已经付清了");
+  const { p, e } = await paymentEvent(c.env, id);
+  const amount = await markPaid(c.env, id);
+  if (amount === null) throw badRequest("这笔已经付清了");
+  await audit(
+    c.env,
+    e.id,
+    actorId(c.get("actor")),
+    "mark_paid",
+    async () => `把 ${await billOwner(c.env, p.member_id)} 的账单标记为已付（记一笔 ${money(amount)}）`,
+  );
   const settled = await checkCollected(c.env, e.id);
   return c.json({ ok: true, settled });
 });
@@ -750,21 +886,49 @@ adminEventRoutes.post("/receipts/:rid/remove", async (c) => {
     ...syncPayments(c.env.DB, "id = ?", r.payment_id),
   ]);
   if (keepsPaid && !res[back.length]?.meta.changes) throw badRequest("这个活动已收齐归档，只能撤销多付的 Venmo 付款");
+  if (res[back.length]?.meta.changes) {
+    const how =
+      r.method === "venmo" || r.venmo_txn_id
+        ? `Venmo 付款${r.payer_name ? `（${r.payer_name}）` : ""}`
+        : r.method === "refund"
+          ? "退款记录"
+          : "手动记的付款";
+    // Only when its 待确认 row really reopened (or was made); another receipt may still count it.
+    const where = res.slice(0, back.length).some((x) => x.meta.changes) ? "，钱移回待确认" : "";
+    await audit(
+      c.env,
+      e.id,
+      actorId(c.get("actor")),
+      "receipt_remove",
+      async () =>
+        `撤销 ${await billOwner(c.env, p.member_id)} 账单上的一笔${how} ${money(Math.abs(r.amount_cents))}${where}`,
+    );
+  }
   return c.json({ ok: true });
 });
 
 /** The Owner sent the over-payment back. Allowed on archived events too: it changes no bill. */
 adminEventRoutes.post("/payments/:pid/refunded", async (c) => {
   const id = Number(c.req.param("pid"));
+  const { p, e } = await paymentEvent(c.env, id, true);
   // One refund record for the whole excess, worked out in the same transaction so a second click adds nothing.
   const [res] = await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
-       SELECT id, amount_due_cents - amount_paid_cents, 'refund', ? FROM payments WHERE id = ? AND amount_paid_cents > amount_due_cents`,
+       SELECT id, amount_due_cents - amount_paid_cents, 'refund', ? FROM payments WHERE id = ? AND amount_paid_cents > amount_due_cents
+       RETURNING amount_cents`,
     ).bind(now(), id),
     ...syncPayments(c.env.DB, "id = ?", id),
   ]);
   if ((res?.meta.changes ?? 0) === 0) throw badRequest("这笔没有需要退的钱");
+  const refunded = -((res?.results[0] as { amount_cents: number } | undefined)?.amount_cents ?? 0);
+  await audit(
+    c.env,
+    e.id,
+    actorId(c.get("actor")),
+    "refund",
+    async () => `${await billOwner(c.env, p.member_id)} 多付的 ${money(refunded)} 已退款`,
+  );
   return c.json({ ok: true });
 });
 
@@ -783,6 +947,22 @@ adminEventRoutes.get("/inbound", async (c) => {
   return c.json<InboundResponse>({ open, done, ignored, deleted, payments, refunds });
 });
 
+/**
+ * A 待确认 payment's log entry goes on the event its note's code names, when there is one (a
+ * payment with no code has no event, and nothing is recorded).
+ */
+async function inboundEntry(
+  env: Env,
+  i: { note: string | null; payer_name: string | null; amount_cents: number | null; payee_id: string | null },
+  text: (into: string, what: string) => string,
+) {
+  const e = (await noteTarget(env, i.note))?.e;
+  if (!e) return null;
+  const into = await payeeName(env.DB, await inboundPayee(env.DB, i));
+  const what = `${i.payer_name ?? "付款人不明"}${i.amount_cents === null ? "" : ` ${money(i.amount_cents)}`}`;
+  return { eventId: e.id, detail: text(into, what) };
+}
+
 async function openInbound(env: Env, id: number) {
   const i = await env.DB.prepare("SELECT * FROM inbound_payments WHERE id = ?").bind(id).first<{
     id: number;
@@ -791,6 +971,7 @@ async function openInbound(env: Env, id: number) {
     venmo_txn_id: string | null;
     payer_name: string | null;
     note: string | null;
+    payee_id: string | null;
   }>();
   if (!i) throw badRequest("找不到这笔收款");
   if (i.state !== "open") throw badRequest("这笔收款已经处理过了");
@@ -851,6 +1032,20 @@ adminEventRoutes.post("/inbound/:iid/link", async (c) => {
     note: i.note,
     inboundId: i.id,
   });
+  // Money paid into someone else's account than the event's payee: the two settle it between them.
+  const amount = i.amount_cents;
+  const elsewhere = async () => {
+    const into = await inboundPayee(c.env.DB, i);
+    return into !== bill.payee ? `；钱在 ${await payeeName(c.env.DB, into)} 的账户` : "";
+  };
+  await audit(
+    c.env,
+    bill.event_id,
+    actorId(c.get("actor")),
+    "inbound_link",
+    async () =>
+      `把待确认的 Venmo 收款（${i.payer_name ?? "付款人不明"} ${money(amount)}）关联到 ${await billOwner(c.env, bill.member_id)} 的账单${await elsewhere()}`,
+  );
   const settled = await checkCollected(c.env, bill.event_id);
   return c.json({ ok: true, settled });
 });
@@ -862,11 +1057,18 @@ adminEventRoutes.post("/inbound/:iid/ignore", async (c) => {
     .bind(i.id)
     .run();
   if (!res.meta.changes) throw badRequest("这笔收款已经处理过了");
+  await record(c.env, actorId(c.get("actor")), "inbound_ignore", () =>
+    inboundEntry(c.env, i, (into, what) => `忽略付到 ${into} 账户的 Venmo 收款（${what}）`),
+  );
   return c.json({ ok: true });
 });
 
 /** 移回待确认: undoes a mistaken 忽略, so the payment can still be linked to a bill. */
 adminEventRoutes.post("/inbound/:iid/unignore", async (c) => {
+  // Read first, for the log; the update below decides.
+  const i = await c.env.DB.prepare("SELECT note, payer_name, amount_cents, payee_id FROM inbound_payments WHERE id = ?")
+    .bind(Number(c.req.param("iid")))
+    .first<{ note: string | null; payer_name: string | null; amount_cents: number | null; payee_id: string | null }>();
   const res = await c.env.DB.prepare(
     `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL,
        reason = CASE WHEN COALESCE(reason, '') = '' THEN '忽略后移回'
@@ -888,6 +1090,11 @@ adminEventRoutes.post("/inbound/:iid/unignore", async (c) => {
         : "只能把已忽略的收款移回待确认",
     );
   }
+  // Undoes a recorded 忽略, so it is recorded too.
+  if (i)
+    await record(c.env, actorId(c.get("actor")), "inbound_unignore", () =>
+      inboundEntry(c.env, i, (into, what) => `把付到 ${into} 账户的 Venmo 收款（${what}）从已忽略移回待确认`),
+    );
   return c.json({ ok: true });
 });
 
@@ -967,9 +1174,17 @@ adminEventRoutes.post("/events/:id/dunning", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
   if (e.status !== "finalized") throw badRequest("只有已结算、还没收齐的活动才能停止账单提醒");
   const stop = (await readJson(c.req.raw)).stop === true;
-  await c.env.DB.prepare("UPDATE events SET dunning_stopped = ? WHERE id = ?")
-    .bind(stop ? 1 : 0, e.id)
+  const res = await c.env.DB.prepare("UPDATE events SET dunning_stopped = ? WHERE id = ? AND dunning_stopped != ?")
+    .bind(stop ? 1 : 0, e.id, stop ? 1 : 0)
     .run();
+  if (res.meta.changes)
+    await audit(
+      c.env,
+      e.id,
+      actorId(c.get("actor")),
+      stop ? "dunning_stop" : "dunning_resume",
+      stop ? "停止账单提醒" : "恢复账单提醒",
+    );
   return c.json({ ok: true, dunningStopped: stop });
 });
 

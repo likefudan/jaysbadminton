@@ -1,7 +1,8 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { AddressInput } from "../AddressInput";
 import type {
   AdminEventSummary,
+  AuditEntry,
   AdminViewer,
   EventDefaults,
   EventDetail,
@@ -9,7 +10,7 @@ import type {
   OrganizersBlock,
   RosterEntry,
 } from "../../shared/types";
-import { formatDateZh } from "../../shared/time";
+import { formatDateZh, formatInstantZh } from "../../shared/time";
 import { api } from "../api";
 import { Card, CopyButton, Empty, Field, Load, useAction } from "../components";
 import { EventInfo } from "../events";
@@ -470,8 +471,53 @@ function EventAdminBody(props: {
         </button>
       )}
 
+      <AuditLog eb={eb} e={e} />
+
       {e.deletable && isOwner && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
     </>
+  );
+}
+
+/** 操作记录: who changed what on this event, newest first. Loaded only once opened. */
+function AuditLog(props: { eb: string; e: EventDetail }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card>
+      <details class="fold" onToggle={(ev) => setOpen((ev.currentTarget as HTMLDetailsElement).open)}>
+        <summary>操作记录</summary>
+        {open && <AuditList eb={props.eb} e={props.e} />}
+      </details>
+    </Card>
+  );
+}
+
+function AuditList(props: { eb: string; e: EventDetail }) {
+  const [log, reload] = useApi<{ entries: AuditEntry[] }>(`${props.eb}/audit`);
+  // The page reloads the event after every change; the log follows it.
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) first.current = false;
+    else reload();
+  }, [props.e]);
+  return (
+    <Load result={log}>
+      {({ entries }) =>
+        entries.length === 0 ? (
+          <Empty>还没有记录</Empty>
+        ) : (
+          <ul class="audit">
+            {entries.map((a) => (
+              <li key={a.id}>
+                <small class="muted">
+                  {formatInstantZh(a.at)} · {a.actor}
+                </small>
+                <div>{a.detail}</div>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </Load>
   );
 }
 

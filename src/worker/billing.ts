@@ -9,6 +9,7 @@ import { HttpError, badRequest } from "./http";
 import { eventManager, eventPayee, lastKey, ownerId } from "./organizers";
 import { payeeSql } from "./payees";
 import { remindIfExpired } from "./appointments";
+import { SYSTEM, audit } from "./audit";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
   return toSettleRows(await roster(env, eventId));
@@ -172,14 +173,18 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   return result;
 }
 
-export async function finalize(env: Env, e: EventRow, input: SettleInput): Promise<void> {
-  const first = e.status !== "finalized";
+/**
+ * Finalize, or a later fee change. Returns whether this request was the first Finalize (of two at
+ * once, only one is). The caller then runs checkCollected, after recording the change, as every
+ * bill may already be paid.
+ */
+export async function finalize(env: Env, e: EventRow, input: SettleInput): Promise<boolean> {
   await applySettlement(env, e, input);
   const owner = await ownerId(env.DB);
-  await env.DB.batch([
-    env.DB.prepare(
-      "UPDATE events SET status = 'finalized', finalized_at = COALESCE(finalized_at, ?) WHERE id = ?",
-    ).bind(now(), e.id),
+  const [claimed] = await env.DB.batch([
+    // Set once, by whichever request finalizes first.
+    env.DB.prepare("UPDATE events SET finalized_at = ? WHERE id = ? AND finalized_at IS NULL").bind(now(), e.id),
+    env.DB.prepare("UPDATE events SET status = 'finalized' WHERE id = ?").bind(e.id),
     // The price is remembered for whoever runs the event, for their next one.
     setSetting(
       env.DB,
@@ -187,8 +192,9 @@ export async function finalize(env: Env, e: EventRow, input: SettleInput): Promi
       String(input.shuttlePriceCents),
     ),
   ]);
+  const first = (claimed?.meta.changes ?? 0) > 0;
   if (first) await notifyFinalized(env, e);
-  await checkCollected(env, e.id);
+  return first;
 }
 
 /**
@@ -239,6 +245,7 @@ export async function checkCollected(env: Env, eventId: number): Promise<boolean
     .bind(now(), eventId, eventId)
     .first<{ payee_id: string | null }>();
   if (!archived) return false;
+  await audit(env, eventId, SYSTEM, "collected", "全部付清，自动收齐归档");
   await notifyCollected(env, eventId);
   await remindIfExpired(env, archived.payee_id);
   return true;
@@ -334,18 +341,19 @@ export async function addReceipt(
 /**
  * 标记已付: a manual receipt for whatever is still owed, worked out inside the same transaction,
  * so a second click (another tab, a retried request) finds nothing owed and adds nothing.
- * Returns false when the bill was already paid.
+ * Returns the amount recorded, or null when the bill was already paid.
  */
-export async function markPaid(env: Env, paymentId: number): Promise<boolean> {
+export async function markPaid(env: Env, paymentId: number): Promise<number | null> {
   const [ins] = await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO payment_receipts (payment_id, amount_cents, method, received_at)
        SELECT id, amount_due_cents - amount_paid_cents, 'manual', ? FROM payments
-       WHERE id = ? AND amount_paid_cents < amount_due_cents`,
+       WHERE id = ? AND amount_paid_cents < amount_due_cents
+       RETURNING amount_cents`,
     ).bind(now(), paymentId),
     ...syncPayments(env.DB, "id = ?", paymentId),
   ]);
-  return (ins?.meta.changes ?? 0) > 0;
+  return (ins?.results[0] as { amount_cents: number } | undefined)?.amount_cents ?? null;
 }
 
 export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<number, Receipt[]>> {

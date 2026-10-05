@@ -380,8 +380,12 @@ export async function setSignup(
   ]);
 }
 
-export async function removeSignup(env: Env, eventId: number, memberId: string): Promise<void> {
-  await env.DB.prepare("DELETE FROM registrations WHERE event_id = ? AND member_id = ?").bind(eventId, memberId).run();
+/** Returns whether anything was removed (false: they were not signed up, e.g. a second click). */
+export async function removeSignup(env: Env, eventId: number, memberId: string): Promise<boolean> {
+  const r = await env.DB.prepare("DELETE FROM registrations WHERE event_id = ? AND member_id = ?")
+    .bind(eventId, memberId)
+    .run();
+  return r.meta.changes > 0;
 }
 
 /** keep: friends already on the list, which may stay even above the cap (the Owner may have added them). */
