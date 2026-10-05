@@ -162,18 +162,22 @@ async function receivingAccount(env: Env, sentTo: string, to: string[]): Promise
  * the one whose notification email (now, or within 60 days) it was addressed to. Such emails say
  * nothing about the Owner's own forwarding, and their problems are the organizer's to fix.
  */
-async function mailedTo(env: Env, to: string[]): Promise<string | null> {
+async function mailedTo(env: Env, to: string[]): Promise<{ id: string; alias: boolean } | null> {
   if (to.length !== 1) return null;
   const { venmo_email: ownerEmail = "" } = await getSettings(env.DB, ["venmo_email"]);
   if (ownerEmail && to[0] === ownerEmail) return null;
   const r = await env.DB.prepare(
-    `SELECT member_id FROM payment_profiles WHERE venmo_email = ?1
-     UNION ALL SELECT member_id FROM payment_aliases WHERE venmo_email = ?1 AND until > ?2 LIMIT 1`,
+    `SELECT member_id, 0 AS alias FROM payment_profiles WHERE venmo_email = ?1
+     UNION ALL SELECT member_id, 1 FROM payment_aliases WHERE venmo_email = ?1 AND until > ?2 LIMIT 1`,
   )
     .bind(to[0], now())
-    .first<{ member_id: string }>();
-  return r?.member_id ?? null;
+    .first<{ member_id: string; alias: number }>();
+  return r ? { id: r.member_id, alias: r.alias === 1 } : null;
 }
+
+/** 转发已生效 and the 转发可能中断 check read this: a Venmo email for their current account arrived. */
+const forwarded = (env: Env, memberId: string) =>
+  env.DB.prepare("UPDATE payment_profiles SET email_last_at = ? WHERE member_id = ?").bind(now(), memberId).run();
 
 /**
  * The Owner forwards every Venmo receipt, most of them unrelated to badminton, and so does each
@@ -204,7 +208,13 @@ export async function receiveEmail(
   if (mail.fromAddress === GMAIL_FORWARDING)
     return { outcome: await gmailConfirmation(env, raw, mail.subject, mail.text, opts), organizer: null };
   if (mail.fromAddress !== VENMO) return { outcome: "not_venmo", organizer: null };
-  const unknown = async (outcome: EmailOutcome) => ({ outcome, organizer: await mailedTo(env, mail.toAddresses) });
+  // Not matched to an account. Addressed to an organizer, it is theirs; a genuine Venmo email still
+  // proves their forwarding works, as any email past the From check does for the Owner.
+  const unknown = async (outcome: EmailOutcome) => {
+    const to = await mailedTo(env, mail.toAddresses);
+    if (to && !to.alias && outcome !== "bad_signature") await forwarded(env, to.id);
+    return { outcome, organizer: to?.id ?? null };
+  };
   if (!/ paid \$[\d,]+\.\d{2} to your Venmo account/.test(mail.subject.replace(/\s+/g, " ")))
     return unknown("not_receipt");
   const dkim = await verifyDkim(raw, "venmo.com", opts.resolveKey);
@@ -222,12 +232,9 @@ export async function receiveEmail(
   if (!account) return unknown("wrong_recipient");
   if (account.owner)
     return { outcome: await matchReceipt(env, r, mail.messageId, account, unverified), organizer: null };
-  // 转发已生效 on their 收款设置 page, and the 转发可能中断 check, read this: only signed emails
-  // into the account they have now (an old one's forwarding says nothing about the new one's).
-  if (!unverified && !account.alias)
-    await env.DB.prepare("UPDATE payment_profiles SET email_last_at = ? WHERE member_id = ?")
-      .bind(now(), account.id)
-      .run();
+  // Only signed emails into the account they have now: an old one's forwarding says nothing about
+  // the new one's.
+  if (!unverified && !account.alias && account.id) await forwarded(env, account.id);
   return { outcome: await matchReceipt(env, r, mail.messageId, account, unverified), organizer: account.id };
 }
 

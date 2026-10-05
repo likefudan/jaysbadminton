@@ -31,17 +31,16 @@ const PROBLEMS: Partial<Record<EmailOutcome, string>> = {
 
 /** The same, for an email addressed to an organizer's notification email (`emailProblemAlert`). */
 const ORGANIZER_PROBLEMS: Partial<Record<EmailOutcome, (name: string) => string>> = {
-  parse_failed: (name) =>
-    `⚠️ 收到一封转发到 ${name} 的 Venmo 收款邮件，但系统读不懂它的格式（可能是 Venmo 改版了），这笔付款没有自动记账。\n请在 Venmo App 里核对最近的收款，必要时在管理页手动标记已付，并告诉群主。`,
   wrong_recipient: (name) =>
     `⚠️ 收到一封转发到 ${name} 的 Venmo 收款邮件，但收款账号和 ${name} 的收款设置里的 Venmo 用户名不一致，已忽略。\n请检查管理页「设置 › 我的收款设置」里的 Venmo 用户名和通知邮箱是否填对。`,
 };
 
 /**
  * Right after an email is handled: a problem worth knowing about, at most once a day per kind.
- * One addressed to an organizer (`organizer`, from receiveEmail) is theirs to fix and goes to them
- * (the Owner when they can't get it); a signature failure always goes to the Owner, as the To
- * header of a forged email proves nothing.
+ * A wrong account in an email addressed to an organizer (`organizer`, from receiveEmail) is
+ * theirs to fix and goes to them (the Owner when they can't get it). The rest stay the Owner's:
+ * an unreadable receipt means Venmo changed its format for everyone, and the To header of a
+ * forged email proves nothing.
  */
 export async function emailProblemAlert(
   env: Env,
@@ -103,7 +102,8 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
     const text = message(
       `📭 ${quietFor(at, p.email_last_at, ` ${account}的 Venmo 邮件`)}，但付到这个账户的账单还有 ${owing} 笔没付清。\n如果最近确实有人用 Venmo 付过款，说明这个账户的 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（组织者的管理页「设置 › Venmo 邮件转发」）。`,
     );
-    await once(env, SITE, `forward_silent:${p.member_id}`, p.email_last_at ?? "never", async () => {
+    // Changing account starts a new quiet spell (email_last_at goes back to empty), so "never" is per account.
+    await once(env, SITE, `forward_silent:${p.member_id}`, p.email_last_at ?? `never:${p.venmo_username}`, async () => {
       const d = await sendToPayee(env, p.member_id, text);
       if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：组织者 ${escapeHtml(p.username)} 的收款账户\n${text}`);
       return d.ok;
@@ -217,7 +217,17 @@ export async function digestText(env: Env, at: Date): Promise<string> {
   const checks: string[] = [];
   if (!s.venmo_username) checks.push("⚠️ 收款设置还没填 Venmo 用户名");
   else if (!s.email_last_at) checks.push("⚠️ 邮件转发：还没收到过任何 Venmo 邮件，自动对账可能还没设置好");
-  else if (Date.parse(s.email_last_at) < at.getTime() - QUIET_DAYS * DAY && owing?.n)
+  else if (
+    Date.parse(s.email_last_at) < at.getTime() - QUIET_DAYS * DAY &&
+    // Only the Owner's own bills: organizers' are paid into accounts with their own forwarding.
+    (await db
+      .prepare(
+        `SELECT 1 FROM payments p JOIN events e ON e.id = p.event_id
+         WHERE p.status IN ('unpaid', 'partial') AND ${payeeSql("e")} IS ?`,
+      )
+      .bind(await ownerId(db))
+      .first())
+  )
     checks.push(`⚠️ 邮件转发：最近一封在 ${formatInstantZh(s.email_last_at)}，有欠款却很久没收到，请检查 Gmail 转发`);
   else checks.push(`✓ 邮件转发：最近一封在 ${formatInstantZh(s.email_last_at)}`);
   if (s.cron_last_error_at && s.cron_last_error_at >= since)

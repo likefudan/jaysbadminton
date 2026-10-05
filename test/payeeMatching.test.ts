@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { remindIfExpired } from "../src/worker/appointments";
-import { emailProblemAlert, forwardingWatch } from "../src/worker/health";
+import { digestText, emailProblemAlert, forwardingWatch } from "../src/worker/health";
 import { handleEmail, purgeGmailConfirmations, receiveEmail, recordEmailOutcome } from "../src/worker/inbound";
 import { dollars } from "../src/shared/settle";
 import { pacificToUtc } from "../src/shared/time";
@@ -251,6 +251,8 @@ describe("emails into an organizer's notification email that match no account", 
     expect(to(ALICE_CHAT)).toHaveLength(1);
     expect(to(ALICE_CHAT)[0]).toContain("我的收款设置");
     expect(to(OWNER_CHAT)).toEqual([]);
+    // It still shows her forwarding works.
+    expect((await json(await request(`${GOOGLE}/payment-profile`, s.org))).lastVenmoEmailAt).toBeTruthy();
   });
 });
 
@@ -366,6 +368,21 @@ describe("转发可能中断, by account", () => {
     expect(to(ALICE_CHAT)).toEqual([]);
     expect(to(OWNER_CHAT)).toHaveLength(1);
     expect(to(OWNER_CHAT)[0]).toContain("历史收款人 Alice");
+  });
+
+  it("leaves organizers' bills out of the Owner's line in the weekly digest", async () => {
+    const s = await scenario();
+    const own = (await s.ownerBills()) as Record<string, any>;
+    for (const p of Object.values(own))
+      if (p.status !== "paid") await s.admin.call(`${s.base}/payments/${p.id}/mark-paid`, {});
+    const old = new Date(Date.now() - 10 * 86400_000).toISOString();
+    await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('email_last_at', ?)").bind(old).run();
+    expect(await digestText(on, new Date())).toContain("✓ 邮件转发");
+    await env.DB.prepare("UPDATE events SET status = 'finalized' WHERE id = ?").bind(s.e.id).run();
+    await env.DB.prepare("UPDATE payments SET status = 'unpaid' WHERE event_id = ? AND member_id != ?")
+      .bind(s.e.id, s.owner)
+      .run();
+    expect(await digestText(on, new Date())).toContain("⚠️ 邮件转发");
   });
 
   it("checks the Owner's account by the Owner's bills only", async () => {
