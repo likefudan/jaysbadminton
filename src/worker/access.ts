@@ -153,8 +153,8 @@ const inboundToBill = (): Rule => ({
 const cap = (capability: Capability | null): Rule => ({ cap: capability });
 
 /**
- * Every admin endpoint, as `METHOD path` under /api/admin/:token. Telegram and the forwarding
- * status are still the Owner's until card 7 makes them each person's own (`self`).
+ * Every admin endpoint, as `METHOD path` under /api/admin/:token. The forwarding status is still
+ * the Owner's; Telegram is each person's own (`self`).
  */
 export const ADMIN_ACCESS: Record<string, Rule> = {
   // Signing in and out
@@ -177,10 +177,6 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "GET /sheets": cap("system"),
   "POST /sheets/enable": cap("system"),
   "POST /sheets/disable": cap("system"),
-  "GET /telegram": cap("system"),
-  "POST /telegram/connect": cap("system"),
-  "POST /telegram/test": cap("system"),
-  "POST /telegram/disconnect": cap("system"),
   "GET /email-status": cap("system"),
 
   // group: running the group
@@ -242,6 +238,10 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "GET /payment-profile": cap("self"),
   "POST /payment-profile": cap("self"),
   "GET /organizer/retire": cap("self"),
+  "GET /telegram": cap("self"),
+  "POST /telegram/connect": cap("self"),
+  "POST /telegram/test": cap("self"),
+  "POST /telegram/disconnect": cap("self"),
   "POST /organizer/retire": cap("self"),
 
   // Anyone signed in; the handler returns only what they may see

@@ -130,13 +130,7 @@ export function OrganizerSettings(props: { base: string; viewer: AdminViewer; or
     <>
       <MyPaymentCard base={props.base} />
       <ForwardingCard lastAt={me?.lastVenmoEmailAt ?? null} />
-      <Card title="我的 Telegram">
-        <p class="muted small">
-          {me?.telegram
-            ? "已连接。"
-            : "以后可以在这里连接你自己的 Telegram，接收你负责的活动的提醒（报名截止、账单、收款异常）。现在这些提醒还只发给群主。"}
-        </p>
-      </Card>
+      <TelegramCard base={props.base} organizer />
       <RetireCard base={props.base} />
       <button
         type="button"

@@ -38,7 +38,7 @@ import {
 } from "../events";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
-import type { AdminEnv } from "../access";
+import type { Actor, AdminEnv } from "../access";
 import {
   can,
   eventManager,
@@ -71,11 +71,11 @@ import {
   openPayments,
   refundRows,
 } from "../inbound";
-import { message, notifySettings } from "../notify";
+import { message, notifyCreated, notifySettings } from "../notify";
 import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
-import { disconnect, sendToOwner, startBinding, telegramStatus } from "../telegram";
+import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -196,6 +196,7 @@ adminEventRoutes.post("/events", async (c) => {
   });
   // Revoked while this request was on its way: the event goes to the Owner like their others did.
   if (actor.role === "organizer") await handBackIfRevoked(c.env, e.id, actor.memberId);
+  await notifyCreated(c.env, await getEvent(c.env, e.id));
   // "我自己也报名": the creator signs up as a normal player (ticked by default in the form).
   if (b.joinSelf === true) {
     const self = await activeSelf(c.env, actor.memberId);
@@ -538,11 +539,16 @@ adminEventRoutes.post("/payment-profile", async (c) => {
     throw badRequest("群主的收款设置请在「设置 › 收款设置」里修改（需要群主密码）");
   const { changes } = await savePaymentProfile(c.env, actor.memberId, readPaymentInput(await readJson(c.req.raw)));
   if (changes.length) {
-    // The Owner hears of it, as of their own; the organizer too once Telegram is per person (card 7).
+    // The Owner hears of it, as of their own, and so does the organizer, in case it wasn't them.
     const lines = changes.map(([k, a, z]) => `${k}：${a || "（空）"} → ${z || "（空）"}`).join("\n");
     await sendToOwner(
       c.env,
       message(`🔐 组织者 ${await payeeName(c.env.DB, actor.memberId)} 的收款设置已修改\n${lines}`),
+    );
+    await sendToMember(
+      c.env,
+      actor.memberId,
+      message(`🔐 你的收款设置已修改\n${lines}\n\n如果不是你本人操作，请马上告诉群主。`),
     );
   }
   return c.json({ ok: true });
@@ -908,21 +914,32 @@ adminEventRoutes.post("/inbound/trash/clear", async (c) => {
   return c.json({ ok: true, removed: res.meta.changes });
 });
 
-// ---- Telegram ----
+// ---- Telegram: each person's own chat (the Owner's in settings, an organizer's in telegram_bindings) ----
 
-adminEventRoutes.get("/telegram", async (c) => c.json(await telegramStatus(c.env)));
+/** Whose chat the caller manages: null for the Owner. */
+function chatOwner(actor: Actor): ChatOwner {
+  if (actor.role === "owner") return null;
+  if (!actor.memberId) throw new HttpError(403, "forbidden", "没有权限做这个操作");
+  return actor.memberId;
+}
 
-/** Returns the t.me link that binds the Owner's chat; tapping Start there completes it. */
-adminEventRoutes.post("/telegram/connect", async (c) => c.json({ link: await startBinding(c.env) }));
+adminEventRoutes.get("/telegram", async (c) => c.json(await telegramStatus(c.env, chatOwner(c.get("actor")))));
+
+/** Returns the t.me link that binds the caller's chat; tapping Start there completes it. */
+adminEventRoutes.post("/telegram/connect", async (c) =>
+  c.json({ link: await startBinding(c.env, chatOwner(c.get("actor"))) }),
+);
 
 adminEventRoutes.post("/telegram/test", async (c) => {
-  const ok = await sendToOwner(c.env, message("🏸 测试消息：通知工作正常。", "这一段是可以复制到微信的文字。"));
+  const who = chatOwner(c.get("actor"));
+  const text = message("🏸 测试消息：通知工作正常。", "这一段是可以复制到微信的文字。");
+  const ok = who === null ? await sendToOwner(c.env, text) : await sendToMember(c.env, who, text);
   if (!ok) throw badRequest("发送失败：请先连接 Telegram，或检查机器人是否被停用");
   return c.json({ ok: true });
 });
 
 adminEventRoutes.post("/telegram/disconnect", async (c) => {
-  await disconnect(c.env);
+  await disconnect(c.env, chatOwner(c.get("actor")));
   return c.json({ ok: true });
 });
 

@@ -10,8 +10,11 @@ interface TelegramStatus {
   chatName: string;
 }
 
-/** Connects the Owner's Telegram with a one-time link, and sends a test message. */
-export function TelegramCard(props: { base: string }) {
+/**
+ * Connects the signed-in person's own Telegram (the Owner's, or an organizer's with `organizer`)
+ * with a one-time link, and sends a test message.
+ */
+export function TelegramCard(props: { base: string; organizer?: boolean }) {
   const [status, reload] = useApi<TelegramStatus>(`${props.base}/telegram`);
   const [waiting, setWaiting] = useState(false);
   const { busy, error, run } = useAction();
@@ -42,12 +45,15 @@ export function TelegramCard(props: { base: string }) {
     if (await run(() => api(`${props.base}/telegram/test`, {}))) setSent(true);
   }
   async function unlink() {
-    if (!confirm("断开后不再收到任何通知。继续吗？")) return;
+    const warn = props.organizer
+      ? "断开后，你负责的活动的提醒会改发给群主。继续吗？"
+      : "断开后不再收到任何通知。继续吗？";
+    if (!confirm(warn)) return;
     if (await run(() => api(`${props.base}/telegram/disconnect`, {}))) reload();
   }
 
   return (
-    <Card title="Telegram 通知">
+    <Card title={props.organizer ? "我的 Telegram" : "Telegram 通知"}>
       <Load result={status}>
         {(s) =>
           !s.botReady ? (
@@ -61,8 +67,10 @@ export function TelegramCard(props: { base: string }) {
                 </p>
               ) : (
                 <p class="muted">
-                  还没有连接。点下面的按钮会打开 Telegram，在机器人对话里点「Start /
-                  开始」即可。所有提醒和账单通知只发给连接的这一个账号。
+                  还没有连接。点下面的按钮会打开 Telegram，在机器人对话里点「Start / 开始」即可。
+                  {props.organizer
+                    ? "连接后，你负责的活动的报名截止、结算和收款提醒会发到这里；没连接时这些提醒发给群主。"
+                    : "所有提醒和账单通知只发给连接的这一个账号。"}
                 </p>
               )}
               {waiting && <p class="hint">等待你在 Telegram 里点 Start…（10 分钟内有效）</p>}
