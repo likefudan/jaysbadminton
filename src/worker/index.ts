@@ -5,8 +5,15 @@ import { closeExpired } from "./events";
 import { syncAllDeadlines } from "./deadlines";
 export { DeadlineAlarm } from "./deadlines";
 import { HttpError } from "./http";
-import { MAX_EMAIL_BYTES, handleEmail, purgeDeletedInbound, recordEmailOutcome } from "./inbound";
+import {
+  MAX_EMAIL_BYTES,
+  purgeDeletedInbound,
+  purgeGmailConfirmations,
+  receiveEmail,
+  recordEmailOutcome,
+} from "./inbound";
 import { exportAll } from "./export";
+import { remindExpiredPayees } from "./appointments";
 import { emailProblemAlert, pruneEmailLog, recordCronError } from "./health";
 import { runScheduled } from "./notify";
 import { eventMeta, homeMeta, sharePage } from "./share";
@@ -116,6 +123,8 @@ export default {
       await syncAllDeadlines(env);
       await runScheduled(env);
       await purgeDeletedInbound(env); // 已删除 Venmo payments older than 30 days
+      await purgeGmailConfirmations(env); // organizers' Gmail confirmation codes after 24 hours
+      await remindExpiredPayees(env); // former organizers whose account no longer takes payments
       await pruneEmailLog(env);
       await upgradeWebhookSecret(env);
     } catch (err) {
@@ -131,10 +140,10 @@ export default {
         return;
       }
       const raw = new Uint8Array(await new Response(message.raw).arrayBuffer());
-      const outcome = await handleEmail(env, raw);
+      const { outcome, organizer } = await receiveEmail(env, raw);
       console.log("email:", outcome);
-      await recordEmailOutcome(env, outcome);
-      await emailProblemAlert(env, outcome);
+      await recordEmailOutcome(env, outcome, organizer);
+      await emailProblemAlert(env, outcome, new Date(), organizer);
     } catch (err) {
       console.error("email handler failed:", err);
     }

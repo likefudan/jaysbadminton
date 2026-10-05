@@ -4,18 +4,16 @@ import { SPAM_HINT, type SendResult, sendEmail, site } from "./approvalEmail";
 import { now } from "./db";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
-import { ROSTER_EDITABLE } from "./events";
+import { LIVE_SQL } from "./events";
 import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
-import { payeeUnlockedSql } from "./payees";
+import { once } from "./notify";
+import { payeeExpired, payeeUnlockedSql } from "./payees";
 
 /**
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
  * ORGANIZERS flag; revoking as part of 停用 runs whatever the flag says, as it only hands events back.
  */
-
-/** Events that are not archived yet: still taking sign-ups, waiting for Finalize, or collecting. */
-const LIVE = `(${ROSTER_EDITABLE.map((s) => `'${s}'`).join(", ")})`;
 
 /** The appoint / revoke / transfer endpoints: refused while the feature is off. */
 export function assertOrganizersOn(env: Env): void {
@@ -28,7 +26,7 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
   const [{ results: list }, { results: former }] = await Promise.all([
     env.DB.prepare(
       `SELECT m.id, m.username, m.role_since, p.venmo_username, p.venmo_email, p.email_last_at, t.chat_id,
-       (SELECT COUNT(*) FROM events e WHERE e.manager_id = m.id AND e.status IN ${LIVE}) AS events
+       (SELECT COUNT(*) FROM events e WHERE e.manager_id = m.id AND e.status IN ${LIVE_SQL}) AS events
      FROM members m
      LEFT JOIN payment_profiles p ON p.member_id = m.id
      LEFT JOIN telegram_bindings t ON t.member_id = m.id
@@ -48,7 +46,7 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
     env.DB.prepare(
       `SELECT m.id, m.username, COUNT(*) AS collecting FROM members m JOIN events e ON e.payee_id = m.id
      WHERE m.is_owner = 0 AND NOT (m.role = 'organizer' AND m.status = 'active' AND m.deleted_at IS NULL)
-       AND e.status IN ${LIVE}
+       AND e.status IN ${LIVE_SQL}
      GROUP BY m.id ORDER BY m.id`,
     ).all<{ id: string; username: string; collecting: number }>(),
   ]);
@@ -141,7 +139,7 @@ function outcome(e: ImpactRow, id: string): RevokeImpact["outcome"] {
 export async function revokeImpact(env: Env, id: string): Promise<RevokeImpact[]> {
   const { results } = await env.DB.prepare(
     `SELECT id, code, date, title, status, manager_id, payee_id, ${payeeUnlockedSql("events")} AS unlocked FROM events
-     WHERE (manager_id = ?1 OR payee_id = ?1) AND status IN ${LIVE} ORDER BY start_at`,
+     WHERE (manager_id = ?1 OR payee_id = ?1) AND status IN ${LIVE_SQL} ORDER BY start_at`,
   )
     .bind(id)
     .all<ImpactRow>();
@@ -188,11 +186,9 @@ export async function revokeOrganizer(
       `UPDATE events SET payee_id = ?1 WHERE payee_id = ?2 AND status IN ('open', 'closed')
          AND ${payeeUnlockedSql("events")} AND ${mine}`,
     ).bind(owner, m.id, ts),
-    env.DB.prepare(`UPDATE events SET manager_id = ?1 WHERE manager_id = ?2 AND status IN ${LIVE} AND ${mine}`).bind(
-      owner,
-      m.id,
-      ts,
-    ),
+    env.DB.prepare(
+      `UPDATE events SET manager_id = ?1 WHERE manager_id = ?2 AND status IN ${LIVE_SQL} AND ${mine}`,
+    ).bind(owner, m.id, ts),
     // retired_at marks a 历史收款人 for auto-matching (card 8).
     env.DB.prepare(`UPDATE payment_profiles SET retired_at = ?3 WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
     // Their Telegram goes (design §8): what is left for them as a 历史收款人 goes to the Owner.
@@ -205,7 +201,19 @@ export async function revokeOrganizer(
     if (with_.length) return null;
     throw badRequest(`${m.username} 不是组织者`);
   }
-  return { emailStatus: await sendNoticeEmail(env, m, by, ts) };
+  // Nothing of theirs still collects: the notice email says the filter can go, so the 失效
+  // reminder (remindIfExpired) counts as sent. Claimed first so the sweep can't send one meanwhile,
+  // and given back if the notice didn't go out, so the sweep sends the reminder later.
+  const claim = env.DB.prepare(
+    "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (0, ?1, ?2, ?2)",
+  ).bind(filterReminder(m.id), ts);
+  const claimed = (await payeeExpired(env.DB, m.id)) && !!(await claim.run()).meta.changes;
+  const emailStatus = await sendNoticeEmail(env, m, by, ts);
+  if (claimed && emailStatus !== "sent")
+    await env.DB.prepare("DELETE FROM notification_log WHERE event_id = 0 AND type = ? AND sent_on = ?")
+      .bind(filterReminder(m.id), ts)
+      .run();
+  return { emailStatus };
 }
 
 /** They can no longer open the admin pages, so this is how they learn what happens to their events. */
@@ -217,7 +225,9 @@ async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string)
       .bind(m.id)
       .first<{ venmo_username: string | null }>(),
     // Read after the change: exactly the events members still pay into their account.
-    env.DB.prepare(`SELECT code, date, title FROM events WHERE payee_id = ? AND status IN ${LIVE} ORDER BY start_at`)
+    env.DB.prepare(
+      `SELECT code, date, title FROM events WHERE payee_id = ? AND status IN ${LIVE_SQL} ORDER BY start_at`,
+    )
       .bind(m.id)
       .all<{ code: string; date: string; title: string }>(),
   ]);
@@ -262,7 +272,7 @@ export async function transferEvent(env: Env, eventId: number, to: string): Prom
     `UPDATE events SET manager_id = ?1,
        payee_id = CASE WHEN status IN ('open', 'closed') AND ${payeeUnlockedSql("events")}
                        THEN ?1 ELSE payee_id END
-     WHERE id = ?2 AND status IN ${LIVE}
+     WHERE id = ?2 AND status IN ${LIVE_SQL}
        AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND deleted_at IS NULL
                      AND (is_owner = 1 OR (role = 'organizer' AND status = 'active')))`,
   )
@@ -291,7 +301,7 @@ export async function handBackIfRevoked(env: Env, eventId: number, creator: stri
 export async function assertNotRunning(env: Env, m: MemberRow): Promise<void> {
   const e = await env.DB.prepare(
     `SELECT e.date, e.payee_id = ?1 AS paid FROM events e
-     WHERE (e.payee_id = ?1 OR e.manager_id = ?1) AND e.status IN ${LIVE} ORDER BY e.start_at LIMIT 1`,
+     WHERE (e.payee_id = ?1 OR e.manager_id = ?1) AND e.status IN ${LIVE_SQL} ORDER BY e.start_at LIMIT 1`,
   )
     .bind(m.id)
     .first<{ date: string; paid: number }>();
@@ -299,4 +309,65 @@ export async function assertNotRunning(env: Env, m: MemberRow): Promise<void> {
     throw badRequest(
       `${m.username} 是 ${e.date} 活动的${e.paid ? "收款人" : "负责人"}，这场还没收齐归档。请等这场收齐归档${e.paid ? "" : "（或把它转交给别人）"}后再删除成员`,
     );
+}
+
+/** notification_log type of the 失效 reminder; keyed by retired_at, so each revocation gets one. */
+const filterReminder = (id: string) => `filter_reminder:${id}`;
+
+/**
+ * The sweep behind remindIfExpired, on every scheduled run: every former organizer whose account has expired and
+ * who hasn't been told yet, whatever took their last event out of collection, including a reminder
+ * that could not be sent at the time.
+ */
+export async function remindExpiredPayees(env: Env): Promise<void> {
+  const { results } = await env.DB.prepare(
+    `SELECT p.member_id FROM payment_profiles p WHERE p.retired_at IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM events WHERE payee_id = p.member_id AND status IN ${LIVE_SQL})
+       AND NOT EXISTS (SELECT 1 FROM notification_log WHERE event_id = 0
+                         AND type = 'filter_reminder:' || p.member_id AND sent_on = p.retired_at)`,
+  ).all<{ member_id: string }>();
+  for (const r of results) await remindIfExpired(env, r.member_id);
+}
+
+/**
+ * 失效 (design §8): once the last event paying into a former organizer's account is archived,
+ * cancelled or deleted, nothing more is matched there, so they are told by email that they can
+ * remove their Gmail forwarding filter. Once per revocation: someone revoked with nothing still
+ * collecting expired right then, and the revoke email already said so (revokeOrganizer marks it);
+ * a reminder that could not be sent is tried again by the scheduled sweep (remindExpiredPayees).
+ */
+export async function remindIfExpired(env: Env, payeeId: string | null): Promise<void> {
+  if (!payeeId || !(await payeeExpired(env.DB, payeeId))) return;
+  const m = await env.DB.prepare(
+    `SELECT m.username, m.google_email, m.email, p.retired_at, p.venmo_username
+     FROM members m JOIN payment_profiles p ON p.member_id = m.id WHERE m.id = ?`,
+  )
+    .bind(payeeId)
+    .first<{
+      username: string;
+      google_email: string | null;
+      email: string | null;
+      retired_at: string;
+      venmo_username: string | null;
+    }>();
+  const to = m?.google_email ?? m?.email;
+  if (!m || !to) return;
+  const account = m.venmo_username ? `你的 Venmo（@${m.venmo_username}）` : "你的账户";
+  await once(env, 0, filterReminder(payeeId), m.retired_at, async () => {
+    const sent = await sendEmail(env, {
+      to,
+      subject: "可以删掉转发 Venmo 邮件的过滤器了",
+      text: [
+        `${m.username}，你好！`,
+        `你当组织者时收款的活动都已经收齐、取消或删除，羽毛球群不会再把钱记到${account}。`,
+        "如果你在 Gmail 里设置过把 Venmo 邮件转发给羽毛球群的过滤器，现在可以删掉了。",
+        "",
+        site(env, "/"),
+        "",
+        SPAM_HINT,
+      ].join("\n"),
+      key: `organizer-expired/${payeeId}/${m.retired_at}`,
+    });
+    return sent === "sent";
+  });
 }

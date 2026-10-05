@@ -1327,6 +1327,13 @@ ol.steps li {
   border: 1px solid var(--border);
   font-size: 14px;
 }
+/* Gmail's forwarding confirmation, shown to the organizer who asked for it. */
+pre.gmail-confirm {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
 
 /* ---- Settings: compact theme row, read-only payment info, sub-menu rows, folds ---- */
 .theme-row {

@@ -57,6 +57,8 @@ function Summary(props: { item: InboundRow }) {
       <small class="muted block">
         {formatInstantZh(i.receivedAt)}
         {i.txnId && ` · 交易 ${i.txnId}`}
+        {/* Set for the Owner only: an organizer's list is all their own account. */}
+        {i.payee && ` · 进了 ${i.payee} 的账户`}
       </small>
       {i.note && <div class="note">备注：{i.note}</div>}
     </div>
@@ -314,6 +316,7 @@ export function ReceiptList(props: {
                 ? "退款"
                 : "手动标记"}{" "}
             · {formatInstantZh(r.receivedAt)}
+            {r.elsewhere && ` · 钱在 ${r.elsewhere} 的账户`}
           </span>
           <span>
             {r.amountCents < 0 ? `−$${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`}

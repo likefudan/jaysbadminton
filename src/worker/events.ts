@@ -322,6 +322,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
 
 /** Statuses in which the roster may still change (by the Owner). */
 export const ROSTER_EDITABLE: EventStatus[] = ["open", "closed", "finalized"];
+/** ROSTER_EDITABLE inside SQL: events that are not archived yet (still taking sign-ups, waiting for Finalize, or collecting). */
+export const LIVE_SQL = `(${ROSTER_EDITABLE.map((s) => `'${s}'`).join(", ")})`;
 
 export function assertRosterEditable(e: EventRow): void {
   if (e.status === "settled") throw badRequest("这个活动已收齐归档，不能再修改");

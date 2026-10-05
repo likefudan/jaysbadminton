@@ -1,6 +1,7 @@
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import { badRequest, str } from "./http";
+import { LIVE_SQL } from "./events";
 import { eventPayee, ownerId } from "./organizers";
 
 /**
@@ -129,9 +130,11 @@ export async function savePaymentProfile(env: Env, memberId: string, input: Paym
       .prepare(
         `INSERT INTO payment_profiles (member_id, venmo_username, venmo_email, zelle_account, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT (member_id) DO UPDATE SET venmo_username = ?2, venmo_email = ?3, zelle_account = ?4, updated_at = ?5`,
+         ON CONFLICT (member_id) DO UPDATE SET venmo_username = ?2, venmo_email = ?3, zelle_account = ?4, updated_at = ?5,
+           -- A new account's forwarding is not proven by the old one's emails.
+           email_last_at = CASE WHEN ?6 THEN NULL ELSE email_last_at END`,
       )
-      .bind(memberId, input.venmo || null, input.mail || null, input.zelle || null, ts),
+      .bind(memberId, input.venmo || null, input.mail || null, input.zelle || null, ts, accountChanged ? 1 : 0),
   );
   try {
     await db.batch(stmts);
@@ -180,4 +183,20 @@ export async function assertPayeeUnlocked(db: D1Database, eventId: number): Prom
     .bind(eventId)
     .first();
   if (locked) throw badRequest("这场已经结算发出账单，收款人不能再换");
+}
+
+/**
+ * A 历史收款人 whose account no longer takes the group's money (design §8): they were revoked, and
+ * none of the events paying into their account is still unarchived. From then on nothing is matched
+ * to a bill there; emails carrying our code go to 待确认 for the Owner, the rest are dropped quietly.
+ */
+export async function payeeExpired(db: D1Database, memberId: string): Promise<boolean> {
+  const r = await db
+    .prepare(
+      `SELECT 1 FROM payment_profiles p WHERE p.member_id = ?1 AND p.retired_at IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM events WHERE payee_id = ?1 AND status IN ${LIVE_SQL})`,
+    )
+    .bind(memberId)
+    .first();
+  return !!r;
 }

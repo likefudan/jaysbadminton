@@ -7,6 +7,8 @@ import type { Env } from "./env";
 import { type EventRow, roster } from "./events";
 import { HttpError, badRequest } from "./http";
 import { eventManager, eventPayee, lastKey, ownerId } from "./organizers";
+import { payeeSql } from "./payees";
+import { remindIfExpired } from "./appointments";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
   return toSettleRows(await roster(env, eventId));
@@ -228,15 +230,17 @@ export async function recomputeIfFinalized(env: Env, e: EventRow): Promise<void>
  * 收齐: everyone marked paid, not totals compared). Returns true when it just archived.
  */
 export async function checkCollected(env: Env, eventId: number): Promise<boolean> {
-  const res = await env.DB.prepare(
+  const archived = await env.DB.prepare(
     `UPDATE events SET status = 'settled', settled_at = ?
      WHERE id = ? AND status = 'finalized'
-       AND NOT EXISTS (SELECT 1 FROM payments WHERE event_id = ? AND status != 'paid')`,
+       AND NOT EXISTS (SELECT 1 FROM payments WHERE event_id = ? AND status != 'paid')
+     RETURNING payee_id`,
   )
     .bind(now(), eventId, eventId)
-    .run();
-  if (res.meta.changes === 0) return false;
+    .first<{ payee_id: string | null }>();
+  if (!archived) return false;
   await notifyCollected(env, eventId);
+  await remindIfExpired(env, archived.payee_id);
   return true;
 }
 
@@ -347,8 +351,17 @@ export async function markPaid(env: Env, paymentId: number): Promise<boolean> {
 export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<number, Receipt[]>> {
   const out = new Map<number, Receipt[]>();
   if (paymentIds.length === 0) return out;
+  // Whose account a linked Venmo payment went into, from its 待确认 row (older receipts find it by
+  // transaction); auto-matched ones have none and always went to the event's payee.
   const { results } = await env.DB.prepare(
-    `SELECT * FROM payment_receipts WHERE payment_id IN (${paymentIds.map(() => "?").join(",")}) ORDER BY received_at, id`,
+    `SELECT x.*, pm.username AS money_in_name, pm.is_owner AS money_in_owner
+     FROM (SELECT r.*, ${payeeSql("e")} AS event_payee,
+             COALESCE((SELECT ${payeeSql("i")} FROM inbound_payments i WHERE i.id = r.inbound_id),
+                      (SELECT ${payeeSql("i")} FROM inbound_payments i WHERE i.venmo_txn_id = r.venmo_txn_id)) AS money_in
+           FROM payment_receipts r JOIN payments p ON p.id = r.payment_id JOIN events e ON e.id = p.event_id
+           WHERE r.payment_id IN (${paymentIds.map(() => "?").join(",")})) x
+     LEFT JOIN members pm ON pm.id = x.money_in
+     ORDER BY x.received_at, x.id`,
   )
     .bind(...paymentIds)
     .all<Record<string, any>>();
@@ -361,6 +374,9 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
       method: r.method === "manual" && r.venmo_txn_id ? "venmo" : r.method,
       payerName: r.payer_name,
       receivedAt: r.received_at,
+      // As payeeName names an account: 群主, or the organizer.
+      elsewhere:
+        r.money_in && r.money_in !== r.event_payee ? (r.money_in_owner === 1 ? "群主" : r.money_in_name) : null,
     });
     out.set(r.payment_id, list);
   }
