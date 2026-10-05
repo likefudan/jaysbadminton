@@ -48,6 +48,10 @@ export function memberRole(env: Pick<Env, "ORGANIZERS">, m: RoleFields): Role {
   return "member";
 }
 
+/** memberRole's "organizer" inside SQL (`alias` is the members table's); the flag is checked in code. */
+export const currentOrganizerSql = (alias: string) =>
+  `${alias}.is_owner = 0 AND ${alias}.role = 'organizer' AND ${alias}.status = 'active' AND ${alias}.deleted_at IS NULL`;
+
 /** The Owner's member id; null before first-time setup (or right after 清空所有数据). */
 export async function ownerId(db: D1Database): Promise<string | null> {
   return (await db.prepare("SELECT id FROM members WHERE is_owner = 1").first<{ id: string }>())?.id ?? null;

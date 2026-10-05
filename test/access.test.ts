@@ -212,7 +212,6 @@ describe("organizers on the admin pages", () => {
       ["POST", "/locations/remove"],
       ["GET", "/export/members.csv"],
       ["GET", "/sheets"],
-      ["GET", "/telegram"],
       ["POST", "/settings/payment"],
       ["POST", "/settings/google/unbind"],
       ["POST", "/login"],

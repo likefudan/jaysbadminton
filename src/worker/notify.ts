@@ -4,15 +4,17 @@ import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import { type EventRow, closeExpired, roster } from "./events";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
-import { escapeHtml, sendToOwner } from "./telegram";
+import { eventManager, organizersEnabled } from "./organizers";
+import { WECHAT_BLOCK, escapeHtml, sendLikewise, sendToManager, sendToManagerAndOwner, sendToOwner } from "./telegram";
 
 /**
- * Every notification goes to the Owner's Telegram: first what the Owner needs to know, then,
- * when there is one, a block of text ready to paste into WeChat (a <pre> block copies in one tap).
+ * Every notification goes to Telegram: an event's to whoever runs it (sendToManager), the rest to
+ * the Owner. First what they need to know, then, when there is one, a block of text ready to paste
+ * into WeChat (a <pre> block copies in one tap).
  */
-export function message(owner: string, wechat?: string): string {
-  const head = escapeHtml(owner);
-  return wechat ? `${head}\n\n—— 可复制到微信 ——\n<pre>${escapeHtml(wechat)}</pre>` : head;
+export function message(head: string, wechat?: string): string {
+  const text = escapeHtml(head);
+  return wechat ? `${text}${WECHAT_BLOCK}<pre>${escapeHtml(wechat)}</pre>` : text;
 }
 
 export interface NotifySettings {
@@ -68,7 +70,29 @@ export async function once(
 /** "HappyTuesday 比赛 2026年10月7日 周三", or just the date when there is no title. */
 const day = (e: EventRow) => (e.title ? `${e.title} ${formatDateZh(e.date)}` : formatDateZh(e.date));
 const when = (e: EventRow) => `${day(e)} ${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`;
+const venue = (e: EventRow) => `${e.location}${e.address ? `（${e.address}）` : ""}`;
 const eventLink = (env: Env, e: EventRow) => `${env.SITE_ORIGIN}/e/${e.code}`;
+
+/** The name of the organizer who runs the event; null for the Owner's events. */
+async function organizerOf(env: Env, e: EventRow): Promise<string | null> {
+  const id = await eventManager(env.DB, e);
+  if (!id) return null;
+  const m = await env.DB.prepare("SELECT username, is_owner FROM members WHERE id = ?")
+    .bind(id)
+    .first<{ username: string; is_owner: number }>();
+  return !m || m.is_owner === 1 ? null : m.username;
+}
+
+/** 「（组织：某某）」 in the WeChat group texts of an organizer's event; nothing for the Owner's or with the feature off, as before. */
+async function runBy(env: Env, e: EventRow): Promise<string> {
+  if (!organizersEnabled(env)) return "";
+  const name = await organizerOf(env, e);
+  return name ? `（组织：${name}）` : "";
+}
+
+/** `adminPage`: the notice sends them to the admin page, so an organizer gets their link to it. */
+const toManager = async (env: Env, e: { manager_id: string | null }, html: string, adminPage = false) =>
+  (await sendToManager(env, e, html, adminPage)).ok;
 
 async function headcount(env: Env, eventId: number): Promise<number> {
   const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ?")
@@ -120,11 +144,12 @@ async function deadlineReminder(env: Env, e: EventRow, at: Date, cfg: NotifySett
   await once(env, e.id, "deadline_reminder", e.deadline_at, async () => {
     const n = await headcount(env, e.id);
     const left = Math.max(1, Math.round((deadline - at.getTime()) / 3600_000));
-    return sendToOwner(
+    return toManager(
       env,
+      e,
       message(
         `⏰ ${day(e)} 的活动报名还剩约 ${left} 小时截止，目前 ${n} 人。`,
-        `${when(e)} 羽毛球报名还剩 ${left} 小时截止，目前 ${n} 人，还没报名的抓紧啦！\n${eventLink(env, e)}`,
+        `${when(e)} 羽毛球${await runBy(env, e)}报名还剩 ${left} 小时截止，目前 ${n} 人，还没报名的抓紧啦！\n${eventLink(env, e)}`,
       ),
     );
   });
@@ -139,11 +164,12 @@ async function closedNotice(env: Env, e: EventRow, at: Date): Promise<void> {
   await once(env, e.id, "closed", e.deadline_at, async () => {
     const list = await roster(env, e.id);
     const names = list.map((r, i) => `${i + 1}. ${r.name}`).join("\n");
-    return sendToOwner(
+    return toManager(
       env,
+      e,
       message(
         `🔒 ${day(e)} 的活动报名已截止，共 ${list.length} 人。`,
-        `${when(e)} 羽毛球报名已截止，共 ${list.length} 人。\n地点：${e.location}${e.address ? `（${e.address}）` : ""}\n${names}`,
+        `${when(e)} 羽毛球${await runBy(env, e)}报名已截止，共 ${list.length} 人。\n地点：${venue(e)}\n${names}`,
       ),
     );
   });
@@ -187,16 +213,23 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
   const n = await headcount(env, e.id);
   if (n === 0) {
     await once(env, e.id, "settle_reminder", "empty", async () =>
-      sendToOwner(env, message(`💰 ${day(e)} 的活动已经结束，没有人报名，不用结算。\n可以在管理页取消这个活动。`)),
+      toManager(
+        env,
+        e,
+        message(`💰 ${day(e)} 的活动已经结束，没有人报名，不用结算。\n可以在管理页取消这个活动。`),
+        true,
+      ),
     );
     return;
   }
   await once(env, e.id, "settle_reminder", `${p.date}T${p.time.slice(0, 2)}`, async () =>
-    sendToOwner(
+    toManager(
       env,
+      e,
       message(
         `💰 ${day(e)} 的活动已经结束，还没有结算（报名 ${n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。`,
       ),
+      true,
     ),
   );
 }
@@ -233,13 +266,14 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
     const lines = owing
       .map((x) => `${x.username} 还差 $${dollars(x.amount_due_cents - x.amount_paid_cents)}`)
       .join("\n");
-    const ok = await sendToOwner(
+    const d = await sendToManager(
       env,
+      e,
       message(
         `📋 ${day(e)} 收款汇总：应收 $${dollars(due)}，已收 $${dollars(paid)}；已付清 ${pays.length - owing.length} 人，未付清 ${owing.length} 人：\n${lines}\n\n下面是每个人的账单提醒，可以分别复制到微信私聊。`,
       ),
     );
-    if (!ok) return false;
+    if (!d.ok) return false;
     for (const x of owing) {
       const owed = dollars(x.amount_due_cents - x.amount_paid_cents);
       // Members who joined with Google have no link: they sign in instead. With neither, the
@@ -249,7 +283,8 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
         x.status === "partial"
           ? `${x.username}，${day(e)}羽毛球的费用还差 $${owed} 没付哦，麻烦${via}补一下，谢谢！`
           : `${x.username}，${day(e)}羽毛球的费用 $${owed} 还没付哦，麻烦${via}付一下，谢谢！`;
-      await sendToOwner(env, message(`账单提醒：${x.username}（微信：${x.wechat_nickname}）`, text));
+      // Each bill reminder follows the summary, so one person gets the whole set.
+      await sendLikewise(env, d, message(`账单提醒：${x.username}（微信：${x.wechat_nickname}）`, text));
     }
     return true;
   });
@@ -268,11 +303,12 @@ export async function notifyFinalized(env: Env, e: EventRow): Promise<void> {
       .all<{ amount_due_cents: number; username: string }>();
     const total = results.reduce((t, x) => t + x.amount_due_cents, 0);
     const lines = results.map((x) => `${x.username} $${dollars(x.amount_due_cents)}`).join("\n");
-    return sendToOwner(
+    return sendToManagerAndOwner(
       env,
+      e,
       message(
         `✅ ${day(e)} 已结算，应收合计 $${dollars(total)}：\n${lines}`,
-        `${day(e)}羽毛球的费用已经出来了，请打开自己的专属链接（或用 Google 登录网站）查看金额并付款，谢谢！`,
+        `${day(e)}羽毛球${await runBy(env, e)}的费用已经出来了，请打开自己的专属链接（或用 Google 登录网站）查看金额并付款，谢谢！`,
       ),
     );
   });
@@ -323,38 +359,59 @@ export async function notifyCollected(env: Env, eventId: number): Promise<void> 
       lines.push(`应收 $${dollars(pay.due ?? 0)}，实收 $${dollars(pay.paid ?? 0)}`);
       if (pay.refund) lines.push(`还有多付的 $${dollars(pay.refund)} 需要退，见管理页「收款」。`);
     }
-    return sendToOwner(env, message(lines.join("\n")));
+    return sendToManagerAndOwner(env, e, message(lines.join("\n")), !!pay?.refund);
   });
 }
 
-/** A Venmo payment that needs the Owner: 待确认, a partial payment or an over-payment. */
+/**
+ * A Venmo payment that needs someone: 待确认 goes to the Owner, a partial payment or an
+ * over-payment to whoever runs that event.
+ */
 export async function notifyPayment(
   env: Env,
   kind: "review" | "partial" | "overpaid",
   info: { payer: string; amountCents: number; note: string; reason?: string; paymentId?: number },
 ): Promise<void> {
-  let text: string;
   if (kind === "review") {
-    text = `❓ 有一笔 Venmo 付款需要确认：${info.payer} $${dollars(info.amountCents)}，备注「${info.note}」。\n原因：${info.reason}\n请到管理页「收款」把它关联到某人名下，或者忽略。`;
-  } else {
-    const p = await env.DB.prepare(
-      `SELECT p.amount_due_cents, p.amount_paid_cents, p.refunded_cents, m.username, e.date
-       FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
-    )
-      .bind(info.paymentId)
-      .first<{
-        amount_due_cents: number;
-        amount_paid_cents: number;
-        refunded_cents: number;
-        username: string;
-        date: string;
-      }>();
-    if (!p) return;
-    const d = formatDateZh(p.date);
-    text =
-      kind === "partial"
-        ? `💵 ${p.username} 付了 $${dollars(info.amountCents)}（${d}），还差 $${dollars(p.amount_due_cents - p.amount_paid_cents)}。`
-        : `↩️ ${p.username} 多付了 $${dollars(p.amount_paid_cents - p.amount_due_cents)}（${d}，应付 $${dollars(p.amount_due_cents)}，共收到 $${dollars(p.amount_paid_cents + p.refunded_cents)}），需要退款，见管理页「收款」。`;
+    await sendToOwner(
+      env,
+      message(
+        `❓ 有一笔 Venmo 付款需要确认：${info.payer} $${dollars(info.amountCents)}，备注「${info.note}」。\n原因：${info.reason}\n请到管理页「收款」把它关联到某人名下，或者忽略。`,
+      ),
+    );
+    return;
   }
-  await sendToOwner(env, message(text));
+  const p = await env.DB.prepare(
+    `SELECT p.amount_due_cents, p.amount_paid_cents, p.refunded_cents, m.username, e.date, e.manager_id
+     FROM payments p JOIN members m ON m.id = p.member_id JOIN events e ON e.id = p.event_id WHERE p.id = ?`,
+  )
+    .bind(info.paymentId)
+    .first<{
+      amount_due_cents: number;
+      amount_paid_cents: number;
+      refunded_cents: number;
+      username: string;
+      date: string;
+      manager_id: string | null;
+    }>();
+  if (!p) return;
+  const d = formatDateZh(p.date);
+  const text =
+    kind === "partial"
+      ? `💵 ${p.username} 付了 $${dollars(info.amountCents)}（${d}），还差 $${dollars(p.amount_due_cents - p.amount_paid_cents)}。`
+      : `↩️ ${p.username} 多付了 $${dollars(p.amount_paid_cents - p.amount_due_cents)}（${d}，应付 $${dollars(p.amount_due_cents)}，共收到 $${dollars(p.amount_paid_cents + p.refunded_cents)}），需要退款，见管理页「收款」。`;
+  await sendToManager(env, p, message(text), kind === "overpaid");
+}
+
+/**
+ * 新活动发起: the Owner hears when an organizer creates an event (their own, as before, send
+ * nothing). The organizer isn't told about what they just did.
+ */
+export async function notifyCreated(env: Env, e: EventRow): Promise<void> {
+  const name = await organizerOf(env, e);
+  if (!name) return;
+  await sendToOwner(
+    env,
+    message(`🆕 组织者 ${name} 发起了新活动：\n${when(e)}\n地点：${venue(e)}\n${eventLink(env, e)}`),
+  );
 }
