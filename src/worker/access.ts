@@ -209,6 +209,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
 
   // event: one event (every event with `group`)
   "GET /events/:id": event(),
+  "GET /events/:id/audit": event(),
   "POST /events/:id/edit": event(),
   "POST /events/:id/close-now": event(),
   "POST /events/:id/reopen": event(),

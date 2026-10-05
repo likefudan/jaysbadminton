@@ -9,6 +9,7 @@ import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
 import { once } from "./notify";
 import { payeeExpired, payeeUnlockedSql } from "./payees";
+import { SYSTEM, audit } from "./audit";
 
 /**
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
@@ -176,11 +177,24 @@ export async function revokeOrganizer(
   // Each step runs only if this request is the one that revoked them (role_since = ts), so a
   // second click, or a revoke racing this one, changes nothing more.
   const mine = "EXISTS (SELECT 1 FROM members WHERE id = ?2 AND role = 'member' AND role_since = ?3)";
+  // 操作记录: each event handed back, by whoever revoked (the organizer themselves for 不再当组织者).
+  const why = {
+    owner: `撤销 ${m.username} 的组织者身份，活动交回群主`,
+    self: `${m.username} 不再当组织者，活动交回群主`,
+    deactivate: `停用 ${m.username}，组织者身份一并撤销，活动交回群主`,
+  }[by];
   const done = await env.DB.batch([
     env.DB.prepare("UPDATE members SET role = 'member', role_since = ?2 WHERE id = ?1 AND role = 'organizer'").bind(
       m.id,
       ts,
     ),
+    // Before the events move, so it finds the ones that are theirs.
+    env.DB.prepare(
+      `INSERT INTO event_audit (event_id, actor_id, action, detail, at)
+       SELECT id, ?4, 'reassign', ?5 || CASE WHEN payee_id = ?2 AND status NOT IN ('open', 'closed')
+                                           THEN '（账单已发出，钱仍付到 ' || ?6 || ' 的账户）' ELSE '' END, ?3
+       FROM events WHERE manager_id = ?2 AND status IN ${LIVE_SQL} AND ${mine}`,
+    ).bind(null, m.id, ts, by === "self" ? m.id : owner, why, m.username),
     // Before Finalize nobody has a bill, so the money moves with the event.
     env.DB.prepare(
       `UPDATE events SET payee_id = ?1 WHERE payee_id = ?2 AND status IN ('open', 'closed')
@@ -285,13 +299,14 @@ export async function transferEvent(env: Env, eventId: number, to: string): Prom
 
 /** A new event by someone revoked a moment ago goes to the Owner, as revoking did with their others. */
 export async function handBackIfRevoked(env: Env, eventId: number, creator: string | null): Promise<void> {
-  await env.DB.prepare(
+  const r = await env.DB.prepare(
     `UPDATE events SET manager_id = ?3, payee_id = ?3
      WHERE id = ?1 AND manager_id = ?2
        AND NOT EXISTS (SELECT 1 FROM members WHERE id = ?2 AND role = 'organizer' AND status = 'active')`,
   )
     .bind(eventId, creator, await ownerId(env.DB))
     .run();
+  if (r.meta.changes) await audit(env, eventId, SYSTEM, "reassign", "创建者刚被撤销组织者身份，活动交给群主");
 }
 
 /**

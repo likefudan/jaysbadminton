@@ -1,6 +1,7 @@
 import { formatDateZh } from "../shared/time";
 import type { InboundRow, OpenPayment } from "../shared/types";
 import { addReceipt, checkCollected, receiptsFor, refundOf } from "./billing";
+import { SYSTEM, audit, billInfo, money } from "./audit";
 import { getSettings, now, setSetting } from "./db";
 import { type KeyResolver, verifyDkim } from "./email/dkim";
 import { parseEmail, type VenmoReceipt } from "./email/parse";
@@ -318,6 +319,13 @@ async function matchReceipt(
   ) {
     return "duplicate";
   }
+  await audit(
+    env,
+    e.id,
+    SYSTEM,
+    "auto_match",
+    `Venmo 自动对账：${r.payer ?? "付款人不明"} 付 ${money(r.amountCents)}，记到 ${(await billInfo(env, p.id))?.who} 的账单`,
+  );
   const after = (await env.DB.prepare("SELECT status, amount_due_cents, amount_paid_cents FROM payments WHERE id = ?")
     .bind(p.id)
     .first<{ status: string; amount_due_cents: number; amount_paid_cents: number }>())!;

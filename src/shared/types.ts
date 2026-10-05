@@ -177,6 +177,16 @@ export interface EventDetail extends EventSummary {
   manager: { id: string | null; name: string; isMe: boolean };
 }
 
+/** 操作记录: one change to an event, newest first on the admin page. */
+export interface AuditEntry {
+  id: number;
+  at: string;
+  /** 群主, the organizer's name, or 系统 (auto-matching and archiving). */
+  actor: string;
+  action: string;
+  detail: string;
+}
+
 export interface MyEvent extends EventSummary {
   /** null when not signed up; otherwise the names entered for each friend ("" = unnamed). */
   myFriends: string[] | null;

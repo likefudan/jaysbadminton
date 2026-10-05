@@ -9,6 +9,7 @@ import { HttpError, badRequest } from "./http";
 import { eventManager, eventPayee, lastKey, ownerId } from "./organizers";
 import { payeeSql } from "./payees";
 import { remindIfExpired } from "./appointments";
+import { SYSTEM, audit } from "./audit";
 
 export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]> {
   return toSettleRows(await roster(env, eventId));
@@ -239,6 +240,7 @@ export async function checkCollected(env: Env, eventId: number): Promise<boolean
     .bind(now(), eventId, eventId)
     .first<{ payee_id: string | null }>();
   if (!archived) return false;
+  await audit(env, eventId, SYSTEM, "collected", "全部付清，自动收齐归档");
   await notifyCollected(env, eventId);
   await remindIfExpired(env, archived.payee_id);
   return true;
