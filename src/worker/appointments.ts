@@ -201,14 +201,17 @@ export async function revokeOrganizer(
     if (with_.length) return null;
     throw badRequest(`${m.username} 不是组织者`);
   }
+  // Nothing of theirs still collects: the notice email says the filter can go, so the 失效
+  // reminder (remindIfExpired) counts as sent. Claimed first so the sweep can't send one meanwhile,
+  // and given back if the notice didn't go out, so the sweep sends the reminder later.
+  const claim = env.DB.prepare(
+    "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (0, ?1, ?2, ?2)",
+  ).bind(filterReminder(m.id), ts);
+  const claimed = (await payeeExpired(env.DB, m.id)) && !!(await claim.run()).meta.changes;
   const emailStatus = await sendNoticeEmail(env, m, by, ts);
-  // Nothing of theirs still collects: that email said the filter can go, so the later 失效
-  // reminder (remindIfExpired) counts as sent. If it didn't go out, the sweep sends the reminder.
-  if (emailStatus === "sent" && (await payeeExpired(env.DB, m.id)))
-    await env.DB.prepare(
-      "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (0, ?, ?, ?)",
-    )
-      .bind(filterReminder(m.id), ts, ts)
+  if (claimed && emailStatus !== "sent")
+    await env.DB.prepare("DELETE FROM notification_log WHERE event_id = 0 AND type = ? AND sent_on = ?")
+      .bind(filterReminder(m.id), ts)
       .run();
   return { emailStatus };
 }
