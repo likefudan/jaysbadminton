@@ -269,6 +269,7 @@ describe("我的收款设置", () => {
       zelleAccount: "a@z",
       outstandingBills: 0,
       lastVenmoEmailAt: null,
+      quietBills: 0,
       gmailConfirm: null,
       gmailConfirmAt: null,
     });

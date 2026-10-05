@@ -2,6 +2,8 @@ import { toPacific } from "../shared/time";
 import { STATUS_ZH, type EventStatus } from "../shared/types";
 import type { Env } from "./env";
 import { friendLabel } from "./events";
+import { memberRole, type Role, type RoleFields } from "./organizers";
+import { managerSql, payeeSql } from "./payees";
 
 /**
  * Every table the Owner can export, shaped for people: Chinese headers, dollars, Pacific times.
@@ -22,6 +24,12 @@ const at = (iso: string | null | undefined) => {
   return `${p.date} ${p.time}`;
 };
 const yes = (v: unknown) => (v ? "是" : "");
+/**
+ * A 负责人 / 收款人 column: 群主, or the organizer's name, as bills name payees. The query joins the
+ * person through managerSql / payeeSql, so old rows with the column empty show 群主.
+ */
+const person = (name: string | null, isOwner: number | null) => (name == null || isOwner ? "群主" : name);
+const ROLE_ZH: Record<Role, string> = { owner: "群主", organizer: "组织者", member: "成员" };
 const MEMBER_STATUS: Record<string, string> = {
   pending: "待审核",
   active: "正常",
@@ -47,7 +55,7 @@ export const TABLES = {
       const rows = await all(env, "SELECT * FROM members ORDER BY id");
       return {
         title: this.title,
-        columns: ["成员编号", "用户名", "微信昵称", "邮箱", "群主备注", "状态", "群主", "申请时间", "通过时间"],
+        columns: ["成员编号", "用户名", "微信昵称", "邮箱", "群主备注", "状态", "身份", "申请时间", "通过时间"],
         rows: rows.map((m) => [
           m.id,
           m.username,
@@ -55,7 +63,8 @@ export const TABLES = {
           m.email || m.google_email || "",
           m.admin_note ?? "",
           m.deleted_at ? "已删除" : (MEMBER_STATUS[m.status] ?? m.status),
-          yes(m.is_owner),
+          // As the site treats them now: an organizer counts only while the feature is on.
+          ROLE_ZH[memberRole(env, m as RoleFields)],
           at(m.requested_at),
           at(m.approved_at),
         ]),
@@ -68,8 +77,13 @@ export const TABLES = {
       const rows = await all(
         env,
         `SELECT e.*, (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id) AS signed,
-           (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id AND r.attended = 1) AS came
-         FROM events e ORDER BY e.start_at`,
+           (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id AND r.attended = 1) AS came,
+           mm.username AS manager_name, mm.is_owner AS manager_owner,
+           pm.username AS payee_name, pm.is_owner AS payee_owner
+         FROM events e
+         LEFT JOIN members mm ON mm.id = ${managerSql("e")}
+         LEFT JOIN members pm ON pm.id = ${payeeSql("e")}
+         ORDER BY e.start_at`,
       );
       return {
         title: this.title,
@@ -87,6 +101,8 @@ export const TABLES = {
           "报名截止",
           "结算时间",
           "收齐时间",
+          "负责人",
+          "收款人",
         ],
         rows: rows.map((e) => [
           e.number,
@@ -102,6 +118,8 @@ export const TABLES = {
           at(e.deadline_at),
           at(e.finalized_at),
           at(e.settled_at),
+          person(e.manager_name, e.manager_owner),
+          person(e.payee_name, e.payee_owner),
         ]),
       };
     },
@@ -180,12 +198,26 @@ export const TABLES = {
     async build(env: Env): Promise<Table> {
       const rows = await all(
         env,
-        `SELECT p.*, e.date, e.number, m.username FROM payments p
-         JOIN events e ON e.id = p.event_id JOIN members m ON m.id = p.member_id ORDER BY e.start_at, m.username`,
+        `SELECT p.*, e.date, e.number, m.username, pm.username AS payee_name, pm.is_owner AS payee_owner
+         FROM payments p JOIN events e ON e.id = p.event_id JOIN members m ON m.id = p.member_id
+         LEFT JOIN members pm ON pm.id = ${payeeSql("e")}
+         ORDER BY e.start_at, m.username`,
       );
       return {
         title: this.title,
-        columns: ["活动编号", "日期", "成员编号", "成员", "付款编号", "应付", "已收", "已退", "状态", "付清时间"],
+        columns: [
+          "活动编号",
+          "日期",
+          "成员编号",
+          "成员",
+          "付款编号",
+          "应付",
+          "已收",
+          "已退",
+          "状态",
+          "付清时间",
+          "钱在谁的账户",
+        ],
         rows: rows.map((p) => [
           p.number,
           p.date,
@@ -197,6 +229,7 @@ export const TABLES = {
           money(p.refunded_cents),
           PAY_STATUS[p.status] ?? p.status,
           at(p.paid_at),
+          person(p.payee_name, p.payee_owner),
         ]),
       };
     },
@@ -230,12 +263,15 @@ export const TABLES = {
     async build(env: Env): Promise<Table> {
       const rows = await all(
         env,
-        `SELECT i.*, m.username FROM inbound_payments i LEFT JOIN payments p ON p.id = i.linked_payment_id
-         LEFT JOIN members m ON m.id = p.member_id ORDER BY i.received_at`,
+        `SELECT i.*, m.username, pm.username AS payee_name, pm.is_owner AS payee_owner
+         FROM inbound_payments i LEFT JOIN payments p ON p.id = i.linked_payment_id
+         LEFT JOIN members m ON m.id = p.member_id
+         LEFT JOIN members pm ON pm.id = ${payeeSql("i")}
+         ORDER BY i.received_at`,
       );
       return {
         title: this.title,
-        columns: ["收到时间", "付款人", "金额", "备注", "原因", "处理", "关联到", "Venmo 交易编号"],
+        columns: ["收到时间", "付款人", "金额", "备注", "原因", "处理", "关联到", "Venmo 交易编号", "钱在谁的账户"],
         rows: rows.map((i) => [
           at(i.received_at),
           i.payer_name ?? "",
@@ -245,6 +281,7 @@ export const TABLES = {
           INBOUND_STATE[i.state] ?? i.state,
           i.username ?? "",
           i.venmo_txn_id ?? "",
+          person(i.payee_name, i.payee_owner),
         ]),
       };
     },

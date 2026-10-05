@@ -38,6 +38,8 @@ export interface OrganizerInfo {
   paymentReady: boolean;
   /** The last Venmo email for their account: forwarding works (filled in from card 8). */
   lastVenmoEmailAt: string | null;
+  /** Bills paying into their account out for days with no Venmo email for it: forwarding may be broken. */
+  quietBills: number;
   telegram: boolean;
   /** Events they run that are not archived yet. */
   events: number;

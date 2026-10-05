@@ -12,6 +12,7 @@ const TABLES = [
   "member_sessions",
   "oauth_states",
   "notification_log",
+  "email_log",
   "inbound_payments",
   "payment_receipts",
   "payments",

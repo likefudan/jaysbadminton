@@ -13,6 +13,10 @@ import { eventPayee, ownerId } from "./organizers";
 /** An event's payee inside SQL (`alias` is the events table's alias): NULL is the Owner, as in eventPayee. */
 export const payeeSql = (alias: string) => `COALESCE(${alias}.payee_id, (SELECT id FROM members WHERE is_owner = 1))`;
 
+/** An event's manager inside SQL, the same way: NULL is the Owner, as in eventManager. */
+export const managerSql = (alias: string) =>
+  `COALESCE(${alias}.manager_id, (SELECT id FROM members WHERE is_owner = 1))`;
+
 /** How bills and messages name a payee: 群主, or the organizer's name. */
 export async function payeeName(db: D1Database, memberId: string | null): Promise<string> {
   if (!memberId) return "群主";

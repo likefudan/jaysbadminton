@@ -92,7 +92,7 @@ D1 (SQLite) holds the tables below. Money is stored as integer cents, times as U
 | `locations` | `name`, `address`, `last_used_at`, `use_count` | Feeds the venue picker (最近的场馆, last 10); ✕ forgets a venue, while events keep their own copy |
 | `settings` | `key`, `value` | Friend cap N, site title, theme, leaderboard on/off, Venmo username and notification email, Zelle account, Telegram chat ID, reminder on/off + hours, dunning hour, weekly digest on/off, last shuttle price, last event times and venue, last deadline offset (the Owner's as `last_xxx`, each organizer's as `last_xxx:<member id>`), admin/export token hashes |
 | `notification_log` | `event_id`, `type`, `sent_on` (Pacific date), `sent_at` | Unique on (event, type, sent\_on) so a retried cron run never double-sends; site-wide notices use `event_id = 0` |
-| `email_log` | `received_at`, `outcome` | One row per Venmo email outcome, for health alerts and the weekly digest; pruned after 120 days |
+| `email_log` | `received_at`, `outcome`, `payee_id` (whose account the email was for, migration 0024; NULL means the Owner, which includes unreadable and forged emails) | One row per Venmo email outcome, for health alerts and the weekly digest; pruned after 120 days |
 | `admin_sessions` | `id_hash`, `created_at`, `expires_at` | Password logins (30 days) |
 | `member_sessions` | `id_hash`, `google_sub`, `email`, `picture`, `expires_at` | Google sign-ins (30 days) |
 | `oauth_states` | `id_hash`, `nonce`, `verifier`, `expires_at` | One per Google sign-in in progress; consumed by the callback, 10 minutes |
@@ -207,7 +207,7 @@ Two styles (`minimal`, `aurora`) × four accents each, light and dark. `src/shar
 
 ## Health alerts and weekly digest
 
-`src/worker/health.ts`. Every Venmo email outcome is logged in `email_log` (outcome and time only; pruned after 120 days). A parse failure, a bad signature or a wrong recipient alerts the Owner at once (once a day per kind). At the bill-reminder hour the cron checks for a quiet spell: bills out ≥ 3 days, no Venmo email for ≥ 3 days → one alert per spell (keyed by the last email time). On Mondays at that hour it sends the weekly digest (switchable, setting `weekly_digest`). A scheduled run that throws records `cron_last_error[_at]` for the digest. Site-wide notices use `event_id = 0` in `notification_log`, since NULL would not de-duplicate.
+`src/worker/health.ts`. Every Venmo email outcome is logged in `email_log` (outcome and time only; pruned after 120 days). A parse failure, a bad signature or a wrong recipient alerts the Owner at once (once a day per kind). At the bill-reminder hour the cron checks for a quiet spell: bills out ≥ 3 days, no Venmo email for ≥ 3 days → one alert per spell (keyed by the last email time). On Mondays at that hour it sends the weekly digest (switchable, setting `weekly_digest`). The digest counts per payee (`payeeSql` over `email_log`, `inbound_payments` and the events' bills): while only the Owner collects it reads as it always did; once an organizer (current, or former with money still coming in) has emails, 待确认, unpaid bills or refunds, or is a current organizer at all, each account gets its own block with its own 邮件转发 check. The admin pages show the same check per organizer (`quietBills`: bills out ≥ 3 days with no email for their account) in the 组织者 block and on their own 转发状态. A scheduled run that throws records `cron_last_error[_at]` for the digest. Site-wide notices use `event_id = 0` in `notification_log`, since NULL would not de-duplicate.
 
 ## Link previews, calendar and icon
 
@@ -222,7 +222,7 @@ The site never logs into Google. 设置 → Google 表格同步 → 开启同步
 - **History**: Google Sheets keeps version history (文件 → 版本记录), so each day's sync can be looked up there; D1 Time Travel covers the last 7 days on the Cloudflare side.
 - **Key**: 重新生成密钥 replaces the key immediately (the old script gets 403 and says so); 关闭同步 deletes it. The admin page shows the last time the sheet pulled.
 - **Permissions**: the script asks for "see and edit this spreadsheet", "connect to an external service" and "run when you are not present"; no Gmail or Drive scope. The Owner sees Google's unverified-app warning once and continues via 高级.
-- **Content**: the same people-friendly tables as the CSV downloads (`src/worker/export.ts`): Chinese headers, Chinese status names (a trashed Venmo payment shows as 已删除), dollars, Pacific times, event numbers like `jbm20261007b`. Tokens, hashes and settings are never exported.
+- **Content**: the same people-friendly tables as the CSV downloads (`src/worker/export.ts`): 成员 has 身份 (成员 / 组织者 / 群主, by `memberRole`), 活动 has 负责人 and 收款人, 应付款 and 待确认收款 have 钱在谁的账户 (群主, or the organizer's name; NULL columns go through `managerSql` / `payeeSql` and show 群主); Chinese headers, Chinese status names (a trashed Venmo payment shows as 已删除), dollars, Pacific times, event numbers like `jbm20261007b`. Tokens, hashes and settings are never exported.
 
 **CSV downloads**: 设置 → 导出数据 offers each table as a UTF-8 CSV with a BOM (`GET /api/admin/{token}/export/{table}.csv`, behind the admin login) (so Excel shows Chinese correctly); cells starting with `= + - @` are prefixed so spreadsheets do not run them as formulas.
 
