@@ -68,7 +68,7 @@ export async function lastValues(
   keys: string[],
 ): Promise<Record<string, string | undefined>> {
   const owner = await ownerId(db);
-  const saved = await getSettings(db, [...keys, ...keys.map((k) => lastKey(k, memberId, owner))]);
+  const saved = await getSettings(db, [...new Set([...keys, ...keys.map((k) => lastKey(k, memberId, owner))])]);
   return Object.fromEntries(keys.map((k) => [k, saved[lastKey(k, memberId, owner)] ?? saved[k]]));
 }
 

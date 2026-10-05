@@ -50,7 +50,7 @@ function Section(props: { title: string; open?: boolean; children: ComponentChil
  * Setting up Venmo 邮件转发: the same Gmail filter for the Owner and for organizers, pointed at the
  * one forwarding address. `confirm` is the step about Gmail's confirmation email, which differs.
  */
-export function ForwardingSteps(props: { confirm: ComponentChildren; otherMail?: boolean }) {
+export function ForwardingSteps(props: { confirm: ComponentChildren; otherMail?: boolean; test?: ComponentChildren }) {
   const forward = `venmo@${location.hostname}`;
   return (
     <ol class="steps">
@@ -75,7 +75,11 @@ export function ForwardingSteps(props: { confirm: ComponentChildren; otherMail?:
         </li>
       )}
       <li>
-        <b>测试</b>：请朋友用 Venmo 付你 $1（备注随便写，之后退回），过一两分钟刷新本页，看下面的「转发状态」。
+        {props.test ?? (
+          <>
+            <b>测试</b>：请朋友用 Venmo 付你 $1（备注随便写，之后退回），过一两分钟刷新本页，看下面的「转发状态」。
+          </>
+        )}
       </li>
     </ol>
   );

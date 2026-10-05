@@ -4,7 +4,8 @@ import { ApiError, api } from "./api";
 export type Loaded<T> =
   | { state: "loading" }
   | { state: "error"; message: string; code: string }
-  | { state: "ok"; data: T };
+  /** `path`: what was asked for, so a page can tell a result from before it changed the path. */
+  | { state: "ok"; data: T; path?: string };
 
 export function useApi<T>(path: string): [Loaded<T>, () => void] {
   const [result, setResult] = useState<Loaded<T>>({ state: "loading" });
@@ -12,7 +13,7 @@ export function useApi<T>(path: string): [Loaded<T>, () => void] {
   useEffect(() => {
     let alive = true;
     api<T>(path)
-      .then((data) => alive && setResult({ state: "ok", data }))
+      .then((data) => alive && setResult({ state: "ok", data, path }))
       .catch(
         (e: Error) =>
           alive && setResult({ state: "error", message: e.message, code: e instanceof ApiError ? e.code : "" }),

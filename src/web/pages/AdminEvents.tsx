@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { AddressInput } from "../AddressInput";
 import type {
   AdminEventSummary,
@@ -29,25 +29,21 @@ export function EventsTab(props: {
   // The Owner, with the 组织者 feature on, sees who runs each event and can show one person's.
   const byManager = props.viewer.role === "owner" && !!props.organizers;
   const [manager, setManager] = useState("");
-  const [list, reload] = useApi<{ current: AdminEventSummary[]; past: AdminEventSummary[]; morePast: boolean }>(
-    `${props.base}/events?past=${pastShown}${byManager && manager ? `&manager=${encodeURIComponent(manager)}` : ""}`,
-  );
+  const path = `${props.base}/events?past=${pastShown}${byManager && manager ? `&manager=${encodeURIComponent(manager)}` : ""}`;
+  const [list, reload] = useApi<{
+    current: AdminEventSummary[];
+    past: AdminEventSummary[];
+    morePast: boolean;
+    /** With `group`: everyone who has run an event. */
+    managers?: { id: string; name: string }[];
+  }>(path);
   const [mode, setMode] = useState<"list" | "create" | number>("list");
   const owner = props.members.find((m) => m.isOwner);
-  // Past events keep whoever ran them, organizers since revoked too: those people can be picked as
-  // well, as soon as the full list has shown one of their events.
-  const [seen, setSeen] = useState<Map<string, string>>(new Map());
-  useEffect(() => {
-    if (list.state !== "ok" || manager) return;
-    const all = [...list.data.current, ...list.data.past];
-    setSeen((prev) => {
-      const next = new Map(prev);
-      for (const e of all) if (e.manager.id) next.set(e.manager.id, e.manager.name);
-      return next.size === prev.size ? prev : next;
-    });
-  }, [list, manager]);
+  // Past managers (organizers since revoked) can be picked too: the list names everyone who ran one.
   const current = new Set([owner?.id, ...(props.organizers?.list ?? []).map((o) => o.id)]);
-  const formerManagers = [...seen].filter(([id]) => !current.has(id)).map(([id, name]) => ({ id, name }));
+  const formerManagers = list.state === "ok" ? (list.data.managers ?? []).filter((m) => !current.has(m.id)) : [];
+  // Until the new filter's list arrives, show it loading rather than the previous person's events.
+  const shown: typeof list = list.state === "ok" && list.path !== path ? { state: "loading" } : list;
 
   if (mode === "create") {
     return (
@@ -100,7 +96,7 @@ export function EventsTab(props: {
           </select>
         </label>
       )}
-      <Load result={list}>
+      <Load result={shown}>
         {(l) => (
           <>
             <Card title="进行中">

@@ -82,11 +82,14 @@ adminEventRoutes.get("/events", async (c) => {
   // Without `group`, only the events one manages (NULL is the Owner's, so never an organizer's).
   // With it, ?manager= narrows the list to one person's (the Owner's own include NULL).
   const actor = c.get("actor");
-  const owner = await ownerId(c.env.DB);
-  const wanted = can(actor.role, "group") ? (c.req.query("manager") ?? "") : actor.memberId;
-  const mine = wanted ? [wanted] : [];
+  const group = can(actor.role, "group");
+  const wanted = group ? c.req.query("manager") || null : actor.memberId;
   // Plain manager_id = ? keeps the events_manager index; NULL counts only when the Owner is wanted.
-  const only = !wanted ? "" : wanted === owner ? "AND (manager_id = ? OR manager_id IS NULL)" : "AND manager_id = ?";
+  // Without `group` the filter always applies (a null id matches nothing).
+  const owner = group && wanted ? await ownerId(c.env.DB) : null;
+  const filtered = !group || !!wanted;
+  const mine = filtered ? [wanted] : [];
+  const only = !filtered ? "" : wanted === owner ? "AND (manager_id = ? OR manager_id IS NULL)" : "AND manager_id = ?";
   const current = await c.env.DB.prepare(
     `SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ${only} ORDER BY start_at`,
   )
@@ -112,7 +115,17 @@ adminEventRoutes.get("/events", async (c) => {
     );
   };
   const [cur, old] = await Promise.all([withManager(current.results), withManager(shown)]);
-  return c.json({ current: cur, past: old, morePast: past.results.length > limit });
+  // For the Owner's 负责人 filter: everyone who has run an event, organizers since revoked too.
+  const managers = group
+    ? await Promise.all(
+        (
+          await c.env.DB.prepare("SELECT DISTINCT manager_id AS id FROM events WHERE manager_id IS NOT NULL").all<{
+            id: string;
+          }>()
+        ).results.map(async (m) => ({ id: m.id, name: await payeeName(c.env.DB, m.id) })),
+      )
+    : [];
+  return c.json({ current: cur, past: old, morePast: past.results.length > limit, managers });
 });
 
 adminEventRoutes.get("/events/defaults", async (c) => {

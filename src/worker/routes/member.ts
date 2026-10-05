@@ -122,7 +122,8 @@ memberRoutes.get("/:token/events", async (c) => {
   const organizerOf = async (e: EventRow) => {
     if (!named) return null;
     const id = await eventManager(c.env.DB, e);
-    if (!id || id === owner) return null;
+    // Nobody on the Owner's, and not on one's own (an organizer looking at the events they run).
+    if (!id || id === owner || id === m.id) return null;
     if (!organizers.has(id)) organizers.set(id, payeeName(c.env.DB, id));
     return organizers.get(id)!;
   };

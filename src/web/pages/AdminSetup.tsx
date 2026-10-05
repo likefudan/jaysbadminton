@@ -39,7 +39,7 @@ function GoogleEntry() {
   if (session.state !== "ok" || !session.data.enabled) return null;
   return (
     <Card>
-      {session.data.role === "owner" || session.data.role === "organizer" ? (
+      {session.data.role && session.data.role !== "member" ? (
         <a class="button block" href="/admin/google">
           进入管理页
         </a>

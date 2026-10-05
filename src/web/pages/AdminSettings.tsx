@@ -271,12 +271,20 @@ function ForwardingCard(props: { lastAt: string | null }) {
       </p>
       <ForwardingSteps
         otherMail
+        test={
+          <>
+            <b>测试</b>：设好以后，成员用 Venmo 付你负责的活动的账单时，账单会自动变成已付；没变的话，先看「收款 ›
+            待确认」里有没有这笔，再检查上面几步；实在对不上，可以在活动的账单里手动标记已付。
+          </>
+        }
         confirm="Gmail 会往这个地址发一封确认邮件，里面有确认码。目前这封邮件会转到群主那里，请向群主要确认码，填回 Gmail。"
       />
-      <div class="status-line">
-        <b>转发状态：</b>
-        {props.lastAt ? `已生效（${formatInstantZh(props.lastAt)} 收到）` : "还没有收到过你账户的 Venmo 邮件"}
-      </div>
+      {/* Filled in once forwarded emails are matched to each payee (card 8); until then it stays hidden. */}
+      {props.lastAt && (
+        <div class="status-line">
+          <b>转发状态：</b>已生效（{formatInstantZh(props.lastAt)} 收到）
+        </div>
+      )}
     </Card>
   );
 }

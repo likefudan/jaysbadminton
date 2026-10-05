@@ -107,6 +107,9 @@ describe("the admin pages for an organizer", () => {
     expect(ids(all).sort()).toEqual([theirs, mine].sort());
     expect(all.current.find((e: { id: number }) => e.id === theirs).manager).toEqual({ id: owner, name: "群主" });
     expect(ids((await ctx.admin.call(`${ctx.base}/events?manager=${alice.id}`)).data)).toEqual([mine]);
+    // Everyone who has run an event, for the filter (organizers get none: they can't filter).
+    expect(all.managers).toEqual(expect.arrayContaining([{ id: alice.id, name: "Alice" }]));
+    expect(own.managers).toEqual([]);
     // The Owner's own include events from before 0023 (manager_id NULL).
     await env.DB.prepare("UPDATE events SET manager_id = NULL, payee_id = NULL WHERE id = ?").bind(theirs).run();
     expect(ids((await ctx.admin.call(`${ctx.base}/events?manager=${owner}`)).data)).toEqual([theirs]);
@@ -176,11 +179,14 @@ describe("the admin pages for an organizer", () => {
 
 describe("the member pages", () => {
   it("names the organizer on the events they run, and nobody on the Owner's", async () => {
-    const { bob, theirs, mine } = await scenario();
+    const { bob, org, theirs, mine } = await scenario();
     const { data } = await get(`${bob.base}/events`, "");
     const of = (id: number) => data.events.find((e: { id: number }) => e.id === id);
     expect(of(mine).organizer).toBe("Alice");
     expect(of(theirs).organizer).toBeNull();
+    // Alice's own page doesn't name her on the event she runs.
+    const hers = (await get("/api/m/session/events", org)).data;
+    expect(hers.events.find((e: { id: number }) => e.id === mine).organizer).toBeNull();
     // With the feature off nobody is named, as before.
     const off = (await get(`${bob.base}/events`, "", "0")).data;
     expect(off.events.find((e: { id: number }) => e.id === mine).organizer).toBeNull();
