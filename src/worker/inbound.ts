@@ -10,7 +10,7 @@ import type { EventRow } from "./events";
 import { message, notifyPayment } from "./notify";
 import { eventPayee, memberRole, ownerId } from "./organizers";
 import { sendToMember, sendToOwner } from "./telegram";
-import { type ParsedCode, codeName, noteName, parsePaymentCode } from "./paymentCode";
+import { codeName, noteName, parsePaymentCode } from "./paymentCode";
 import { payeeExpired, payeeName, payeeSql } from "./payees";
 import type { RefundRow } from "../shared/types";
 
@@ -247,11 +247,14 @@ export async function receiveEmail(
 }
 
 /**
- * The bill and event a payment code names: first the bill whose printed code has this event number
- * and member (bills made before event numbers existed may carry another date than their event's
- * number); then the event by its fixed number, which a date edit never changes.
+ * The bill and event a Venmo note's payment code names, or null when the note carries no code with
+ * one of the group's names. First the bill whose printed code has this event number and member
+ * (bills made before event numbers existed may carry another date than their event's number); then
+ * the event by its fixed number, which a date edit never changes. `e` is null for a deleted event.
  */
-export async function codeTarget(env: Env, code: ParsedCode) {
+export async function noteTarget(env: Env, note: string | null) {
+  const code = note ? parsePaymentCode(note) : null;
+  if (!code?.name || !(await isGroupName(env, code.name))) return null;
   const billed = await env.DB.prepare(
     `SELECT p.id, p.payment_code, p.event_id FROM payments p JOIN events e ON e.id = p.event_id
      WHERE p.member_id = ?1 AND instr(lower(p.payment_code), ?2) > 0
@@ -262,7 +265,7 @@ export async function codeTarget(env: Env, code: ParsedCode) {
   const e = billed
     ? await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(billed.event_id).first<EventRow>()
     : await env.DB.prepare("SELECT * FROM events WHERE number = ?").bind(code.number).first<EventRow>();
-  return { billed, e };
+  return { code, billed, e };
 }
 
 /** One verified-enough receipt into a known account: onto a bill, into 待确认, or ignored. */
@@ -273,9 +276,9 @@ async function matchReceipt(
   account: Account,
   unverified: boolean,
 ): Promise<EmailOutcome> {
-  const code = parsePaymentCode(r.note);
-  if (!code?.name || !(await isGroupName(env, code.name))) return "ignored";
-  const { billed, e } = await codeTarget(env, code);
+  const target = await noteTarget(env, r.note);
+  if (!target) return "ignored";
+  const { code, billed, e } = target;
   // A payment for an event the Owner deleted is still a group member's money: 待确认, not ignored.
   const deleted =
     !e && (await env.DB.prepare("SELECT 1 FROM deleted_events WHERE number = ?").bind(code.number).first());
@@ -351,7 +354,7 @@ async function matchReceipt(
 }
 
 /** True when the note's name is someone's in the group, now or as printed on an earlier bill. */
-export async function isGroupName(env: Env, name: string): Promise<boolean> {
+async function isGroupName(env: Env, name: string): Promise<boolean> {
   const { results: members } = await env.DB.prepare("SELECT username FROM members").all<{ username: string }>();
   if (members.some((m) => noteName(m.username) === name)) return true;
   const { results: codes } = await env.DB.prepare("SELECT DISTINCT payment_code FROM payments").all<{

@@ -68,9 +68,8 @@ import {
   LINK_ARCHIVED_DAYS,
   emailStatus,
   GMAIL_CONFIRM_HOURS,
-  codeTarget,
   inboundRows,
-  isGroupName,
+  noteTarget,
   linkCutoff,
   openPayments,
   refundRows,
@@ -81,7 +80,6 @@ import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
 import { actorId, audit, auditRows, billOwner, friendName, money, record, rosterLabel } from "../audit";
-import { parsePaymentCode } from "../paymentCode";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -239,13 +237,13 @@ async function selfSignupEvent(env: Env, id: string, memberId: string | null) {
 }
 
 /** One's own rows on the roster (themselves and friends, with names), for telling whether a save changed them. */
-async function ownSignup(env: Env, eventId: number, memberId: string): Promise<string> {
+async function ownSignup(env: Env, eventId: number, memberId: string) {
   const { results } = await env.DB.prepare(
     "SELECT friend_index, friend_name FROM registrations WHERE event_id = ? AND member_id = ? ORDER BY friend_index",
   )
     .bind(eventId, memberId)
-    .all();
-  return results.length ? JSON.stringify(results) : "";
+    .all<{ friend_index: number; friend_name: string | null }>();
+  return { rows: results, key: results.length ? JSON.stringify(results) : "" };
 }
 
 adminEventRoutes.post("/events/:id/self-signup", async (c) => {
@@ -258,11 +256,15 @@ adminEventRoutes.post("/events/:id/self-signup", async (c) => {
   await setSignup(c.env, e.id, self, friends, false);
   await audit(c.env, e.id, actorId(c.get("actor")), "self_signup", async () => {
     // Saved again without a change: nothing to record.
-    if (before === (await ownSignup(c.env, e.id, self))) return null;
-    const what = before ? "修改自己的报名" : "自己报名";
+    const after = await ownSignup(c.env, e.id, self);
+    if (before.key === after.key) return null;
+    const what = before.key ? "修改自己的报名" : "自己报名";
+    // Named as the roster now shows them (friend numbers are kept across saves).
     const me = await billOwner(c.env, self);
-    const names = friends.map((f, i) => friendName(me, i + 1, f.trim() || null));
-    return friends.length ? `${what}，带 ${friends.length} 个朋友：${names.join("、")}` : `${what}，不带朋友`;
+    const names = after.rows
+      .filter((r) => r.friend_index > 0)
+      .map((r) => friendName(me, r.friend_index, r.friend_name));
+    return names.length ? `${what}，带 ${names.length} 个朋友：${names.join("、")}` : `${what}，不带朋友`;
   });
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
@@ -317,7 +319,8 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
   )
     .bind(e.id)
     .run();
-  if (res.meta.changes) await audit(c.env, e.id, actorId(c.get("actor")), "cancel", "取消活动");
+  if (!res.meta.changes) throw badRequest("只能在 Finalize 之前取消活动");
+  await audit(c.env, e.id, actorId(c.get("actor")), "cancel", "取消活动");
   await syncDeadline(c.env, e.id);
   await remindIfExpired(c.env, e.payee_id);
   return c.json({ ok: true });
@@ -394,11 +397,11 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   }
   const ts = now();
   // Only over what was read: a close, Finalize or archive landing in between is never undone.
-  const res = await c.env.DB.prepare(
-    `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, deadline_at = ?, status = ?
-     WHERE id = ? AND status = ? AND deadline_at = ?`,
-  )
-    .bind(
+  const [res] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, deadline_at = ?, status = ?
+       WHERE id = ? AND status = ? AND deadline_at = ?`,
+    ).bind(
       date,
       startAt,
       endAt,
@@ -410,10 +413,10 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
       e.id,
       e.status,
       e.deadline_at,
-    )
-    .run();
-  if (!res.meta.changes) throw badRequest("这个活动刚刚有了变化，请刷新后再改");
-  await saveVenue(c.env, location, address, ts).run();
+    ),
+    saveVenue(c.env, location, address, ts),
+  ]);
+  if (!res?.meta.changes) throw badRequest("这个活动刚刚有了变化，请刷新后再改");
   const after = await getEvent(c.env, e.id);
   const changes = editChanges(e, after);
   if (changes.length) await audit(c.env, e.id, actorId(c.get("actor")), "edit", `修改活动：${changes.join("；")}`);
@@ -456,8 +459,8 @@ adminEventRoutes.post("/events/:id/reopen", async (c) => {
   )
     .bind(deadline, e.id)
     .run();
-  if (res.meta.changes)
-    await audit(c.env, e.id, actorId(c.get("actor")), "reopen", `重新开放报名，截止到 ${date} ${time}`);
+  if (!res.meta.changes) throw badRequest("只能重新开放已截止、还没 Finalize 的活动");
+  await audit(c.env, e.id, actorId(c.get("actor")), "reopen", `重新开放报名，截止到 ${date} ${time}`);
   await syncDeadline(c.env, e.id);
   return c.json({ ok: true });
 });
@@ -767,15 +770,10 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
     `场地 ${money(i.courtTotalCents)}，用球 ${i.shuttleCount} 个 × ${money(i.shuttlePriceCents)}`;
   if (await finalize(c.env, e, input))
     await audit(c.env, e.id, actorId(c.get("actor")), "finalize", `Finalize 发出账单：${fees(input)}`);
-  // Saved again with the same fees (or a second click on the first Finalize): nothing changed.
-  else if (!was || fees(was) !== fees(input))
-    await audit(
-      c.env,
-      e.id,
-      actorId(c.get("actor")),
-      "fee_edit",
-      was ? `修改费用：${fees(input)}（原来：${fees(was)}）` : `修改费用：${fees(input)}`,
-    );
+  // Saved again with the same fees, or a second click on the first Finalize (no fees saved yet when
+  // it read them): nothing changed.
+  else if (was && fees(was) !== fees(input))
+    await audit(c.env, e.id, actorId(c.get("actor")), "fee_edit", `修改费用：${fees(input)}（原来：${fees(was)}）`);
   // After the entry, so the archive it may cause (every bill already paid) comes after it in the log.
   await checkCollected(c.env, e.id);
   return c.json({ ok: true });
@@ -955,10 +953,7 @@ async function inboundEntry(
   i: { note: string | null; payer_name: string | null; amount_cents: number | null; payee_id: string | null },
   text: (into: string, what: string) => string,
 ) {
-  // As auto-matching reads it: only a code with one of the group's names.
-  const code = i.note ? parsePaymentCode(i.note) : null;
-  if (!code?.name || !(await isGroupName(env, code.name))) return null;
-  const { e } = await codeTarget(env, code);
+  const e = (await noteTarget(env, i.note))?.e;
   if (!e) return null;
   const into = await payeeName(env.DB, await inboundPayee(env.DB, i));
   const what = `${i.payer_name ?? "付款人不明"}${i.amount_cents === null ? "" : ` ${money(i.amount_cents)}`}`;
@@ -1067,6 +1062,10 @@ adminEventRoutes.post("/inbound/:iid/ignore", async (c) => {
 
 /** 移回待确认: undoes a mistaken 忽略, so the payment can still be linked to a bill. */
 adminEventRoutes.post("/inbound/:iid/unignore", async (c) => {
+  // Read first, for the log; the update below decides.
+  const i = await c.env.DB.prepare("SELECT note, payer_name, amount_cents, payee_id FROM inbound_payments WHERE id = ?")
+    .bind(Number(c.req.param("iid")))
+    .first<{ note: string | null; payer_name: string | null; amount_cents: number | null; payee_id: string | null }>();
   const res = await c.env.DB.prepare(
     `UPDATE inbound_payments SET state = 'open', linked_payment_id = NULL,
        reason = CASE WHEN COALESCE(reason, '') = '' THEN '忽略后移回'
@@ -1089,19 +1088,10 @@ adminEventRoutes.post("/inbound/:iid/unignore", async (c) => {
     );
   }
   // Undoes a recorded 忽略, so it is recorded too.
-  await record(c.env, actorId(c.get("actor")), "inbound_unignore", async () => {
-    const i = await c.env.DB.prepare(
-      "SELECT note, payer_name, amount_cents, payee_id FROM inbound_payments WHERE id = ?",
-    )
-      .bind(Number(c.req.param("iid")))
-      .first<{
-        note: string | null;
-        payer_name: string | null;
-        amount_cents: number | null;
-        payee_id: string | null;
-      }>();
-    return i && inboundEntry(c.env, i, (into, what) => `把付到 ${into} 账户的 Venmo 收款（${what}）从已忽略移回待确认`);
-  });
+  if (i)
+    await record(c.env, actorId(c.get("actor")), "inbound_unignore", () =>
+      inboundEntry(c.env, i, (into, what) => `把付到 ${into} 账户的 Venmo 收款（${what}）从已忽略移回待确认`),
+    );
   return c.json({ ok: true });
 });
 

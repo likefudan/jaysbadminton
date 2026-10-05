@@ -9,7 +9,7 @@ import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
 import { once } from "./notify";
 import { payeeExpired, payeeUnlockedSql } from "./payees";
-import { type AuditAction, DETAIL_MAX, SYSTEM, audit } from "./audit";
+import { SYSTEM, audit } from "./audit";
 
 /**
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
@@ -177,33 +177,20 @@ export async function revokeOrganizer(
   // Each step runs only if this request is the one that revoked them (role_since = ts), so a
   // second click, or a revoke racing this one, changes nothing more.
   const mine = "EXISTS (SELECT 1 FROM members WHERE id = ?2 AND role = 'member' AND role_since = ?3)";
-  // 操作记录: each event handed back, by whoever revoked (the organizer themselves for 不再当组织者).
-  const why = {
-    owner: `撤销 ${m.username} 的组织者身份，活动交回群主`,
-    self: `${m.username} 不再当组织者，活动交回群主`,
-    deactivate: `停用 ${m.username}，组织者身份一并撤销，活动交回群主`,
-  }[by];
   const done = await env.DB.batch([
     env.DB.prepare("UPDATE members SET role = 'member', role_since = ?2 WHERE id = ?1 AND role = 'organizer'").bind(
       m.id,
       ts,
     ),
-    // Before the events move, so it finds the ones that are theirs.
-    // The money stays with them exactly where the payee statement below leaves payee_id alone.
-    env.DB.prepare(
-      `INSERT INTO event_audit (event_id, actor_id, action, detail, at)
-       SELECT id, ?4, ?7, substr(?5 || CASE WHEN payee_id = ?2
-                                                 AND NOT (status IN ('open', 'closed') AND ${payeeUnlockedSql("events")})
-                                            THEN '（账单已发出，钱仍付到 ' || ?6 || ' 的账户）' ELSE '' END, 1, ${DETAIL_MAX}), ?3
-       FROM events WHERE manager_id = ?2 AND status IN ${LIVE_SQL} AND ${mine}`,
-    ).bind(null, m.id, ts, by === "self" ? m.id : owner, why, m.username, "reassign" satisfies AuditAction),
-    // Before Finalize nobody has a bill, so the money moves with the event.
+    // Before Finalize nobody has a bill, so the money moves with the event. Both return the events
+    // they moved, for 操作记录.
     env.DB.prepare(
       `UPDATE events SET payee_id = ?1 WHERE payee_id = ?2 AND status IN ('open', 'closed')
-         AND ${payeeUnlockedSql("events")} AND ${mine}`,
+         AND ${payeeUnlockedSql("events")} AND ${mine} RETURNING id`,
     ).bind(owner, m.id, ts),
     env.DB.prepare(
-      `UPDATE events SET manager_id = ?1 WHERE manager_id = ?2 AND status IN ${LIVE_SQL} AND ${mine}`,
+      `UPDATE events SET manager_id = ?1 WHERE manager_id = ?2 AND status IN ${LIVE_SQL} AND ${mine}
+       RETURNING id, payee_id`,
     ).bind(owner, m.id, ts),
     // retired_at marks a 历史收款人 for auto-matching (card 8).
     env.DB.prepare(`UPDATE payment_profiles SET retired_at = ?3 WHERE member_id = ?2 AND ${mine}`).bind(null, m.id, ts),
@@ -217,6 +204,7 @@ export async function revokeOrganizer(
     if (with_.length) return null;
     throw badRequest(`${m.username} 不是组织者`);
   }
+  await recordHandBack(env, m, by, by === "self" ? m.id : owner, done[1]!, done[2]!);
   // Nothing of theirs still collects: the notice email says the filter can go, so the 失效
   // reminder (remindIfExpired) counts as sent. Claimed first so the sweep can't send one meanwhile,
   // and given back if the notice didn't go out, so the sweep sends the reminder later.
@@ -230,6 +218,37 @@ export async function revokeOrganizer(
       .bind(filterReminder(m.id), ts)
       .run();
   return { emailStatus };
+}
+
+/**
+ * 操作记录 for a revoke: each event that went back to the Owner, by whoever revoked (the organizer
+ * themselves for 不再当组织者), and each one where only the money moved.
+ */
+async function recordHandBack(
+  env: Env,
+  m: MemberRow,
+  by: RevokeBy,
+  actor: string,
+  payees: D1Result,
+  managers: D1Result,
+): Promise<void> {
+  const who = {
+    owner: `撤销 ${m.username} 的组织者身份`,
+    self: `${m.username} 不再当组织者`,
+    deactivate: `停用 ${m.username}，组织者身份一并撤销`,
+  }[by];
+  const handed = managers.results as { id: number; payee_id: string | null }[];
+  for (const e of handed)
+    await audit(
+      env,
+      e.id,
+      actor,
+      "reassign",
+      // Bills are out: members keep paying into their account until it is archived.
+      `${who}，活动交回群主${e.payee_id === m.id ? `（账单已发出，钱仍付到 ${m.username} 的账户）` : ""}`,
+    );
+  for (const e of payees.results as { id: number }[])
+    if (!handed.some((h) => h.id === e.id)) await audit(env, e.id, actor, "reassign", `${who}，收款人改为群主`);
 }
 
 /** They can no longer open the admin pages, so this is how they learn what happens to their events. */

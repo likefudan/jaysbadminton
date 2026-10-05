@@ -181,10 +181,10 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
 export async function finalize(env: Env, e: EventRow, input: SettleInput): Promise<boolean> {
   await applySettlement(env, e, input);
   const owner = await ownerId(env.DB);
-  const [moved] = await env.DB.batch([
-    env.DB.prepare(
-      "UPDATE events SET status = 'finalized', finalized_at = COALESCE(finalized_at, ?) WHERE id = ? AND status = 'closed'",
-    ).bind(now(), e.id),
+  const [claimed] = await env.DB.batch([
+    // Set once, by whichever request finalizes first.
+    env.DB.prepare("UPDATE events SET finalized_at = ? WHERE id = ? AND finalized_at IS NULL").bind(now(), e.id),
+    env.DB.prepare("UPDATE events SET status = 'finalized' WHERE id = ?").bind(e.id),
     // The price is remembered for whoever runs the event, for their next one.
     setSetting(
       env.DB,
@@ -192,7 +192,7 @@ export async function finalize(env: Env, e: EventRow, input: SettleInput): Promi
       String(input.shuttlePriceCents),
     ),
   ]);
-  const first = (moved?.meta.changes ?? 0) > 0;
+  const first = (claimed?.meta.changes ?? 0) > 0;
   if (first) await notifyFinalized(env, e);
   return first;
 }

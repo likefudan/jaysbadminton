@@ -93,7 +93,7 @@ export async function auditRows(env: Env, eventId: number): Promise<AuditEntry[]
   const { results } = await env.DB.prepare(
     `SELECT a.id, a.actor_id, a.action, a.detail, a.at, m.username, m.is_owner
      FROM event_audit a LEFT JOIN members m ON m.id = a.actor_id
-     WHERE a.event_id = ? ORDER BY a.at DESC, a.id DESC LIMIT 500`,
+     WHERE a.event_id = ? ORDER BY a.at DESC, a.id DESC`,
   )
     .bind(eventId)
     .all<{
