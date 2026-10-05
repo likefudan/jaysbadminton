@@ -8,6 +8,7 @@ interface TelegramStatus {
   botUsername: string;
   connected: boolean;
   chatName: string;
+  organizers: boolean;
 }
 
 /**
@@ -70,7 +71,9 @@ export function TelegramCard(props: { base: string; organizer?: boolean }) {
                   还没有连接。点下面的按钮会打开 Telegram，在机器人对话里点「Start / 开始」即可。
                   {props.organizer
                     ? "连接后，你负责的活动的报名截止、结算和收款提醒会发到这里；没连接时这些提醒发给群主。"
-                    : "所有提醒和账单通知只发给连接的这一个账号。"}
+                    : s.organizers
+                      ? "你负责的活动的提醒和账单通知、组织者活动的抄送（发起、结算完成、收齐），以及入群申请等全群的通知发到连接的这个账号。"
+                      : "所有提醒和账单通知只发给连接的这一个账号。"}
                 </p>
               )}
               {waiting && <p class="hint">等待你在 Telegram 里点 Start…（10 分钟内有效）</p>}

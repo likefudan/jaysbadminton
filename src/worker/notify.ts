@@ -89,8 +89,9 @@ async function runBy(env: Env, e: EventRow): Promise<string> {
   return name ? `（组织：${name}）` : "";
 }
 
-const toManager = async (env: Env, e: { manager_id: string | null }, html: string) =>
-  (await sendToManager(env, e, html)).ok;
+/** `adminPage`: the notice sends them to the admin page, so an organizer gets their link to it. */
+const toManager = async (env: Env, e: { manager_id: string | null }, html: string, adminPage = false) =>
+  (await sendToManager(env, e, html, adminPage)).ok;
 
 async function headcount(env: Env, eventId: number): Promise<number> {
   const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ?")
@@ -211,7 +212,12 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
   const n = await headcount(env, e.id);
   if (n === 0) {
     await once(env, e.id, "settle_reminder", "empty", async () =>
-      toManager(env, e, message(`💰 ${day(e)} 的活动已经结束，没有人报名，不用结算。\n可以在管理页取消这个活动。`)),
+      toManager(
+        env,
+        e,
+        message(`💰 ${day(e)} 的活动已经结束，没有人报名，不用结算。\n可以在管理页取消这个活动。`),
+        true,
+      ),
     );
     return;
   }
@@ -222,6 +228,7 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
       message(
         `💰 ${day(e)} 的活动已经结束，还没有结算（报名 ${n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。`,
       ),
+      true,
     ),
   );
 }
@@ -351,7 +358,7 @@ export async function notifyCollected(env: Env, eventId: number): Promise<void> 
       lines.push(`应收 $${dollars(pay.due ?? 0)}，实收 $${dollars(pay.paid ?? 0)}`);
       if (pay.refund) lines.push(`还有多付的 $${dollars(pay.refund)} 需要退，见管理页「收款」。`);
     }
-    return sendToManagerAndOwner(env, e, message(lines.join("\n")));
+    return sendToManagerAndOwner(env, e, message(lines.join("\n")), !!pay?.refund);
   });
 }
 
@@ -392,7 +399,7 @@ export async function notifyPayment(
     kind === "partial"
       ? `💵 ${p.username} 付了 $${dollars(info.amountCents)}（${d}），还差 $${dollars(p.amount_due_cents - p.amount_paid_cents)}。`
       : `↩️ ${p.username} 多付了 $${dollars(p.amount_paid_cents - p.amount_due_cents)}（${d}，应付 $${dollars(p.amount_due_cents)}，共收到 $${dollars(p.amount_paid_cents + p.refunded_cents)}），需要退款，见管理页「收款」。`;
-  await sendToManager(env, p, message(text));
+  await sendToManager(env, p, message(text), kind === "overpaid");
 }
 
 /**

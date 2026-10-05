@@ -151,6 +151,23 @@ describe("connecting each person's Telegram", () => {
     expect(to(OWNER_CHAT)[0]).toContain("管理页面");
   });
 
+  it("binds a code once even when /start arrives twice, and answers an organizer's 管理页面 with the Google way in", async () => {
+    const { org, alice } = await scenario();
+    const link = (await json(await request(`${GOOGLE}/telegram/connect`, org, {}))).data.link as string;
+    await Promise.all([hook(`/start ${link.split("=")[1]}`, 77), hook(`/start ${link.split("=")[1]}`, 88)]);
+    expect(sent()).toHaveLength(1);
+    const row = await env.DB.prepare("SELECT chat_id FROM telegram_bindings WHERE member_id = ?")
+      .bind(alice.id)
+      .first<{ chat_id: string }>();
+    expect(row!.chat_id).toBe(sent()[0]![0]);
+
+    calls = [];
+    await hook("管理页面", Number(row!.chat_id));
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]![1]).toContain(`${ORIGIN}/admin/google`);
+    expect(sent()[0]![1]).not.toContain("群主密码");
+  });
+
   it("moves a Telegram account to the organizer who connects it last", async () => {
     const { ctx, org, alice } = await scenario();
     const bob = await approveMember(ctx, "Bob");

@@ -81,9 +81,12 @@ export const WECHAT_BLOCK = "\n\n—— 可复制到微信 ——\n";
 /** Where an organizer opens the admin pages: through Google, never the Owner's admin link. */
 export const organizerAdminLink = (env: Env) => `${env.SITE_ORIGIN}/admin/google`;
 
-/** Puts the organizer's way into the admin pages under a message that sends them there. */
-function withAdminLink(env: Env, html: string): string {
-  if (!html.includes("管理页") || html.includes(organizerAdminLink(env))) return html;
+/**
+ * Puts the organizer's way into the admin pages under a notice that sends them there (`adminPage`),
+ * before the WeChat block.
+ */
+function withAdminLink(env: Env, html: string, adminPage: boolean): string {
+  if (!adminPage) return html;
   const link = `管理页（用 Google 登录）：${escapeHtml(organizerAdminLink(env))}`;
   const cut = html.indexOf(WECHAT_BLOCK);
   return cut < 0 ? `${html}\n\n${link}` : `${html.slice(0, cut)}\n\n${link}${html.slice(cut)}`;
@@ -99,7 +102,7 @@ export async function sendToMember(env: Env, memberId: string, html: string): Pr
   const role = memberRole(env, m);
   if (role === "owner") return sendToOwner(env, html);
   if (role !== "organizer" || !m.chat_id) return false;
-  return sendTo(env, m.chat_id, withAdminLink(env, html));
+  return sendTo(env, m.chat_id, html);
 }
 
 export interface ManagerDelivery {
@@ -114,7 +117,7 @@ export interface ManagerDelivery {
 
 /** Sends a follow-up to wherever an earlier sendToManager went, so a run of messages stays together. */
 export async function sendLikewise(env: Env, d: ManagerDelivery, html: string): Promise<boolean> {
-  return d.owner || !d.chatId ? sendToOwner(env, html) : sendTo(env, d.chatId, withAdminLink(env, html));
+  return d.owner || !d.chatId ? sendToOwner(env, html) : sendTo(env, d.chatId, html);
 }
 
 /**
@@ -126,6 +129,7 @@ export async function sendToManager(
   env: Env,
   e: { manager_id: string | null },
   html: string,
+  adminPage = false,
 ): Promise<ManagerDelivery> {
   const id = await eventManager(env.DB, e);
   const m = id ? await recipient(env.DB, id) : null;
@@ -135,7 +139,7 @@ export async function sendToManager(
   if (!organizersEnabled(env)) why = `这场由 ${name} 负责，但组织者功能已关闭`;
   else if (memberRole(env, m) !== "organizer") why = `这场的负责人 ${name} 已经不是组织者`;
   else if (!m.chat_id) why = `组织者 ${name} 还没连接 Telegram`;
-  else if (await sendTo(env, m.chat_id, withAdminLink(env, html)))
+  else if (await sendTo(env, m.chat_id, withAdminLink(env, html, adminPage)))
     return { ok: true, owner: false, organizer: m.username, chatId: m.chat_id };
   else why = `发给组织者 ${name} 的 Telegram 没有成功`;
   const ok = await sendToOwner(env, `ℹ️ ${why}，这条发给群主。\n${html}`);
@@ -150,8 +154,9 @@ export async function sendToManagerAndOwner(
   env: Env,
   e: { manager_id: string | null },
   html: string,
+  adminPage = false,
 ): Promise<boolean> {
-  const d = await sendToManager(env, e, html);
+  const d = await sendToManager(env, e, html, adminPage);
   if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：组织者 ${escapeHtml(d.organizer!)} 负责的活动\n${html}`);
   return d.ok;
 }
@@ -205,6 +210,8 @@ export interface TelegramStatus {
   botUsername: string;
   connected: boolean;
   chatName: string;
+  /** The 组织者 feature is on: event notices go to whoever runs the event. */
+  organizers: boolean;
 }
 
 /**
@@ -226,6 +233,7 @@ export async function telegramStatus(env: Env, who: ChatOwner): Promise<Telegram
     botUsername: s.telegram_bot_username ?? "",
     connected: !!chat?.chat_id,
     chatName: chat?.chat_name ?? "",
+    organizers: organizersEnabled(env),
   };
 }
 
@@ -277,8 +285,8 @@ const ADMIN_LINK_WORDS = new Set(["管理页面", "管理页", "管理链接", "
 
 /**
  * Handles a webhook update. Two things do anything: "/start <valid code>" binds a private chat to
- * whoever the code was made for, and 「管理页面」 from the Owner's chat gets the current admin link.
- * Everything else is ignored, from strangers and organizers alike.
+ * whoever the code was made for, and 「管理页面」 gets the Owner's chat the current admin link (and a
+ * current organizer's chat their Google way in). Everything else is ignored.
  */
 export async function handleUpdate(env: Env, update: Update): Promise<void> {
   const msg = update.message;
@@ -308,23 +316,25 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
     return;
   }
 
-  const b = await env.DB.prepare(
-    `SELECT m.id, m.is_owner, m.role, m.status, m.deleted_at FROM telegram_bindings t JOIN members m ON m.id = t.member_id
-     WHERE t.bind_hash = ? AND t.bind_expires >= ?`,
-  )
-    .bind(hash, now())
-    .first<{ id: string; is_owner: number; role: string; status: string; deleted_at: string | null }>();
   // Revoked (or the feature switched off) after making the code: it no longer connects anything.
-  if (!b || memberRole(env, b) !== "organizer") return;
-  await env.DB.batch([
+  if (!organizersEnabled(env)) return;
+  // Spends the code and binds in one transaction, only while the code is valid and its owner is
+  // still an organizer, so a revoke or a second /start with the same code can't slip in between.
+  const claim = `(SELECT t.member_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
+     WHERE t.bind_hash = ?1 AND t.bind_expires >= ?2
+       AND m.is_owner = 0 AND m.role = 'organizer' AND m.status = 'active' AND m.deleted_at IS NULL)`;
+  const [, bound] = await env.DB.batch([
     // One chat belongs to one organizer: the same Telegram account connected again moves here.
     env.DB.prepare(
-      "UPDATE telegram_bindings SET chat_id = NULL, chat_name = NULL WHERE chat_id = ? AND member_id != ?",
-    ).bind(chatId, b.id),
+      `UPDATE telegram_bindings SET chat_id = NULL, chat_name = NULL
+       WHERE chat_id = ?3 AND EXISTS ${claim} AND member_id != ${claim}`,
+    ).bind(hash, now(), chatId),
     env.DB.prepare(
-      "UPDATE telegram_bindings SET chat_id = ?, chat_name = ?, bind_hash = NULL, bind_expires = NULL WHERE member_id = ?",
-    ).bind(chatId, name, b.id),
+      `UPDATE telegram_bindings SET chat_id = ?3, chat_name = ?4, bind_hash = NULL, bind_expires = NULL
+       WHERE member_id = ${claim}`,
+    ).bind(hash, now(), chatId, name),
   ]);
+  if (!bound?.meta.changes) return;
   await sendTo(
     env,
     chatId,
@@ -332,9 +342,24 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
   );
 }
 
+/**
+ * An organizer asking for the admin page gets their way in (Google), never the admin link. Only a
+ * current organizer's connected chat; strangers and revoked organizers hear nothing.
+ */
+async function organizerAdminEntry(env: Env, chatId: string): Promise<void> {
+  if (!organizersEnabled(env)) return;
+  const o = await env.DB.prepare(
+    `SELECT 1 FROM telegram_bindings t JOIN members m ON m.id = t.member_id
+     WHERE t.chat_id = ? AND m.is_owner = 0 AND m.role = 'organizer' AND m.status = 'active' AND m.deleted_at IS NULL`,
+  )
+    .bind(chatId)
+    .first();
+  if (o) await sendTo(env, chatId, `🔑 管理页（用 Google 登录）：\n${escapeHtml(organizerAdminLink(env))}`);
+}
+
 async function sendAdminLink(env: Env, chatId: string): Promise<void> {
   const { telegram_chat_id: bound } = await getSettings(env.DB, ["telegram_chat_id"]);
-  if (!bound || bound !== chatId) return; // only the Owner's own chat
+  if (!bound || bound !== chatId) return organizerAdminEntry(env, chatId); // the admin link: only the Owner's own chat
   const { token, renewed } = await currentAdminToken(env);
   const link = `${env.SITE_ORIGIN}/admin/${token}`;
   const note = renewed ? "\n（之前的管理链接无法找回，已为你生成新的，旧链接已失效。）" : "";
