@@ -7,7 +7,7 @@ import { message, once, type NotifySettings } from "./notify";
 import { sheetsStatus } from "./sheets";
 import { isStaging } from "./site";
 import { sendToOwner, sendToPayee, sendToPayeeAndOwner } from "./telegram";
-import { ownerId } from "./organizers";
+import { currentOrganizerSql, memberRole, ownerId } from "./organizers";
 import { payeeSql } from "./payees";
 
 /**
@@ -115,6 +115,14 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
 }
 
 /**
+ * forwardingWatch's test for the pages (组织者 block, an organizer's 转发状态): how many bills paying
+ * into this account have been out for days while no Venmo email came for it; 0 when it looks fine.
+ */
+export async function quietBills(env: Env, payee: string, lastAt: string | null, at: Date = new Date()) {
+  return owingInto(env, payee, new Date(at.getTime() - QUIET_DAYS * DAY).toISOString(), lastAt);
+}
+
+/**
  * Unpaid bills paying into `payee`'s account whose event was finalized before `since`, when that
  * account has been quiet since then (`lastAt`); 0 otherwise.
  */
@@ -172,67 +180,123 @@ export async function weeklyDigest(env: Env, at: Date, cfg: NotifySettings): Pro
   await once(env, SITE, "weekly_digest", p.date, async () => sendToOwner(env, message(await digestText(env, at))));
 }
 
+/** One account's week: its Venmo emails by outcome, open 待确认, unpaid bills and refunds owed. */
+interface AccountWeek {
+  mail: Map<EmailOutcome, number>;
+  review: number;
+  owing: { n: number; cents: number };
+  refund: { n: number; cents: number };
+}
+
+/**
+ * The digest, one block per payee (design §10.3: 每周简报按收款人分别统计). With nobody but the
+ * Owner collecting, which is every site with the organizers flag off, it reads exactly as before:
+ * the Owner's numbers, then the checks.
+ */
 export async function digestText(env: Env, at: Date): Promise<string> {
   const since = new Date(at.getTime() - 7 * DAY).toISOString();
   const db = env.DB;
+  const owner = await ownerId(db);
+  const weeks = new Map<string, AccountWeek>();
+  const week = (id: string | null) => {
+    const key = id ?? "";
+    if (!weeks.has(key))
+      weeks.set(key, { mail: new Map(), review: 0, owing: { n: 0, cents: 0 }, refund: { n: 0, cents: 0 } });
+    return weeks.get(key)!;
+  };
+  week(owner);
 
+  // Every query groups by the same rule: a NULL payee is the Owner. Unattributed problem emails
+  // (unreadable, forged) were logged as the Owner's, as the Owner is told about them.
   const { results: mail } = await db
-    .prepare("SELECT outcome, COUNT(*) AS n FROM email_log WHERE received_at >= ? GROUP BY outcome")
+    .prepare(
+      `SELECT ${payeeSql("l")} AS payee, outcome, COUNT(*) AS n FROM email_log l
+       WHERE received_at >= ? GROUP BY payee, outcome`,
+    )
     .bind(since)
-    .all<{ outcome: EmailOutcome; n: number }>();
-  const count = (os: EmailOutcome[]) => mail.filter((m) => os.includes(m.outcome)).reduce((t, m) => t + m.n, 0);
-  const mailTotal = count(OUTCOME_GROUPS.flatMap(([, os]) => os)); // Gmail confirmations are not Venmo mail
+    .all<{ payee: string | null; outcome: EmailOutcome; n: number }>();
+  for (const m of mail) week(m.payee).mail.set(m.outcome, m.n);
+  const { results: review } = await db
+    .prepare(
+      `SELECT ${payeeSql("i")} AS payee, COUNT(*) AS n FROM inbound_payments i WHERE state = 'open' GROUP BY payee`,
+    )
+    .all<{ payee: string | null; n: number }>();
+  for (const r of review) week(r.payee).review = r.n;
+  const { results: bills } = await db
+    .prepare(
+      `SELECT ${payeeSql("e")} AS payee,
+         SUM(p.status IN ('unpaid', 'partial')) AS owing,
+         COALESCE(SUM(CASE WHEN p.status IN ('unpaid', 'partial') THEN p.amount_due_cents - p.amount_paid_cents END), 0) AS owing_cents,
+         SUM(p.amount_paid_cents > p.amount_due_cents) AS refund,
+         COALESCE(SUM(CASE WHEN p.amount_paid_cents > p.amount_due_cents THEN p.amount_paid_cents - p.amount_due_cents END), 0) AS refund_cents
+       FROM payments p JOIN events e ON e.id = p.event_id
+       WHERE p.status IN ('unpaid', 'partial') OR p.amount_paid_cents > p.amount_due_cents
+       GROUP BY payee`,
+    )
+    .all<{ payee: string | null; owing: number; owing_cents: number; refund: number; refund_cents: number }>();
+  for (const b of bills) {
+    const w = week(b.payee);
+    w.owing = { n: b.owing, cents: b.owing_cents };
+    w.refund = { n: b.refund, cents: b.refund_cents };
+  }
+  // Current organizers get a block even in a quiet week, so a forwarding never set up still shows.
+  const { results: people } = await db
+    .prepare(
+      `SELECT m.id, m.username, m.is_owner, m.role, m.status, m.deleted_at, p.venmo_username, p.email_last_at
+       FROM members m LEFT JOIN payment_profiles p ON p.member_id = m.id
+       WHERE m.is_owner = 0 AND (${currentOrganizerSql("m")} OR m.id IN (${[...weeks.keys()].map(() => "?").join(", ")}))
+       ORDER BY m.username, m.id`,
+    )
+    .bind(...weeks.keys())
+    .all<{
+      id: string;
+      username: string;
+      is_owner: number;
+      role: string;
+      status: string;
+      deleted_at: string | null;
+      venmo_username: string | null;
+      email_last_at: string | null;
+    }>();
+  const others = people.filter((m) => weeks.has(m.id) || memberRole(env, m) === "organizer");
+
   const played = await db
     .prepare("SELECT COUNT(*) AS n FROM events WHERE start_at >= ? AND start_at < ? AND status != 'cancelled'")
     .bind(since, at.toISOString())
     .first<{ n: number }>();
-  const review = await db
-    .prepare("SELECT COUNT(*) AS n FROM inbound_payments WHERE state = 'open'")
-    .first<{ n: number }>();
-  const owing = await db
-    .prepare(
-      `SELECT COUNT(*) AS n, COALESCE(SUM(amount_due_cents - amount_paid_cents), 0) AS cents
-       FROM payments WHERE status IN ('unpaid', 'partial')`,
-    )
-    .first<{ n: number; cents: number }>();
-  const refund = await db
-    .prepare(
-      `SELECT COUNT(*) AS n, COALESCE(SUM(amount_paid_cents - amount_due_cents), 0) AS cents
-       FROM payments WHERE amount_paid_cents > amount_due_cents`,
-    )
-    .first<{ n: number; cents: number }>();
   const s = await getSettings(db, ["email_last_at", "cron_last_error_at", "cron_last_error", "venmo_username"]);
   const sheets = await sheetsStatus(env);
 
   const lines = [`📊 每周简报（${formatInstantZh(since).split(" ").slice(0, 2).join(" ")} 起的 7 天）`, ""];
   lines.push(`活动：举办了 ${played?.n ?? 0} 场`);
-  if (mailTotal === 0) {
-    lines.push("Venmo 邮件：这周一封也没收到");
+  const ownerBlock = [
+    ...weekLines(week(owner), "要你处理"),
+    await forwardingCheck(db, at, owner, s.venmo_username, s.email_last_at, "请检查 Gmail 转发"),
+  ];
+  if (others.length === 0) {
+    lines.push(...ownerBlock.slice(0, -1), "", ownerBlock.at(-1)!);
   } else {
-    const parts = OUTCOME_GROUPS.map(([label, os]) => [label, count(os)] as const).filter(([, n]) => n > 0);
-    lines.push(`Venmo 邮件：收到 ${mailTotal} 封（${parts.map(([l, n]) => `${l} ${n}`).join("，")}）`);
+    lines.push("", "【群主（你）的账户】", ...ownerBlock);
+    for (const m of others) {
+      const current = memberRole(env, m) === "organizer";
+      lines.push(
+        "",
+        `【${current ? "组织者" : "历史收款人"} ${m.username} 的账户】`,
+        ...weekLines(week(m.id), current ? `由 ${m.username} 处理` : "要你处理"),
+        await forwardingCheck(
+          db,
+          at,
+          m.id,
+          m.venmo_username,
+          m.email_last_at,
+          current ? `请提醒 ${m.username} 检查 Gmail 转发` : "请检查这个账户的 Gmail 转发",
+        ),
+      );
+    }
+    lines.push("");
   }
-  lines.push(`待确认：${review?.n ? `还有 ${review.n} 笔要你处理` : "没有"}`);
-  lines.push(`未付清账单：${owing?.n ? `${owing.n} 笔，共 $${dollars(owing.cents)}` : "没有"}`);
-  if (refund?.n) lines.push(`待退款：${refund.n} 笔，共 $${dollars(refund.cents)}`);
-  lines.push("");
 
   const checks: string[] = [];
-  if (!s.venmo_username) checks.push("⚠️ 收款设置还没填 Venmo 用户名");
-  else if (!s.email_last_at) checks.push("⚠️ 邮件转发：还没收到过任何 Venmo 邮件，自动对账可能还没设置好");
-  else if (
-    Date.parse(s.email_last_at) < at.getTime() - QUIET_DAYS * DAY &&
-    // Only the Owner's own bills: organizers' are paid into accounts with their own forwarding.
-    (await db
-      .prepare(
-        `SELECT 1 FROM payments p JOIN events e ON e.id = p.event_id
-         WHERE p.status IN ('unpaid', 'partial') AND ${payeeSql("e")} IS ?`,
-      )
-      .bind(await ownerId(db))
-      .first())
-  )
-    checks.push(`⚠️ 邮件转发：最近一封在 ${formatInstantZh(s.email_last_at)}，有欠款却很久没收到，请检查 Gmail 转发`);
-  else checks.push(`✓ 邮件转发：最近一封在 ${formatInstantZh(s.email_last_at)}`);
   if (s.cron_last_error_at && s.cron_last_error_at >= since)
     checks.push(`⚠️ 定时任务出过错（${formatInstantZh(s.cron_last_error_at)}）：${s.cron_last_error}`);
   else checks.push("✓ 定时任务：正常");
@@ -244,4 +308,50 @@ export async function digestText(env: Env, at: Date): Promise<string> {
   else checks.push(`✓ Google 表格同步：最近一次在 ${formatInstantZh(sheets.lastSyncAt)}`);
   lines.push(...checks);
   return lines.join("\n");
+}
+
+/** An account's numbers. `reviewBy` says who handles its 待确认 (要你处理, or 由 某某 处理). */
+function weekLines(w: AccountWeek, reviewBy: string): string[] {
+  const count = (os: EmailOutcome[]) => os.reduce((t, o) => t + (w.mail.get(o) ?? 0), 0);
+  const mailTotal = count(OUTCOME_GROUPS.flatMap(([, os]) => os)); // Gmail confirmations are not Venmo mail
+  const lines: string[] = [];
+  if (mailTotal === 0) {
+    lines.push("Venmo 邮件：这周一封也没收到");
+  } else {
+    const parts = OUTCOME_GROUPS.map(([label, os]) => [label, count(os)] as const).filter(([, n]) => n > 0);
+    lines.push(`Venmo 邮件：收到 ${mailTotal} 封（${parts.map(([l, n]) => `${l} ${n}`).join("，")}）`);
+  }
+  lines.push(`待确认：${w.review ? `还有 ${w.review} 笔${reviewBy}` : "没有"}`);
+  lines.push(`未付清账单：${w.owing.n ? `${w.owing.n} 笔，共 $${dollars(w.owing.cents)}` : "没有"}`);
+  if (w.refund.n) lines.push(`待退款：${w.refund.n} 笔，共 $${dollars(w.refund.cents)}`);
+  return lines;
+}
+
+/**
+ * Whether forwarding into this account works: its last Venmo email, and whether it has gone quiet
+ * for days while bills paying into it are unpaid (forwardingWatch's rule, without the wait for
+ * bills to be a few days old). `fix` is what to do about it.
+ */
+async function forwardingCheck(
+  db: D1Database,
+  at: Date,
+  payee: string | null,
+  venmo: string | null | undefined,
+  lastAt: string | null | undefined,
+  fix: string,
+): Promise<string> {
+  if (!venmo) return "⚠️ 收款设置还没填 Venmo 用户名";
+  if (!lastAt) return "⚠️ 邮件转发：还没收到过任何 Venmo 邮件，自动对账可能还没设置好";
+  if (
+    Date.parse(lastAt) < at.getTime() - QUIET_DAYS * DAY &&
+    (await db
+      .prepare(
+        `SELECT 1 FROM payments p JOIN events e ON e.id = p.event_id
+         WHERE p.status IN ('unpaid', 'partial') AND ${payeeSql("e")} IS ?`,
+      )
+      .bind(payee)
+      .first())
+  )
+    return `⚠️ 邮件转发：最近一封在 ${formatInstantZh(lastAt)}，有欠款却很久没收到，${fix}`;
+  return `✓ 邮件转发：最近一封在 ${formatInstantZh(lastAt)}`;
 }

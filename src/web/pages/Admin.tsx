@@ -584,7 +584,16 @@ function Organizers(props: {
               {o.since && `${formatInstantZh(o.since)} 任命 · `}
               {o.paymentReady ? "收款设置已填好" : <span class="error">收款设置没填好</span>}
               {" · "}
-              {o.lastVenmoEmailAt ? `转发已生效（${formatInstantZh(o.lastVenmoEmailAt)}）` : "还没收到 Venmo 邮件"}
+              {o.quietBills > 0 ? (
+                <span class="error">
+                  {o.lastVenmoEmailAt ? `${formatInstantZh(o.lastVenmoEmailAt)} 之后` : ""}没收到 Venmo 邮件，但有{" "}
+                  {o.quietBills} 笔欠款，转发可能中断
+                </span>
+              ) : o.lastVenmoEmailAt ? (
+                `转发已生效（${formatInstantZh(o.lastVenmoEmailAt)}）`
+              ) : (
+                "还没收到 Venmo 邮件"
+              )}
               {" · "}
               {o.telegram ? "Telegram 已连接" : "Telegram 未连接"}
               {` · 负责 ${o.events} 场未归档活动`}

@@ -152,6 +152,8 @@ interface PaymentProfile {
   outstandingBills: number;
   /** When the last Venmo email for their account arrived (转发已生效). */
   lastVenmoEmailAt: string | null;
+  /** Bills paying into their account out for days with no Venmo email: forwarding may be broken. */
+  quietBills: number;
   /** Gmail's forwarding confirmation for their address, kept 24 hours. */
   gmailConfirm: string | null;
   gmailConfirmAt: string | null;
@@ -292,6 +294,12 @@ function ForwardingCard(props: { profile: PaymentProfile | null }) {
           {p.lastVenmoEmailAt
             ? `已生效（最近一封在 ${formatInstantZh(p.lastVenmoEmailAt)} 收到）`
             : "还没收到你的 Venmo 账户的邮件"}
+          {p.quietBills > 0 && (
+            <p class="error">
+              有 {p.quietBills} 笔账单发出好几天了，却一直没收到你的 Venmo 邮件。如果有人已经用 Venmo
+              付过款，说明转发可能断了：请按上面的步骤检查 Gmail 的转发地址和过滤器。
+            </p>
+          )}
         </div>
       )}
     </Card>

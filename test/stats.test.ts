@@ -124,11 +124,16 @@ describe("export", () => {
       "邮箱",
       "群主备注",
       "状态",
-      "群主",
+      "身份",
       "申请时间",
       "通过时间",
     ]);
     expect(data.tables.registrations.columns).toContain("群主添加");
+    // The Owner's own role; events and bills name 群主 as manager and payee.
+    expect(data.tables.members.rows[0][6]).toBe("群主");
+    expect(data.tables.events.columns.slice(-2)).toEqual(["负责人", "收款人"]);
+    expect(data.tables.events.rows[0].slice(-2)).toEqual(["群主", "群主"]);
+    expect(data.tables.payments.columns.at(-1)).toBe("钱在谁的账户");
     expect(JSON.stringify(data)).not.toMatch(/token|hash/i);
     expect(data.tables.events.rows[0][0]).toMatch(/^jbm\d{8}$/);
     expect((await ctx.admin.call(`${ctx.base}/sheets`)).data).toMatchObject({ enabled: true, script });

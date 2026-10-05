@@ -10,6 +10,7 @@ import { memberRole, organizersEnabled, ownerId } from "./organizers";
 import { once } from "./notify";
 import { payeeExpired, payeeUnlockedSql } from "./payees";
 import { SYSTEM, audit } from "./audit";
+import { quietBills } from "./health";
 
 /**
  * 任命 / 撤销组织者 and 转交活动 (docs/design/organizers.zh.md §8). Only the ways in are behind the
@@ -53,15 +54,18 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
   ]);
   return {
     canManage,
-    list: list.map((o) => ({
-      id: o.id,
-      username: o.username,
-      since: o.role_since,
-      paymentReady: !!o.venmo_username && !!o.venmo_email,
-      lastVenmoEmailAt: o.email_last_at,
-      telegram: !!o.chat_id,
-      events: o.events,
-    })),
+    list: await Promise.all(
+      list.map(async (o) => ({
+        id: o.id,
+        username: o.username,
+        since: o.role_since,
+        paymentReady: !!o.venmo_username && !!o.venmo_email,
+        lastVenmoEmailAt: o.email_last_at,
+        quietBills: o.venmo_username ? await quietBills(env, o.id, o.email_last_at) : 0,
+        telegram: !!o.chat_id,
+        events: o.events,
+      })),
+    ),
     former,
   };
 }

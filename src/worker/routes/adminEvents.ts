@@ -60,6 +60,7 @@ import {
   readPaymentInput,
   savePaymentProfile,
 } from "../payees";
+import { quietBills } from "../health";
 import { SITE_TITLE_MAX, siteTheme, siteTitle } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
@@ -632,6 +633,7 @@ adminEventRoutes.get("/payment-profile", async (c) => {
       zelleAccount: p?.zelleAccount ?? "",
       outstandingBills: me ? await outstandingBills(c.env.DB, me) : 0,
       lastVenmoEmailAt: null,
+      quietBills: 0,
       gmailConfirm: null,
       gmailConfirmAt: null,
     });
@@ -654,6 +656,7 @@ adminEventRoutes.get("/payment-profile", async (c) => {
     // Their own forwarding: 转发已生效 once a Venmo email for their account arrived, and Gmail's
     // confirmation code for 24 hours (design §6.3).
     lastVenmoEmailAt: p?.email_last_at ?? null,
+    quietBills: me && p?.venmo_username ? await quietBills(c.env, me, p.email_last_at ?? null) : 0,
     gmailConfirm: p?.gmail_confirm ?? null,
     gmailConfirmAt: p?.gmail_confirm_at ?? null,
   });

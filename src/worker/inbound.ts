@@ -531,8 +531,9 @@ const OUTCOME_ZH: Record<EmailOutcome, string> = {
 
 /**
  * Remembers the last email that got past the From check, for the Owner's 转发状态 line in the
- * guide. An organizer's emails (`organizer`: whose account it was for) are only logged: they say
- * nothing about the Owner's own forwarding, which keeps its own last-seen time.
+ * guide, and logs it under whose account it was for (`organizer`; null is the Owner) for the
+ * weekly digest. An organizer's emails don't touch the Owner's last-seen time: they say nothing
+ * about the Owner's own forwarding.
  */
 export async function recordEmailOutcome(
   env: Env,
@@ -541,7 +542,11 @@ export async function recordEmailOutcome(
 ): Promise<void> {
   if (outcome === "not_venmo" || outcome === "too_large") return; // spam and noise
   const at = now();
-  const log = env.DB.prepare("INSERT INTO email_log (received_at, outcome) VALUES (?, ?)").bind(at, outcome);
+  const log = env.DB.prepare("INSERT INTO email_log (received_at, outcome, payee_id) VALUES (?, ?, ?)").bind(
+    at,
+    outcome,
+    organizer,
+  );
   if (organizer) {
     await log.run();
     return;

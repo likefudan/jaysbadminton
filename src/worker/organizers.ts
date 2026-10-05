@@ -34,7 +34,7 @@ export const can = (role: Role, cap: Capability) => ROLE_CAPABILITIES[role].incl
 /** The rollout switch: it gates every way into the organizer features, never where money goes. */
 export const organizersEnabled = (env: Pick<Env, "ORGANIZERS">) => env.ORGANIZERS === "1";
 
-interface RoleFields {
+export interface RoleFields {
   is_owner: number;
   role: string;
   status: string;
