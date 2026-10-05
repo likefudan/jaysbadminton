@@ -144,8 +144,8 @@ export async function sendToManager(
  */
 export async function sendToPayee(env: Env, payeeId: string | null, html: string): Promise<ManagerDelivery> {
   return sendToResponsible(env, payeeId, html, true, {
-    off: (name) => `钱进了 ${name} 的账户，但组织者功能已关闭`,
-    former: (name) => `钱进了历史收款人 ${name} 的账户（已经不是组织者）`,
+    off: (name) => `这条是关于 ${name} 的收款账户的，但组织者功能已关闭`,
+    former: (name) => `这条是关于历史收款人 ${name} 的收款账户的（已经不是组织者）`,
   });
 }
 
@@ -168,6 +168,13 @@ async function sendToResponsible(
   else why = `发给组织者 ${name} 的 Telegram 没有成功`;
   const ok = await sendToOwner(env, `ℹ️ ${why}，这条发给群主。\n${html}`);
   return { ok, owner: true, organizer: m.username, chatId: null };
+}
+
+/** sendToPayee, plus a copy for the Owner when the organizer got it (转发可能中断). */
+export async function sendToPayeeAndOwner(env: Env, payeeId: string, html: string): Promise<boolean> {
+  const d = await sendToPayee(env, payeeId, html);
+  if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：组织者 ${escapeHtml(d.organizer!)} 的收款账户\n${html}`);
+  return d.ok;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { remindIfExpired } from "../src/worker/appointments";
+import { remindExpiredPayees, remindIfExpired } from "../src/worker/appointments";
 import { digestText, emailProblemAlert, forwardingWatch } from "../src/worker/health";
 import { handleEmail, purgeGmailConfirmations, receiveEmail, recordEmailOutcome } from "../src/worker/inbound";
 import { dollars } from "../src/shared/settle";
@@ -426,6 +426,24 @@ describe("a former organizer's account expiring", () => {
     expect(emails).toHaveLength(1);
     expect(emails[0].to).toEqual(["alice@gmail.com"]);
     expect(emails[0].text).toContain("过滤器");
+  });
+
+  it("is caught up by the scheduled sweep, but not for someone the revoke email already told", async () => {
+    const s = await scenario();
+    // Revoked with an event still collecting; it is archived behind the code's back.
+    expect((await request(`${s.base}/members/${s.alice.id}/revoke`, s.admin.cookie, {})).status).toBe(200);
+    await env.DB.prepare("UPDATE events SET status = 'settled' WHERE id = ?").bind(s.aliceEvent).run();
+    await remindExpiredPayees(mail);
+    await remindExpiredPayees(mail);
+    expect(emails).toHaveLength(1);
+
+    // Appointed again, then revoked with nothing collecting: the revoke email covers it.
+    emails = [];
+    await env.DB.prepare("UPDATE members SET role = 'organizer' WHERE id = ?").bind(s.alice.id).run();
+    await env.DB.prepare("UPDATE payment_profiles SET retired_at = NULL WHERE member_id = ?").bind(s.alice.id).run();
+    expect((await request(`${s.base}/members/${s.alice.id}/revoke`, s.admin.cookie, {})).status).toBe(200);
+    await remindExpiredPayees(mail);
+    expect(emails).toEqual([]);
   });
 
   it("is checked when their last event is archived", async () => {

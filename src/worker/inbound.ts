@@ -209,21 +209,26 @@ export async function receiveEmail(
   const mail = await parseEmail(raw);
   if (mail.fromAddress === GMAIL_FORWARDING) return gmailConfirmation(env, raw, mail.subject, mail.text, opts);
   if (mail.fromAddress !== VENMO) return { outcome: "not_venmo", organizer: null };
-  // Not matched to an account. Addressed to an organizer, it is theirs; a genuine Venmo email still
-  // proves their forwarding works, as any email past the From check does for the Owner.
-  // The To header of an unsigned (or forged) email proves nothing, so only signed ones count.
+  // Not matched to an account. Addressed to an organizer, it is theirs: it says nothing about the
+  // Owner's forwarding. Only a signed one proves theirs works, as the To header of an unchecked
+  // email proves nothing.
   const unknown = async (outcome: EmailOutcome, signed: boolean) => {
-    if (!signed) return { outcome, organizer: null };
     const to = await mailedTo(env, mail.toAddresses);
-    if (to) await forwarded(env, to, mail.toAddresses[0]!);
+    if (to && signed) await forwarded(env, to, mail.toAddresses[0]!);
     return { outcome, organizer: to };
   };
-  if (!/ paid \$[\d,]+\.\d{2} to your Venmo account/.test(mail.subject.replace(/\s+/g, " ")))
-    return unknown("not_receipt", false);
+  if (!/ paid \$[\d,]+\.\d{2} to your Venmo account/.test(mail.subject.replace(/\s+/g, " "))) {
+    // Other Venmo mail is never acted on, so it isn't checked; an organizer's is, as it is the
+    // only sign of their forwarding on days nobody pays them.
+    const to = await mailedTo(env, mail.toAddresses);
+    if (to && (await verifyDkim(raw, "venmo.com", opts.resolveKey)).ok) await forwarded(env, to, mail.toAddresses[0]!);
+    return { outcome: "not_receipt", organizer: to };
+  }
   const dkim = await verifyDkim(raw, "venmo.com", opts.resolveKey);
   if (!dkim.ok && !dkim.retryable) {
     console.warn("venmo email rejected:", dkim.reason);
-    return unknown("bad_signature", false);
+    // Always the Owner's: a forged email's To proves nothing, and the Owner should see it.
+    return { outcome: "bad_signature", organizer: null };
   }
   // DNS was down so the signature is unchecked: never act on it, at most ask the Owner.
   const unverified = !dkim.ok;

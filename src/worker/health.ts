@@ -6,7 +6,7 @@ import type { EmailOutcome } from "./inbound";
 import { message, once, type NotifySettings } from "./notify";
 import { sheetsStatus } from "./sheets";
 import { isStaging } from "./site";
-import { escapeHtml, sendToOwner, sendToPayee } from "./telegram";
+import { sendToOwner, sendToPayee, sendToPayeeAndOwner } from "./telegram";
 import { ownerId } from "./organizers";
 import { payeeSql } from "./payees";
 
@@ -92,9 +92,15 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
       );
   }
   const { results } = await env.DB.prepare(
-    `SELECT p.member_id, p.venmo_username, p.email_last_at, m.username FROM payment_profiles p
+    `SELECT p.member_id, p.venmo_username, p.venmo_email, p.email_last_at, m.username FROM payment_profiles p
      JOIN members m ON m.id = p.member_id WHERE p.venmo_username IS NOT NULL`,
-  ).all<{ member_id: string; venmo_username: string; email_last_at: string | null; username: string }>();
+  ).all<{
+    member_id: string;
+    venmo_username: string;
+    venmo_email: string | null;
+    email_last_at: string | null;
+    username: string;
+  }>();
   for (const p of results) {
     const owing = await owingInto(env, p.member_id, since, p.email_last_at);
     if (!owing) continue;
@@ -103,11 +109,8 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
       `📭 ${quietFor(at, p.email_last_at, ` ${account}的 Venmo 邮件`)}，但付到这个账户的账单还有 ${owing} 笔没付清。\n如果最近确实有人用 Venmo 付过款，说明这个账户的 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（组织者的管理页「设置 › Venmo 邮件转发」）。`,
     );
     // Changing account starts a new quiet spell (email_last_at goes back to empty), so "never" is per account.
-    await once(env, SITE, `forward_silent:${p.member_id}`, p.email_last_at ?? `never:${p.venmo_username}`, async () => {
-      const d = await sendToPayee(env, p.member_id, text);
-      if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：组织者 ${escapeHtml(p.username)} 的收款账户\n${text}`);
-      return d.ok;
-    });
+    const key = p.email_last_at ?? `never:${p.venmo_username}:${p.venmo_email ?? ""}`;
+    await once(env, SITE, `forward_silent:${p.member_id}`, key, () => sendToPayeeAndOwner(env, p.member_id, text));
   }
 }
 

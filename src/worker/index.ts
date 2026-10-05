@@ -13,6 +13,7 @@ import {
   recordEmailOutcome,
 } from "./inbound";
 import { exportAll } from "./export";
+import { remindExpiredPayees } from "./appointments";
 import { emailProblemAlert, pruneEmailLog, recordCronError } from "./health";
 import { runScheduled } from "./notify";
 import { eventMeta, homeMeta, sharePage } from "./share";
@@ -123,6 +124,7 @@ export default {
       await runScheduled(env);
       await purgeDeletedInbound(env); // 已删除 Venmo payments older than 30 days
       await purgeGmailConfirmations(env); // organizers' Gmail confirmation codes after 24 hours
+      await remindExpiredPayees(env); // former organizers whose account no longer takes payments
       await pruneEmailLog(env);
       await upgradeWebhookSecret(env);
     } catch (err) {
