@@ -152,6 +152,7 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await expect(page.getByRole("heading", { name: "你好，小明" })).toBeVisible();
   const card = page.locator(".card", { hasText: VENUE });
   await card.getByRole("button", { name: "报名" }).click();
+  await expect(card.locator(".friends-row")).toContainText(/带朋友最多 \d+ 个朋友/);
   await card.locator(".stepper button").last().click();
   await field(page, "朋友 1 的名字（选填）").fill("阿强");
   await card.getByRole("button", { name: "确认报名" }).click();

@@ -642,6 +642,36 @@ button.event-link {
   text-decoration: line-through;
   color: var(--muted);
 }
+.friends-editor {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+.friends-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+.friends-label {
+  min-width: 0;
+}
+.friends-label span {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.friends-label small {
+  display: block;
+  font-size: 13px;
+  margin-top: 2px;
+}
+.friends-row .stepper {
+  margin: 0;
+}
 .stepper {
   display: flex;
   align-items: center;
