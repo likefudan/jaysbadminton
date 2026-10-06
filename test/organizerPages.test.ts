@@ -180,6 +180,19 @@ describe("the admin pages for an organizer", () => {
 });
 
 describe("the member pages", () => {
+  it("lets an organizer use the same member identity to sign up for another manager's event", async () => {
+    const { org, alice, theirs } = await scenario();
+    expect((await request(`/api/m/session/events/${theirs}/signup`, org, { friends: [] })).status).toBe(200);
+    expect(
+      await env.DB.prepare(
+        "SELECT member_id FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index = 0",
+      )
+        .bind(theirs, alice.id)
+        .first(),
+    ).toEqual({ member_id: alice.id });
+    expect((await get(`${GOOGLE}/members`, org)).data.viewer).toEqual({ id: alice.id, role: "organizer" });
+  });
+
   it("names the organizer on the events they run, and nobody on the Owner's", async () => {
     const { bob, org, theirs, mine } = await scenario();
     const { data } = await get(`${bob.base}/events`, "");
