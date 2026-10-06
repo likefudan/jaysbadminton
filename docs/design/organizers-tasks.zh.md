@@ -1,6 +1,6 @@
 # 组织者功能 · 任务卡
 
-> **状态：卡 1–10 已合并（#75–#85），卡 11 的文档和说明已合并；剩下 staging 演练和打开生产开关，步骤见[上线检查清单](../launch-checklist.md)第五节。** 实际行为以[需求文档](../requirements.zh.md)、[技术设计](../technical-design.md) 为准。
+> **状态：卡 1–10 已合并（#75–#85）。卡 11 的文档收尾和使用说明合并以后，只剩 staging 演练和打开生产开关，步骤见[上线检查清单](../launch-checklist.md)第五节。** 实际行为以[需求文档](../requirements.zh.md)、[技术设计](../technical-design.md) 为准。
 
 > 2026-10-04 · 依据 [organizers.zh.md](organizers.zh.md)。每张卡对应一个 PR，按编号顺序做，前一张合并后再开下一张。
 

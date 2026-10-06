@@ -11,7 +11,7 @@ import { type Loaded, useApi } from "../hooks";
 import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
-import { RemindersCard, TelegramCard, TelegramCardView, type TelegramStatus } from "./AdminTelegram";
+import { RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
 
 /** 设置: the admin page's settings tab, one card per setting. */
 export function Settings(props: { base: string; viaGoogle: boolean }) {
@@ -22,6 +22,8 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
   const [sub, setSub] = useState<"sheets" | null>(null);
   const pw = useAction();
   const link = useAction();
+  // Shared by the Telegram card and 使用指南's checklist.
+  const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
 
   async function changePassword(e: Event) {
     e.preventDefault();
@@ -59,7 +61,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
       <ThemeCard base={props.base} />
       <PaymentCard base={props.base} />
       <FriendCap base={props.base} />
-      <TelegramCard base={props.base} />
+      <TelegramCard base={props.base} status={telegram} reload={reloadTelegram} />
       <RemindersCard base={props.base} />
       <ExportCard base={props.base} />
       <Card>
@@ -114,7 +116,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
       <button type="button" class="button secondary block" onClick={logout}>
         退出登录
       </button>
-      <AdminGuide base={props.base} />
+      <AdminGuide base={props.base} telegram={telegram} />
       <ResetAll base={props.base} />
     </>
   );
@@ -139,7 +141,7 @@ export function OrganizerSettings(props: { base: string }) {
       />
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
       <ForwardingCard profile={p} />
-      <TelegramCardView base={props.base} organizer status={telegram} reload={reloadTelegram} />
+      <TelegramCard base={props.base} organizer status={telegram} reload={reloadTelegram} />
       <RetireCard base={props.base} />
       <button
         type="button"

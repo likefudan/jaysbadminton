@@ -1,7 +1,9 @@
 import type { ComponentChildren } from "preact";
+import { useEffect, useState } from "preact/hooks";
 import { formatInstantZh } from "../../shared/time";
 import { Card, CopyButton } from "../components";
-import { useApi } from "../hooks";
+import { type Loaded, useApi } from "../hooks";
+import type { TelegramStatus } from "./AdminTelegram";
 
 interface Status {
   venmo: boolean;
@@ -12,10 +14,12 @@ interface Status {
   organizers: boolean;
 }
 
-/** Loads what is already set up, so the checklist can tick itself. */
-function useStatus(base: string): Status | null {
+/**
+ * Loads what is already set up, so the checklist can tick itself. The Telegram status is the one the
+ * Telegram card on the same page holds, so connecting there ticks it here.
+ */
+function useStatus(base: string, telegram: Loaded<TelegramStatus>): Status | null {
   const [settings] = useApi<{ venmoUsername: string; venmoEmail: string }>(`${base}/settings`);
-  const [telegram] = useApi<{ connected: boolean; organizers: boolean }>(`${base}/telegram`);
   const [sheets] = useApi<{ enabled: boolean }>(`${base}/sheets`);
   const [email] = useApi<Status["email"]>(`${base}/email-status`);
   if (settings.state !== "ok" || telegram.state !== "ok" || sheets.state !== "ok" || email.state !== "ok") return null;
@@ -89,8 +93,8 @@ export function ForwardingSteps(props: { confirm: ComponentChildren; otherMail?:
 }
 
 /** 使用指南: what to set up, how Venmo forwarding works and is tested, and how to recover access. */
-export function AdminGuide(props: { base: string }) {
-  const s = useStatus(props.base);
+export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatus> }) {
+  const s = useStatus(props.base, props.telegram);
   const join = `${location.origin}/login`; // 登录 / 注册: Google or email
 
   return (
@@ -238,11 +242,16 @@ export function AdminGuide(props: { base: string }) {
  */
 export function OrganizerGuide(props: { payment?: boolean; forwarding?: boolean; telegram?: boolean }) {
   const { payment, forwarding, telegram } = props;
-  // Open while something is left to do, decided once everything has loaded.
+  // Open if something is left to do, decided once when everything has loaded: a step getting done
+  // later (the first Venmo email can take days) doesn't fold the list away under the reader.
   const known = payment !== undefined && forwarding !== undefined && telegram !== undefined;
+  const [open, setOpen] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (known && open === null) setOpen(!(payment && forwarding && telegram));
+  }, [known]);
   return (
     <Card title="给组织者的说明">
-      <Section title="一、开始前要做的三件事" open={known && !(payment && forwarding && telegram)}>
+      <Section title="一、开始前要做的三件事" open={open ?? false}>
         <ol class="checklist">
           <Step done={payment}>
             <b>填好收款设置</b>（下面「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo

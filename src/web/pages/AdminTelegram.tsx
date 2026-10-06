@@ -13,15 +13,10 @@ export interface TelegramStatus {
 
 /**
  * Connects the signed-in person's own Telegram (the Owner's, or an organizer's with `organizer`)
- * with a one-time link, and sends a test message.
+ * with a one-time link, and sends a test message. The page loads the status and passes it in, so
+ * the guide's checklist on the same page ticks when this connects.
  */
-export function TelegramCard(props: { base: string; organizer?: boolean }) {
-  const [status, reload] = useApi<TelegramStatus>(`${props.base}/telegram`);
-  return <TelegramCardView {...props} status={status} reload={reload} />;
-}
-
-/** The card itself, for a page that shares the Telegram status with something else (给组织者的说明). */
-export function TelegramCardView(props: {
+export function TelegramCard(props: {
   base: string;
   organizer?: boolean;
   status: Loaded<TelegramStatus>;
