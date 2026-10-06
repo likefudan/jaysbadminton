@@ -106,6 +106,7 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
   const s = useStatus(props.base, props.telegram);
   const setupOpen = useOpenOnce(s ? !(s.venmo && s.telegram) : undefined);
   const organizers = props.telegram.state === "ok" && props.telegram.data.organizers;
+  const telegramBot = props.telegram.state === "ok" && props.telegram.data.botReady;
   const join = `${location.origin}/login`; // 登录 / 注册: Google or email
 
   return (
@@ -217,15 +218,16 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
           <ul class="steps">
             <li>
               <b>任命</b>：在「成员」里点对方的「设为组织者」。对方要是正常状态的成员，并且已经关联了 Google
-              账号（组织者只能用 Google 账号进入管理页）。系统会发邮件告诉他。
+              账号（组织者只能用 Google
+              账号进入管理页）。系统会发邮件告诉他；邮件服务没配置时页面会提示，你要自己告诉他。
             </li>
             <li>
-              <b>他要做的三件事</b>（他的「设置」里有「给组织者的说明」）：填自己的收款设置（Venmo
-              用户名和通知邮箱，不填不能结算）、在自己的 Gmail 里设同样的 Venmo 邮件转发、连接自己的
-              Telegram。成员页最上面的「组织者」区块显示每个人做好了没有。
+              <b>他要做的事</b>（他的「设置」里有「给组织者的说明」）：填自己的收款设置（Venmo
+              用户名和通知邮箱，不填不能结算）、在自己的 Gmail 里设同样的 Venmo 邮件转发
+              {telegramBot && "、连接自己的 Telegram"}。成员页最上面的「组织者」区块显示每个人做好了没有。
             </li>
             <li>
-              <b>钱进谁的账户</b>：他发起的活动，成员把钱付到他的
+              <b>钱进谁的账户</b>：他发起的活动（以及结算前转交给他的），成员把钱付到他的
               Venmo，他自己的账单自动算已付；你去打他的球也要付钱给他。
             </li>
             <li>
