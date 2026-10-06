@@ -118,7 +118,8 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
           </Step>
           <Step done={s?.telegram}>
             <b>连接 Telegram</b>（上面「Telegram 通知」→
-            连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里；以后忘了管理链接也能在这里找回。
+            连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里
+            {organizers && "（组织者负责的活动的提醒发给组织者，见第四部分）"}；以后忘了管理链接也能在这里找回。
           </Step>
           <Step>
             <b>备份网站密钥</b>（「设置 → 备份网站密钥」，要先连接 Telegram）：密钥发到 Telegram
@@ -249,16 +250,17 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
 /**
  * 给组织者的说明 (card 11): the three things an organizer sets up, ticked as they get done, and how
  * running an event works for them. `payment` and `forwarding` come from their payment profile,
- * `telegram` from the status the Telegram card shares, so connecting there ticks it here.
+ * `telegram` from the status the Telegram card shares, so connecting there ticks it here; null when
+ * the site has no Telegram bot, so there is nothing to connect. Undefined means still loading.
  */
-export function OrganizerGuide(props: { payment?: boolean; forwarding?: boolean; telegram?: boolean }) {
+export function OrganizerGuide(props: { payment?: boolean; forwarding?: boolean; telegram?: boolean | null }) {
   const { payment, forwarding, telegram } = props;
   // The first Venmo email can take days, so the list must not fold away when it ticks.
   const known = payment !== undefined && forwarding !== undefined && telegram !== undefined;
-  const open = useOpenOnce(known ? !(payment && forwarding && telegram) : undefined);
+  const open = useOpenOnce(known ? !(payment && forwarding && telegram !== false) : undefined);
   return (
     <Card title="给组织者的说明">
-      <Section title="一、开始前要做的三件事" open={open}>
+      <Section title="一、开始前要做的事" open={open}>
         <ol class="checklist">
           <Step done={payment}>
             <b>填好收款设置</b>（下面「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo
@@ -269,10 +271,12 @@ export function OrganizerGuide(props: { payment?: boolean; forwarding?: boolean;
             <b>设置 Venmo 邮件转发</b>（下面「Venmo 邮件转发」的步骤）：设好以后成员付款会自动记账；第一封 Venmo
             收款邮件到了，转发状态会显示「已生效」。
           </Step>
-          <Step done={telegram}>
-            <b>连接你的 Telegram</b>（下面「我的
-            Telegram」）：你负责的活动的报名截止、结算和收款提醒会发给你；没连接时这些提醒发给群主。
-          </Step>
+          {telegram !== null && (
+            <Step done={telegram}>
+              <b>连接你的 Telegram</b>（下面「我的
+              Telegram」）：你负责的活动的报名截止、结算和收款提醒会发给你；没连接时这些提醒发给群主。
+            </Step>
+          )}
         </ol>
       </Section>
       <Section title="二、怎么组织一场活动">

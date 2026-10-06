@@ -137,7 +137,7 @@ export function OrganizerSettings(props: { base: string }) {
       <OrganizerGuide
         payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}
         forwarding={done(profile, (d) => !!d.lastVenmoEmailAt)}
-        telegram={done(telegram, (d) => d.connected)}
+        telegram={done(telegram, (d) => (d.botReady ? d.connected : null))}
       />
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
       <ForwardingCard profile={p} />
@@ -155,7 +155,7 @@ export function OrganizerSettings(props: { base: string }) {
 }
 
 /** A checklist step's state: undefined while loading; a status that failed to load counts as not done. */
-function done<T>(loaded: Loaded<T>, test: (data: T) => boolean): boolean | undefined {
+function done<T, R>(loaded: Loaded<T>, test: (data: T) => R): R | false | undefined {
   if (loaded.state === "ok") return test(loaded.data);
   return loaded.state === "error" ? false : undefined;
 }
