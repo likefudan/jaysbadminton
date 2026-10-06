@@ -10,8 +10,8 @@ import { revokeSummary } from "../organizers";
 import { type Loaded, useApi } from "../hooks";
 import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
-import { AdminGuide, ForwardingSteps } from "./AdminGuide";
-import { RemindersCard, TelegramCard } from "./AdminTelegram";
+import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
+import { RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
 
 /** 设置: the admin page's settings tab, one card per setting. */
 export function Settings(props: { base: string; viaGoogle: boolean }) {
@@ -22,6 +22,8 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
   const [sub, setSub] = useState<"sheets" | null>(null);
   const pw = useAction();
   const link = useAction();
+  // Shared by the Telegram card and 使用指南's checklist.
+  const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
 
   async function changePassword(e: Event) {
     e.preventDefault();
@@ -59,7 +61,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
       <ThemeCard base={props.base} />
       <PaymentCard base={props.base} />
       <FriendCap base={props.base} />
-      <TelegramCard base={props.base} />
+      <TelegramCard base={props.base} status={telegram} reload={reloadTelegram} />
       <RemindersCard base={props.base} />
       <ExportCard base={props.base} />
       <Card>
@@ -114,7 +116,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
       <button type="button" class="button secondary block" onClick={logout}>
         退出登录
       </button>
-      <AdminGuide base={props.base} />
+      <AdminGuide base={props.base} telegram={telegram} />
       <ResetAll base={props.base} />
     </>
   );
@@ -127,11 +129,19 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
 export function OrganizerSettings(props: { base: string }) {
   // One read for both cards, so saving the payment settings refreshes the forwarding status too.
   const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
+  const p = profile.state === "ok" ? profile.data : null;
+  // Shared with 给组织者的说明 the same way, so connecting Telegram ticks its step.
+  const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
   return (
     <>
+      <OrganizerGuide
+        payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}
+        forwarding={done(profile, (d) => !!d.lastVenmoEmailAt)}
+        telegram={done(telegram, (d) => (d.botReady ? d.connected : null))}
+      />
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
-      <ForwardingCard profile={profile.state === "ok" ? profile.data : null} />
-      <TelegramCard base={props.base} organizer />
+      <ForwardingCard profile={p} />
+      <TelegramCard base={props.base} organizer status={telegram} reload={reloadTelegram} />
       <RetireCard base={props.base} />
       <button
         type="button"
@@ -142,6 +152,12 @@ export function OrganizerSettings(props: { base: string }) {
       </button>
     </>
   );
+}
+
+/** A checklist step's state: undefined while loading; a status that failed to load counts as not done. */
+function done<T, R>(loaded: Loaded<T>, test: (data: T) => R): R | false | undefined {
+  if (loaded.state === "ok") return test(loaded.data);
+  return loaded.state === "error" ? false : undefined;
 }
 
 interface PaymentProfile {

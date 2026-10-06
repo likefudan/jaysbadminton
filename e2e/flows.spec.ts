@@ -435,12 +435,17 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await tabs.getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "修改群主密码" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "不再当组织者" })).toBeVisible();
+  // 给组织者的说明: nothing set up yet, so the checklist is open with nothing ticked.
+  const guide = page.locator(".card", { has: page.getByRole("heading", { name: "给组织者的说明" }) });
+  await expect(guide.locator("details").first()).toHaveAttribute("open", "");
+  await expect(guide.locator(".checklist li.done")).toHaveCount(0);
   await field(page, "你的 Venmo 用户名").fill("ming-venmo");
   await field(page, "Venmo 通知邮箱").fill("ming@venmo.test");
   await page.getByRole("button", { name: "保存收款设置" }).click();
   await expect(page.locator(".card", { has: page.getByRole("heading", { name: "我的收款设置" }) })).toContainText(
     "@ming-venmo",
   );
+  await expect(guide.locator(".checklist li.done")).toHaveCount(1);
 
   await tabs.getByRole("button", { name: "活动" }).click();
   await page.locator(".event-link", { hasText: "Ming Gym" }).click();

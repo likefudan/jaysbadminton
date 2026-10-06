@@ -2,7 +2,7 @@
 
 > Kept up to date with the code in this repository. Requirements (Chinese): [requirements.zh.md](requirements.zh.md). Google sign-in setup (Chinese): [google-login.zh.md](google-login.zh.md).
 
-Oct 1, 2026 (updated Oct 3, 2026) · @Ke Li
+Oct 1, 2026 (updated Oct 6, 2026) · @Ke Li
 
 The whole system runs on Cloudflare's free tier at jaysbadminton.llmat.dev: Workers serves the pages and API, D1 stores the data, Cron Triggers run reminders, and Email Routing receives forwarded Venmo emails for instant payment matching. A small Google Apps Script mirrors the data into a Google Sheet once a day. This document implements the requirements document (Chinese) without changing its rules.
 
@@ -11,7 +11,7 @@ The whole system runs on Cloudflare's free tier at jaysbadminton.llmat.dev: Work
 ```mermaid
 flowchart LR
   P["Members & Owner<br/>phones, WeChat"] -- HTTPS --> API
-  G["Owner's Gmail<br/>forwards Venmo mail"] -- email --> EM
+  G["Owner's and organizers' Gmail<br/>forward Venmo mail"] -- email --> EM
   subgraph CF["Cloudflare · jaysbadminton.llmat.dev"]
     API["Pages + API<br/>Preact UI, Hono /api"]
     EM["Email handler<br/>match payment codes"]
@@ -24,7 +24,7 @@ flowchart LR
     CR --- D1
   end
   S["Google Sheet<br/>Apps Script mirror"] -- daily --> EX
-  CR -- alerts --> T["Telegram bot<br/>alerts to Owner"]
+  CR -- alerts --> T["Telegram bot<br/>alerts to Owner<br/>and organizers"]
   EM -- alerts --> T
 ```
 
@@ -156,7 +156,7 @@ Settlement is one pure function, `settle(roster, inputs)`, shared by preview and
 
 ## Venmo email ingestion
 
-A Gmail filter forwards only mail from `venmo@venmo.com` to `venmo@jaysbadminton.llmat.dev`; Cloudflare Email Routing hands each message to the Worker's `email()` handler, which matches it within seconds. The Worker never has access to the Owner's mailbox.
+A Gmail filter forwards only mail from `venmo@venmo.com` to `venmo@jaysbadminton.llmat.dev`; Cloudflare Email Routing hands each message to the Worker's `email()` handler, which matches it within seconds. Each organizer sets up the same filter in their own Gmail. The Worker never has access to anyone's mailbox.
 
 1. **Accept or drop**: the From address must be `venmo@venmo.com` and the subject must read `… paid $X.XX to your Venmo account`; anything else is dropped silently (never bounced). The Worker then verifies Venmo's own DKIM signature itself (`d=venmo.com`, rsa-sha256, From, To and Subject signed, exactly one of each, no `l=`), fetching the public key over DNS-over-HTTPS (Cloudflare, falling back to Google). Each lookup has a 5-second timeout; a timeout, network error, HTTP error or SERVFAIL moves on to Google, while any other answer (including no key) is final, so a forged selector is still rejected. Gmail forwarding and Email Routing only add headers on top, so the signature survives; this was checked against a real forwarded receipt. A forged "Venmo" email sent straight to the address fails here and is dropped. If DNS is unreachable the email is never auto-marked (see step 4).
 2. **Parse** the HTML body (Venmo receipts carry an empty text part): HTML is flattened to lines, then the field rules in the requirements apply: payer before `paid you`, the amount after it (Venmo splits `$7.00` across several elements, so the pieces are joined and cross-checked against the subject), note up to `Money credited to your Venmo account.`, then the `Date`, `Transaction ID` and `Sent to` values. `Sent to` must equal the configured Venmo username and the signed `To` header must be exactly the configured Venmo notification email (the address on the Venmo account; required together with the username in settings), otherwise the email is ignored. `Delivered-To` is not used: Gmail adds it and it is not signed. With organizers this picks whose account it is (`receivingAccount` in `inbound.ts`): the Owner's settings, then `payment_profiles` (former organizers too), then live `payment_aliases`, both fields matching one person; none → `wrong_recipient` as before. An email into an organizer's current account sets their `payment_profiles.email_last_at` (转发已生效, the forwarding watch: any signed Venmo email addressed to their current notification email, so an old username sharing that inbox counts and one with another email doesn't; changing account clears it) and, through `receiveEmail`'s `organizer`, is only logged by `recordEmailOutcome`, so it never moves the Owner's 转发状态. Emails that match no account but are addressed to an organizer's notification email (now or an alias's) count as theirs the same way when signed (a not-yet-checked or forged email's To proves nothing, so those stay the Owner's), and their 收款账号不一致 alert goes to that organizer (`emailProblemAlert`); 读不懂 and signature failures stay the Owner's. The weekly digest's 邮件转发 line likewise weighs the Owner's last email only against the Owner's own unpaid bills.
@@ -257,7 +257,7 @@ wrangler.jsonc   bindings: DB, ASSETS, cron, email; env.staging for the test sit
 
 **Test focus**: settlement math and rounding, status transitions and the archive lock, deadline/reminder timing across daylight-saving changes, payment-code matching, and the Venmo parser against real (redacted) emails.
 
-**Environments**: local development with `wrangler dev` and a local D1; the test site (`staging.jaysbadminton.llmat.dev`, `env.staging`: its own Worker, D1, Telegram bot and admin password `ADMIN_PASSWORD_STAGING`, a yellow 测试环境 banner, `noindex`) deployed on every merge to `main`; production deployed from `v*` release tags. The `ORGANIZERS` var turns on the 组织者 features: `"1"` on the test site, in the browser tests, and in local development once `ORGANIZERS="1"` is in `.dev.vars` (as in `.dev.vars.example`), `"0"` in production until it has been tried on the test site. It only gates the ways in (appointing, organizers' admin page, their notifications); who is paid for an event always follows `events.payee_id`.
+**Environments**: local development with `wrangler dev` and a local D1; the test site (`staging.jaysbadminton.llmat.dev`, `env.staging`: its own Worker, D1, Telegram bot and admin password `ADMIN_PASSWORD_STAGING`, a yellow 测试环境 banner, `noindex`) deployed on every merge to `main`; production deployed from `v*` release tags. The `ORGANIZERS` var turns on the 组织者 features: `"1"` on the test site, in the browser tests, and in local development once `ORGANIZERS="1"` is in `.dev.vars` (as in `.dev.vars.example`), `"0"` in production until it has been tried on the test site (the drill and the switch-over are in `docs/launch-checklist.md`, section 五). It only gates the ways in (appointing, organizers' admin page, their notifications); who is paid for an event always follows `events.payee_id`.
 
 ## Free-tier budget
 

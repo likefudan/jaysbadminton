@@ -15,7 +15,7 @@ export function DeveloperLogin() {
   }
   return (
     <Card title="开发者登录">
-      <p>用测试环境的管理员密码登录，快速切换管理员和普通测试成员界面。</p>
+      <p>用测试环境的群主密码登录，快速切换群主和普通测试成员界面。</p>
       <form onSubmit={login}>
         <Field
           label="开发者密码"
@@ -50,9 +50,9 @@ export function DeveloperSwitch() {
     <aside class="developer-tools" aria-label="开发者工具">
       {open && (
         <section class="developer-tools-panel" aria-label="切换测试界面">
-          <p class="small">当前：{admin ? "管理员界面" : "普通用户界面"}</p>
+          <p class="small">当前：{admin ? "群主界面" : "普通用户界面"}</p>
           <a class="button secondary block" href="/admin/developer">
-            管理员界面
+            群主界面
           </a>
           <a class="button secondary block" href="/me">
             普通用户界面

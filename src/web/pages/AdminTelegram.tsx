@@ -1,9 +1,9 @@
 import { useEffect, useState } from "preact/hooks";
 import { api } from "../api";
 import { Card, Field, Load, useAction } from "../components";
-import { useApi } from "../hooks";
+import { type Loaded, useApi } from "../hooks";
 
-interface TelegramStatus {
+export interface TelegramStatus {
   botReady: boolean;
   botUsername: string;
   connected: boolean;
@@ -13,10 +13,16 @@ interface TelegramStatus {
 
 /**
  * Connects the signed-in person's own Telegram (the Owner's, or an organizer's with `organizer`)
- * with a one-time link, and sends a test message.
+ * with a one-time link, and sends a test message. The page loads the status and passes it in, so
+ * the guide's checklist on the same page ticks when this connects.
  */
-export function TelegramCard(props: { base: string; organizer?: boolean }) {
-  const [status, reload] = useApi<TelegramStatus>(`${props.base}/telegram`);
+export function TelegramCard(props: {
+  base: string;
+  organizer?: boolean;
+  status: Loaded<TelegramStatus>;
+  reload: () => void;
+}) {
+  const { status, reload } = props;
   const [waiting, setWaiting] = useState(false);
   const { busy, error, run } = useAction();
   const [sent, setSent] = useState(false);
