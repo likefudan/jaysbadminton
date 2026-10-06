@@ -8,12 +8,14 @@ interface Status {
   telegram: boolean;
   sheets: boolean;
   email: { lastAt: string | null; outcome: string | null };
+  /** The 组织者 features are on (`ORGANIZERS`), so the guide explains them. */
+  organizers: boolean;
 }
 
 /** Loads what is already set up, so the checklist can tick itself. */
 function useStatus(base: string): Status | null {
   const [settings] = useApi<{ venmoUsername: string; venmoEmail: string }>(`${base}/settings`);
-  const [telegram] = useApi<{ connected: boolean }>(`${base}/telegram`);
+  const [telegram] = useApi<{ connected: boolean; organizers: boolean }>(`${base}/telegram`);
   const [sheets] = useApi<{ enabled: boolean }>(`${base}/sheets`);
   const [email] = useApi<Status["email"]>(`${base}/email-status`);
   if (settings.state !== "ok" || telegram.state !== "ok" || sheets.state !== "ok" || email.state !== "ok") return null;
@@ -22,6 +24,7 @@ function useStatus(base: string): Status | null {
     telegram: telegram.data.connected,
     sheets: sheets.data.enabled,
     email: email.data,
+    organizers: telegram.data.organizers,
   };
 }
 
@@ -190,6 +193,83 @@ export function AdminGuide(props: { base: string }) {
             <b>交接给新的群主</b>：用下面的「清空所有数据」重置网站，新群主用群主密码在{" "}
             <code>{location.origin}/admin</code> 做初次设置，再按本指南走一遍。
           </li>
+        </ul>
+      </Section>
+
+      {s?.organizers && (
+        <Section title="四、组织者">
+          <ul class="steps">
+            <li>
+              <b>任命</b>：在「成员」里点对方的「设为组织者」。对方要是正常状态的成员，并且已经关联了 Google
+              账号（组织者只能用 Google 账号进入管理页）。系统会发邮件告诉他。
+            </li>
+            <li>
+              <b>他要做的三件事</b>（他的「设置」里有「给组织者的说明」）：填自己的收款设置（Venmo
+              用户名和通知邮箱，不填不能结算）、在自己的 Gmail 里设同样的 Venmo 邮件转发、连接自己的
+              Telegram。成员页最上面的「组织者」区块显示每个人做好了没有。
+            </li>
+            <li>
+              <b>钱进谁的账户</b>：他发起的活动，成员把钱付到他的
+              Venmo，他自己的账单自动算已付；你去打他的球也要付钱给他。
+            </li>
+            <li>
+              <b>通知</b>：他的活动的提醒发给他；他没连 Telegram
+              时改发给你，消息开头写明原因。你另外收到三条抄送：发起、结算完成、收齐。
+            </li>
+            <li>
+              <b>他能看到什么</b>
+              ：只能管理自己负责的活动和进了自己账户的收款；「待审核」「成员」只读，看不到成员的专属链接。你能看到、也能修改他的活动，每场的「操作记录」里写着谁改了什么。
+            </li>
+            <li>
+              <b>转交和撤销</b>
+              ：活动页的「转交」把活动交给另一位组织者或你自己；成员页的「撤销组织者」会先列出受影响的活动：还没结算的转给你，已经在收款的由你接手管理，钱继续付到他的账户直到收齐。
+            </li>
+          </ul>
+        </Section>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * 给组织者的说明 (card 11): the three things an organizer sets up, ticked as they get done, and how
+ * running an event works for them. `payment` and `forwarding` come from their payment profile.
+ */
+export function OrganizerGuide(props: { base: string; payment?: boolean; forwarding?: boolean }) {
+  const [telegram] = useApi<{ connected: boolean }>(`${props.base}/telegram`);
+  const connected = telegram.state === "ok" ? telegram.data.connected : undefined;
+  const ready = props.payment && props.forwarding && connected;
+  return (
+    <Card title="给组织者的说明">
+      <Section title="一、开始前要做的三件事" open={props.payment !== undefined && !ready}>
+        <ol class="checklist">
+          <Step done={props.payment}>
+            <b>填好收款设置</b>（下面「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo
+            账户里登记的、收款通知发到的那个邮箱），Zelle
+            选填。你负责的活动，成员把钱付到这里；没填好之前活动可以报名，但不能结算。
+          </Step>
+          <Step done={props.forwarding}>
+            <b>设置 Venmo 邮件转发</b>（下面「Venmo 邮件转发」的步骤）：设好以后成员付款会自动记账；第一封 Venmo
+            收款邮件到了，转发状态会显示「已生效」。
+          </Step>
+          <Step done={connected}>
+            <b>连接你的 Telegram</b>（下面「我的
+            Telegram」）：你负责的活动的报名截止、结算和收款提醒会发给你；没连接时这些提醒发给群主。
+          </Step>
+        </ol>
+      </Section>
+      <Section title="二、怎么组织一场活动">
+        <ul class="steps">
+          <li>在「活动」里点「＋ 新建活动」，你就是这场的负责人和收款人，然后「复制活动链接」发到群里。</li>
+          <li>截止后可以改名单、标记到场，填好场地费和用球数，预览后点 Finalize，成员就能看到账单并付钱给你。</li>
+          <li>
+            没有自动对上的 Venmo 付款在「收款 › 待确认」里，关联到对应的账单；Zelle
+            和现金在活动的账单里手动标记已付。全部付清后活动自动归档。
+          </li>
+          <li>
+            群主能看到并修改你的活动，会收到发起、结算完成、收齐三条抄送。你看不到别人负责的活动和收款；「待审核」「成员」只能看，不能改。
+          </li>
+          <li>不想再当组织者时，点下面的「不再当组织者」，弹窗会先列出你的活动会怎么处理。</li>
         </ul>
       </Section>
     </Card>

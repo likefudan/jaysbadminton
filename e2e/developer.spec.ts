@@ -50,7 +50,7 @@ test("staging offers developer login, a recolored logo and a floating role switc
   await expect(page.getByRole("heading", { name: "你好，开发测试" })).toBeVisible();
   const switcher = page.getByRole("button", { name: "开发者 · 切换界面" });
   await switcher.click();
-  await page.getByRole("link", { name: "管理员界面", exact: true }).click();
+  await page.getByRole("link", { name: "群主界面", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/developer$/);
   await expect(page.getByRole("heading", { name: "管理页", level: 1 })).toBeVisible();
   await switcher.click();

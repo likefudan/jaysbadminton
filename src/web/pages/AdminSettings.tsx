@@ -10,7 +10,7 @@ import { revokeSummary } from "../organizers";
 import { type Loaded, useApi } from "../hooks";
 import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
-import { AdminGuide, ForwardingSteps } from "./AdminGuide";
+import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
 import { RemindersCard, TelegramCard } from "./AdminTelegram";
 
 /** 设置: the admin page's settings tab, one card per setting. */
@@ -127,10 +127,16 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
 export function OrganizerSettings(props: { base: string }) {
   // One read for both cards, so saving the payment settings refreshes the forwarding status too.
   const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
+  const p = profile.state === "ok" ? profile.data : null;
   return (
     <>
+      <OrganizerGuide
+        base={props.base}
+        payment={p ? !!p.venmoUsername && !!p.venmoEmail : undefined}
+        forwarding={p ? !!p.lastVenmoEmailAt : undefined}
+      />
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
-      <ForwardingCard profile={profile.state === "ok" ? profile.data : null} />
+      <ForwardingCard profile={p} />
       <TelegramCard base={props.base} organizer />
       <RetireCard base={props.base} />
       <button

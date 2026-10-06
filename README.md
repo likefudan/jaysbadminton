@@ -195,12 +195,12 @@ GitHub 仓库需要的 secrets：
 | [docs/requirements.zh.md](docs/requirements.zh.md) | 需求文档：业务规则、页面、费用计算、对账、通知 |
 | [docs/technical-design.md](docs/technical-design.md) | 技术设计（英文）：架构、数据表、API、邮件处理、定时任务、部署 |
 | [docs/google-login.zh.md](docs/google-login.zh.md) | Google 登录：OAuth 配置、成员和群主的使用方式 |
-| [docs/launch-checklist.md](docs/launch-checklist.md) | 上线检查清单：交接、首次设置、真实环境验证、日常维护 |
+| [docs/launch-checklist.md](docs/launch-checklist.md) | 上线检查清单：交接、首次设置、真实环境验证、日常维护、打开组织者功能 |
 
 ### 测试站开发者登录
 
-测试站的 `/login` 页面提供「开发者登录」，密码为测试环境当前的管理员密码（初始来自 `ADMIN_PASSWORD_STAGING`）。成功后进入一个专用、已批准且没有群主身份的测试成员账号。左下角「开发者 · 切换界面」菜单可进入 `/admin/developer` 管理员界面或 `/me` 普通用户界面，并可退出开发者登录。
+测试站的 `/login` 页面提供「开发者登录」，密码为测试环境当前的群主密码（初始来自 `ADMIN_PASSWORD_STAGING`）。成功后进入一个专用、已批准且没有群主身份的测试成员账号。左下角「开发者 · 切换界面」菜单可进入 `/admin/developer` 群主界面或 `/me` 普通用户界面，并可退出开发者登录。
 
-该入口和权限由服务端 `ENVIRONMENT=staging` 限定，正式环境一律拒绝开发者接口。会话为 HttpOnly、SameSite=Strict，8 小时过期；退出、重置测试数据或修改管理员密码都会使会话失效。普通视图的报名等操作会写入测试数据库，管理员视图也是真实操作测试数据，不是静态演示。
+该入口和权限由服务端 `ENVIRONMENT=staging` 限定，正式环境一律拒绝开发者接口。会话为 HttpOnly、SameSite=Strict，8 小时过期；退出、重置测试数据或修改群主密码都会使会话失效。普通视图的报名等操作会写入测试数据库，群主视图也是真实操作测试数据，不是静态演示。
 
 测试站页面 logo 和标签 favicon 使用相同桥形图案的紫色配色，方便区别于正式站。
