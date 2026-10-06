@@ -134,10 +134,11 @@ export function OrganizerSettings(props: { base: string }) {
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
   return (
     <>
+      {/* A status that failed to load counts as not done, so the checklist still opens. */}
       <OrganizerGuide
-        payment={p ? !!p.venmoUsername && !!p.venmoEmail : undefined}
-        forwarding={p ? !!p.lastVenmoEmailAt : undefined}
-        telegram={telegram.state === "ok" ? telegram.data.connected : undefined}
+        payment={p ? !!p.venmoUsername && !!p.venmoEmail : profile.state === "error" ? false : undefined}
+        forwarding={p ? !!p.lastVenmoEmailAt : profile.state === "error" ? false : undefined}
+        telegram={telegram.state === "ok" ? telegram.data.connected : telegram.state === "error" ? false : undefined}
       />
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
       <ForwardingCard profile={p} />

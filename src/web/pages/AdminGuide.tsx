@@ -10,8 +10,6 @@ interface Status {
   telegram: boolean;
   sheets: boolean;
   email: { lastAt: string | null; outcome: string | null };
-  /** The 组织者 features are on (`ORGANIZERS`), so the guide explains them. */
-  organizers: boolean;
 }
 
 /**
@@ -28,7 +26,6 @@ function useStatus(base: string, telegram: Loaded<TelegramStatus>): Status | nul
     telegram: telegram.data.connected,
     sheets: sheets.data.enabled,
     email: email.data,
-    organizers: telegram.data.organizers,
   };
 }
 
@@ -42,6 +39,18 @@ function Step(props: { done?: boolean; optional?: boolean; children: ComponentCh
       </div>
     </li>
   );
+}
+
+/**
+ * Whether a checklist starts open: decided once, when its statuses have loaded (`todo` is no longer
+ * undefined), so a step getting done later doesn't fold the list away under the reader.
+ */
+function useOpenOnce(todo: boolean | undefined): boolean {
+  const [open, setOpen] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (todo !== undefined && open === null) setOpen(todo);
+  }, [todo]);
+  return open ?? false;
 }
 
 function Section(props: { title: string; open?: boolean; children: ComponentChildren }) {
@@ -95,11 +104,13 @@ export function ForwardingSteps(props: { confirm: ComponentChildren; otherMail?:
 /** 使用指南: what to set up, how Venmo forwarding works and is tested, and how to recover access. */
 export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatus> }) {
   const s = useStatus(props.base, props.telegram);
+  const setupOpen = useOpenOnce(s ? !(s.venmo && s.telegram) : undefined);
+  const organizers = props.telegram.state === "ok" && props.telegram.data.organizers;
   const join = `${location.origin}/login`; // 登录 / 注册: Google or email
 
   return (
     <Card title="使用指南">
-      <Section title="一、第一次设置后要做的事" open={!!s && !(s.venmo && s.telegram)}>
+      <Section title="一、第一次设置后要做的事" open={setupOpen}>
         <ol class="checklist">
           <Step>
             <b>收藏管理链接</b>。打开管理页需要「管理链接 +
@@ -200,7 +211,7 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
         </ul>
       </Section>
 
-      {s?.organizers && (
+      {organizers && (
         <Section title="四、组织者">
           <ul class="steps">
             <li>
@@ -242,16 +253,12 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
  */
 export function OrganizerGuide(props: { payment?: boolean; forwarding?: boolean; telegram?: boolean }) {
   const { payment, forwarding, telegram } = props;
-  // Open if something is left to do, decided once when everything has loaded: a step getting done
-  // later (the first Venmo email can take days) doesn't fold the list away under the reader.
+  // The first Venmo email can take days, so the list must not fold away when it ticks.
   const known = payment !== undefined && forwarding !== undefined && telegram !== undefined;
-  const [open, setOpen] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (known && open === null) setOpen(!(payment && forwarding && telegram));
-  }, [known]);
+  const open = useOpenOnce(known ? !(payment && forwarding && telegram) : undefined);
   return (
     <Card title="给组织者的说明">
-      <Section title="一、开始前要做的三件事" open={open ?? false}>
+      <Section title="一、开始前要做的三件事" open={open}>
         <ol class="checklist">
           <Step done={payment}>
             <b>填好收款设置</b>（下面「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo
