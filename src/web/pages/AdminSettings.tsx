@@ -11,7 +11,7 @@ import { type Loaded, useApi } from "../hooks";
 import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
-import { RemindersCard, TelegramCard } from "./AdminTelegram";
+import { RemindersCard, TelegramCard, TelegramCardView, type TelegramStatus } from "./AdminTelegram";
 
 /** 设置: the admin page's settings tab, one card per setting. */
 export function Settings(props: { base: string; viaGoogle: boolean }) {
@@ -128,16 +128,18 @@ export function OrganizerSettings(props: { base: string }) {
   // One read for both cards, so saving the payment settings refreshes the forwarding status too.
   const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
   const p = profile.state === "ok" ? profile.data : null;
+  // Shared with 给组织者的说明 the same way, so connecting Telegram ticks its step.
+  const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
   return (
     <>
       <OrganizerGuide
-        base={props.base}
         payment={p ? !!p.venmoUsername && !!p.venmoEmail : undefined}
         forwarding={p ? !!p.lastVenmoEmailAt : undefined}
+        telegram={telegram.state === "ok" ? telegram.data.connected : undefined}
       />
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
       <ForwardingCard profile={p} />
-      <TelegramCard base={props.base} organizer />
+      <TelegramCardView base={props.base} organizer status={telegram} reload={reloadTelegram} />
       <RetireCard base={props.base} />
       <button
         type="button"

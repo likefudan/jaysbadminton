@@ -1,9 +1,9 @@
 import { useEffect, useState } from "preact/hooks";
 import { api } from "../api";
 import { Card, Field, Load, useAction } from "../components";
-import { useApi } from "../hooks";
+import { type Loaded, useApi } from "../hooks";
 
-interface TelegramStatus {
+export interface TelegramStatus {
   botReady: boolean;
   botUsername: string;
   connected: boolean;
@@ -17,6 +17,17 @@ interface TelegramStatus {
  */
 export function TelegramCard(props: { base: string; organizer?: boolean }) {
   const [status, reload] = useApi<TelegramStatus>(`${props.base}/telegram`);
+  return <TelegramCardView {...props} status={status} reload={reload} />;
+}
+
+/** The card itself, for a page that shares the Telegram status with something else (给组织者的说明). */
+export function TelegramCardView(props: {
+  base: string;
+  organizer?: boolean;
+  status: Loaded<TelegramStatus>;
+  reload: () => void;
+}) {
+  const { status, reload } = props;
   const [waiting, setWaiting] = useState(false);
   const { busy, error, run } = useAction();
   const [sent, setSent] = useState(false);

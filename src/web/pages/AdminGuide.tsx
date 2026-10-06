@@ -233,26 +233,27 @@ export function AdminGuide(props: { base: string }) {
 
 /**
  * 给组织者的说明 (card 11): the three things an organizer sets up, ticked as they get done, and how
- * running an event works for them. `payment` and `forwarding` come from their payment profile.
+ * running an event works for them. `payment` and `forwarding` come from their payment profile,
+ * `telegram` from the status the Telegram card shares, so connecting there ticks it here.
  */
-export function OrganizerGuide(props: { base: string; payment?: boolean; forwarding?: boolean }) {
-  const [telegram] = useApi<{ connected: boolean }>(`${props.base}/telegram`);
-  const connected = telegram.state === "ok" ? telegram.data.connected : undefined;
-  const ready = props.payment && props.forwarding && connected;
+export function OrganizerGuide(props: { payment?: boolean; forwarding?: boolean; telegram?: boolean }) {
+  const { payment, forwarding, telegram } = props;
+  // Open while something is left to do, decided once everything has loaded.
+  const known = payment !== undefined && forwarding !== undefined && telegram !== undefined;
   return (
     <Card title="给组织者的说明">
-      <Section title="一、开始前要做的三件事" open={props.payment !== undefined && !ready}>
+      <Section title="一、开始前要做的三件事" open={known && !(payment && forwarding && telegram)}>
         <ol class="checklist">
-          <Step done={props.payment}>
+          <Step done={payment}>
             <b>填好收款设置</b>（下面「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo
             账户里登记的、收款通知发到的那个邮箱），Zelle
             选填。你负责的活动，成员把钱付到这里；没填好之前活动可以报名，但不能结算。
           </Step>
-          <Step done={props.forwarding}>
+          <Step done={forwarding}>
             <b>设置 Venmo 邮件转发</b>（下面「Venmo 邮件转发」的步骤）：设好以后成员付款会自动记账；第一封 Venmo
             收款邮件到了，转发状态会显示「已生效」。
           </Step>
-          <Step done={connected}>
+          <Step done={telegram}>
             <b>连接你的 Telegram</b>（下面「我的
             Telegram」）：你负责的活动的报名截止、结算和收款提醒会发给你；没连接时这些提醒发给群主。
           </Step>
