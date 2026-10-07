@@ -11,7 +11,7 @@ import { message, notifyPayment } from "./notify";
 import { eventPayee, memberRole, ownerId } from "./organizers";
 import { sendToMember, sendToOwner } from "./telegram";
 import { codeName, noteName, parsePaymentCode } from "./paymentCode";
-import { payeeExpired, payeeName, payeeSql } from "./payees";
+import { ownerName, payeeExpired, payeeName, payeeSql } from "./payees";
 import type { RefundRow } from "../shared/types";
 
 export const MAX_EMAIL_BYTES = 512 * 1024;
@@ -137,7 +137,7 @@ async function receivingAccount(env: Env, sentTo: string, to: string[]): Promise
     "venmo_email",
   ]);
   if (owner && sentTo.toLowerCase() === owner.toLowerCase() && ownerEmail && mail === ownerEmail)
-    return { id: await ownerId(env.DB), owner: true, label: async () => `@${sentTo}（群主）` };
+    return { id: await ownerId(env.DB), owner: true, label: async () => `@${sentTo}（${await ownerName(env.DB)}）` };
   // The columns are COLLATE NOCASE, as the Owner's username is compared above.
   const found = await env.DB.prepare(
     `SELECT member_id FROM payment_profiles WHERE venmo_username = ?1 AND venmo_email = ?2

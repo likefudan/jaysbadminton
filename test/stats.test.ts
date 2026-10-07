@@ -129,10 +129,10 @@ describe("export", () => {
       "通过时间",
     ]);
     expect(data.tables.registrations.columns).toContain("群主添加");
-    // The Owner's own role; events and bills name 群主 as manager and payee.
+    // The Owner's own role; events and bills name the Owner (Jay) as manager and payee.
     expect(data.tables.members.rows[0][6]).toBe("群主");
     expect(data.tables.events.columns.slice(-2)).toEqual(["负责人", "收款人"]);
-    expect(data.tables.events.rows[0].slice(-2)).toEqual(["群主", "群主"]);
+    expect(data.tables.events.rows[0].slice(-2)).toEqual(["Jay", "Jay"]);
     expect(data.tables.payments.columns.at(-1)).toBe("钱在谁的账户");
     expect(JSON.stringify(data)).not.toMatch(/token|hash/i);
     expect(data.tables.events.rows[0][0]).toMatch(/^jbm\d{8}$/);

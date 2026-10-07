@@ -125,10 +125,10 @@ describe("what the Owner does", () => {
       { actor_id: owner, action: "cancel", detail: "取消活动" },
     ]);
 
-    // The Owner reads it from the event page, newest first, named 群主.
+    // The Owner reads it from the event page, newest first, named by name.
     const read = (await ctx.admin.call(`${eb}/audit`)).data.entries;
-    expect(read[0]).toMatchObject({ actor: "群主", action: "cancel", detail: "取消活动" });
-    expect(read.at(-1)).toMatchObject({ actor: "群主", action: "create" });
+    expect(read[0]).toMatchObject({ actor: "Jay", action: "cancel", detail: "取消活动" });
+    expect(read.at(-1)).toMatchObject({ actor: "Jay", action: "create" });
 
     // Deleting the event for good takes its log with it.
     await ctx.admin.call(`${eb}/delete`, { password: "initial-password" });
@@ -186,13 +186,13 @@ describe("what the Owner does", () => {
     await deliver({ amount: "1.00", note: `bob-${day}-m099`, txnId: "W0" });
     const stray = (await s.admin.call(`${s.base}/inbound`)).data.open[0];
     expect(await added(id, () => s.admin.call(`${s.base}/inbound/${stray.id}/ignore`, {}))).toEqual([
-      { actor_id: s.owner, action: "inbound_ignore", detail: "忽略付到 群主 账户的 Venmo 收款（Alice W $1.00）" },
+      { actor_id: s.owner, action: "inbound_ignore", detail: "忽略付到 Jay 账户的 Venmo 收款（Alice W $1.00）" },
     ]);
     expect(await added(id, () => s.admin.call(`${s.base}/inbound/${stray.id}/unignore`, {}))).toEqual([
       {
         actor_id: s.owner,
         action: "inbound_unignore",
-        detail: "把付到 群主 账户的 Venmo 收款（Alice W $1.00）从已忽略移回待确认",
+        detail: "把付到 Jay 账户的 Venmo 收款（Alice W $1.00）从已忽略移回待确认",
       },
     ]);
     await s.admin.call(`${s.base}/inbound/${stray.id}/ignore`, {});
@@ -320,7 +320,7 @@ describe("organizers and the log", () => {
     const res = await request(`${ctx.base}/events/${theirs}/transfer`, ctx.admin.cookie, { to: alice.id });
     expect(res.status).toBe(200);
     expect((await log(theirs)).filter((r) => r.action === "transfer")).toEqual([
-      { actor_id: owner, action: "transfer", detail: "把活动从 群主 转交给 Alice，收款人一起换" },
+      { actor_id: owner, action: "transfer", detail: "把活动从 Jay 转交给 Alice，收款人一起换" },
     ]);
 
     // Again to the same person: nothing changes, nothing recorded.
@@ -337,13 +337,13 @@ describe("organizers and the log", () => {
     // Revoked by the Owner: both of her events go back, each recorded under the Owner.
     await revokeOrganizer(on, await requireMember(on, alice.id), "owner");
     expect((await log(theirs)).filter((r) => r.action === "reassign")).toEqual([
-      { actor_id: owner, action: "reassign", detail: "撤销 Alice 的组织者身份，活动交回群主" },
+      { actor_id: owner, action: "reassign", detail: "撤销 Alice 的组织者身份，活动交回 Jay" },
     ]);
     expect((await log(mine)).filter((r) => r.action === "reassign")).toEqual([
       {
         actor_id: owner,
         action: "reassign",
-        detail: "撤销 Alice 的组织者身份，活动交回群主（账单已发出，钱仍付到 Alice 的账户）",
+        detail: "撤销 Alice 的组织者身份，活动交回 Jay（账单已发出，钱仍付到 Alice 的账户）",
       },
     ]);
     // An event created a moment after being revoked goes to the Owner, recorded as the system's.

@@ -357,10 +357,10 @@ test("the Owner appoints an organizer, hands them an event and revokes them", as
   await page.locator(".tabs").getByRole("button", { name: "活动" }).click();
   await page.locator(".event-link", { hasText: VENUE }).click();
   const owner = page.locator(".card", { has: page.getByRole("heading", { name: "负责人" }) });
-  await expect(owner).toContainText("负责人：群主 · 收款人：群主");
+  await expect(owner).toContainText("负责人：Jay · 收款人：Jay");
   await owner.locator("select").selectOption({ label: "小明" });
   await owner.getByRole("button", { name: "转交" }).click();
-  await expect(owner).toContainText("负责人：小明 · 收款人：群主");
+  await expect(owner).toContainText("负责人：小明 · 收款人：Jay");
   expect(dialogs.pop()).toContain("只换负责人");
 
   await page.getByRole("button", { name: "‹ 所有活动" }).click();

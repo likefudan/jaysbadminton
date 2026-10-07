@@ -61,16 +61,16 @@ describe("export and Google Sheet", () => {
     const venue = col("events", "场馆");
     const owners = tables.events.rows.find((r) => r[venue] !== "Alice Gym")!;
     const alices = tables.events.rows.find((r) => r[venue] === "Alice Gym")!;
-    expect(owners.slice(col("events", "负责人"))).toEqual(["群主", "群主"]);
+    expect(owners.slice(col("events", "负责人"))).toEqual(["Jay", "Jay"]);
     expect(alices.slice(col("events", "负责人"))).toEqual(["Alice", "Alice"]);
 
     const account = col("payments", "钱在谁的账户");
     const into = (e: (string | number)[]) => tables.payments.rows.filter((r) => r[0] === e[0]).map((r) => r[account]);
     expect(into(alices)).toEqual(["Alice", "Alice"]);
-    expect(new Set(into(owners))).toEqual(new Set(["群主"]));
+    expect(new Set(into(owners))).toEqual(new Set(["Jay"]));
 
     const inbound = (payer: string) => tables.inbound.rows.find((r) => r[1] === payer)![col("inbound", "钱在谁的账户")];
-    expect([inbound("Zed"), inbound("Yan")]).toEqual(["Alice", "群主"]);
+    expect([inbound("Zed"), inbound("Yan")]).toEqual(["Alice", "Jay"]);
 
     // With the feature off, nobody is an organizer, but money still goes where the data says.
     const offTables = (await exportAll(off)).tables;

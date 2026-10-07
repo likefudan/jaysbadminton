@@ -25,10 +25,10 @@ const at = (iso: string | null | undefined) => {
 };
 const yes = (v: unknown) => (v ? "是" : "");
 /**
- * A 负责人 / 收款人 column: 群主, or the organizer's name, as bills name payees. The query joins the
- * person through managerSql / payeeSql, so old rows with the column empty show 群主.
+ * A 负责人 / 收款人 column: the person's name, the Owner's included (as bills name payees). The
+ * query joins the person through managerSql / payeeSql, so old rows with the column empty name the Owner.
  */
-const person = (name: string | null, isOwner: number | null) => (name == null || isOwner ? "群主" : name);
+const person = (name: string | null) => name?.trim() || "群主";
 const ROLE_ZH: Record<Role, string> = { owner: "群主", organizer: "组织者", member: "成员" };
 const MEMBER_STATUS: Record<string, string> = {
   pending: "待审核",
@@ -78,8 +78,8 @@ export const TABLES = {
         env,
         `SELECT e.*, (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id) AS signed,
            (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id AND r.attended = 1) AS came,
-           mm.username AS manager_name, mm.is_owner AS manager_owner,
-           pm.username AS payee_name, pm.is_owner AS payee_owner
+           mm.username AS manager_name,
+           pm.username AS payee_name
          FROM events e
          LEFT JOIN members mm ON mm.id = ${managerSql("e")}
          LEFT JOIN members pm ON pm.id = ${payeeSql("e")}
@@ -118,8 +118,8 @@ export const TABLES = {
           at(e.deadline_at),
           at(e.finalized_at),
           at(e.settled_at),
-          person(e.manager_name, e.manager_owner),
-          person(e.payee_name, e.payee_owner),
+          person(e.manager_name),
+          person(e.payee_name),
         ]),
       };
     },
@@ -198,7 +198,7 @@ export const TABLES = {
     async build(env: Env): Promise<Table> {
       const rows = await all(
         env,
-        `SELECT p.*, e.date, e.number, m.username, pm.username AS payee_name, pm.is_owner AS payee_owner
+        `SELECT p.*, e.date, e.number, m.username, pm.username AS payee_name
          FROM payments p JOIN events e ON e.id = p.event_id JOIN members m ON m.id = p.member_id
          LEFT JOIN members pm ON pm.id = ${payeeSql("e")}
          ORDER BY e.start_at, m.username`,
@@ -229,7 +229,7 @@ export const TABLES = {
           money(p.refunded_cents),
           PAY_STATUS[p.status] ?? p.status,
           at(p.paid_at),
-          person(p.payee_name, p.payee_owner),
+          person(p.payee_name),
         ]),
       };
     },
@@ -263,7 +263,7 @@ export const TABLES = {
     async build(env: Env): Promise<Table> {
       const rows = await all(
         env,
-        `SELECT i.*, m.username, pm.username AS payee_name, pm.is_owner AS payee_owner
+        `SELECT i.*, m.username, pm.username AS payee_name
          FROM inbound_payments i LEFT JOIN payments p ON p.id = i.linked_payment_id
          LEFT JOIN members m ON m.id = p.member_id
          LEFT JOIN members pm ON pm.id = ${payeeSql("i")}
@@ -281,7 +281,7 @@ export const TABLES = {
           INBOUND_STATE[i.state] ?? i.state,
           i.username ?? "",
           i.venmo_txn_id ?? "",
-          person(i.payee_name, i.payee_owner),
+          person(i.payee_name),
         ]),
       };
     },

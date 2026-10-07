@@ -288,7 +288,7 @@ describe("transferring an event", () => {
     expect((await request(`${GOOGLE}/events/${mine.id}`, cookie)).status).toBe(200);
 
     const back = await call(`/events/${mine.id}/transfer`, { to: "M001" });
-    expect(back.data.manager).toMatchObject({ id: "M001", name: "群主" });
+    expect(back.data.manager).toMatchObject({ id: "M001", name: "Jay" });
     expect(await eventRow(mine.id)).toMatchObject({ manager_id: "M001", payee_id: "M001" });
 
     const finalized = await finalizedEvent(cookie, bob.base);

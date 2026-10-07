@@ -146,7 +146,7 @@ describe("an organizer's event is paid to the organizer", () => {
     const owed = (await new Client().call(`${s.bob.base}/events`)).data.events.find(
       (x: { id: number }) => x.id === theirs.id,
     );
-    expect(owed.payment).toMatchObject({ payeeName: "群主", venmoUsername: "KeLi8916" });
+    expect(owed.payment).toMatchObject({ payeeName: "Jay", venmoUsername: "KeLi8916" });
   });
 
   it("keeps money with the payee in the database while the flag is off", async () => {
@@ -192,7 +192,7 @@ describe("an event with no payee recorded (written by older code after a rollbac
     );
     expect(offered).toEqual(["Bob"]);
     const bill = (await new Client().call(`${bob.base}/events`)).data.events[0].payment;
-    expect(bill).toMatchObject({ payeeName: "群主", venmoUsername: "KeLi8916" });
+    expect(bill).toMatchObject({ payeeName: "Jay", venmoUsername: "KeLi8916" });
   });
 });
 

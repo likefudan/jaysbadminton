@@ -362,7 +362,7 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
   // Whose account a linked Venmo payment went into, from its 待确认 row (older receipts find it by
   // transaction); auto-matched ones have none and always went to the event's payee.
   const { results } = await env.DB.prepare(
-    `SELECT x.*, pm.username AS money_in_name, pm.is_owner AS money_in_owner
+    `SELECT x.*, pm.username AS money_in_name
      FROM (SELECT r.*, ${payeeSql("e")} AS event_payee,
              COALESCE((SELECT ${payeeSql("i")} FROM inbound_payments i WHERE i.id = r.inbound_id),
                       (SELECT ${payeeSql("i")} FROM inbound_payments i WHERE i.venmo_txn_id = r.venmo_txn_id)) AS money_in
@@ -382,9 +382,8 @@ export async function receiptsFor(env: Env, paymentIds: number[]): Promise<Map<n
       method: r.method === "manual" && r.venmo_txn_id ? "venmo" : r.method,
       payerName: r.payer_name,
       receivedAt: r.received_at,
-      // As payeeName names an account: 群主, or the organizer.
-      elsewhere:
-        r.money_in && r.money_in !== r.event_payee ? (r.money_in_owner === 1 ? "群主" : r.money_in_name) : null,
+      // As payeeName names an account: by name, the Owner's included.
+      elsewhere: r.money_in && r.money_in !== r.event_payee ? r.money_in_name || "群主" : null,
     });
     out.set(r.payment_id, list);
   }
