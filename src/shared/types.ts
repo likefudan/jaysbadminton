@@ -214,6 +214,11 @@ export interface MyEventsResponse {
   friendCap: number;
 }
 
+/** One event on its own page (/e/:code); null when it isn't on 我的活动 (not theirs and not open). */
+export interface MyEventResponse {
+  event: MyEvent | null;
+}
+
 /** 历史活动: an event that is over and paid up. */
 export interface MyHistoryEvent {
   id: number;

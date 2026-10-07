@@ -253,7 +253,9 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         </p>
       )}
       {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
-      {!editing && <EventActions e={e} calendar={signedUp && !e.payment} />}
+      {!editing && (
+        <EventActions e={e} calendar={signedUp && !e.payment && (e.status === "open" || e.status === "closed")} />
+      )}
       {e.canEdit && editing && (
         <>
           <FriendsEditor

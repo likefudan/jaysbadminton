@@ -39,7 +39,7 @@ One Worker answers everything on `https://jaysbadminton.llmat.dev`: page paths r
 | `/` | Public | Open and recent events, past events, attendance leaderboard, 登录 / 注册 |
 | `/join` | Public | 用邮箱注册: username, WeChat name, optional note, email typed twice; the link is emailed on approval |
 | `/recover` | Public | 找回我的专属链接: emails the link again to a member's address |
-| `/e/{code}` | Public | One event: time, place, deadline, headcount, calendar links; never names. A member signed in with Google sees their own card instead (roster, sign-up, bill) |
+| `/e/{code}` | Public | One event: time, place, deadline, headcount, calendar links; never names. A member signed in with Google sees their own card instead (roster, sign-up, bill), past and paid-up events included (`GET /api/m/session/events/{id}`) |
 | `/login`, `/me`, `/me/profile` | Member (Google) | 登录 / 注册 (Google, or a link to `/join` and `/recover`) and Google sign-in; first time: apply (pending) or link an existing member; then 我的活动 and 个人信息, also reachable from the avatar menu |
 | `/m/{memberToken}`, `/m/{memberToken}/profile` | Member (link) | 我的活动: their own events newest first (sign-up with friends, roster, amounts owed + Venmo button), events open to join, and 历史活动 (over and paid up, folded). 个人信息: spending chart, profile (email, join time, activity heatmap), rename, link Google |
 | `/admin` | Public | First-time setup while no admin link exists; afterwards a pointer to the link and the Google way in |

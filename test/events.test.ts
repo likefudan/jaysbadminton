@@ -695,6 +695,40 @@ describe("我的活动 (the member's events)", () => {
     expect(after.events.map((e: { id: number }) => e.id)).toEqual([notMine.id, later.id, soon.id]);
   });
 
+  it("shows a past, paid-up event in full on its own page: who came, their bill, paid", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    const bob = await approveMember(ctx, "Bob");
+    const c = new Client();
+    const [done, other] = [
+      await createTestEvent(ctx, { date: futureDate(7), joinSelf: false }),
+      await createTestEvent(ctx, { date: futureDate(8), joinSelf: false }),
+    ];
+    await c.call(`${alice.base}/events/${done.id}/signup`, { friends: [] });
+    await c.call(`${bob.base}/events/${done.id}/signup`, { friends: [] });
+    await c.call(`${bob.base}/events/${other.id}/signup`, { friends: [] });
+    const day = new Date(Date.now() - 3 * 86400_000).toISOString();
+    for (const id of [done.id, other.id])
+      await env.DB.prepare("UPDATE events SET status = 'settled', date = ?, start_at = ?, end_at = ? WHERE id = ?")
+        .bind(day.slice(0, 10), day, day, id)
+        .run();
+    await env.DB.prepare(
+      "INSERT INTO payments (event_id, member_id, amount_due_cents, payment_code, status, amount_paid_cents) VALUES (?, ?, 2500, 'x', 'paid', 2500)",
+    )
+      .bind(done.id, alice.id)
+      .run();
+
+    // In history on 我的活动, but its own page still has the whole card.
+    expect((await c.call(`${alice.base}/events`)).data.history.map((h: { id: number }) => h.id)).toEqual([done.id]);
+    const page = (await c.call(`${alice.base}/events/${done.id}`)).data.event;
+    expect(page.roster.map((r: { name: string }) => r.name)).toEqual(["Alice", "Bob"]);
+    expect(page.payment).toMatchObject({ amountCents: 2500, paidCents: 2500, status: "paid" });
+    expect(page.canEdit).toBe(false);
+
+    // Not theirs: nothing beyond the public card.
+    expect((await c.call(`${alice.base}/events/${other.id}`)).data).toEqual({ event: null });
+  });
+
   it("a disabled member sees only their own events and bills, nothing to join", async () => {
     const ctx = await setUpAdmin();
     const alice = await approveMember(ctx, "Alice");

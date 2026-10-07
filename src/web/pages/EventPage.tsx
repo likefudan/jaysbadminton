@@ -1,4 +1,4 @@
-import type { MyEvent, PublicEvent } from "../../shared/types";
+import type { MyEventResponse, PublicEvent } from "../../shared/types";
 import { formatDateZh } from "../../shared/time";
 import { Card, Load, Page } from "../components";
 import { EventInfo } from "../events";
@@ -43,10 +43,13 @@ export function EventPage(props: { code?: string }) {
   );
 }
 
-/** The event as it appears on the member's own page; falls back to the public card when it isn't there (e.g. long settled). */
+/**
+ * The event as it appears on the member's own page, past ones included (who came, their bill and
+ * whether it is paid); falls back to the public card when it isn't theirs (not on it and not open).
+ */
 function MemberView(props: { e: PublicEvent }) {
-  const [res, reload] = useApi<{ events: MyEvent[] }>("/api/m/session/events");
-  const mine = res.state === "ok" ? res.data.events.find((x) => x.id === props.e.id) : undefined;
+  const [res, reload] = useApi<MyEventResponse>(`/api/m/session/events/${props.e.id}`);
+  const mine = res.state === "ok" ? res.data.event : null;
   if (res.state === "loading") return null;
   if (res.state === "ok" && mine) return <SignupCard base="/api/m/session" e={mine} onChange={reload} />;
   return (
