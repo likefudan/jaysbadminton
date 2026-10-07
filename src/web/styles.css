@@ -14,6 +14,7 @@
   --bg: #f7f4ef;
   --surface: #ffffff;
   --surface-raised: #ffffff;
+  --account-menu-bg: #ffffff;
   --surface-2: #f3efe9;
   --line: #e9e3da;
   --edge: #e9e3da;
@@ -54,6 +55,7 @@
   --bg: #171513;
   --surface: #211e1b;
   --surface-raised: #2a2622;
+  --account-menu-bg: #2a2622;
   --surface-2: #2b2723;
   --line: #332f2a;
   --edge: #332f2a;
@@ -133,6 +135,7 @@
   --bg: #f7f6fb;
   --surface: rgba(255, 255, 255, 0.62);
   --surface-raised: rgba(255, 255, 255, 0.92);
+  --account-menu-bg: #ffffff;
   --surface-2: rgba(22, 20, 31, 0.05);
   --line: rgba(22, 20, 31, 0.08);
   --edge: rgba(255, 255, 255, 0.92);
@@ -163,6 +166,7 @@
   --bg: #08080e;
   --surface: rgba(255, 255, 255, 0.05);
   --surface-raised: rgba(32, 32, 44, 0.94);
+  --account-menu-bg: #20202c;
   --surface-2: rgba(255, 255, 255, 0.06);
   --line: rgba(255, 255, 255, 0.08);
   --edge: rgba(255, 255, 255, 0.09);
@@ -1545,7 +1549,7 @@ details.fold[open] summary {
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: var(--surface);
+  background: var(--account-menu-bg);
   color: var(--text);
   box-shadow: 0 12px 32px #0003;
 }
