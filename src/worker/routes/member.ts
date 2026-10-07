@@ -3,6 +3,7 @@ import { settle } from "../../shared/settle";
 import type {
   MeResponse,
   MyEvent,
+  MyEventResponse,
   MyEventsResponse,
   MyHistoryEvent,
   MyPayment,
@@ -91,20 +92,84 @@ memberRoutes.get("/:token/events", async (c) => {
   )
     .bind(m.id, m.id)
     .all<EventRow>();
-  const pays = await c.env.DB.prepare("SELECT * FROM payments WHERE member_id = ?").bind(m.id).all<{
-    event_id: number;
-    amount_due_cents: number;
-    amount_paid_cents: number;
-    refunded_cents: number;
-    payment_code: string;
-    status: PaymentStatus;
-  }>();
+  const mine = await myRows(c.env, m);
+
+  // 历史活动: over and paid up. Kept light (no roster or bill breakdown) so years of history stay
+  // within the per-request query budget; the event's own page (/e/:code) has the full card.
+  const ended = new Date().toISOString();
+  const isHistory = (e: EventRow) =>
+    (e.status === "finalized" || e.status === "settled") &&
+    e.end_at <= ended &&
+    (mine.payOf(e.id)?.status ?? "paid") === "paid";
+  const history: MyHistoryEvent[] = results.filter(isHistory).map((e) => {
+    const rows = mine.regsOf(e.id);
+    return {
+      id: e.id,
+      code: e.code,
+      date: e.date,
+      title: e.title,
+      location: e.location,
+      amountCents: mine.payOf(e.id)?.amount_due_cents ?? null,
+      attended: rows.some((r) => r.friend_index === 0 && r.attended === 1),
+      friends: rows.filter((r) => r.friend_index > 0).length,
+    };
+  });
+
+  return c.json<MyEventsResponse>({
+    events: await myEvents(
+      c.env,
+      m,
+      results.filter((e) => !isHistory(e)),
+      mine,
+    ),
+    history,
+    friendCap: await friendCap(c.env),
+  });
+});
+
+/**
+ * One event as it shows on 我的活动, for its own page (/e/:code): the same card, roster and bill,
+ * history included (an event over and paid up still shows who came and what they paid). null when
+ * it isn't theirs to see that way (not on it and not open, or cancelled): the page shows the public card.
+ */
+memberRoutes.get("/:token/events/:id", async (c) => {
+  const m = c.get("member");
+  const row = await getEvent(c.env, Number(c.req.param("id")));
+  const list = row.status === "cancelled" ? [] : await myEvents(c.env, m, [row], await myRows(c.env, m));
+  return c.json<MyEventResponse>({ event: list[0] ?? null });
+});
+
+type MyRows = Awaited<ReturnType<typeof myRows>>;
+
+/** The member's own sign-ups and bills, read once and looked up per event. */
+async function myRows(env: Env, m: MemberRow) {
+  const [pays, regs] = await Promise.all([
+    env.DB.prepare("SELECT * FROM payments WHERE member_id = ?").bind(m.id).all<{
+      event_id: number;
+      amount_due_cents: number;
+      amount_paid_cents: number;
+      refunded_cents: number;
+      payment_code: string;
+      status: PaymentStatus;
+    }>(),
+    env.DB.prepare("SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?")
+      .bind(m.id)
+      .all<{ event_id: number; friend_index: number; friend_name: string | null; attended: number }>(),
+  ]);
+  return {
+    payOf: (id: number) => pays.results.find((p) => p.event_id === id),
+    regsOf: (id: number) => regs.results.filter((r) => r.event_id === id),
+  };
+}
+
+/** The 我的活动 cards for these events, in order; events they are not on and can't join are left out. */
+async function myEvents(env: Env, m: MemberRow, results: EventRow[], mine: MyRows): Promise<MyEvent[]> {
   // Where each event's money goes: its payee's accounts, looked up once per payee.
   const payees = new Map<string | null, Promise<{ name: string; venmo: string; zelle: string }>>();
   const payTo = (id: string | null) => {
     let p = payees.get(id);
     if (!p) {
-      p = Promise.all([payeeName(c.env.DB, id), payeeProfile(c.env.DB, id)]).then(([name, profile]) => ({
+      p = Promise.all([payeeName(env.DB, id), payeeProfile(env.DB, id)]).then(([name, profile]) => ({
         name,
         venmo: profile?.venmoUsername ?? "",
         zelle: profile?.zelleAccount ?? "",
@@ -116,68 +181,38 @@ memberRoutes.get("/:token/events", async (c) => {
   const rowOf = new Map(results.map((e) => [e.id, e]));
   // 组织：the organizer's name on the events they run; nothing on the Owner's, as before.
   // Only while the feature is on: with it off, nobody is shown as running an event (as before).
-  const named = organizersEnabled(c.env);
-  const owner = named ? await ownerId(c.env.DB) : null;
+  const named = organizersEnabled(env);
+  const owner = named ? await ownerId(env.DB) : null;
   const organizers = new Map<string, Promise<string>>();
   const organizerOf = async (e: EventRow) => {
     if (!named) return null;
-    const id = await eventManager(c.env.DB, e);
+    const id = await eventManager(env.DB, e);
     // Nobody on the Owner's, and not on one's own (an organizer looking at the events they run).
     if (!id || id === owner || id === m.id) return null;
-    if (!organizers.has(id)) organizers.set(id, payeeName(c.env.DB, id));
+    if (!organizers.has(id)) organizers.set(id, payeeName(env.DB, id));
     return organizers.get(id)!;
   };
-  const generalCap = await friendCap(c.env);
-  const mine = await c.env.DB.prepare(
-    "SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?",
-  )
-    .bind(m.id)
-    .all<{ event_id: number; friend_index: number; friend_name: string | null; attended: number }>();
+  const generalCap = await friendCap(env);
 
-  // 历史活动: over and paid up. Kept light (no roster or bill breakdown) so years of history stay
-  // within the per-request query budget.
-  const ended = new Date().toISOString();
-  const payOf = (id: number) => pays.results.find((p) => p.event_id === id);
-  const isHistory = (e: EventRow) =>
-    (e.status === "finalized" || e.status === "settled") &&
-    e.end_at <= ended &&
-    (payOf(e.id)?.status ?? "paid") === "paid";
-  const history: MyHistoryEvent[] = results.filter(isHistory).map((e) => {
-    const rows = mine.results.filter((r) => r.event_id === e.id);
-    return {
-      id: e.id,
-      code: e.code,
-      date: e.date,
-      title: e.title,
-      location: e.location,
-      amountCents: payOf(e.id)?.amount_due_cents ?? null,
-      attended: rows.some((r) => r.friend_index === 0 && r.attended === 1),
-      friends: rows.filter((r) => r.friend_index > 0).length,
-    };
-  });
-
-  const list = await summaries(
-    c.env,
-    results.filter((e) => !isHistory(e)),
-  );
+  const list = await summaries(env, results);
   const events: MyEvent[] = [];
   for (const e of list) {
     const row = rowOf.get(e.id)!;
-    const runs = await runsEvent(c.env, m, row);
-    const rows = mine.results.filter((r) => r.event_id === e.id);
+    const runs = await runsEvent(env, m, row);
+    const rows = mine.regsOf(e.id);
     const friends = rows.filter((r) => r.friend_index > 0).sort((a, b) => a.friend_index - b.friend_index);
-    const pay = payOf(e.id);
+    const pay = mine.payOf(e.id);
     const selfOn = rows.some((r) => r.friend_index === 0);
     // Events they are not on are only offered while open, and never to a disabled member.
     if (rows.length === 0 && !pay && (e.status !== "open" || m.status !== "active")) continue;
     const settled = e.status === "finalized" || e.status === "settled";
     // One roster read serves both the bill breakdown and the list of who is coming.
-    const people = rows.length > 0 || (pay && settled) ? await roster(c.env, e.id) : [];
+    const people = rows.length > 0 || (pay && settled) ? await roster(env, e.id) : [];
     let payment: MyPayment | null = null;
     if (pay && settled) {
-      const input = await savedInput(c.env, e.id);
+      const input = await savedInput(env, e.id);
       const bill = input ? settle(toSettleRows(people), input).bills.find((b) => b.memberId === m.id) : undefined;
-      const to = await payTo(await eventPayee(c.env.DB, row));
+      const to = await payTo(await eventPayee(env.DB, row));
       payment = {
         amountCents: pay.amount_due_cents,
         paidCents: pay.amount_paid_cents,
@@ -212,12 +247,8 @@ memberRoutes.get("/:token/events", async (c) => {
       roster: names,
     });
   }
-  return c.json<MyEventsResponse>({
-    events,
-    history,
-    friendCap: generalCap,
-  });
-});
+  return events;
+}
 
 /**
  * Whoever runs the event (本场负责人: the Owner on theirs, an organizer on theirs) signing up from

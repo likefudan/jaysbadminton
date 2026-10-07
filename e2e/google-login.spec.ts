@@ -226,28 +226,25 @@ test("a signed-in member sees the roster and can sign up on the shared event pag
     }),
   );
   await page.route("**/api/public/events/AB12", (route) => route.fulfill({ json: event }));
-  await page.route("**/api/m/session/events", (route) =>
+  await page.route("**/api/m/session/events/7", (route) =>
     route.fulfill({
       json: {
-        friendCap: 3,
-        events: [
-          {
-            ...event,
-            headcount: signedUp ? 3 : 2,
-            canEdit: true,
-            friendCap: 3,
-            payment: null,
-            myFriends: signedUp ? [] : null,
-            selfSignedUp: signedUp,
-            roster: signedUp
-              ? [
-                  { name: "Jay", friendOf: null, mine: false, absent: false },
-                  { name: "Bob", friendOf: null, mine: false, absent: false },
-                  { name: "Alice", friendOf: null, mine: true, absent: false },
-                ]
-              : null,
-          },
-        ],
+        event: {
+          ...event,
+          headcount: signedUp ? 3 : 2,
+          canEdit: true,
+          friendCap: 3,
+          payment: null,
+          myFriends: signedUp ? [] : null,
+          selfSignedUp: signedUp,
+          roster: signedUp
+            ? [
+                { name: "Jay", friendOf: null, mine: false, absent: false },
+                { name: "Bob", friendOf: null, mine: false, absent: false },
+                { name: "Alice", friendOf: null, mine: true, absent: false },
+              ]
+            : null,
+        },
       },
     }),
   );
