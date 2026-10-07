@@ -8,7 +8,7 @@ import { LIVE_SQL } from "./events";
 import { type MemberRow, requireMember } from "./members";
 import { memberRole, organizersEnabled, ownerId } from "./organizers";
 import { once } from "./notify";
-import { payeeExpired, payeeUnlockedSql } from "./payees";
+import { ownerName, payeeExpired, payeeUnlockedSql } from "./payees";
 import { SYSTEM, audit } from "./audit";
 import { quietBills } from "./health";
 
@@ -102,11 +102,12 @@ export async function appointOrganizer(env: Env, id: string): Promise<{ emailSta
     throw badRequest("刚才有别的操作改了他的状态，请刷新页面后再试");
   }
   if (!m.google_email) return { emailStatus: "no_address" };
+  const owner = await ownerName(env.DB);
   const emailStatus = await sendEmail(env, {
     to: m.google_email,
     subject: "你已成为羽毛球群的组织者",
     text:
-      `${m.username}，你好！\n群主已把你设为组织者：你可以发起活动、管理自己的活动、给自己的活动收款。\n\n` +
+      `${m.username}，你好！\n${owner} 已把你设为组织者：你可以发起活动、管理自己的活动、给自己的活动收款。\n\n` +
       `请用 Google 账号 ${m.google_email} 登录，然后打开管理页：\n${site(env, "/admin/google")}\n\n` +
       "发起活动前，请先在管理页「设置」里填好你的收款设置（Venmo 用户名和 Venmo 通知邮箱）：成员会把钱直接付到你的 Venmo，没填好不能结算。\n" +
       "用专属链接打开网站时仍是普通成员页面，管理功能只在 Google 登录时可用。\n\n" +
@@ -245,6 +246,7 @@ async function recordHandBack(
     deactivate: `停用 ${m.username}，组织者身份一并撤销`,
   }[by];
   const handed = managers.results as { id: number; payee_id: string | null }[];
+  const owner = await ownerName(env.DB);
   for (const e of handed)
     await audit(
       env,
@@ -252,10 +254,10 @@ async function recordHandBack(
       actor,
       "reassign",
       // Bills are out: members keep paying into their account until it is archived.
-      `${who}，活动交回群主${e.payee_id === m.id ? `（账单已发出，钱仍付到 ${m.username} 的账户）` : ""}`,
+      `${who}，活动交回 ${owner}${e.payee_id === m.id ? `（账单已发出，钱仍付到 ${m.username} 的账户）` : ""}`,
     );
   for (const e of payees.results as { id: number }[])
-    if (!handed.some((h) => h.id === e.id)) await audit(env, e.id, actor, "reassign", `${who}，收款人改为群主`);
+    if (!handed.some((h) => h.id === e.id)) await audit(env, e.id, actor, "reassign", `${who}，收款人改为 ${owner}`);
 }
 
 /** They can no longer open the admin pages, so this is how they learn what happens to their events. */
@@ -273,20 +275,20 @@ async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string)
       .bind(m.id)
       .all<{ code: string; date: string; title: string }>(),
   ]);
+  const owner = await ownerName(env.DB);
   const account = venmo?.venmo_username ? `你的 Venmo（@${venmo.venmo_username}）` : "你的账户";
   const lines = [
     `${m.username}，你好！`,
     {
-      owner: "群主已撤销你的组织者身份。管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。",
+      owner: `${owner} 已撤销你的组织者身份。管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。`,
       self: "你已经不再当组织者。管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。",
-      deactivate:
-        "群主已停用你的账号，你的组织者身份也一并撤销。管理页对你的 Google 账号不再开放；你不能再报名，但还可以打开自己的页面付清欠款。",
+      deactivate: `${owner} 已停用你的账号，你的组织者身份也一并撤销。管理页对你的 Google 账号不再开放；你不能再报名，但还可以打开自己的页面付清欠款。`,
     }[by],
     "",
   ];
   if (collecting.length > 0)
     lines.push(
-      `下面 ${collecting.length} 场活动已经发出账单，成员还会继续把钱付到${account}，但已经不由你管理。收到钱后请和群主核对：`,
+      `下面 ${collecting.length} 场活动已经发出账单，成员还会继续把钱付到${account}，但已经不由你管理。收到钱后请和 ${owner} 核对：`,
       ...collecting.map((e) => `- ${formatDateZh(e.date)}${e.title ? ` ${e.title}` : ""}（${e.code}）`),
       "",
       "等这几场都收齐后，就可以删掉 Gmail 里转发 Venmo 邮件的过滤器了。",
@@ -334,7 +336,8 @@ export async function handBackIfRevoked(env: Env, eventId: number, creator: stri
   )
     .bind(eventId, creator, await ownerId(env.DB))
     .run();
-  if (r.meta.changes) await audit(env, eventId, SYSTEM, "reassign", "创建者刚被撤销组织者身份，活动交给群主");
+  if (r.meta.changes)
+    await audit(env, eventId, SYSTEM, "reassign", `创建者刚被撤销组织者身份，活动交给 ${await ownerName(env.DB)}`);
 }
 
 /**

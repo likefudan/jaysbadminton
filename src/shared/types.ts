@@ -175,7 +175,7 @@ export interface EventDetail extends EventSummary {
   deletable: boolean;
   /** 收款人: walk-ins can be hung under them (their bill pays itself). */
   payee: { id: string | null; name: string; isMe: boolean };
-  /** 负责人: who runs it (群主, or the organizer's name). */
+  /** 负责人: who runs it, by name (the Owner's included). */
   manager: { id: string | null; name: string; isMe: boolean };
 }
 
@@ -183,7 +183,7 @@ export interface EventDetail extends EventSummary {
 export interface AuditEntry {
   id: number;
   at: string;
-  /** 群主, the organizer's name, or 系统 (auto-matching and archiving). */
+  /** Who did it, by name (the Owner's included), or 系统 (auto-matching and archiving). */
   actor: string;
   action: string;
   detail: string;
@@ -201,6 +201,10 @@ export interface MyEvent extends EventSummary {
   organizer: string | null;
   /** The viewer runs it themselves (as the Owner or its organizer); only while the 组织者 feature is on. */
   runByMe: boolean;
+  /** Who runs it, by name (the Owner's name on theirs): whom to contact about the event. */
+  managerName: string;
+  /** The Owner by name, who may also change any event's list from the admin page. */
+  ownerName: string;
   /** Present once the event is finalized and the member owes something. */
   payment: MyPayment | null;
   /** Everyone signed up, friends right after the member who brought them; only for members who signed up themselves. */
@@ -319,7 +323,7 @@ export interface Receipt {
   receivedAt: string;
   /**
    * A Venmo payment linked from 待确认 that went into another account than the event's payee's
-   * (钱在 某某 的账户): whose, 群主 or the organizer's name. Null when it is where it should be.
+   * (钱在 某某 的账户): whose, by name. Null when it is where it should be.
    */
   elsewhere: string | null;
 }
@@ -361,7 +365,7 @@ export interface MyPayment {
   status: PaymentStatus;
   code: string;
   shares: import("./settle").Share[];
-  /** Who the money goes to: 群主, or the organizer running the event (付给 …). */
+  /** Who the money goes to, by name, the Owner's included (付给 …). */
   payeeName: string;
   /** The payee's accounts ("" when they have none). */
   venmoUsername: string;

@@ -3,6 +3,7 @@ import type { Actor } from "./access";
 import { now } from "./db";
 import type { Env } from "./env";
 import { friendLabel } from "./events";
+import { ownerName } from "./payees";
 import { dollars } from "../shared/settle";
 
 /**
@@ -88,7 +89,7 @@ export const audit = (
     return text === null ? null : { eventId, detail: text };
   });
 
-/** The event's log, newest first, with each actor named (群主, the organizer, or 系统). */
+/** The event's log, newest first, with each actor named (by name, the Owner's included, or 系统). */
 export async function auditRows(env: Env, eventId: number): Promise<AuditEntry[]> {
   const { results } = await env.DB.prepare(
     `SELECT a.id, a.actor_id, a.action, a.detail, a.at, m.username, m.is_owner
@@ -105,13 +106,18 @@ export async function auditRows(env: Env, eventId: number): Promise<AuditEntry[]
       username: string | null;
       is_owner: number | null;
     }>();
+  const owner = await ownerName(env.DB);
   return results.map((r) => ({
     id: r.id,
     at: r.at,
     action: r.action,
     detail: r.detail ?? "",
     actor:
-      r.actor_id === SYSTEM ? "系统" : r.actor_id === OWNER || r.is_owner === 1 ? "群主" : (r.username ?? r.actor_id),
+      r.actor_id === SYSTEM
+        ? "系统"
+        : r.actor_id === OWNER
+          ? owner
+          : r.username?.trim() || (r.is_owner === 1 ? owner : r.actor_id),
   }));
 }
 

@@ -17,14 +17,20 @@ export const payeeSql = (alias: string) => `COALESCE(${alias}.payee_id, (SELECT 
 export const managerSql = (alias: string) =>
   `COALESCE(${alias}.manager_id, (SELECT id FROM members WHERE is_owner = 1))`;
 
-/** How bills and messages name a payee: 群主, or the organizer's name. */
+/**
+ * The Owner as members know them: their name in the group (Ke Li: people by name, not 群主).
+ * 群主 only before setup, when there is no Owner record to name.
+ */
+export async function ownerName(db: D1Database): Promise<string> {
+  const o = await db.prepare("SELECT username FROM members WHERE is_owner = 1").first<{ username: string }>();
+  return o?.username?.trim() || "群主";
+}
+
+/** How bills and messages name a payee (or manager): always by name, the Owner's included. */
 export async function payeeName(db: D1Database, memberId: string | null): Promise<string> {
-  if (!memberId) return "群主";
-  const m = await db
-    .prepare("SELECT username, is_owner FROM members WHERE id = ?")
-    .bind(memberId)
-    .first<{ username: string; is_owner: number }>();
-  return !m || m.is_owner === 1 ? "群主" : m.username;
+  if (!memberId) return ownerName(db);
+  const m = await db.prepare("SELECT username FROM members WHERE id = ?").bind(memberId).first<{ username: string }>();
+  return m?.username?.trim() || ownerName(db);
 }
 
 /** How long a changed Venmo account keeps being recognized (payment_aliases). */

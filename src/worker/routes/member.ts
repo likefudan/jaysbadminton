@@ -14,7 +14,7 @@ import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
 import { eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payeeProfile } from "../organizers";
-import { payeeName } from "../payees";
+import { ownerName, payeeName } from "../payees";
 import {
   closeExpired,
   friendCap,
@@ -209,6 +209,14 @@ async function myEvents(
     if (!organizers.has(id)) organizers.set(id, payeeName(env.DB, id));
     return organizers.get(id)!;
   };
+  // Members see people by name, the Owner's included (Ke Li: names, not 群主).
+  const ownerLabel = await ownerName(env.DB);
+  const managers = new Map<string | null, Promise<string>>();
+  const managerOf = async (e: EventRow) => {
+    const id = await eventManager(env.DB, e);
+    if (!managers.has(id)) managers.set(id, payeeName(env.DB, id));
+    return managers.get(id)!;
+  };
   const list = await summaries(env, results);
   const events: MyEvent[] = [];
   for (const e of list) {
@@ -258,6 +266,8 @@ async function myEvents(
       friendCap: runs ? MANAGER_FRIEND_MAX : generalCap,
       organizer: await organizerOf(row),
       runByMe: runs && named,
+      managerName: await managerOf(row),
+      ownerName: ownerLabel,
       payment,
       roster: names,
     });
@@ -278,7 +288,7 @@ const MANAGER_FRIEND_MAX = 20;
 
 async function openEventFor(c: { env: Env; get: (k: "member") => MemberRow }, id: string) {
   const m = c.get("member");
-  if (m.status !== "active") throw badRequest("你的账号已停用，不能报名。有疑问请联系群主。");
+  if (m.status !== "active") throw badRequest(`你的账号已停用，不能报名。有疑问请联系 ${await ownerName(c.env.DB)}。`);
   await closeExpired(c.env);
   const e = await getEvent(c.env, Number(id));
   const runs = await runsEvent(c.env, m, e);

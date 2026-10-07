@@ -105,7 +105,7 @@ describe("the admin pages for an organizer", () => {
 
     const all = (await get(`${ctx.base}/events`, ctx.admin.cookie)).data;
     expect(ids(all).sort()).toEqual([theirs, mine].sort());
-    expect(all.current.find((e: { id: number }) => e.id === theirs).manager).toEqual({ id: owner, name: "群主" });
+    expect(all.current.find((e: { id: number }) => e.id === theirs).manager).toEqual({ id: owner, name: "Jay" });
     expect(ids((await ctx.admin.call(`${ctx.base}/events?manager=${alice.id}`)).data)).toEqual([mine]);
     // Everyone who has run an event, for the filter (organizers get none: they can't filter).
     expect(all.managers).toEqual(expect.arrayContaining([{ id: alice.id, name: "Alice" }]));

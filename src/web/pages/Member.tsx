@@ -206,10 +206,10 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   const [friends, setFriends] = useState<string[]>(e.myFriends ?? []);
   const { busy, error, run } = useAction();
   const signedUp = e.selfSignedUp;
-  // Who runs it: the organizer by name on theirs, else 群主 (as before).
-  const runner = e.organizer ?? "群主";
+  // Who runs it, by name: the organizer on theirs, the Owner on the rest (names, not 群主).
+  const runner = e.managerName;
   // Friends added for them come from the admin page: the organizer's, or the Owner's on any event.
-  const adder = e.organizer ? `组织者 ${e.organizer} 或群主` : "群主";
+  const adder = e.managerName === e.ownerName ? e.ownerName : `${e.managerName} 或 ${e.ownerName}`;
   // Whoever runs it may hang friends under a member who isn't coming: they are on the bill, not the list.
   const friendsOnly = !signedUp && (e.myFriends?.length ?? 0) > 0;
 
