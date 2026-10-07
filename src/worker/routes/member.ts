@@ -28,7 +28,7 @@ import {
   validateFriends,
 } from "../events";
 import type { Env } from "../env";
-import { badRequest, invalidLink, readJson, str } from "../http";
+import { badRequest, HttpError, invalidLink, readJson, str } from "../http";
 import { type MemberRow, memberByToken, renameMember } from "../members";
 import { developerMember } from "../developer";
 import { googleMember, requireSameOrigin } from "../googleAuth";
@@ -93,6 +93,7 @@ memberRoutes.get("/:token/events", async (c) => {
     .bind(m.id, m.id)
     .all<EventRow>();
   const mine = await myRows(c.env, m);
+  const generalCap = await friendCap(c.env);
 
   // 历史活动: over and paid up. Kept light (no roster or bill breakdown) so years of history stay
   // within the per-request query budget; the event's own page (/e/:code) has the full card.
@@ -121,9 +122,10 @@ memberRoutes.get("/:token/events", async (c) => {
       m,
       results.filter((e) => !isHistory(e)),
       mine,
+      generalCap,
     ),
     history,
-    friendCap: await friendCap(c.env),
+    friendCap: generalCap,
   });
 });
 
@@ -134,26 +136,35 @@ memberRoutes.get("/:token/events", async (c) => {
  */
 memberRoutes.get("/:token/events/:id", async (c) => {
   const m = c.get("member");
-  const row = await getEvent(c.env, Number(c.req.param("id")));
-  const list = row.status === "cancelled" ? [] : await myEvents(c.env, m, [row], await myRows(c.env, m));
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id)) throw new HttpError(404, "event_not_found", "找不到这个活动");
+  const row = await getEvent(c.env, id);
+  const list =
+    row.status === "cancelled"
+      ? []
+      : await myEvents(c.env, m, [row], await myRows(c.env, m, id), await friendCap(c.env));
   return c.json<MyEventResponse>({ event: list[0] ?? null });
 });
 
 type MyRows = Awaited<ReturnType<typeof myRows>>;
 
-/** The member's own sign-ups and bills, read once and looked up per event. */
-async function myRows(env: Env, m: MemberRow) {
+/** The member's own sign-ups and bills (all of them, or one event's), read once and looked up per event. */
+async function myRows(env: Env, m: MemberRow, eventId?: number) {
+  const only = eventId === undefined ? "" : " AND event_id = ?";
+  const args = eventId === undefined ? [m.id] : [m.id, eventId];
   const [pays, regs] = await Promise.all([
-    env.DB.prepare("SELECT * FROM payments WHERE member_id = ?").bind(m.id).all<{
-      event_id: number;
-      amount_due_cents: number;
-      amount_paid_cents: number;
-      refunded_cents: number;
-      payment_code: string;
-      status: PaymentStatus;
-    }>(),
-    env.DB.prepare("SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?")
-      .bind(m.id)
+    env.DB.prepare(`SELECT * FROM payments WHERE member_id = ?${only}`)
+      .bind(...args)
+      .all<{
+        event_id: number;
+        amount_due_cents: number;
+        amount_paid_cents: number;
+        refunded_cents: number;
+        payment_code: string;
+        status: PaymentStatus;
+      }>(),
+    env.DB.prepare(`SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?${only}`)
+      .bind(...args)
       .all<{ event_id: number; friend_index: number; friend_name: string | null; attended: number }>(),
   ]);
   return {
@@ -163,7 +174,13 @@ async function myRows(env: Env, m: MemberRow) {
 }
 
 /** The 我的活动 cards for these events, in order; events they are not on and can't join are left out. */
-async function myEvents(env: Env, m: MemberRow, results: EventRow[], mine: MyRows): Promise<MyEvent[]> {
+async function myEvents(
+  env: Env,
+  m: MemberRow,
+  results: EventRow[],
+  mine: MyRows,
+  generalCap: number,
+): Promise<MyEvent[]> {
   // Where each event's money goes: its payee's accounts, looked up once per payee.
   const payees = new Map<string | null, Promise<{ name: string; venmo: string; zelle: string }>>();
   const payTo = (id: string | null) => {
@@ -192,8 +209,6 @@ async function myEvents(env: Env, m: MemberRow, results: EventRow[], mine: MyRow
     if (!organizers.has(id)) organizers.set(id, payeeName(env.DB, id));
     return organizers.get(id)!;
   };
-  const generalCap = await friendCap(env);
-
   const list = await summaries(env, results);
   const events: MyEvent[] = [];
   for (const e of list) {
