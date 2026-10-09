@@ -262,7 +262,7 @@ async function deliver(
     // Rejected (bad payload, or our signature): this one won't get through, but the browser stays
     // subscribed. (A subscription made for other keys can't happen: only a reset makes new keys,
     // and it clears the subscriptions too.)
-    if (res.status === 400 || res.status === 403 || res.status === 413) return "drop";
+    if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 413) return "drop";
     return "retry";
   } catch (err) {
     if (String(err).includes("Too many subrequests")) return "later";

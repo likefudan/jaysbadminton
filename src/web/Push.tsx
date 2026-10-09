@@ -58,17 +58,22 @@ async function savedMember(): Promise<string | null> {
 }
 
 /** sessionStorage, quietly doing nothing where storage is blocked. */
-const session = {
-  has(key: string) {
+/**
+ * When this browser last checked in, at most hourly (localStorage, as an app on the home screen
+ * keeps one session for days); quietly nothing where storage is blocked.
+ */
+const SYNC_EVERY_MS = 3600_000;
+const synced = {
+  recently(key: string) {
     try {
-      return !!sessionStorage.getItem(key);
+      return Date.now() - Number(localStorage.getItem(key) ?? 0) < SYNC_EVERY_MS;
     } catch {
       return false;
     }
   },
-  set(key: string) {
+  mark(key: string) {
     try {
-      sessionStorage.setItem(key, "1");
+      localStorage.setItem(key, String(Date.now()));
     } catch {}
   },
 };
@@ -104,11 +109,11 @@ export function usePush(base: string, home: string, memberId: string) {
       if (!sub) return "off";
       // Turned on by another member in this browser (or we can't tell: storage is blocked).
       if ((await savedMember()) !== memberId) return "other";
-      // Once a visit: made for the site's current key (a reset makes a new one), the server still
+      // At most hourly: made for the site's current key (a reset makes a new one), the server still
       // has it (a link reset drops it), and a tap opens this page (their current link).
       // (Keyed by the page too: a new link means the old one's subscription was dropped.)
-      const synced = `push-synced:${memberId}:${home}:${sub.endpoint}`;
-      if (!session.has(synced)) {
+      const key = `push-synced:${memberId}:${home}:${sub.endpoint}`;
+      if (!synced.recently(key)) {
         try {
           const { publicKey } = await api<{ publicKey: string }>(`${base}/push`);
           if (!sameKey(sub, publicKey)) {
@@ -117,7 +122,7 @@ export function usePush(base: string, home: string, memberId: string) {
           }
           await api(`${base}/push/subscribe`, sub.toJSON());
           await saveOwner(home, memberId);
-          session.set(synced);
+          synced.mark(key);
         } catch {
           /* offline or a hiccup: try again next visit */
         }
