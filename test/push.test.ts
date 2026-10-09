@@ -186,8 +186,16 @@ describe("turning push on", () => {
     const bob = await approveMember(ctx, "Bob");
     const b = await browser("b");
     await subscribe(alice.base, b);
+    // A push still waiting for Alice isn't sent once the browser is Bob's.
+    status = 500;
+    await createEvent(ctx);
+    status = 201;
     await subscribe(bob.base, b);
     expect(await subscriptions()).toEqual([{ endpoint: b.endpoint, member_id: bob.id }]);
+    pushes = [];
+    await env.DB.prepare("UPDATE push_outbox SET claimed_at = NULL").run();
+    await sendPushes(env);
+    expect(pushes).toEqual([]);
     // Alice turning it off from her page doesn't touch Bob's.
     expect((await call(`${alice.base}/push/unsubscribe`, { endpoint: b.endpoint })).data.removed).toBe(false);
     expect(await subscriptions()).toHaveLength(1);

@@ -106,7 +106,8 @@ export function usePush(base: string, home: string, memberId: string) {
       if ((await savedMember()) !== memberId) return "other";
       // Once a visit: made for the site's current key (a reset makes a new one), the server still
       // has it (a link reset drops it), and a tap opens this page (their current link).
-      const synced = `push-synced:${memberId}:${sub.endpoint}`;
+      // (Keyed by the page too: a new link means the old one's subscription was dropped.)
+      const synced = `push-synced:${memberId}:${home}:${sub.endpoint}`;
       if (!session.has(synced)) {
         try {
           const { publicKey } = await api<{ publicKey: string }>(`${base}/push`);

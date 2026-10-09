@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { api } from "./api";
 import { Card, Field, useAction } from "./components";
+import { stopPush } from "./Push";
 import { useApi } from "./hooks";
 
 export function DeveloperLogin() {
@@ -43,7 +44,13 @@ export function DeveloperSwitch() {
   const { busy, error, run } = useAction();
   if (session.state !== "ok" || !session.data.signedIn) return null;
   async function logout() {
-    if (await run(() => api("/api/developer/logout", {}))) location.assign("/login");
+    if (
+      await run(async () => {
+        await stopPush();
+        return api("/api/developer/logout", {});
+      })
+    )
+      location.assign("/login");
   }
   const admin = location.pathname.startsWith("/admin/");
   return (

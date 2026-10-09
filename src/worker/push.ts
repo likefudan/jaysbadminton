@@ -206,10 +206,11 @@ export function sendSoon<E extends { Bindings: Env }>(c: Context<E>, endpoint?: 
 }
 
 /** A push to one browser only (the one that just turned push on), so the member sees it works. */
-export async function pushWelcome(env: Env, endpoint: string, home: string): Promise<void> {
-  await env.DB.prepare("INSERT INTO push_outbox (endpoint, payload, created_at) VALUES (?, ?, ?)")
+export async function pushWelcome(env: Env, memberId: string, endpoint: string, home: string): Promise<void> {
+  await env.DB.prepare("INSERT INTO push_outbox (endpoint, member_id, payload, created_at) VALUES (?, ?, ?, ?)")
     .bind(
       endpoint,
+      memberId,
       JSON.stringify({
         title: "推送已开启",
         body: "有新活动开始报名、或者你的账单出来时，会在这里通知你。",
@@ -222,6 +223,7 @@ export async function pushWelcome(env: Env, endpoint: string, home: string): Pro
 }
 
 /** `later`: this run is out of subrequests (the Worker refused the fetch); not counted as a try. */
+// (Rows a run claimed but never finished free up after RETRY_AFTER_MS, also without counting.)
 type Outcome = "sent" | "gone" | "drop" | "retry" | "later";
 
 async function deliver(
@@ -241,7 +243,11 @@ async function deliver(
       },
       body: await encryptPayload(payload, sub.p256dh, sub.auth),
     });
-    if (res.ok) return "sent";
+    if (res.ok) {
+      // Frees the connection for the rest of the batch.
+      await res.body?.cancel();
+      return "sent";
+    }
     // The browser turned push off or the subscription expired.
     if (res.status === 404 || res.status === 410) return "gone";
     console.warn(`push to ${new URL(sub.endpoint).host} failed: ${res.status} ${await res.text().catch(() => "")}`);
@@ -268,7 +274,7 @@ export async function sendPushes(env: Env, endpoint?: string): Promise<boolean> 
     .bind(new Date(at - EXPIRE_MS).toISOString(), MAX_ATTEMPTS)
     .run();
   const { results } = await env.DB.prepare(
-    `UPDATE push_outbox SET claimed_at = ?1, attempts = attempts + 1
+    `UPDATE push_outbox SET claimed_at = ?1
      WHERE id IN (SELECT id FROM push_outbox WHERE (claimed_at IS NULL OR claimed_at < ?2)
        AND (?4 IS NULL OR endpoint = ?4) ORDER BY id LIMIT ?3)
      RETURNING id`,
@@ -278,7 +284,7 @@ export async function sendPushes(env: Env, endpoint?: string): Promise<boolean> 
   if (results.length === 0) return false;
   const { results: rows } = await env.DB.prepare(
     `SELECT o.id, o.payload, s.endpoint, s.p256dh, s.auth FROM push_outbox o
-     LEFT JOIN push_subscriptions s ON s.endpoint = o.endpoint WHERE o.id IN (SELECT value FROM json_each(?))`,
+     LEFT JOIN push_subscriptions s ON s.endpoint = o.endpoint AND s.member_id = o.member_id WHERE o.id IN (SELECT value FROM json_each(?))`,
   )
     .bind(JSON.stringify(results.map((r) => r.id)))
     .all<{ id: number; payload: string; endpoint: string | null; p256dh: string; auth: string }>();
@@ -293,7 +299,7 @@ export async function sendPushes(env: Env, endpoint?: string): Promise<boolean> 
   const outcomes = await Promise.all(
     rows.map(async (r) => ({
       r,
-      // Turned off since it was queued: nothing to send.
+      // Turned off (or moved to another member) since it was queued: nothing to send.
       outcome: r.endpoint ? await deliver(authFor, { ...r, endpoint: r.endpoint }, r.payload) : ("drop" as Outcome),
     })),
   );
@@ -301,9 +307,13 @@ export async function sendPushes(env: Env, endpoint?: string): Promise<boolean> 
     JSON.stringify(outcomes.filter((o) => kinds.includes(o.outcome)).map((o) => o.r.id));
   const gone = outcomes.filter((o) => o.outcome === "gone").map((o) => o.r.endpoint!);
   await env.DB.batch([
-    env.DB.prepare(
-      "UPDATE push_outbox SET claimed_at = NULL, attempts = attempts - 1 WHERE id IN (SELECT value FROM json_each(?))",
-    ).bind(ids("later")),
+    env.DB.prepare("UPDATE push_outbox SET claimed_at = NULL WHERE id IN (SELECT value FROM json_each(?))").bind(
+      ids("later"),
+    ),
+    // Counted here, not when claimed, so a run that died before sending (CPU limit) costs no try.
+    env.DB.prepare("UPDATE push_outbox SET attempts = attempts + 1 WHERE id IN (SELECT value FROM json_each(?))").bind(
+      ids("retry"),
+    ),
     env.DB.prepare("DELETE FROM push_outbox WHERE id IN (SELECT value FROM json_each(?))").bind(
       ids("sent", "gone", "drop"),
     ),
@@ -332,8 +342,8 @@ export async function pushNewEvent(env: Env, e: EventRow, creatorId: string | nu
       tag: `event-${e.id}`,
     };
     const res = await env.DB.prepare(
-      `INSERT INTO push_outbox (endpoint, payload, created_at)
-       SELECT s.endpoint, ?1, ?2 FROM push_subscriptions s JOIN members m ON m.id = s.member_id
+      `INSERT INTO push_outbox (endpoint, member_id, payload, created_at)
+       SELECT s.endpoint, s.member_id, ?1, ?2 FROM push_subscriptions s JOIN members m ON m.id = s.member_id
        WHERE m.status = 'active' AND m.deleted_at IS NULL AND m.id IS NOT ?3 AND m.id IS NOT ?4`,
     )
       .bind(JSON.stringify(msg), now(), creatorId, manager)
@@ -362,7 +372,7 @@ export async function pushBills(env: Env, e: EventRow): Promise<boolean> {
     await env.DB.batch(
       results.map((r) =>
         env.DB.prepare(
-          "INSERT INTO push_outbox (endpoint, payload, created_at) SELECT endpoint, ?, ? FROM push_subscriptions WHERE member_id = ?",
+          "INSERT INTO push_outbox (endpoint, member_id, payload, created_at) SELECT endpoint, member_id, ?, ? FROM push_subscriptions WHERE member_id = ?",
         ).bind(
           JSON.stringify({
             title: "账单出来了",

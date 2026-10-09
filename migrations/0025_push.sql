@@ -13,8 +13,9 @@ CREATE INDEX push_subscriptions_member ON push_subscriptions (member_id);
 CREATE TABLE push_outbox (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   endpoint   TEXT NOT NULL,
+  member_id  TEXT NOT NULL,      -- whose it is: not sent if the browser has moved to someone else
   payload    TEXT NOT NULL,      -- JSON: title, body, url, tag
   created_at TEXT NOT NULL,
   claimed_at TEXT,               -- set by whoever is sending it; free again after a few minutes
-  attempts   INTEGER NOT NULL DEFAULT 0
+  attempts   INTEGER NOT NULL DEFAULT 0   -- failed tries
 );

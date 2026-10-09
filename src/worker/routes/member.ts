@@ -325,7 +325,7 @@ memberRoutes.post("/:token/push/subscribe", async (c) => {
   // Turned on just now (not the page re-syncing): one push so they see it works.
   // (No link in it: the service worker opens the link page it saved.)
   if (body.welcome === true) {
-    await pushWelcome(c.env, endpoint, session ? "/me" : "/");
+    await pushWelcome(c.env, c.get("member").id, endpoint, session ? "/me" : "/");
     sendSoon(c, endpoint);
   }
   return c.json({ ok: true });
