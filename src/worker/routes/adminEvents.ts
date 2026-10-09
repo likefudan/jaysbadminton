@@ -80,6 +80,7 @@ import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
+import { pushBills, pushNewEvent, sendSoon } from "../push";
 import { actorId, audit, auditRows, billOwner, friendName, money, record, rosterLabel } from "../audit";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
@@ -202,7 +203,8 @@ adminEventRoutes.post("/events", async (c) => {
   await audit(c.env, e.id, actorId(actor), "create", `创建活动（${e.date} ${e.location}）`);
   // Revoked while this request was on its way: the event goes to the Owner like their others did.
   if (actor.role === "organizer") await handBackIfRevoked(c.env, e.id, actor.memberId);
-  await notifyCreated(c.env, await getEvent(c.env, e.id));
+  const created = await getEvent(c.env, e.id);
+  await notifyCreated(c.env, created);
   // "我自己也报名": the creator signs up as a normal player (ticked by default in the form).
   if (b.joinSelf === true) {
     const self = await activeSelf(c.env, actor.memberId);
@@ -211,7 +213,11 @@ adminEventRoutes.post("/events", async (c) => {
       await audit(c.env, e.id, actorId(actor), "self_signup", "创建时自己报名");
     }
   }
-  return c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
+  const queued = await pushNewEvent(c.env, created, actor.memberId);
+  const res = c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
+  // Last, in the background, so it never slows down creating the event.
+  if (queued) sendSoon(c);
+  return res;
 });
 
 /** The signed-in person's member id while they are an active member (they can play), else null. */
@@ -771,14 +777,16 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
   const was = await savedInput(c.env, e.id);
   const fees = (i: SettleInput) =>
     `场地 ${money(i.courtTotalCents)}，用球 ${i.shuttleCount} 个 × ${money(i.shuttlePriceCents)}`;
-  if (await finalize(c.env, e, input))
-    await audit(c.env, e.id, actorId(c.get("actor")), "finalize", `Finalize 发出账单：${fees(input)}`);
+  const first = await finalize(c.env, e, input);
+  if (first) await audit(c.env, e.id, actorId(c.get("actor")), "finalize", `Finalize 发出账单：${fees(input)}`);
   // Saved again with the same fees, or a second click on the first Finalize (no fees saved yet when
   // it read them): nothing changed.
   else if (was && fees(was) !== fees(input))
     await audit(c.env, e.id, actorId(c.get("actor")), "fee_edit", `修改费用：${fees(input)}（原来：${fees(was)}）`);
   // After the entry, so the archive it may cause (every bill already paid) comes after it in the log.
   await checkCollected(c.env, e.id);
+  // Each member's bill, after the response (only the first Finalize sends them).
+  if (first && (await pushBills(c.env, e))) sendSoon(c);
   return c.json({ ok: true });
 });
 

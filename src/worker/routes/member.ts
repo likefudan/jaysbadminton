@@ -31,6 +31,7 @@ import type { Env } from "../env";
 import { badRequest, HttpError, invalidLink, readJson, str } from "../http";
 import { type MemberRow, memberByToken, renameMember } from "../members";
 import { developerMember } from "../developer";
+import { pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
 import { googleMember, requireSameOrigin } from "../googleAuth";
 
 type Vars = { member: MemberRow };
@@ -312,4 +313,25 @@ memberRoutes.post("/:token/events/:id/cancel", async (c) => {
   const { e } = await openEventFor(c, c.req.param("id"));
   await removeSignup(c.env, e.id, c.get("member").id);
   return c.json({ ok: true });
+});
+
+// 推送通知: the browser asks for the site's public key, then hands over its subscription.
+memberRoutes.get("/:token/push", async (c) => c.json({ publicKey: (await vapidKeys(c.env)).publicKey }));
+
+memberRoutes.post("/:token/push/subscribe", async (c) => {
+  const body = await readJson(c.req.raw);
+  const session = c.req.param("token") === "session";
+  const endpoint = await subscribe(c.env, c.get("member").id, body);
+  // Turned on just now (not the page re-syncing): one push so they see it works.
+  // (No link in it: the service worker opens the link page it saved.)
+  if (body.welcome === true) {
+    await pushWelcome(c.env, endpoint, session ? "/me" : "/");
+    sendSoon(c, endpoint);
+  }
+  return c.json({ ok: true });
+});
+
+memberRoutes.post("/:token/push/unsubscribe", async (c) => {
+  const removed = await unsubscribe(c.env, c.get("member").id, str((await readJson(c.req.raw)).endpoint));
+  return c.json({ ok: true, removed });
 });

@@ -3,8 +3,10 @@ import { formatDateZh, toPacific } from "../shared/time";
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import { type EventRow, closeExpired, roster } from "./events";
+import { day, venue, when } from "./eventText";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { eventManager, organizersEnabled } from "./organizers";
+import { BATCHES, sendPushes } from "./push";
 import {
   WECHAT_BLOCK,
   escapeHtml,
@@ -75,10 +77,6 @@ export async function once(
   if (!ok) await release();
 }
 
-/** "HappyTuesday 比赛 2026年10月7日 周三", or just the date when there is no title. */
-const day = (e: EventRow) => (e.title ? `${e.title} ${formatDateZh(e.date)}` : formatDateZh(e.date));
-const when = (e: EventRow) => `${day(e)} ${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`;
-const venue = (e: EventRow) => `${e.location}${e.address ? `（${e.address}）` : ""}`;
 const eventLink = (env: Env, e: EventRow) => `${env.SITE_ORIGIN}/e/${e.code}`;
 
 /** The name of the organizer who runs the event; null for the Owner's events. */
@@ -133,6 +131,12 @@ export async function runScheduled(env: Env, at: Date = new Date()): Promise<voi
   } catch (err) {
     console.error("health notifications failed:", err);
     await recordCronError(env, err);
+  }
+  try {
+    // Pushes to members' browsers that a request couldn't send (too many at once, or a failure).
+    for (let batch = 0; batch < BATCHES; batch++) if (!(await sendPushes(env))) break;
+  } catch (err) {
+    console.error("push notifications failed:", err);
   }
 }
 

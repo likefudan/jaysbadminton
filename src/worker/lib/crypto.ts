@@ -1,12 +1,12 @@
 const enc = new TextEncoder();
 
-function toBase64Url(bytes: Uint8Array): string {
+export function toBase64Url(bytes: Uint8Array): string {
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function fromBase64Url(s: string): Uint8Array {
+export function fromBase64Url(s: string): Uint8Array {
   const b = atob(s.replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from(b, (c) => c.charCodeAt(0));
 }
