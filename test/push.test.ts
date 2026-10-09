@@ -317,15 +317,12 @@ describe("what gets pushed", () => {
     expect(pushes).toHaveLength(4);
     expect(await subscriptions()).toEqual([]);
 
-    // Turned away (Apple says 403 for a signature it doesn't like): not retried, still subscribed.
+    // 403 from Google: made for other keys, so no use keeping it.
     await subscribe(alice.base, a);
     status = 403;
     await createEvent(ctx);
     expect(pushes).toHaveLength(5);
-    await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
-    await sendPushes(env);
-    expect(pushes).toHaveLength(5);
-    expect(await subscriptions()).toHaveLength(1);
+    expect(await subscriptions()).toEqual([]);
   });
 
   it("never fails the request when the push service is down", async () => {

@@ -141,9 +141,13 @@ export function usePush(base: string, home: string, memberId: string) {
       const reg = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
       const { publicKey } = await api<{ publicKey: string }>(`${base}/push`);
-      // One made for another key (or a stale one) can't be reused.
-      await (await reg.pushManager.getSubscription())?.unsubscribe();
-      const sub = await reg.pushManager
+      // One already here (改为推送给我) moves over as it is; one made for another key can't be reused.
+      let sub = await reg.pushManager.getSubscription();
+      if (sub && !sameKey(sub, publicKey)) {
+        await sub.unsubscribe();
+        sub = null;
+      }
+      sub ??= await reg.pushManager
         .subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) })
         .catch(() => {
           throw new Error("这个浏览器没能开启推送，请换个浏览器再试");

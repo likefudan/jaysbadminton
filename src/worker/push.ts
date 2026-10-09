@@ -41,7 +41,7 @@ const MAX_PER_MEMBER = 10;
  * invocation gets 10 ms of CPU and 50 subrequests. The rest wait for the next cron run.
  */
 const BATCH = 10;
-export const BATCHES = 2;
+const BATCHES = 2;
 const MAX_ATTEMPTS = 3;
 const RETRY_AFTER_MS = 5 * 60_000;
 const EXPIRE_MS = 24 * 3600_000;
@@ -195,14 +195,17 @@ export async function unsubscribe(env: Env, memberId: string, endpoint: string):
  * ahead of any backlog. The cron picks up whatever this misses.
  */
 export function sendSoon<E extends { Bindings: Env }>(c: Context<E>, endpoint?: string): void {
-  const work = (async () => {
-    for (let batch = 0; batch < BATCHES; batch++) if (!(await sendPushes(c.env, endpoint))) return;
-  })().catch((err) => console.error("push failed:", err));
+  const work = drainPushes(c.env, endpoint).catch((err) => console.error("push failed:", err));
   try {
     c.executionCtx.waitUntil(work);
   } catch {
     // No execution context (a direct call in tests): the promise still runs.
   }
+}
+
+/** Up to BATCHES batches: what one request or cron run sends. */
+export async function drainPushes(env: Env, endpoint?: string): Promise<void> {
+  for (let batch = 0; batch < BATCHES; batch++) if (!(await sendPushes(env, endpoint))) return;
 }
 
 /** A push to one browser only (the one that just turned push on), so the member sees it works. */
@@ -223,7 +226,8 @@ export async function pushWelcome(env: Env, memberId: string, endpoint: string, 
 }
 
 /** `later`: this run is out of subrequests (the Worker refused the fetch); not counted as a try. */
-// (Rows a run claimed but never finished free up after RETRY_AFTER_MS, also without counting.)
+// A try is counted when a row is claimed, so a run that keeps dying part way (CPU limit) gives up
+// after MAX_ATTEMPTS instead of sending the same first pushes again and again.
 type Outcome = "sent" | "gone" | "drop" | "retry" | "later";
 
 async function deliver(
@@ -243,17 +247,18 @@ async function deliver(
       },
       body: await encryptPayload(payload, sub.p256dh, sub.auth),
     });
-    if (res.ok) {
-      // Frees the connection for the rest of the batch.
-      await res.body?.cancel();
-      return "sent";
-    }
+    // Read or cancelled every time, so the connection is free for the rest of the batch.
+    if (res.ok || res.status === 404 || res.status === 410) await res.body?.cancel();
+    if (res.ok) return "sent";
     // The browser turned push off or the subscription expired.
     if (res.status === 404 || res.status === 410) return "gone";
-    console.warn(`push to ${new URL(sub.endpoint).host} failed: ${res.status} ${await res.text().catch(() => "")}`);
-    // Rejected (bad payload, or our signature: Apple says 403 for that): this one won't get through,
-    // but the browser stays subscribed.
-    if (res.status === 400 || res.status === 403 || res.status === 413) return "drop";
+    const host = new URL(sub.endpoint).host;
+    console.warn(`push to ${host} failed: ${res.status} ${await res.text().catch(() => "")}`);
+    // 403: Google and Mozilla mean this subscription can't be used (made for another key); Apple
+    // says it about our signature, which no browser of theirs would accept either, so keep those.
+    if (res.status === 403) return host === "web.push.apple.com" ? "drop" : "gone";
+    // Rejected (bad payload): this one won't get through, but the browser stays subscribed.
+    if (res.status === 400 || res.status === 413) return "drop";
     return "retry";
   } catch (err) {
     if (String(err).includes("Too many subrequests")) return "later";
@@ -274,7 +279,7 @@ export async function sendPushes(env: Env, endpoint?: string): Promise<boolean> 
     .bind(new Date(at - EXPIRE_MS).toISOString(), MAX_ATTEMPTS)
     .run();
   const { results } = await env.DB.prepare(
-    `UPDATE push_outbox SET claimed_at = ?1
+    `UPDATE push_outbox SET claimed_at = ?1, attempts = attempts + 1
      WHERE id IN (SELECT id FROM push_outbox WHERE (claimed_at IS NULL OR claimed_at < ?2)
        AND (?4 IS NULL OR endpoint = ?4) ORDER BY id LIMIT ?3)
      RETURNING id`,
@@ -307,13 +312,9 @@ export async function sendPushes(env: Env, endpoint?: string): Promise<boolean> 
     JSON.stringify(outcomes.filter((o) => kinds.includes(o.outcome)).map((o) => o.r.id));
   const gone = outcomes.filter((o) => o.outcome === "gone").map((o) => o.r.endpoint!);
   await env.DB.batch([
-    env.DB.prepare("UPDATE push_outbox SET claimed_at = NULL WHERE id IN (SELECT value FROM json_each(?))").bind(
-      ids("later"),
-    ),
-    // Counted here, not when claimed, so a run that died before sending (CPU limit) costs no try.
-    env.DB.prepare("UPDATE push_outbox SET attempts = attempts + 1 WHERE id IN (SELECT value FROM json_each(?))").bind(
-      ids("retry"),
-    ),
+    env.DB.prepare(
+      "UPDATE push_outbox SET claimed_at = NULL, attempts = attempts - 1 WHERE id IN (SELECT value FROM json_each(?))",
+    ).bind(ids("later")),
     env.DB.prepare("DELETE FROM push_outbox WHERE id IN (SELECT value FROM json_each(?))").bind(
       ids("sent", "gone", "drop"),
     ),

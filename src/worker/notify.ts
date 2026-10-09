@@ -6,7 +6,7 @@ import { type EventRow, closeExpired, roster } from "./events";
 import { day, venue, when } from "./eventText";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { eventManager, organizersEnabled } from "./organizers";
-import { BATCHES, sendPushes } from "./push";
+import { drainPushes } from "./push";
 import {
   WECHAT_BLOCK,
   escapeHtml,
@@ -134,9 +134,10 @@ export async function runScheduled(env: Env, at: Date = new Date()): Promise<voi
   }
   try {
     // Pushes to members' browsers that a request couldn't send (too many at once, or a failure).
-    for (let batch = 0; batch < BATCHES; batch++) if (!(await sendPushes(env))) break;
+    await drainPushes(env);
   } catch (err) {
     console.error("push notifications failed:", err);
+    await recordCronError(env, err);
   }
 }
 
