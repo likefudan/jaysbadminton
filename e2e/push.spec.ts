@@ -42,6 +42,14 @@ async function member(page: Page) {
         return true;
       },
     });
+    // Headless browsers start with notifications denied; this one hasn't been asked yet.
+    Object.defineProperty(Notification, "permission", {
+      get: () => localStorage.getItem("fake-permission") ?? "default",
+    });
+    Notification.requestPermission = async () => {
+      localStorage.setItem("fake-permission", "granted");
+      return "granted";
+    };
     PushManager.prototype.subscribe = async () => {
       localStorage.setItem("fake-push", "1");
       return fake() as any;
@@ -63,9 +71,8 @@ test("我的活动 offers push once; 不用了 keeps it away", async ({ page }) 
   await expect(offer).toBeHidden();
 });
 
-test("个人信息 turns push on and off for this browser", async ({ page, context }) => {
+test("个人信息 turns push on and off for this browser", async ({ page }) => {
   const sent = await member(page);
-  await context.grantPermissions(["notifications"]);
   await page.goto("/m/tok/profile");
   const card = page.locator(".card", { has: page.getByRole("heading", { name: "推送通知" }) });
   await card.getByRole("button", { name: "开启推送" }).click();
