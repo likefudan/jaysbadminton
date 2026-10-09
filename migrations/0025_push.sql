@@ -14,6 +14,8 @@ CREATE TABLE push_outbox (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   endpoint   TEXT NOT NULL,
   member_id  TEXT NOT NULL,      -- whose it is: not sent if the browser has moved to someone else
+  kind       TEXT NOT NULL,      -- event / bill / welcome: an event no longer open or a bill paid by
+  event_id   INTEGER,            -- the time it goes out is not sent
   payload    TEXT NOT NULL,      -- JSON: title, body, url, tag
   created_at TEXT NOT NULL,
   claimed_at TEXT,               -- set by whoever is sending it; free again after a few minutes

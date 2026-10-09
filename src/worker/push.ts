@@ -205,12 +205,18 @@ export function sendSoon<E extends { Bindings: Env }>(c: Context<E>, endpoint?: 
 
 /** Up to BATCHES batches: what one request or cron run sends. */
 export async function drainPushes(env: Env, endpoint?: string): Promise<void> {
-  for (let batch = 0; batch < BATCHES; batch++) if (!(await sendPushes(env, endpoint))) return;
+  await env.DB.prepare("DELETE FROM push_outbox WHERE created_at < ? OR attempts >= ?")
+    .bind(new Date(Date.now() - EXPIRE_MS).toISOString(), MAX_ATTEMPTS)
+    .run();
+  const keys = await vapidKeys(env);
+  for (let batch = 0; batch < BATCHES; batch++) if (!(await sendBatch(env, keys, endpoint))) return;
 }
 
 /** A push to one browser only (the one that just turned push on), so the member sees it works. */
 export async function pushWelcome(env: Env, memberId: string, endpoint: string, home: string): Promise<void> {
-  await env.DB.prepare("INSERT INTO push_outbox (endpoint, member_id, payload, created_at) VALUES (?, ?, ?, ?)")
+  await env.DB.prepare(
+    "INSERT INTO push_outbox (endpoint, member_id, kind, payload, created_at) VALUES (?, ?, 'welcome', ?, ?)",
+  )
     .bind(
       endpoint,
       memberId,
@@ -252,13 +258,11 @@ async function deliver(
     if (res.ok) return "sent";
     // The browser turned push off or the subscription expired.
     if (res.status === 404 || res.status === 410) return "gone";
-    const host = new URL(sub.endpoint).host;
-    console.warn(`push to ${host} failed: ${res.status} ${await res.text().catch(() => "")}`);
-    // 403: Google and Mozilla mean this subscription can't be used (made for another key); Apple
-    // says it about our signature, which no browser of theirs would accept either, so keep those.
-    if (res.status === 403) return host === "web.push.apple.com" ? "drop" : "gone";
-    // Rejected (bad payload): this one won't get through, but the browser stays subscribed.
-    if (res.status === 400 || res.status === 413) return "drop";
+    console.warn(`push to ${new URL(sub.endpoint).host} failed: ${res.status} ${await res.text().catch(() => "")}`);
+    // Rejected (bad payload, or our signature): this one won't get through, but the browser stays
+    // subscribed. (A subscription made for other keys can't happen: only a reset makes new keys,
+    // and it clears the subscriptions too.)
+    if (res.status === 400 || res.status === 403 || res.status === 413) return "drop";
     return "retry";
   } catch (err) {
     if (String(err).includes("Too many subrequests")) return "later";
@@ -273,11 +277,8 @@ async function deliver(
  * after a few minutes. Pushes older than a day are dropped (the browser would drop them anyway).
  */
 /** Whether there may be more to send right now (a full batch went out). */
-export async function sendPushes(env: Env, endpoint?: string): Promise<boolean> {
+async function sendBatch(env: Env, keys: VapidKeys, endpoint?: string): Promise<boolean> {
   const at = Date.now();
-  await env.DB.prepare("DELETE FROM push_outbox WHERE created_at < ? OR attempts >= ?")
-    .bind(new Date(at - EXPIRE_MS).toISOString(), MAX_ATTEMPTS)
-    .run();
   const { results } = await env.DB.prepare(
     `UPDATE push_outbox SET claimed_at = ?1, attempts = attempts + 1
      WHERE id IN (SELECT id FROM push_outbox WHERE (claimed_at IS NULL OR claimed_at < ?2)
@@ -288,12 +289,18 @@ export async function sendPushes(env: Env, endpoint?: string): Promise<boolean> 
     .all<{ id: number }>();
   if (results.length === 0) return false;
   const { results: rows } = await env.DB.prepare(
-    `SELECT o.id, o.payload, s.endpoint, s.p256dh, s.auth FROM push_outbox o
-     LEFT JOIN push_subscriptions s ON s.endpoint = o.endpoint AND s.member_id = o.member_id WHERE o.id IN (SELECT value FROM json_each(?))`,
+    `SELECT o.id, o.payload, s.endpoint, s.p256dh, s.auth,
+       CASE o.kind
+         WHEN 'event' THEN NOT COALESCE((SELECT status = 'open' AND deadline_at > ?2 FROM events WHERE id = o.event_id), 0)
+         WHEN 'bill' THEN NOT EXISTS (SELECT 1 FROM payments p WHERE p.event_id = o.event_id
+           AND p.member_id = o.member_id AND p.status != 'paid')
+         ELSE 0 END AS stale
+     FROM push_outbox o
+     LEFT JOIN push_subscriptions s ON s.endpoint = o.endpoint AND s.member_id = o.member_id
+     WHERE o.id IN (SELECT value FROM json_each(?1))`,
   )
-    .bind(JSON.stringify(results.map((r) => r.id)))
-    .all<{ id: number; payload: string; endpoint: string | null; p256dh: string; auth: string }>();
-  const keys = await vapidKeys(env);
+    .bind(JSON.stringify(results.map((r) => r.id)), new Date(at).toISOString())
+    .all<{ id: number; payload: string; endpoint: string | null; p256dh: string; auth: string; stale: number }>();
   // One signature per push service per run (CPU is tight on the free plan).
   const signed = new Map<string, Promise<string>>();
   const authFor = (endpoint: string) => {
@@ -304,8 +311,12 @@ export async function sendPushes(env: Env, endpoint?: string): Promise<boolean> 
   const outcomes = await Promise.all(
     rows.map(async (r) => ({
       r,
-      // Turned off (or moved to another member) since it was queued: nothing to send.
-      outcome: r.endpoint ? await deliver(authFor, { ...r, endpoint: r.endpoint }, r.payload) : ("drop" as Outcome),
+      // Turned off (or moved to another member) since it was queued, or no longer true (the event
+      // was cancelled or closed, the bill paid): nothing to send.
+      outcome:
+        r.endpoint && !r.stale
+          ? await deliver(authFor, { ...r, endpoint: r.endpoint }, r.payload)
+          : ("drop" as Outcome),
     })),
   );
   const ids = (...kinds: Outcome[]) =>
@@ -343,11 +354,11 @@ export async function pushNewEvent(env: Env, e: EventRow, creatorId: string | nu
       tag: `event-${e.id}`,
     };
     const res = await env.DB.prepare(
-      `INSERT INTO push_outbox (endpoint, member_id, payload, created_at)
-       SELECT s.endpoint, s.member_id, ?1, ?2 FROM push_subscriptions s JOIN members m ON m.id = s.member_id
+      `INSERT INTO push_outbox (endpoint, member_id, kind, event_id, payload, created_at)
+       SELECT s.endpoint, s.member_id, 'event', ?5, ?1, ?2 FROM push_subscriptions s JOIN members m ON m.id = s.member_id
        WHERE m.status = 'active' AND m.deleted_at IS NULL AND m.id IS NOT ?3 AND m.id IS NOT ?4`,
     )
-      .bind(JSON.stringify(msg), now(), creatorId, manager)
+      .bind(JSON.stringify(msg), now(), creatorId, manager, e.id)
       .run();
     return res.meta.changes > 0;
   } catch (err) {
@@ -373,8 +384,10 @@ export async function pushBills(env: Env, e: EventRow): Promise<boolean> {
     await env.DB.batch(
       results.map((r) =>
         env.DB.prepare(
-          "INSERT INTO push_outbox (endpoint, member_id, payload, created_at) SELECT endpoint, member_id, ?, ? FROM push_subscriptions WHERE member_id = ?",
+          `INSERT INTO push_outbox (endpoint, member_id, kind, event_id, payload, created_at)
+           SELECT endpoint, member_id, 'bill', ?, ?, ? FROM push_subscriptions WHERE member_id = ?`,
         ).bind(
+          e.id,
           JSON.stringify({
             title: "账单出来了",
             body: `${day(e)} 羽毛球：你需要付 $${dollars(r.owed)}，付给 ${payee}。点开查看明细和付款方式。`,

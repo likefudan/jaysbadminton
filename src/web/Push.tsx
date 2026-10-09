@@ -129,7 +129,7 @@ export function usePush(base: string, home: string, memberId: string) {
     return () => {
       alive = false;
     };
-  }, [base, memberId]);
+  }, [base, home, memberId]);
 
   const enable = () =>
     action.run(async () => {

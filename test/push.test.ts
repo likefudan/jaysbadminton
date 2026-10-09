@@ -2,7 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventRow } from "../src/worker/events";
-import { pushBills, sendPushes } from "../src/worker/push";
+import { pushBills, drainPushes } from "../src/worker/push";
 import worker from "../src/worker/index";
 import { ORIGIN, approveMember, billingScenario, futureDate, setUpAdmin } from "./helpers";
 
@@ -194,7 +194,7 @@ describe("turning push on", () => {
     expect(await subscriptions()).toEqual([{ endpoint: b.endpoint, member_id: bob.id }]);
     pushes = [];
     await env.DB.prepare("UPDATE push_outbox SET claimed_at = NULL").run();
-    await sendPushes(env);
+    await drainPushes(env);
     expect(pushes).toEqual([]);
     // Alice turning it off from her page doesn't touch Bob's.
     expect((await call(`${alice.base}/push/unsubscribe`, { endpoint: b.endpoint })).data.removed).toBe(false);
@@ -287,7 +287,7 @@ describe("what gets pushed", () => {
       .bind(s.bob.id)
       .run();
     await pushBills(env, (await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(s.e.id).first<EventRow>())!);
-    await sendPushes(env);
+    await drainPushes(env);
     expect(pushes.map((p) => p.endpoint)).toEqual([a.endpoint]);
   });
 
@@ -300,15 +300,15 @@ describe("what gets pushed", () => {
     await createEvent(ctx);
     expect(pushes).toHaveLength(1);
     // Claimed just now: the cron doesn't send it again until the claim is old.
-    await sendPushes(env);
+    await drainPushes(env);
     expect(pushes).toHaveLength(1);
     await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
-    await sendPushes(env);
+    await drainPushes(env);
     expect(pushes).toHaveLength(2);
     await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
-    await sendPushes(env);
+    await drainPushes(env);
     await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
-    await sendPushes(env);
+    await drainPushes(env);
     expect(pushes).toHaveLength(3);
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM push_outbox").first())?.n).toBe(0);
 
@@ -317,12 +317,37 @@ describe("what gets pushed", () => {
     expect(pushes).toHaveLength(4);
     expect(await subscriptions()).toEqual([]);
 
-    // 403 from Google: made for other keys, so no use keeping it.
+    // Turned away (403: our signature): not retried, still subscribed.
     await subscribe(alice.base, a);
     status = 403;
     await createEvent(ctx);
     expect(pushes).toHaveLength(5);
-    expect(await subscriptions()).toEqual([]);
+    await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
+    await drainPushes(env);
+    expect(pushes).toHaveLength(5);
+    expect(await subscriptions()).toHaveLength(1);
+  });
+
+  it("doesn't send what is no longer true: a cancelled event, a paid bill", async () => {
+    const s = await billingScenario();
+    const a = await browser("alice");
+    await subscribe(s.alice.base, a);
+    status = 500;
+    const e = await createEvent(s);
+    await call(`${s.eb}/finalize`, s.fees, s.admin.cookie);
+    expect(pushes).toHaveLength(2);
+    status = 201;
+    await call(`${s.base}/events/${e.id}/cancel`, {}, s.admin.cookie);
+    await env.DB.prepare(
+      "UPDATE payments SET amount_paid_cents = amount_due_cents, status = 'paid' WHERE member_id = ?",
+    )
+      .bind(s.alice.id)
+      .run();
+    await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
+    pushes = [];
+    await drainPushes(env);
+    expect(pushes).toEqual([]);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM push_outbox").first())?.n).toBe(0);
   });
 
   it("never fails the request when the push service is down", async () => {
