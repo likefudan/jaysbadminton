@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
 import { type AdminEnv, adminAccess } from "../access";
-import { can, memberRole } from "../organizers";
+import { can, memberRole, ownerId } from "../organizers";
 import {
   appointOrganizer,
   assertNotRunning,
@@ -23,6 +23,7 @@ import { adminEventRoutes } from "./adminEvents";
 import {
   type MemberRow,
   emailTaken,
+  forgetPush,
   issueMemberToken,
   memberLink,
   requireMember,
@@ -297,11 +298,12 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   // History stays; the link, the Google account and the name are released, so the person (or
   // someone else with that name) can apply again. The old record keeps the name with its ID
   // appended, e.g. "Alice（M004）", so rosters and rankings never mix the two up.
-  await c.env.DB.prepare(
-    "UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL, username = ? WHERE id = ?",
-  )
-    .bind(now(), deletedName(m), m.id)
-    .run();
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL, username = ? WHERE id = ?",
+    ).bind(now(), deletedName(m), m.id),
+    forgetPush(c.env.DB, m.id),
+  ]);
   return c.json({ ok: true });
 });
 
@@ -376,7 +378,12 @@ adminRoutes.post("/:token/settings/google/bind", async (c) => {
 });
 
 adminRoutes.post("/:token/settings/google/unbind", async (c) => {
-  await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE is_owner = 1").run();
+  const owner = await ownerId(c.env.DB);
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE is_owner = 1"),
+    // Whoever has that account may have turned push on with it.
+    ...(owner ? [forgetPush(c.env.DB, owner)] : []),
+  ]);
   return c.json({ ok: true });
 });
 
@@ -402,6 +409,8 @@ adminRoutes.post("/:token/settings/reset", async (c) => {
 const RESET_PHRASE = "清空所有数据";
 // Children first, so no foreign key is ever left dangling.
 const RESET_TABLES = [
+  "push_outbox",
+  "push_subscriptions",
   "event_audit",
   "payment_aliases",
   "payment_profiles",

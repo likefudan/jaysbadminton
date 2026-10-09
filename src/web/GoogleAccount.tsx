@@ -2,9 +2,12 @@ import { useLocation } from "preact-iso";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { api } from "./api";
 import { useApi } from "./hooks";
+import { stopPush } from "./Push";
 
-/** Ends the Google session (and a half-done link to a member page), then goes to 登录. */
+/** Ends the Google session (and a half-done link to a member page, and push), then goes to 登录. */
 export async function signOutGoogle(): Promise<void> {
+  // While still signed in, so the server knows whose browser it was.
+  await stopPush();
   try {
     await api("/api/auth/logout", {});
   } finally {

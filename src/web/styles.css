@@ -3092,3 +3092,12 @@ ul.audit li:first-child {
 .profile-switch:hover {
   background: var(--acc-soft);
 }
+
+/* 我的活动 → 开启推送 / 不用了, side by side. */
+.push-actions {
+  display: flex;
+  gap: 8px;
+}
+.push-actions .button {
+  flex: 1;
+}

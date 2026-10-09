@@ -159,12 +159,22 @@ export async function requireMember(env: Env, id: string): Promise<MemberRow> {
   return m;
 }
 
-/** Issues a fresh link token for a member; any previous link stops working. */
+/** 推送通知: none of the member's browsers get pushes any more (they can turn it on again). */
+export const forgetPush = (db: D1Database, memberId: string) =>
+  db.prepare("DELETE FROM push_subscriptions WHERE member_id = ?").bind(memberId);
+
+/** Issues a fresh link token for a member; any previous link stops working (and so does push). */
 export async function issueMemberToken(env: Env, id: string): Promise<string> {
   const token = randomToken();
-  await env.DB.prepare("UPDATE members SET token_hash = ?, token_enc = ? WHERE id = ?")
-    .bind(await sha256(token), await encryptToken(token, env.TOKEN_KEY), id)
-    .run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE members SET token_hash = ?, token_enc = ? WHERE id = ?").bind(
+      await sha256(token),
+      await encryptToken(token, env.TOKEN_KEY),
+      id,
+    ),
+    // Whoever had the old link may have turned push on with it.
+    forgetPush(env.DB, id),
+  ]);
   return token;
 }
 

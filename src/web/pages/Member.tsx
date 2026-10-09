@@ -20,6 +20,7 @@ import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
 import { EventActions } from "../ShareCard";
 import { MyStatsCard } from "../Stats";
+import { PushCard, PushPrompt } from "../Push";
 import { GoogleLink } from "./Account";
 
 /** On your own page a settled event shows where your bill stands, not the group's. */
@@ -42,6 +43,7 @@ export function Member(props: { token?: string }) {
         >
           <MemberNav token={props.token} admin={m.canAdmin} current="events" />
           {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
+          {m.active && <PushPrompt base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />}
           <MyEvents base={base} />
         </Page>
       )}
@@ -88,6 +90,7 @@ export function MemberProfilePage(props: { token?: string }) {
           <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
           <MyStatsCard base={base} />
           <MyProfile base={base} />
+          <PushCard base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />
           <Rename base={base} current={m.username} onDone={reload} />
           {props.token && <GoogleLink token={props.token} />}
         </Page>
