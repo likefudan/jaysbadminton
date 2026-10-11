@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { api } from "./api";
 import { Card, useAction } from "./components";
+import { isIos, standalone } from "./Install";
 
 /**
  * 推送通知: a new event opening for sign-up and their own bill, sent to this browser (sw.js shows
@@ -8,11 +9,6 @@ import { Card, useAction } from "./components";
  */
 type PushState = "loading" | "unsupported" | "ios-install" | "denied" | "off" | "other" | "on";
 
-const isIos = () =>
-  /iPhone|iPad|iPod/.test(navigator.userAgent) ||
-  (navigator.userAgent.includes("Macintosh") && navigator.maxTouchPoints > 1);
-const standalone = () =>
-  window.matchMedia?.("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone;
 const supported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 
 function keyBytes(b64url: string): Uint8Array<ArrayBuffer> {
@@ -191,7 +187,7 @@ export function PushCard(props: { base: string; home: string; memberId: string }
       {push.state === "ios-install" && (
         <p class="hint">
           {
-            "iPhone / iPad 需要先把网站添加到主屏幕：在 Safari 里点「分享」→「添加到主屏幕」，然后从主屏幕的图标打开，再回到这里开启。"
+            "iPhone / iPad 需要先把网站添加到主屏幕（见上面的「添加到主屏幕」），然后从主屏幕的图标打开，再回到这里开启。"
           }
         </p>
       )}

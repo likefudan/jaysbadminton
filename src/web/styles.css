@@ -3101,3 +3101,59 @@ ul.audit li:first-child {
 .push-actions .button {
   flex: 1;
 }
+
+/* 我的活动 → 把羽毛球添加到主屏幕: stands out from the event cards. */
+.install-offer {
+  border-color: var(--acc);
+  background: var(--acc-soft);
+}
+.install-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.install-head img {
+  flex: none;
+  border-radius: 12px;
+}
+.install-head strong {
+  font-size: 16px;
+}
+.install-head p {
+  margin: 4px 0 0;
+}
+.install-steps {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+.install-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  counter-increment: step;
+}
+.install-steps li:first-child {
+  border-top: 0;
+}
+.install-steps li::before {
+  content: counter(step);
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 22px;
+  text-align: center;
+}
+.install-steps svg {
+  flex: none;
+  color: var(--acc-ink);
+}
