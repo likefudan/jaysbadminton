@@ -5,17 +5,22 @@ import { AppearanceButton, AppearanceSheet } from "./Appearance";
 import { useSiteTitle, useStaging } from "./site";
 import { DeveloperSwitch } from "./DeveloperTools";
 import { GoogleAccount } from "./GoogleAccount";
+import { useLocation } from "preact-iso";
+import { t, tm } from "./i18n";
+import { LangSwitch } from "./LangSwitch";
 
 export function Page(props: { title: string; eyebrow?: string; subtitle?: string; children: ComponentChildren }) {
   const site = useSiteTitle();
   const staging = useStaging();
   const [looks, setLooks] = useState(false);
+  const { path } = useLocation();
+  const admin = path === "/admin" || path.startsWith("/admin/");
   useEffect(() => {
     document.title = props.title === site ? site : `${props.title} · ${site}`;
   }, [props.title, site]);
   return (
     <div class="page">
-      {staging && <div class="env-banner">测试环境 · 数据和正式网站分开，请不要转发这里的链接</div>}
+      {staging && <div class="env-banner">{t("测试环境 · 数据和正式网站分开，请不要转发这里的链接")}</div>}
       <header class="topbar">
         <a href="/" class="brand">
           <span class={staging ? "logo logo-staging" : "logo"}>
@@ -25,6 +30,7 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
         </a>
         <div class="topbar-actions">
           <GoogleAccount />
+          {!admin && <LangSwitch />}
           <AppearanceButton onClick={() => setLooks(true)} />
         </div>
       </header>
@@ -39,9 +45,9 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
       </main>
       {staging && <DeveloperSwitch />}
       <footer class="legal-links">
-        <a href="/privacy">隐私政策</a>
+        <a href="/privacy">{t("隐私政策")}</a>
         <span aria-hidden="true">·</span>
-        <a href="/terms">使用条款</a>
+        <a href="/terms">{t("使用条款")}</a>
       </footer>
     </div>
   );
@@ -131,8 +137,8 @@ export function Empty(props: { children: ComponentChildren }) {
 
 export function Load<T>(props: { result: Loaded<T>; children: (data: T) => ComponentChildren }) {
   const r = props.result;
-  if (r.state === "loading") return <p class="muted">加载中…</p>;
-  if (r.state === "error") return <p class="error">{r.message}</p>;
+  if (r.state === "loading") return <p class="muted">{t("加载中…")}</p>;
+  if (r.state === "error") return <p class="error">{tm(r.message)}</p>;
   return <>{props.children(r.data)}</>;
 }
 
@@ -175,7 +181,7 @@ export function useAction() {
       setBusy(false);
     }
   }
-  return { busy, error, run, setError };
+  return { busy, error: tm(error), run, setError };
 }
 
 async function copyText(text: string): Promise<boolean> {
@@ -207,7 +213,7 @@ export function CopyButton(props: { text: string; label?: string }) {
         }
       }}
     >
-      {done ? "已复制" : (props.label ?? "复制")}
+      {done ? t("已复制") : (props.label ?? t("复制"))}
     </button>
   );
 }
@@ -225,10 +231,10 @@ export function LinkCard(props: { title: string; link: string; note?: string }) 
     <div class="linkcard">
       <strong>{props.title}</strong>
       {props.note && <p class="muted">{props.note}</p>}
-      {qr && <img class="qr" src={qr} alt="二维码" />}
-      <p class="muted small">长按二维码可保存图片</p>
+      {qr && <img class="qr" src={qr} alt={t("二维码")} />}
+      <p class="muted small">{t("长按二维码可保存图片")}</p>
       <code class="link">{props.link}</code>
-      <CopyButton text={props.link} label="复制链接" />
+      <CopyButton text={props.link} label={t("复制链接")} />
     </div>
   );
 }

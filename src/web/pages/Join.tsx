@@ -3,6 +3,7 @@ import { checkEmail, checkMessage, checkNickname, checkUsername } from "../../sh
 import { api } from "../api";
 import { ApplicationFields } from "../ApplicationFields";
 import { Card, Field, Page, useAction } from "../components";
+import { t, tx } from "../i18n";
 
 /** 用邮箱注册: the same application as with Google, plus an email (typed twice) for the link. */
 export function Join() {
@@ -21,7 +22,7 @@ export function Join() {
       checkUsername(username) ??
       checkNickname(nickname) ??
       checkEmail(email) ??
-      (email.trim().toLowerCase() !== emailConfirm.trim().toLowerCase() ? "两次输入的邮箱不一致" : null) ??
+      (email.trim().toLowerCase() !== emailConfirm.trim().toLowerCase() ? t("两次输入的邮箱不一致") : null) ??
       checkMessage(message);
     if (err) return setError(err);
     const ok = await run(() =>
@@ -32,24 +33,26 @@ export function Join() {
 
   if (done) {
     return (
-      <Page title="申请已提交">
+      <Page title={t("申请已提交")}>
         <Card>
           <p>
-            群主审核通过后，你的专属链接会发到 <strong>{email.trim()}</strong>。以后报名、查看账单都用这个链接。
+            {tx("群主审核通过后，你的专属链接会发到 {email}。以后报名、查看账单都用这个链接。", {
+              email: <strong>{email.trim()}</strong>,
+            })}
           </p>
           <p class="muted small">
-            没收到的话，请看一下垃圾邮件文件夹；也可以在「登录 / 注册」页点「找回我的专属链接」。
+            {t("没收到的话，请看一下垃圾邮件文件夹；也可以在「登录 / 注册」页点「找回我的专属链接」。")}
           </p>
         </Card>
         <a class="button secondary block" href="/">
-          回到首页
+          {t("回到首页")}
         </a>
       </Page>
     );
   }
 
   return (
-    <Page title="用邮箱注册" subtitle="审核通过后，专属链接会发到你的邮箱。">
+    <Page title={t("用邮箱注册")} subtitle={t("审核通过后，专属链接会发到你的邮箱。")}>
       <Card>
         <form onSubmit={submit} noValidate>
           <ApplicationFields
@@ -61,14 +64,20 @@ export function Join() {
             setMessage={setMessage}
           />
           <Field
-            label="邮箱"
+            label={t("邮箱")}
             type="email"
             value={email}
             onInput={setEmail}
             autocomplete="email"
-            hint="专属链接会发到这个邮箱"
+            hint={t("专属链接会发到这个邮箱")}
           />
-          <Field label="再输一次邮箱" type="email" value={emailConfirm} onInput={setEmailConfirm} autocomplete="off" />
+          <Field
+            label={t("再输一次邮箱")}
+            type="email"
+            value={emailConfirm}
+            onInput={setEmailConfirm}
+            autocomplete="off"
+          />
           <input
             class="hp"
             tabIndex={-1}
@@ -79,12 +88,12 @@ export function Join() {
           />
           {error && <p class="error">{error}</p>}
           <button type="submit" class="button block" disabled={busy}>
-            {busy ? "提交中…" : "提交申请"}
+            {busy ? t("提交中…") : t("提交申请")}
           </button>
         </form>
       </Card>
       <a class="button secondary block" href="/login">
-        返回
+        {t("返回")}
       </a>
     </Page>
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { api } from "./api";
 import { Card, useAction } from "./components";
 import { isIos, standalone } from "./Install";
+import { t } from "./i18n";
 
 /**
  * 推送通知: a new event opening for sign-up and their own bill, sent to this browser (sw.js shows
@@ -151,7 +152,7 @@ export function usePush(base: string, home: string, memberId: string) {
       sub ??= await reg.pushManager
         .subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) })
         .catch(() => {
-          throw new Error("这个浏览器没能开启推送，请换个浏览器再试");
+          throw new Error(t("这个浏览器没能开启推送，请换个浏览器再试"));
         });
       try {
         await api(`${base}/push/subscribe`, { ...sub.toJSON(), welcome: true });
@@ -182,34 +183,34 @@ export function PushCard(props: { base: string; home: string; memberId: string }
   const push = usePush(props.base, props.home, props.memberId);
   if (push.state === "loading") return null;
   return (
-    <Card title="推送通知">
-      <p>有新活动开始报名、或者你的账单出来时，在这台设备上通知你。</p>
+    <Card title={t("推送通知")}>
+      <p>{t("有新活动开始报名、或者你的账单出来时，在这台设备上通知你。")}</p>
       {push.state === "ios-install" && (
         <p class="hint">
-          {
-            "iPhone / iPad 需要先把网站添加到主屏幕（见上面的「添加到主屏幕」），然后从主屏幕的图标打开，再回到这里开启。"
-          }
+          {t(
+            "iPhone / iPad 需要先把网站添加到主屏幕（见上面的「添加到主屏幕」），然后从主屏幕的图标打开，再回到这里开启。",
+          )}
         </p>
       )}
       {push.state === "unsupported" && (
-        <p class="hint">这个浏览器不支持推送通知（比如微信里打开的网页）。请用 Chrome、Safari 或 Edge 打开。</p>
+        <p class="hint">{t("这个浏览器不支持推送通知（比如微信里打开的网页）。请用 Chrome、Safari 或 Edge 打开。")}</p>
       )}
       {push.state === "denied" && (
-        <p class="hint">你之前拒绝了这个网站的通知。请在浏览器的网站设置里允许通知，然后刷新页面。</p>
+        <p class="hint">{t("你之前拒绝了这个网站的通知。请在浏览器的网站设置里允许通知，然后刷新页面。")}</p>
       )}
       {push.state === "other" && (
-        <p class="hint">这台设备的推送可能是别的成员开启的。改成推送给你以后，对方在这台设备上就收不到了。</p>
+        <p class="hint">{t("这台设备的推送可能是别的成员开启的。改成推送给你以后，对方在这台设备上就收不到了。")}</p>
       )}
       {(push.state === "off" || push.state === "other") && (
         <button type="button" class="button block" disabled={push.busy} onClick={push.enable}>
-          {push.busy ? "开启中…" : push.state === "other" ? "改为推送给我" : "开启推送"}
+          {push.busy ? t("开启中…") : push.state === "other" ? t("改为推送给我") : t("开启推送")}
         </button>
       )}
       {push.state === "on" && (
         <>
-          <p class="muted small">这台设备已开启推送。其他设备需要分别开启。</p>
+          <p class="muted small">{t("这台设备已开启推送。其他设备需要分别开启。")}</p>
           <button type="button" class="button secondary block" disabled={push.busy} onClick={push.disable}>
-            关闭推送
+            {t("关闭推送")}
           </button>
         </>
       )}
@@ -241,13 +242,13 @@ export function PushPrompt(props: { base: string; home: string; memberId: string
   }
   return (
     <Card>
-      <p>开启推送，新活动开始报名、账单出来时第一时间知道。</p>
+      <p>{t("开启推送，新活动开始报名、账单出来时第一时间知道。")}</p>
       <div class="push-actions">
         <button type="button" class="button" disabled={push.busy} onClick={push.enable}>
-          {push.busy ? "开启中…" : "开启推送"}
+          {push.busy ? t("开启中…") : t("开启推送")}
         </button>
         <button type="button" class="button secondary" onClick={dismiss}>
-          不用了
+          {t("不用了")}
         </button>
       </div>
       {push.error && <p class="error">{push.error}</p>}

@@ -1,5 +1,5 @@
 import type { MyEventResponse, PublicEvent } from "../../shared/types";
-import { formatDateZh } from "../../shared/time";
+import { fmtDate, t } from "../i18n";
 import { Card, Load, Page } from "../components";
 import { EventInfo } from "../events";
 import { useApi, useMemberSession } from "../hooks";
@@ -16,7 +16,7 @@ export function EventPage(props: { code?: string }) {
   return (
     <Load result={ev}>
       {(e) => (
-        <Page title={e.title || formatDateZh(e.date, false)} eyebrow={`${e.date.slice(0, 4)} · 羽毛球活动`}>
+        <Page title={e.title || fmtDate(e.date, false)} eyebrow={`${e.date.slice(0, 4)} · ${t("羽毛球活动")}`}>
           {member === "member" ? (
             <MemberView e={e} />
           ) : (
@@ -26,16 +26,16 @@ export function EventPage(props: { code?: string }) {
                 <EventActions e={e} />
               </Card>
               {(member === "none" || member === "loading") && (
-                <p class="muted small">登录后即可报名；新朋友请先注册入群。</p>
+                <p class="muted small">{t("登录后即可报名；新朋友请先注册入群。")}</p>
               )}
-              {member === "pending" && <p class="muted small">你的入群申请正在等待群主审核，通过后就能报名。</p>}
+              {member === "pending" && <p class="muted small">{t("你的入群申请正在等待群主审核，通过后就能报名。")}</p>}
             </>
           )}
           <a class="button block" href="/me">
-            {member === "member" || member === "pending" ? "我的活动" : "登录 / 注册"}
+            {member === "member" || member === "pending" ? t("我的活动") : t("登录 / 注册")}
           </a>
           <a class="button secondary block" href="/">
-            所有活动
+            {t("所有活动")}
           </a>
         </Page>
       )}

@@ -1,6 +1,6 @@
 import type { EventStatus, EventSummary } from "../shared/types";
 import { STATUS_ZH } from "../shared/types";
-import { formatDateZh, formatInstantZh } from "../shared/time";
+import { fmtDate, fmtInstant, t, tx, weekday as weekdayName } from "./i18n";
 
 /** Apple Maps on iPhone, Google Maps elsewhere. */
 export function mapLink(address: string): string {
@@ -15,20 +15,18 @@ export function mapLink(address: string): string {
  * (finalized and settled events read as 已截止 or show no badge at all once in the past).
  */
 function publicStatus(s: EventStatus): { cls: string; label: string } | null {
-  if (s === "open") return { cls: "open", label: "报名中" };
-  if (s === "closed" || s === "finalized") return { cls: "closed", label: "已截止" };
-  if (s === "cancelled") return { cls: "cancelled", label: "已取消" };
+  if (s === "open") return { cls: "open", label: t("报名中") };
+  if (s === "closed" || s === "finalized") return { cls: "closed", label: t("已截止") };
+  if (s === "cancelled") return { cls: "cancelled", label: t("已取消") };
   return null;
 }
-
-const WEEKDAY_ZH = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
 /** The calendar block on the left of an event: year, month/day, weekday. */
 export function DateTile(props: { date: string }) {
   const [y, m, d] = props.date.split("-").map(Number) as [number, number, number];
-  const weekday = WEEKDAY_ZH[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()];
+  const weekday = weekdayName(new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay());
   return (
-    <div class="date-tile" role="img" aria-label={formatDateZh(props.date)}>
+    <div class="date-tile" role="img" aria-label={fmtDate(props.date)}>
       <span class="dt-year">{y}</span>
       <span class="dt-day">
         {m}/{d}
@@ -58,7 +56,7 @@ export function EventInfo(props: {
 }) {
   const e = props.e;
   const badge =
-    props.status ?? (props.publicView ? publicStatus(e.status) : { cls: e.status, label: STATUS_ZH[e.status] });
+    props.status ?? (props.publicView ? publicStatus(e.status) : { cls: e.status, label: t(STATUS_ZH[e.status]) });
   return (
     <div class="event-info">
       <DateTile date={e.date} />
@@ -76,12 +74,10 @@ export function EventInfo(props: {
             </a>
           ))}
         {props.runBy && <div class="ev-meta">{props.runBy}</div>}
-        {e.status === "open" && <div class="ev-meta">报名截止 {formatInstantZh(e.deadlineAt)}</div>}
+        {e.status === "open" && <div class="ev-meta">{t("报名截止 {time}", { time: fmtInstant(e.deadlineAt) })}</div>}
         <div class="ev-foot">
           {props.showStatus !== false && badge ? <StatusPill cls={badge.cls} label={badge.label} /> : <span />}
-          <span class="count">
-            <b>{e.headcount}</b> 人已报名
-          </span>
+          <span class="count">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</span>
         </div>
       </div>
     </div>

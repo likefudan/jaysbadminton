@@ -4,6 +4,7 @@ import { eventCardText, type CardText } from "../shared/shareCard";
 import type { EventSummary } from "../shared/types";
 import { CalendarButtons, canAddToCalendar } from "./Calendar";
 import { useSiteTitle } from "./site";
+import { fmtDate, t } from "./i18n";
 
 const W = 1080;
 const H = 1560;
@@ -208,7 +209,7 @@ export function ShareCardButton(props: { text: CardText; filename: string }) {
   return (
     <>
       <button class="button secondary block" type="button" onClick={() => setOpen(true)}>
-        生成分享名片
+        {t("生成分享名片")}
       </button>
       {open && <ShareCardSheet {...props} onClose={() => setOpen(false)} />}
     </>
@@ -232,12 +233,12 @@ export function EventActions(props: { e: EventSummary; calendar?: boolean }) {
       {calendar && <CalendarButtons e={e} />}
       {share && (
         <button class="calendar-link" type="button" onClick={() => setOpen(true)}>
-          分享名片
+          {t("分享名片")}
         </button>
       )}
       {open && (
         <ShareCardSheet
-          text={eventCardText(location.origin, e)}
+          text={eventCardText(location.origin, e, t, (d) => fmtDate(d, false))}
           filename={`event-${e.code}.png`}
           onClose={() => setOpen(false)}
         />
@@ -267,21 +268,21 @@ function ShareCardSheet(props: { text: CardText; filename: string; onClose: () =
     // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
     // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
     <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet" role="dialog" aria-label="分享名片">
+      <div class="sheet" role="dialog" aria-label={t("分享名片")}>
         <div class="sheet-head">
-          <strong>分享名片</strong>
-          <button type="button" class="sheet-close" aria-label="关闭" onClick={props.onClose}>
+          <strong>{t("分享名片")}</strong>
+          <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
             ✕
           </button>
         </div>
-        {failed && <p class="muted">名片生成失败，请刷新后再试。</p>}
-        {!failed && !png && <p class="muted">正在生成…</p>}
+        {failed && <p class="muted">{t("名片生成失败，请刷新后再试。")}</p>}
+        {!failed && !png && <p class="muted">{t("正在生成…")}</p>}
         {png && (
           <>
-            <img class="sharecard" src={png} alt="分享名片" />
-            <p class="muted small center">手机上长按图片即可保存或转发</p>
+            <img class="sharecard" src={png} alt={t("分享名片")} />
+            <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>
             <a class="button block" href={png} download={props.filename}>
-              下载图片
+              {t("下载图片")}
             </a>
           </>
         )}
