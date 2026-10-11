@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { createPortal } from "preact/compat";
 import { Card } from "./components";
+import { t } from "./i18n";
 
 /**
  * 添加到主屏幕: the site as an app on the phone's home screen, opening straight onto the member's
@@ -129,16 +130,16 @@ export function InstallPrompt(props: { onShown?: (shown: boolean) => void }) {
           <div class="install-head">
             <img src="/icon-192.png" alt="" width={48} height={48} />
             <div>
-              <strong>把羽毛球添加到主屏幕</strong>
+              <strong>{t("把羽毛球添加到主屏幕")}</strong>
               <p class="muted small">{blurb(install.kind)}</p>
             </div>
           </div>
           <div class="push-actions">
             <button type="button" class="button" onClick={install.add}>
-              {install.kind === "wechat" ? "怎么打开" : "添加到主屏幕"}
+              {install.kind === "wechat" ? t("怎么打开") : t("添加到主屏幕")}
             </button>
             <button type="button" class="button secondary" onClick={dismiss}>
-              不用了
+              {t("不用了")}
             </button>
           </div>
         </Card>
@@ -149,9 +150,9 @@ export function InstallPrompt(props: { onShown?: (shown: boolean) => void }) {
 }
 
 function blurb(k: InstallKind) {
-  if (k === "wechat") return "微信里不能添加。用浏览器打开这一页，就可以添加到主屏幕了。";
-  if (k === "ios") return "像 App 一样一点就打开你的页面。iPhone 添加以后才能收到推送通知。";
-  return "像 App 一样一点就打开你的页面，不用再找链接。";
+  if (k === "wechat") return t("微信里不能添加。用浏览器打开这一页，就可以添加到主屏幕了。");
+  if (k === "ios") return t("像 App 一样一点就打开你的页面。iPhone 添加以后才能收到推送通知。");
+  return t("像 App 一样一点就打开你的页面，不用再找链接。");
 }
 
 /** 个人信息: the same, kept here for good (also after 不用了 on 我的活动). */
@@ -162,15 +163,15 @@ export function InstallCard(props: { home: string }) {
   // there to add it; Chrome's one-tap prompt can only run on the tap itself, so it stays here.
   const viaHome = install.kind === "ios";
   return (
-    <Card title="添加到主屏幕">
+    <Card title={t("添加到主屏幕")}>
       <p>{blurb(install.kind)}</p>
       {viaHome ? (
         <a class="button block" href={`${props.home}?${ADD_PARAM}=1`}>
-          添加到主屏幕
+          {t("添加到主屏幕")}
         </a>
       ) : (
         <button type="button" class="button block" onClick={install.add}>
-          {install.kind === "wechat" ? "怎么打开" : "添加到主屏幕"}
+          {install.kind === "wechat" ? t("怎么打开") : t("添加到主屏幕")}
         </button>
       )}
       {install.guide && <InstallGuide kind={install.kind} onClose={install.closeGuide} />}
@@ -229,10 +230,10 @@ function InstallGuide(props: { kind: InstallKind; onClose: () => void }) {
     // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
     // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
     <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet" role="dialog" aria-label={wechat ? "用浏览器打开" : "添加到主屏幕"}>
+      <div class="sheet" role="dialog" aria-label={wechat ? t("用浏览器打开") : t("添加到主屏幕")}>
         <div class="sheet-head">
-          <strong>{wechat ? "用浏览器打开" : "添加到主屏幕"}</strong>
-          <button type="button" class="sheet-close" aria-label="关闭" onClick={props.onClose}>
+          <strong>{wechat ? t("用浏览器打开") : t("添加到主屏幕")}</strong>
+          <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
             ✕
           </button>
         </div>
@@ -240,34 +241,36 @@ function InstallGuide(props: { kind: InstallKind; onClose: () => void }) {
           <ol class="install-steps">
             <li>
               <MoreIcon />
-              <span>点微信右上角的「⋯」</span>
+              <span>{t("点微信右上角的「⋯」")}</span>
             </li>
             <li>
               <ShareIcon />
-              <span>{isIos() ? "选「在 Safari 中打开」" : "选「在浏览器打开」"}</span>
+              <span>{isIos() ? t("选「在 Safari 中打开」") : t("选「在浏览器打开」")}</span>
             </li>
             <li>
               <AddIcon />
-              <span>在浏览器里回到这一页，点「添加到主屏幕」</span>
+              <span>{t("在浏览器里回到这一页，点「添加到主屏幕」")}</span>
             </li>
           </ol>
         ) : (
           <ol class="install-steps">
             <li>
               <ShareIcon />
-              <span>点 Safari 的「分享」按钮（新版 Safari 先点右下角的「⋯」）</span>
+              <span>{t("点 Safari 的「分享」按钮（新版 Safari 先点右下角的「⋯」）")}</span>
             </li>
             <li>
               <AddIcon />
-              <span>往下滑，选「添加到主屏幕」</span>
+              <span>{t("往下滑，选「添加到主屏幕」")}</span>
             </li>
             <li>
               <CheckIcon />
-              <span>打开「作为 Web App 打开」（如果有这个开关），点右上角的「添加」</span>
+              <span>{t("打开「作为 Web App 打开」（如果有这个开关），点右上角的「添加」")}</span>
             </li>
           </ol>
         )}
-        {!wechat && <p class="muted small sheet-note">添加以后，从主屏幕的「羽毛球」图标打开，就直接到你的页面。</p>}
+        {!wechat && (
+          <p class="muted small sheet-note">{t("添加以后，从主屏幕的「羽毛球」图标打开，就直接到你的页面。")}</p>
+        )}
       </div>
     </div>,
     document.body,

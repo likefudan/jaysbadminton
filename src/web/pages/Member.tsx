@@ -1,7 +1,6 @@
 import { useState } from "preact/hooks";
 import { checkUsername } from "../../shared/rules";
 import { dollars } from "../../shared/settle";
-import { formatDateZh } from "../../shared/time";
 import type {
   MeResponse,
   MemberProfile,
@@ -23,12 +22,13 @@ import { MyStatsCard } from "../Stats";
 import { InstallCard, InstallPrompt } from "../Install";
 import { PushCard, PushPrompt } from "../Push";
 import { GoogleLink } from "./Account";
+import { fmtDate, t, tk } from "../i18n";
 
 /** On your own page a settled event shows where your bill stands, not the group's. */
 const BILL_STATUS: Record<PaymentStatus, { cls: string; label: string }> = {
-  unpaid: { cls: "finalized", label: "待付款" },
-  partial: { cls: "finalized", label: "部分付款" },
-  paid: { cls: "settled", label: "已付清" },
+  unpaid: { cls: "finalized", label: tk("待付款") },
+  partial: { cls: "finalized", label: tk("部分付款") },
+  paid: { cls: "settled", label: tk("已付清") },
 };
 
 /** 我的活动: the events they signed up for (newest first), the ones still open to join, and 历史活动. */
@@ -41,11 +41,13 @@ export function Member(props: { token?: string }) {
     <Load result={me}>
       {(m) => (
         <Page
-          title={`你好，${m.username}`}
-          subtitle={props.token ? "请不要把这个链接转发给别人。" : "你的报名、活动和账单。"}
+          title={t("你好，{name}", { name: m.username })}
+          subtitle={props.token ? t("请不要把这个链接转发给别人。") : t("你的报名、活动和账单。")}
         >
           <MemberNav token={props.token} admin={m.canAdmin} current="events" />
-          {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
+          {!m.active && (
+            <p class="hint">{t("你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。")}</p>
+          )}
           <InstallPrompt onShown={setInstallShown} />
           {m.active && !installShown && (
             <PushPrompt base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />
@@ -73,14 +75,14 @@ function MemberNav(props: { token?: string; admin: boolean; current: "events" | 
     </a>
   );
   return (
-    <nav class="page-links" aria-label="我的页面">
+    <nav class="page-links" aria-label={t("我的页面")}>
       {!props.token && props.admin && (
         <a class="button secondary" href="/admin/google">
-          管理页
+          {t("管理页")}
         </a>
       )}
-      {link("events", home, "我的活动")}
-      {link("profile", `${home}/profile`, "个人信息")}
+      {link("events", home, t("我的活动"))}
+      {link("profile", `${home}/profile`, t("个人信息"))}
     </nav>
   );
 }
@@ -92,7 +94,7 @@ export function MemberProfilePage(props: { token?: string }) {
   return (
     <Load result={me}>
       {(m) => (
-        <Page title="个人信息" subtitle="你的统计、资料和账号设置。">
+        <Page title={t("个人信息")} subtitle={t("你的统计、资料和账号设置。")}>
           <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
           <MyStatsCard base={base} />
           <MyProfile base={base} />
@@ -120,7 +122,7 @@ function Rename(props: { base: string; current: string; onDone: () => void }) {
   if (!open) {
     return (
       <button type="button" class="button secondary block" onClick={() => setOpen(true)}>
-        修改用户名
+        {t("修改用户名")}
       </button>
     );
   }
@@ -134,15 +136,15 @@ function Rename(props: { base: string; current: string; onDone: () => void }) {
     }
   }
   return (
-    <Card title="修改用户名">
+    <Card title={t("修改用户名")}>
       <form onSubmit={save}>
-        <Field label="新用户名" value={name} onInput={setName} />
+        <Field label={t("新用户名")} value={name} onInput={setName} />
         {error && <p class="error">{error}</p>}
         <button type="submit" class="button block" disabled={busy}>
-          保存
+          {t("保存")}
         </button>
         <button class="button secondary block" type="button" onClick={() => setOpen(false)}>
-          取消
+          {t("取消")}
         </button>
       </form>
     </Card>
@@ -158,10 +160,10 @@ function MyEvents(props: { base: string }) {
         const open = r.events.filter((e) => e.myFriends === null && !e.payment);
         return (
           <>
-            <SectionTitle>我报名的活动</SectionTitle>
+            <SectionTitle>{t("我报名的活动")}</SectionTitle>
             {mine.length === 0 && (
               <Card>
-                <Empty>{r.history.length > 0 ? "最近没有报名的活动" : "还没有报名过活动"}</Empty>
+                <Empty>{r.history.length > 0 ? t("最近没有报名的活动") : t("还没有报名过活动")}</Empty>
               </Card>
             )}
             {mine.map((e) => (
@@ -169,7 +171,7 @@ function MyEvents(props: { base: string }) {
             ))}
             {open.length > 0 && (
               <>
-                <SectionTitle>可以报名</SectionTitle>
+                <SectionTitle>{t("可以报名")}</SectionTitle>
                 {open.map((e) => (
                   <SignupCard key={e.id} base={props.base} e={e} onChange={reload} />
                 ))}
@@ -189,16 +191,16 @@ function History(props: { list: MyHistoryEvent[] }) {
   return (
     <Card>
       <details class="fold history">
-        <summary>历史活动（{props.list.length}）</summary>
+        <summary>{t("历史活动（{n}）", { n: props.list.length })}</summary>
         <ul class="history-list">
           {props.list.map((h) => (
             <li key={h.id}>
               <a href={`/e/${h.code}`}>
-                <span class="history-when">{formatDateZh(h.date, !h.date.startsWith(thisYear))}</span>
+                <span class="history-when">{fmtDate(h.date, !h.date.startsWith(thisYear))}</span>
                 <span class="history-what">
                   {h.title || h.location}
-                  {h.friends > 0 && <small> · 带 {h.friends} 人</small>}
-                  {!h.attended && <small class="history-absent"> · 缺席</small>}
+                  {h.friends > 0 && <small> · {t("带 {n} 人", { n: h.friends })}</small>}
+                  {!h.attended && <small class="history-absent"> · {t("缺席")}</small>}
                 </span>
                 <span class="history-amount">{h.amountCents === null ? "—" : `$${dollars(h.amountCents)}`}</span>
               </a>
@@ -219,7 +221,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   // Who runs it, by name: the organizer on theirs, the Owner on the rest (names, not 群主).
   const runner = e.managerName;
   // Friends added for them come from the admin page: the organizer's, or the Owner's on any event.
-  const adder = e.managerName === e.ownerName ? e.ownerName : `${e.managerName} 或 ${e.ownerName}`;
+  const adder = e.managerName === e.ownerName ? e.ownerName : t("{a} 或 {b}", { a: e.managerName, b: e.ownerName });
   // Whoever runs it may hang friends under a member who isn't coming: they are on the bill, not the list.
   const friendsOnly = !signedUp && (e.myFriends?.length ?? 0) > 0;
 
@@ -233,10 +235,10 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
     // Friends hung under them go too, the ones added for them from the admin page included (Ke Li's call).
     const n = e.myFriends?.length ?? 0;
     const question = friendsOnly
-      ? `把名下的 ${n} 个朋友从名单上去掉？`
+      ? t("把名下的 {n} 个朋友从名单上去掉？", { n })
       : n
-        ? `取消你自己和名下 ${n} 个朋友的报名？`
-        : "确定取消报名吗？";
+        ? t("取消你自己和名下 {n} 个朋友的报名？", { n })
+        : t("确定取消报名吗？");
     if (!confirm(question)) return;
     if (await run(() => api(`${props.base}/events/${e.id}/cancel`, {}))) props.onChange();
   }
@@ -245,24 +247,33 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
     <Card>
       <EventInfo
         e={e}
-        status={e.payment ? BILL_STATUS[e.payment.status] : undefined}
-        runBy={e.organizer ? `组织：${e.organizer}` : undefined}
+        status={
+          e.payment ? { ...BILL_STATUS[e.payment.status], label: t(BILL_STATUS[e.payment.status].label) } : undefined
+        }
+        runBy={e.organizer ? t("组织：{name}", { name: e.organizer }) : undefined}
       />
       {e.roster && e.roster.length > 0 && (
         <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
       )}
       {signedUp && !editing && !e.payment && (
-        <p class="ok">✓ 已报名{e.myFriends!.length > 0 && `，带 ${e.myFriends!.length} 个朋友`}</p>
+        <p class="ok">
+          ✓ {e.myFriends!.length > 0 ? t("已报名，带 {n} 个朋友", { n: e.myFriends!.length }) : t("已报名")}
+        </p>
       )}
       {friendsOnly && !editing && e.runByMe && (
-        <p class="muted">你本人没有报名；名单上有挂在你名下的 {e.myFriends!.length} 个朋友，费用算在你的账单上。</p>
+        <p class="muted">
+          {t("你本人没有报名；名单上有挂在你名下的 {n} 个朋友，费用算在你的账单上。", { n: e.myFriends!.length })}
+        </p>
       )}
       {friendsOnly && !editing && !e.runByMe && (
         <p class="muted">
-          你本人没有报名；{adder}在你名下加了 {e.myFriends!.length} 个朋友，费用算在你的账单上。
+          {t("你本人没有报名；{adder}在你名下加了 {n} 个朋友，费用算在你的账单上。", {
+            adder,
+            n: e.myFriends!.length,
+          })}
         </p>
       )}
-      {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">你没有报名这次活动。</p>}
+      {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">{t("你没有报名这次活动。")}</p>}
       {!editing && (
         <EventActions e={e} calendar={signedUp && !e.payment && (e.status === "open" || e.status === "closed")} />
       )}
@@ -275,10 +286,10 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
           />
           {error && <p class="error">{error}</p>}
           <button type="button" class="button block" disabled={busy} onClick={save}>
-            {signedUp ? "保存修改" : "确认报名"}
+            {signedUp ? t("保存修改") : t("确认报名")}
           </button>
           <button type="button" class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
-            返回
+            {t("返回")}
           </button>
         </>
       )}
@@ -295,10 +306,10 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
                   setEditing(true);
                 }}
               >
-                修改
+                {t("修改")}
               </button>
               <button type="button" class="button danger" disabled={busy} onClick={cancel}>
-                取消报名
+                {t("取消报名")}
               </button>
             </div>
           ) : friendsOnly ? (
@@ -312,10 +323,10 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
                   setEditing(true);
                 }}
               >
-                我也报名
+                {t("我也报名")}
               </button>
               <button type="button" class="button danger" disabled={busy} onClick={cancel}>
-                去掉这些朋友
+                {t("去掉这些朋友")}
               </button>
             </div>
           ) : (
@@ -327,13 +338,13 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
                 setEditing(true);
               }}
             >
-              报名
+              {t("报名")}
             </button>
           )}
         </>
       )}
       {!e.canEdit && e.status === "closed" && (signedUp || friendsOnly) && (
-        <p class="muted small">报名已截止，需要修改请联系{runner}。费用会在活动后公布。</p>
+        <p class="muted small">{t("报名已截止，需要修改请联系{name}。费用会在活动后公布。", { name: runner })}</p>
       )}
       {e.payment && <PaymentBox p={e.payment} />}
     </Card>

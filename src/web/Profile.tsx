@@ -1,17 +1,21 @@
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
-import { formatDateZh, toPacific } from "../shared/time";
+import { toPacific } from "../shared/time";
 import type { ActivityDay, MemberProfile } from "../shared/types";
 import { api } from "./api";
 import { Card, Field, useAction } from "./components";
+import { fmtDate, fmtDay, month, t, tk, tx } from "./i18n";
 
-const STATUS_LABEL: Record<ActivityDay["status"], string> = { done: "已参加", absent: "缺席", upcoming: "已报名" };
-const WEEKDAY_LABELS = ["", "一", "", "三", "", "五", ""];
+const STATUS_LABEL: Record<ActivityDay["status"], string> = {
+  done: tk("已参加"),
+  absent: tk("缺席"),
+  upcoming: tk("已报名"),
+};
+const WEEKDAY_LABELS = ["", tk("一"), "", tk("三"), "", tk("五"), ""];
 
 /** "2026年3月14日 19:05" in Pacific time. */
 function formatJoined(iso: string): string {
   const p = toPacific(iso);
-  const [y, m, d] = p.date.split("-").map(Number);
-  return `${y}年${m}月${d}日 ${p.time}`;
+  return `${fmtDay(p.date)} ${p.time}`;
 }
 
 const day = (date: string) => Date.parse(`${date}T12:00:00Z`);
@@ -53,13 +57,16 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
   return (
     <div class="heatmap">
       <p class="heatmap-summary">
-        过去一年参加 <strong>{count("done")}</strong> 次 · 缺席 <strong>{count("absent")}</strong> 次 · 即将参加{" "}
-        <strong>{count("upcoming")}</strong> 次
+        {tx("过去一年参加 {done} 次 · 缺席 {absent} 次 · 即将参加 {upcoming} 次", {
+          done: <strong>{count("done")}</strong>,
+          absent: <strong>{count("absent")}</strong>,
+          upcoming: <strong>{count("upcoming")}</strong>,
+        })}
       </p>
       <div class="heatmap-body">
         <div class="heatmap-days" aria-hidden="true">
           {WEEKDAY_LABELS.map((l, i) => (
-            <span key={i}>{l}</span>
+            <span key={i}>{l && t(l)}</span>
           ))}
         </div>
         <div class="heatmap-scroll" ref={scroller}>
@@ -67,17 +74,17 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
             {weeks.map((w, i) => {
               const firstOfMonth = w.find((d) => d.endsWith("-01"));
               return (
-                <span key={i}>{firstOfMonth || i === 0 ? `${Number((firstOfMonth ?? w[0]!).slice(5, 7))}月` : ""}</span>
+                <span key={i}>{firstOfMonth || i === 0 ? month(Number((firstOfMonth ?? w[0]!).slice(5, 7))) : ""}</span>
               );
             })}
           </div>
-          <div class="heatmap-grid" role="group" aria-label="活动热力图">
+          <div class="heatmap-grid" role="group" aria-label={t("活动热力图")}>
             {weeks.map((w, i) => (
               <div class="heatmap-week" key={i}>
                 {w.map((d) => {
                   const list = byDate.get(d);
                   const status = list ? cellStatus(list) : null;
-                  const label = `${formatDateZh(d)}${list ? `：${list.map((a) => `${a.title} ${STATUS_LABEL[a.status]}`).join("，")}` : ""}`;
+                  const label = `${fmtDate(d)}${list ? `${t("：")}${list.map((a) => `${a.title} ${t(STATUS_LABEL[a.status])}`).join(t("，"))}` : ""}`;
                   return (
                     <button
                       key={d}
@@ -98,15 +105,15 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
       <div class="heatmap-legend">
         <span>
           <i class="heatmap-cell done" />
-          已参加
+          {t("已参加")}
         </span>
         <span>
           <i class="heatmap-cell absent" />
-          缺席
+          {t("缺席")}
         </span>
         <span>
           <i class="heatmap-cell upcoming" />
-          已报名
+          {t("已报名")}
         </span>
       </div>
       {pickedList.length > 0 && (
@@ -114,9 +121,9 @@ export function Heatmap(props: { activity: ActivityDay[] }) {
           {pickedList.map((a) => (
             <p key={a.code}>
               <span class={`heatmap-cell ${a.status}`} />
-              <strong>{formatDateZh(a.date)}</strong> {a.title}
+              <strong>{fmtDate(a.date)}</strong> {a.title}
               <small>
-                {a.location} · {STATUS_LABEL[a.status]}
+                {a.location} · {t(STATUS_LABEL[a.status])}
               </small>
             </p>
           ))}
@@ -142,42 +149,42 @@ export function ProfileCard(props: {
 }) {
   const p = props.profile;
   return (
-    <Card title="个人信息" class="profile">
+    <Card title={t("个人信息")} class="profile">
       <dl class="profile-info">
         {props.mode === "admin" && (
           <NoteRow
             base={props.base}
             note={p.adminNote ?? ""}
             readOnly={!!props.noteReadOnly}
-            label={props.organizers ? "备注名（只有群主和组织者能看到）" : "备注名（只有群主能看到）"}
+            label={props.organizers ? t("备注名（只有群主和组织者能看到）") : t("备注名（只有群主能看到）")}
             onChange={props.onChange}
           />
         )}
         <div>
-          <dt>名字</dt>
+          <dt>{t("名字")}</dt>
           <dd>{p.username}</dd>
         </div>
         <div>
-          <dt>微信名</dt>
+          <dt>{t("微信名")}</dt>
           <dd>{p.wechatNickname}</dd>
         </div>
         {props.mode === "member" ? (
           <EmailRow base={props.base} email={p.email} fromGoogle={p.emailFromGoogle} onChange={props.onChange} />
         ) : (
           <div>
-            <dt>邮箱</dt>
+            <dt>{t("邮箱")}</dt>
             <dd>
-              {p.email ?? <span class="muted">未填写</span>}
-              {p.emailFromGoogle && <small class="muted"> （Google）</small>}
+              {p.email ?? <span class="muted">{t("未填写")}</span>}
+              {p.emailFromGoogle && <small class="muted"> {t("（Google）")}</small>}
             </dd>
           </div>
         )}
         <div>
-          <dt>入群时间</dt>
+          <dt>{t("入群时间")}</dt>
           <dd>{formatJoined(p.joinedAt)}</dd>
         </div>
       </dl>
-      <h3 class="profile-sub">活动记录</h3>
+      <h3 class="profile-sub">{t("活动记录")}</h3>
       <Heatmap activity={p.activity} />
     </Card>
   );
@@ -197,15 +204,15 @@ function EmailRow(props: { base: string; email: string | null; fromGoogle: boole
   if (editing) {
     return (
       <form class="profile-edit" onSubmit={save}>
-        <Field label="邮箱" type="email" value={value} onInput={setValue} autocomplete="email" />
-        <p class="muted small">留空保存会改回 Google 账号的邮箱（如果有）。</p>
+        <Field label={t("邮箱")} type="email" value={value} onInput={setValue} autocomplete="email" />
+        <p class="muted small">{t("留空保存会改回 Google 账号的邮箱（如果有）。")}</p>
         {error && <p class="error">{error}</p>}
         <div class="inline">
           <button type="submit" class="button" disabled={busy}>
-            保存
+            {t("保存")}
           </button>
           <button class="button secondary" type="button" onClick={() => setEditing(false)}>
-            取消
+            {t("取消")}
           </button>
         </div>
       </form>
@@ -213,10 +220,10 @@ function EmailRow(props: { base: string; email: string | null; fromGoogle: boole
   }
   return (
     <div>
-      <dt>邮箱</dt>
+      <dt>{t("邮箱")}</dt>
       <dd>
-        {props.email ?? <span class="muted">未填写</span>}
-        {props.fromGoogle && <small class="muted"> （Google）</small>}
+        {props.email ?? <span class="muted">{t("未填写")}</span>}
+        {props.fromGoogle && <small class="muted"> {t("（Google）")}</small>}
         <button
           type="button"
           class="profile-action"
@@ -225,7 +232,7 @@ function EmailRow(props: { base: string; email: string | null; fromGoogle: boole
             setEditing(true);
           }}
         >
-          {props.email ? "修改" : "填写"}
+          {props.email ? t("修改") : t("填写")}
         </button>
       </dd>
     </div>
@@ -250,10 +257,10 @@ function NoteRow(props: { base: string; note: string; readOnly: boolean; label: 
         {error && <p class="error">{error}</p>}
         <div class="inline">
           <button type="submit" class="button" disabled={busy}>
-            保存
+            {t("保存")}
           </button>
           <button class="button secondary" type="button" onClick={() => setEditing(false)}>
-            取消
+            {t("取消")}
           </button>
         </div>
       </form>
@@ -261,9 +268,9 @@ function NoteRow(props: { base: string; note: string; readOnly: boolean; label: 
   }
   return (
     <div>
-      <dt>备注名</dt>
+      <dt>{t("备注名")}</dt>
       <dd>
-        {props.note || <span class="muted">未填写</span>}
+        {props.note || <span class="muted">{t("未填写")}</span>}
         {!props.readOnly && (
           <button
             type="button"
@@ -273,7 +280,7 @@ function NoteRow(props: { base: string; note: string; readOnly: boolean; label: 
               setEditing(true);
             }}
           >
-            {props.note ? "修改" : "添加"}
+            {props.note ? t("修改") : t("添加")}
           </button>
         )}
       </dd>

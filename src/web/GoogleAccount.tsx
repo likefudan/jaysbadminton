@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { api } from "./api";
 import { useApi } from "./hooks";
 import { stopPush } from "./Push";
+import { t, tm } from "./i18n";
 
 /** Ends the Google session (and a half-done link to a member page, and push), then goes to 登录. */
 export async function signOutGoogle(): Promise<void> {
@@ -56,7 +57,7 @@ export function GoogleAccount() {
     try {
       await signOutGoogle();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "退出失败，请重试");
+      setError(e instanceof Error ? tm(e.message) : t("退出失败，请重试"));
       setBusy(false);
     }
   }
@@ -66,9 +67,9 @@ export function GoogleAccount() {
         <a
           class="profile-switch"
           href={administrative ? "/me" : "/admin/google"}
-          title={administrative ? "进入自己的活动页面，报名其他组织者的活动" : "返回活动管理页面"}
+          title={administrative ? t("进入自己的活动页面，报名其他组织者的活动") : t("返回活动管理页面")}
         >
-          {administrative ? "切换为普通成员" : "切换为管理员"}
+          {administrative ? t("切换为普通成员") : t("切换为管理员")}
         </a>
       )}
       <div class="google-account" ref={container}>
@@ -76,8 +77,8 @@ export function GoogleAccount() {
           type="button"
           ref={trigger}
           class="google-account-trigger"
-          aria-label={`Google 账号：${email}`}
-          title={`已登录 Google：${email}`}
+          aria-label={t("Google 账号：{email}", { email })}
+          title={t("已登录 Google：{email}", { email })}
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
@@ -85,7 +86,7 @@ export function GoogleAccount() {
             <img
               class="google-account-avatar"
               src={session.data.picture}
-              alt="Google 账号头像"
+              alt={t("Google 账号头像")}
               referrerPolicy="no-referrer"
               onError={() => setFailedPicture(session.data.picture)}
             />
@@ -112,23 +113,23 @@ export function GoogleAccount() {
           <span class="google-account-status" aria-hidden="true" />
         </button>
         {open && (
-          <section class="google-account-panel" aria-label="Google 账号信息">
-            <p class="google-account-label">已登录 Google</p>
+          <section class="google-account-panel" aria-label={t("Google 账号信息")}>
+            <p class="google-account-label">{t("已登录 Google")}</p>
             <p class="google-account-email">{email}</p>
-            {canManage && <p class="small muted">当前：{administrative ? "管理员视图" : "普通成员视图"}</p>}
+            {canManage && <p class="small muted">{administrative ? t("当前：管理员视图") : t("当前：普通成员视图")}</p>}
             {canManage && (
               <a class="button secondary block" href="/admin/google" onClick={() => setOpen(false)}>
-                管理页
+                {t("管理页")}
               </a>
             )}
             <a class="button secondary block" href="/me" onClick={() => setOpen(false)}>
-              我的活动
+              {t("我的活动")}
             </a>
             <a class="button secondary block" href="/me/profile" onClick={() => setOpen(false)}>
-              个人信息
+              {t("个人信息")}
             </a>
             <button type="button" class="button secondary block" disabled={busy} onClick={logout}>
-              {busy ? "正在退出…" : "退出登录"}
+              {busy ? t("正在退出…") : t("退出登录")}
             </button>
             {error && (
               <p class="error" role="alert">

@@ -1,4 +1,5 @@
 import { Field } from "./components";
+import { t } from "./i18n";
 
 /** A +/- counter for friends with an optional name for each. */
 export function FriendsEditor(props: {
@@ -13,15 +14,15 @@ export function FriendsEditor(props: {
     <div class="friends-editor">
       <div class="friends-row">
         <div class="friends-label">
-          <span>{props.label ?? "带朋友"}</span>
-          {props.max !== null && <small class="muted">最多 {props.max} 个朋友</small>}
+          <span>{props.label ?? t("带朋友")}</span>
+          {props.max !== null && <small class="muted">{t("最多 {n} 个朋友", { n: props.max })}</small>}
         </div>
         <div class="stepper">
           <button
             type="button"
             disabled={f.length === 0}
             onClick={() => props.onChange(f.slice(0, -1))}
-            aria-label="少一个"
+            aria-label={t("少一个")}
           >
             −
           </button>
@@ -30,14 +31,14 @@ export function FriendsEditor(props: {
             type="button"
             disabled={props.max !== null && f.length >= props.max}
             onClick={() => props.onChange([...f, ""])}
-            aria-label="多一个"
+            aria-label={t("多一个")}
           >
             +
           </button>
         </div>
       </div>
       {f.map((name, i) => (
-        <Field key={i} label={`朋友 ${i + 1} 的名字（选填）`} value={name} onInput={(v) => set(i, v)} />
+        <Field key={i} label={t("朋友 {n} 的名字（选填）", { n: i + 1 })} value={name} onInput={(v) => set(i, v)} />
       ))}
     </div>
   );

@@ -1,5 +1,6 @@
 import { calendarEntry, googleCalendarUrl } from "../shared/calendar";
 import type { EventSummary } from "../shared/types";
+import { t } from "./i18n";
 
 const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
 
@@ -21,10 +22,10 @@ export function CalendarButtons(props: { e: EventSummary }) {
         iPhone / Outlook
       </a>
       <a class="calendar-link" href={googleCalendarUrl(entry)} target="_blank" rel="noreferrer">
-        Google 日历
+        {t("Google 日历")}
       </a>
       {inWeChat() && (
-        <p class="muted small calendar-note">微信里打不开日历的话，点右上角「···」选择「在浏览器中打开」。</p>
+        <p class="muted small calendar-note">{t("微信里打不开日历的话，点右上角「···」选择「在浏览器中打开」。")}</p>
       )}
     </>
   );

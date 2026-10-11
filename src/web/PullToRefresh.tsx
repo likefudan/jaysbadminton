@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { onRefreshing, refreshAll } from "./hooks";
 import { standalone } from "./Install";
+import { t } from "./i18n";
 
 const PULL_PX = 70;
 
@@ -44,7 +45,7 @@ export function PullToRefresh() {
     };
   }, []);
   if (!busy && pull < 12) return null;
-  const label = busy ? "刷新中…" : pull >= PULL_PX ? "松开刷新" : "下拉刷新";
+  const label = busy ? t("刷新中…") : pull >= PULL_PX ? t("松开刷新") : t("下拉刷新");
   return (
     <div
       class="pull-refresh"

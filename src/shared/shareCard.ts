@@ -11,17 +11,26 @@ export interface CardText {
 
 const TAGLINE = "报名、结算、付款，一个链接搞定。";
 
-export function siteCardText(origin: string): CardText {
-  return { heading: "", lines: [TAGLINE], hint: "扫码查看活动、报名", url: `${origin}/` };
+/** The card's own words in the visitor's language (the web's t); Chinese by default. */
+type Words = (zh: string) => string;
+const zh: Words = (s) => s;
+
+export function siteCardText(origin: string, tr: Words = zh): CardText {
+  return { heading: "", lines: [tr(TAGLINE)], hint: tr("扫码查看活动、报名"), url: `${origin}/` };
 }
 
-export function eventCardText(origin: string, e: EventSummary): CardText {
-  const lines = [`${formatDateZh(e.date, false)} ${e.startTime}–${e.endTime}`, e.location];
-  if (e.status === "cancelled") lines.unshift("本场已取消");
+export function eventCardText(
+  origin: string,
+  e: EventSummary,
+  tr: Words = zh,
+  date: (d: string) => string = (d) => formatDateZh(d, false),
+): CardText {
+  const lines = [`${date(e.date)} ${e.startTime}–${e.endTime}`, e.location];
+  if (e.status === "cancelled") lines.unshift(tr("本场已取消"));
   return {
     heading: e.title,
     lines: lines.filter(Boolean),
-    hint: e.status === "open" ? "扫码报名" : "扫码查看活动",
+    hint: e.status === "open" ? tr("扫码报名") : tr("扫码查看活动"),
     url: `${origin}/e/${e.code}`,
   };
 }

@@ -1,5 +1,6 @@
 import { MESSAGE_MAX } from "../shared/rules";
 import { Field } from "./components";
+import { t } from "./i18n";
 
 /** The application form, the same for 用邮箱注册 and the Google sign-up: two names and an optional note. */
 export function ApplicationFields(props: {
@@ -13,24 +14,24 @@ export function ApplicationFields(props: {
   return (
     <>
       <Field
-        label="用户名"
+        label={t("用户名")}
         value={props.username}
         onInput={props.setUsername}
-        hint="报名名单上显示的名字，不能和别人重复"
+        hint={t("报名名单上显示的名字，不能和别人重复")}
         autocomplete="nickname"
       />
       <Field
-        label="微信名"
+        label={t("微信名")}
         value={props.nickname}
         onInput={props.setNickname}
-        hint="群昵称或微信号都可以，群主能认出你就行"
+        hint={t("群昵称或微信号都可以，群主能认出你就行")}
       />
       <label class="field">
-        <span>给群主的留言（选填）</span>
+        <span>{t("给群主的留言（选填）")}</span>
         <textarea
           value={props.message}
           maxLength={MESSAGE_MAX}
-          placeholder="比如谁介绍你来的"
+          placeholder={t("比如谁介绍你来的")}
           onInput={(e) => props.setMessage((e.target as HTMLTextAreaElement).value)}
         />
       </label>

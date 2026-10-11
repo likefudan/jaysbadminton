@@ -3175,3 +3175,62 @@ ul.audit li:first-child {
   font-size: 13px;
   text-align: center;
 }
+
+/* 简 / 繁 / EN in the top bar, between the Google avatar and 外观: the avatar's panel reaches past both. */
+.topbar-actions:has(.lang-switch) .google-account-panel {
+  right: -88px;
+}
+.lang-switch {
+  position: relative;
+  flex: none;
+}
+.lang-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: 600 13px / 1 var(--font);
+  cursor: pointer;
+}
+.lang-btn:hover,
+.lang-btn[aria-expanded="true"] {
+  color: var(--text);
+  background: var(--acc-soft);
+}
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--account-menu-bg);
+  box-shadow: 0 12px 32px #0003;
+}
+.lang-menu button {
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text);
+  font: 500 14px / 1.2 var(--font);
+  text-align: left;
+  cursor: pointer;
+}
+.lang-menu button:hover {
+  background: var(--acc-soft);
+}
+.lang-menu button.on {
+  color: var(--acc-ink);
+  font-weight: 600;
+}
+.lang-menu button.on::after {
+  content: " ✓";
+}

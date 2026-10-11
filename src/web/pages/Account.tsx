@@ -7,6 +7,7 @@ import { ApplicationFields } from "../ApplicationFields";
 import { Card, Field, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
 import { Member, MemberProfilePage } from "./Member";
+import { t, tk, tm } from "../i18n";
 
 type Session = {
   enabled: boolean;
@@ -17,10 +18,10 @@ type Session = {
   emailNotificationsEnabled?: boolean;
 };
 const ERRORS: Record<string, string> = {
-  not_configured: "网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。",
-  invalid_state: "登录请求已过期，请重新登录。",
-  cancelled: "你取消了 Google 登录，可以再试一次。",
-  failed: "Google 登录未完成，请重试。若持续失败，请联系群主。",
+  not_configured: tk("网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。"),
+  invalid_state: tk("登录请求已过期，请重新登录。"),
+  cancelled: tk("你取消了 Google 登录，可以再试一次。"),
+  failed: tk("Google 登录未完成，请重试。若持续失败，请联系群主。"),
 };
 
 export function Logout() {
@@ -34,7 +35,7 @@ export function Logout() {
   return (
     <>
       <button type="button" class="button secondary block" disabled={busy} onClick={logout}>
-        退出 Google 登录
+        {t("退出 Google 登录")}
       </button>
       {error && <p class="error">{error}</p>}
     </>
@@ -55,27 +56,29 @@ export function GoogleLink(props: { token: string }) {
     window.location.assign(current.signedIn ? "/me" : "/api/auth/google");
   }
   return (
-    <Card title="下次直接用 Google 登录">
-      <p>绑定后可直接进入我的活动，原有报名和账单都会保留。</p>
+    <Card title={t("下次直接用 Google 登录")}>
+      <p>{t("绑定后可直接进入我的活动，原有报名和账单都会保留。")}</p>
       {session.state === "ok" && !session.data.enabled ? (
         <>
-          <p class="hint">网站尚未启用 Google 绑定。你可以继续在这里报名和查看账单；开通后可自行绑定，无需群主审批。</p>
+          <p class="hint">
+            {t("网站尚未启用 Google 绑定。你可以继续在这里报名和查看账单；开通后可自行绑定，无需群主审批。")}
+          </p>
           <button type="button" class="button secondary block" onClick={reload}>
-            重新检查绑定是否可用
+            {t("重新检查绑定是否可用")}
           </button>
         </>
       ) : (
         <button type="button" class="button secondary block" disabled={busy || session.state !== "ok"} onClick={link}>
-          {busy ? "正在连接…" : "绑定 Google 账号"}
+          {busy ? t("正在连接…") : t("绑定 Google 账号")}
         </button>
       )}
       {session.state === "error" && (
         <>
           <p class="error" role="alert">
-            {session.message}
+            {tm(session.message)}
           </p>
           <button type="button" class="button secondary block" onClick={reload}>
-            重试
+            {t("重试")}
           </button>
         </>
       )}
@@ -96,37 +99,38 @@ const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
 /** 登录 / 注册: the one way in for everyone — Google, or email (the link comes by email). */
 function SignIn(props: { googleEnabled: boolean }) {
   const staging = useStaging();
-  const error = ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""];
+  const code = ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""];
+  const error = code && t(code);
   return (
-    <Page title="登录 / 注册" subtitle="已经是成员就登录；新朋友在这里申请入群，群主审核后就能报名。">
+    <Page title={t("登录 / 注册")} subtitle={t("已经是成员就登录；新朋友在这里申请入群，群主审核后就能报名。")}>
       {error && (
         <p class="error" role="alert">
           {error}
         </p>
       )}
       {props.googleEnabled && (
-        <Card title="用 Google 账号">
-          <p>第一次用 Google 登录时填写申请，审核通过后用同一个账号登录即可。</p>
+        <Card title={t("用 Google 账号")}>
+          <p>{t("第一次用 Google 登录时填写申请，审核通过后用同一个账号登录即可。")}</p>
           {inWeChat() && (
             <p class="hint">
-              微信里可能无法使用 Google 登录：请点右上角「···」选择「在浏览器打开」，或者用下面的邮箱注册。
+              {t("微信里可能无法使用 Google 登录：请点右上角「···」选择「在浏览器打开」，或者用下面的邮箱注册。")}
             </p>
           )}
           <button type="button" class="button block" onClick={() => window.location.assign("/api/auth/google")}>
-            用 Google 登录 / 注册
+            {t("用 Google 登录 / 注册")}
           </button>
-          <p class="muted small">仅使用 Google 账号身份、邮箱和头像，不读取你的 Gmail 邮件。</p>
+          <p class="muted small">{t("仅使用 Google 账号身份、邮箱和头像，不读取你的 Gmail 邮件。")}</p>
         </Card>
       )}
-      <Card title="用邮箱注册">
-        <p>审核通过后，专属链接会发到你的邮箱，以后用这个链接登录（在微信里也能直接打开）。</p>
+      <Card title={t("用邮箱注册")}>
+        <p>{t("审核通过后，专属链接会发到你的邮箱，以后用这个链接登录（在微信里也能直接打开）。")}</p>
         <a class="button block" href="/join">
-          用邮箱注册
+          {t("用邮箱注册")}
         </a>
       </Card>
       {staging && <DeveloperLogin />}
       <p class="center">
-        <a href="/recover">已经是成员？找回我的专属链接</a>
+        <a href="/recover">{t("已经是成员？找回我的专属链接")}</a>
       </p>
     </Page>
   );
@@ -140,15 +144,15 @@ export function Account(props: { page?: "profile" }) {
         if (!s.signedIn) return <SignIn googleEnabled={s.enabled} />;
         if (s.pending)
           return (
-            <Page title="申请已提交" subtitle={`Google 账号：${s.email}`}>
+            <Page title={t("申请已提交")} subtitle={t("Google 账号：{email}", { email: s.email ?? "" })}>
               <Card>
-                <p>群主审核通过后，用这个 Google 账号登录就能报名活动、查看账单。</p>
-                <p class="muted small">审核前还不能报名。你可以刷新查看审核状态。</p>
+                <p>{t("群主审核通过后，用这个 Google 账号登录就能报名活动、查看账单。")}</p>
+                <p class="muted small">{t("审核前还不能报名。你可以刷新查看审核状态。")}</p>
                 {s.emailNotificationsEnabled && (
-                  <p class="muted small">审核通过后会向你的 Google 邮箱发送通知，请留意收件箱和垃圾邮件。</p>
+                  <p class="muted small">{t("审核通过后会向你的 Google 邮箱发送通知，请留意收件箱和垃圾邮件。")}</p>
                 )}
                 <button type="button" class="button secondary block" onClick={reload}>
-                  刷新审核状态
+                  {t("刷新审核状态")}
                 </button>
               </Card>
               <Logout />
@@ -176,7 +180,7 @@ function Profile(props: { email: string; onDone: () => void }) {
         let token = oldLink.trim();
         if (token.includes("://")) {
           const match = new URL(token).pathname.match(/^\/m\/([^/]+)\/?$/);
-          if (!match) throw new Error("请填写原来的成员专属链接");
+          if (!match) throw new Error(t("请填写原来的成员专属链接"));
           token = match[1]!;
         }
         return api("/api/auth/link", { token });
@@ -191,17 +195,20 @@ function Profile(props: { email: string; onDone: () => void }) {
     }
   }
   return (
-    <Page title={linkExisting ? "关联原有成员" : "申请加入"} subtitle={`已登录：${props.email}`}>
+    <Page
+      title={linkExisting ? t("关联原有成员") : t("申请加入")}
+      subtitle={t("已登录：{email}", { email: props.email })}
+    >
       <Card>
         <form onSubmit={submit}>
           {linkExisting ? (
             <>
-              <p>确认将此 Google 账号绑定到原成员。历史报名和账单会继续保留。</p>
+              <p>{t("确认将此 Google 账号绑定到原成员。历史报名和账单会继续保留。")}</p>
               <Field
-                label="原成员专属链接"
+                label={t("原成员专属链接")}
                 value={oldLink}
                 onInput={setOldLink}
-                hint="填写你原来使用的 /m/ 开头的成员页面链接。"
+                hint={t("填写你原来使用的 /m/ 开头的成员页面链接。")}
               />
             </>
           ) : (
@@ -214,7 +221,7 @@ function Profile(props: { email: string; onDone: () => void }) {
                 message={message}
                 setMessage={setMessage}
               />
-              <p class="muted small">提交后需要群主审核，通过后才能报名活动。</p>
+              <p class="muted small">{t("提交后需要群主审核，通过后才能报名活动。")}</p>
             </>
           )}
           {error && (
@@ -223,7 +230,7 @@ function Profile(props: { email: string; onDone: () => void }) {
             </p>
           )}
           <button type="submit" class="button block" disabled={busy}>
-            {busy ? "保存中…" : linkExisting ? "确认绑定，进入我的活动" : "提交入群申请"}
+            {busy ? t("保存中…") : linkExisting ? t("确认绑定，进入我的活动") : t("提交入群申请")}
           </button>
           <button
             class="button secondary block"
@@ -231,7 +238,7 @@ function Profile(props: { email: string; onDone: () => void }) {
             disabled={busy}
             onClick={() => setLinkExisting(!linkExisting)}
           >
-            {linkExisting ? "我是新成员，创建账号" : "已有成员链接？关联原账号"}
+            {linkExisting ? t("我是新成员，创建账号") : t("已有成员链接？关联原账号")}
           </button>
         </form>
       </Card>
