@@ -1,4 +1,9 @@
-import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import {
+  createExecutionContext,
+  runDurableObjectAlarm,
+  runInDurableObject,
+  waitOnExecutionContext,
+} from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventRow } from "../src/worker/events";
@@ -348,6 +353,52 @@ describe("what gets pushed", () => {
     await drainPushes(env);
     expect(pushes).toEqual([]);
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM push_outbox").first())?.n).toBe(0);
+  });
+
+  it("sends a backlog 20 at a time, a second apart, until it is all out", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    const a = await browser("alice");
+    // More browsers than one run sends (the 10 per member limit is only on turning push on).
+    const add = env.DB.prepare(
+      "INSERT INTO push_subscriptions (endpoint, member_id, p256dh, auth, created_at) VALUES (?, ?, ?, ?, '2026-01-01')",
+    );
+    await env.DB.batch(
+      Array.from({ length: 45 }, (_, i) => add.bind(`${a.endpoint}-${i}`, alice.id, a.keys.p256dh, a.keys.auth)),
+    );
+    const sender = env.PUSH.get(env.PUSH.idFromName("push"));
+    const alarm = () => runInDurableObject(sender, (_o, state) => state.storage.getAlarm());
+    // Moved out of the way once checked, so it can't also go off by itself while the test runs.
+    const park = () => runInDurableObject(sender, (_o, state) => state.storage.setAlarm(Date.now() + 3600_000));
+    const before = Date.now();
+    await createEvent(ctx);
+    const at = await alarm();
+    await park();
+    expect(pushes).toHaveLength(20);
+    expect(at).toBeGreaterThanOrEqual(before + 1000);
+    expect(at).toBeLessThanOrEqual(Date.now() + 1000);
+    await runDurableObjectAlarm(sender);
+    const next = await alarm();
+    await park();
+    expect(pushes).toHaveLength(40);
+    expect(next).not.toBeNull();
+    await runDurableObjectAlarm(sender);
+    expect(pushes).toHaveLength(45);
+    expect(new Set(pushes.map((p) => p.endpoint)).size).toBe(45);
+    expect(await alarm()).toBeNull();
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM push_outbox").first())?.n).toBe(0);
+  });
+
+  it("leaves failed pushes to the cron instead of trying again every second", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    await subscribe(alice.base, await browser("alice"));
+    status = 500;
+    await createEvent(ctx);
+    expect(pushes).toHaveLength(1);
+    expect(
+      await runInDurableObject(env.PUSH.get(env.PUSH.idFromName("push")), (_o, state) => state.storage.getAlarm()),
+    ).toBeNull();
   });
 
   it("never fails the request when the push service is down", async () => {

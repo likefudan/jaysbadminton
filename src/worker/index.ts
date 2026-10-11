@@ -4,6 +4,7 @@ import type { Env } from "./env";
 import { closeExpired } from "./events";
 import { syncAllDeadlines } from "./deadlines";
 export { DeadlineAlarm } from "./deadlines";
+export { PushSender } from "./push";
 import { HttpError } from "./http";
 import {
   MAX_EMAIL_BYTES,

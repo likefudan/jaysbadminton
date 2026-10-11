@@ -6,7 +6,7 @@ import { type EventRow, closeExpired, roster } from "./events";
 import { day, venue, when } from "./eventText";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { eventManager, organizersEnabled } from "./organizers";
-import { drainPushes } from "./push";
+import { drainPushes, sendRest } from "./push";
 import {
   WECHAT_BLOCK,
   escapeHtml,
@@ -133,8 +133,8 @@ export async function runScheduled(env: Env, at: Date = new Date()): Promise<voi
     await recordCronError(env, err);
   }
   try {
-    // Pushes to members' browsers that a request couldn't send (too many at once, or a failure).
-    await drainPushes(env);
+    // Pushes to members' browsers that a request and the PushSender couldn't send (a failure).
+    if (await drainPushes(env)) await sendRest(env);
   } catch (err) {
     console.error("push notifications failed:", err);
     await recordCronError(env, err);
