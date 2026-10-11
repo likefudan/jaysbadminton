@@ -20,6 +20,7 @@ import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
 import { EventActions } from "../ShareCard";
 import { MyStatsCard } from "../Stats";
+import { InstallCard, InstallPrompt } from "../Install";
 import { PushCard, PushPrompt } from "../Push";
 import { GoogleLink } from "./Account";
 
@@ -34,6 +35,8 @@ const BILL_STATUS: Record<PaymentStatus, { cls: string; label: string }> = {
 export function Member(props: { token?: string }) {
   const base = `/api/m/${props.token ?? "session"}`;
   const [me] = useApi<MeResponse>(`${base}/me`);
+  // One offer at a time: adding to the home screen first (iPhone needs it before push).
+  const [installShown, setInstallShown] = useState(false);
   return (
     <Load result={me}>
       {(m) => (
@@ -43,7 +46,10 @@ export function Member(props: { token?: string }) {
         >
           <MemberNav token={props.token} admin={m.canAdmin} current="events" />
           {!m.active && <p class="hint">你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。</p>}
-          {m.active && <PushPrompt base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />}
+          <InstallPrompt onShown={setInstallShown} />
+          {m.active && !installShown && (
+            <PushPrompt base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />
+          )}
           <MyEvents base={base} />
         </Page>
       )}
@@ -90,6 +96,7 @@ export function MemberProfilePage(props: { token?: string }) {
           <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
           <MyStatsCard base={base} />
           <MyProfile base={base} />
+          <InstallCard home={props.token ? `/m/${props.token}` : "/me"} />
           <PushCard base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />
           <Rename base={base} current={m.username} onDone={reload} />
           {props.token && <GoogleLink token={props.token} />}
