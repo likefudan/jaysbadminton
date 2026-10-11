@@ -3176,7 +3176,7 @@ ul.audit li:first-child {
   text-align: center;
 }
 
-/* 简 / 繁 / EN in the top bar, between the Google avatar and 外观: the avatar's panel reaches past both. */
+/* The 文A language button in the top bar, between the Google avatar and 外观: the avatar's panel reaches past both. */
 .topbar-actions:has(.lang-switch) .google-account-panel {
   right: -88px;
 }
@@ -3185,14 +3185,16 @@ ul.audit li:first-child {
   flex: none;
 }
 .lang-btn {
-  min-width: 34px;
+  width: 34px;
   height: 34px;
-  padding: 0 8px;
+  padding: 0;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--surface);
   color: var(--text-2);
-  font: 600 13px / 1 var(--font);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 .lang-btn:hover,

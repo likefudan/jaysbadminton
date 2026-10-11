@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { LANGS, setLang, t, useLang } from "./i18n";
 
-/** The language button in the top bar: 简 / 繁 / EN, with a short menu of the three. */
+/** The language button in the top bar: a 文A icon, the same in every language, opening a short menu of the three. */
 export function LangSwitch() {
   const lang = useLang();
   const [open, setOpen] = useState(false);
@@ -28,7 +28,14 @@ export function LangSwitch() {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        {now.short}
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
+          <text x="1" y="13" font-size="12" font-weight="600">
+            文
+          </text>
+          <text x="12.5" y="21.5" font-size="12" font-weight="700" font-family="var(--font)">
+            A
+          </text>
+        </svg>
       </button>
       {open && (
         <div class="lang-menu" role="menu">

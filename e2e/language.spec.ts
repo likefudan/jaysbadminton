@@ -32,7 +32,7 @@ test("switching language on a member page, remembered on this device", async ({ 
   await expect(page.getByRole("heading", { name: "Hi, Dafei" })).toBeVisible();
   await expect(page.getByRole("link", { name: "My events" })).toBeVisible();
   await expect(page.getByText("No sign-ups yet")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Language: English" })).toHaveText("EN");
+  await expect(page.getByRole("button", { name: "Language: English" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
 
   await page.reload();
@@ -51,7 +51,7 @@ test("a phone set to Traditional Chinese starts in 繁體", async ({ browser }) 
   const page = await context.newPage();
   await page.goto("/");
   await expect(page.getByRole("link", { name: "登入 / 註冊" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "語言：繁體中文" })).toHaveText("繁");
+  await expect(page.getByRole("button", { name: "語言：繁體中文" })).toBeVisible();
   await context.close();
 });
 

@@ -14,8 +14,9 @@ const sources = import.meta.glob("../src/web/**/*.{ts,tsx}", {
 }) as Record<string, string>;
 
 const CALL = /\b(?:t|tx|tk)\(\s*"((?:[^"\\]|\\.)*)"/g;
-// Pages and parts only the Owner and organizers see stay Chinese (main.tsx renders /admin in 简体).
-const ADMIN_ONLY = /pages\/Admin|DeveloperTools|AddressInput|organizers\.ts|messages\.ts|lang\.ts|site\.ts/;
+// Pages and parts only the Owner and organizers see stay Chinese (main.tsx renders /admin in 简体);
+// the language names and the 文A icon are the same in every language.
+const ADMIN_ONLY = /pages\/Admin|DeveloperTools|AddressInput|organizers\.ts|messages\.ts|lang\.ts|site\.ts|LangSwitch/;
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 afterEach(() => {
