@@ -11,10 +11,10 @@ import { MESSAGES } from "./messages";
  */
 export type Lang = "zh-CN" | "zh-TW" | "en";
 
-export const LANGS: { id: Lang; short: string; name: string }[] = [
-  { id: "zh-CN", short: "简", name: "简体中文" },
-  { id: "zh-TW", short: "繁", name: "繁體中文" },
-  { id: "en", short: "EN", name: "English" },
+export const LANGS: { id: Lang; name: string }[] = [
+  { id: "zh-CN", name: "简体中文" },
+  { id: "zh-TW", name: "繁體中文" },
+  { id: "en", name: "English" },
 ];
 
 export const LANG_KEY = "lang";
