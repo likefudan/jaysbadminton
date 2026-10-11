@@ -1,9 +1,10 @@
+/// <reference types="vite/client" />
 import { afterEach, describe, expect, it } from "vitest";
 import { checkUsername } from "../src/shared/rules";
 import { eventCardText, siteCardText } from "../src/shared/shareCard";
 import { STYLES } from "../src/shared/themes";
 import { STATUS_ZH } from "../src/shared/types";
-import { activate, fmtDate, t, tm } from "../src/web/i18n";
+import { activate, fmtDate, t, tm } from "../src/web/lang";
 import { MESSAGES } from "../src/web/messages";
 
 const sources = import.meta.glob("../src/web/**/*.{ts,tsx}", {
@@ -14,7 +15,7 @@ const sources = import.meta.glob("../src/web/**/*.{ts,tsx}", {
 
 const CALL = /\b(?:t|tx|tk)\(\s*"((?:[^"\\]|\\.)*)"/g;
 // Pages and parts only the Owner and organizers see stay Chinese (main.tsx renders /admin in 简体).
-const ADMIN_ONLY = /pages\/Admin|DeveloperTools|AddressInput|organizers\.ts|messages\.ts|i18n\.ts|site\.ts/;
+const ADMIN_ONLY = /pages\/Admin|DeveloperTools|AddressInput|organizers\.ts|messages\.ts|lang\.ts|site\.ts/;
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 afterEach(() => {
