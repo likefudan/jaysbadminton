@@ -10,6 +10,7 @@ declare global {
       MIGRATION_DB: D1Database;
       MIGRATION_DB_EMPTY: D1Database;
       DEADLINES: DurableObjectNamespace<import("../src/worker/deadlines").DeadlineAlarm>;
+      PUSH: DurableObjectNamespace<import("../src/worker/push").PushSender>;
       ASSETS: Fetcher;
       TEST_MIGRATIONS: D1Migration[];
       TOKEN_KEY: string;

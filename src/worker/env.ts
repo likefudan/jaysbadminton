@@ -1,9 +1,12 @@
 import type { DeadlineAlarm } from "./deadlines";
+import type { PushSender } from "./push";
 
 export interface Env {
   DB: D1Database;
   /** One alarm per event for its reminder and deadline (see deadlines.ts). */
   DEADLINES: DurableObjectNamespace<DeadlineAlarm>;
+  /** Sends a push backlog one batch a second (see push.ts). */
+  PUSH: DurableObjectNamespace<PushSender>;
   ASSETS: Fetcher;
   /** Encrypts member link tokens and peppers the admin password hash. Generated once by CI. */
   TOKEN_KEY: string;

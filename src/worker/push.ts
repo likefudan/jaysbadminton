@@ -1,3 +1,4 @@
+import { DurableObject } from "cloudflare:workers";
 import type { Context } from "hono";
 import { dollars } from "../shared/settle";
 import { formatDateZh, toPacific } from "../shared/time";
@@ -36,12 +37,14 @@ const PUSH_HOSTS = [
 ];
 const MAX_PER_MEMBER = 10;
 /**
- * Pushes per batch; a request (after its work) and a cron run each send up to two. Kept small for
- * the free plan: each push costs some CPU (a key pair and the encryption) and a subrequest, and an
- * invocation gets 10 ms of CPU and 50 subrequests. The rest wait for the next cron run.
+ * Pushes per batch; a request (after its work), a cron run and each PushSender alarm send up to two.
+ * Kept small for the free plan: each push costs some CPU (about 0.3 ms for a key pair and the
+ * encryption) and a subrequest, and an invocation gets 10 ms of CPU and 50 subrequests. The rest go
+ * out NEXT_RUN_MS later from the PushSender alarm, each a run of its own.
  */
 const BATCH = 10;
 const BATCHES = 2;
+const NEXT_RUN_MS = 1000;
 const MAX_ATTEMPTS = 3;
 const RETRY_AFTER_MS = 5 * 60_000;
 const EXPIRE_MS = 24 * 3600_000;
@@ -192,10 +195,13 @@ export async function unsubscribe(env: Env, memberId: string, endpoint: string):
 /**
  * Sends what was just queued in the background, so the response doesn't wait for it. Call it last
  * in the handler: it starts at once. `endpoint` sends only that browser's (the 推送已开启 one),
- * ahead of any backlog. The cron picks up whatever this misses.
+ * ahead of any backlog. What doesn't fit goes to the PushSender alarm; the cron picks up whatever
+ * both miss.
  */
 export function sendSoon<E extends { Bindings: Env }>(c: Context<E>, endpoint?: string): void {
-  const work = drainPushes(c.env, endpoint).catch((err) => console.error("push failed:", err));
+  const work = drainPushes(c.env, endpoint)
+    .then((more) => (more ? sendRest(c.env) : undefined))
+    .catch((err) => console.error("push failed:", err));
   try {
     c.executionCtx.waitUntil(work);
   } catch {
@@ -203,13 +209,48 @@ export function sendSoon<E extends { Bindings: Env }>(c: Context<E>, endpoint?: 
   }
 }
 
-/** Up to BATCHES batches: what one request or cron run sends. */
-export async function drainPushes(env: Env, endpoint?: string): Promise<void> {
+/**
+ * Up to BATCHES batches: what one run (a request, the cron, an alarm) sends. Whether pushes are still
+ * waiting that could go out now (not a failed one until its claim frees up after RETRY_AFTER_MS; the
+ * next run after that, usually the cron, tries it again).
+ */
+export async function drainPushes(env: Env, endpoint?: string): Promise<boolean> {
   await env.DB.prepare("DELETE FROM push_outbox WHERE created_at < ? OR attempts >= ?")
     .bind(new Date(Date.now() - EXPIRE_MS).toISOString(), MAX_ATTEMPTS)
     .run();
   const keys = await vapidKeys(env);
-  for (let batch = 0; batch < BATCHES; batch++) if (!(await sendBatch(env, keys, endpoint))) return;
+  for (let batch = 0; batch < BATCHES; batch++) if (!(await sendBatch(env, keys, endpoint))) break;
+  const waiting = await env.DB.prepare("SELECT 1 FROM push_outbox WHERE claimed_at IS NULL OR claimed_at < ? LIMIT 1")
+    .bind(new Date(Date.now() - RETRY_AFTER_MS).toISOString())
+    .first();
+  return waiting !== null;
+}
+
+/**
+ * Sends the rest of a backlog: one run every NEXT_RUN_MS, each with its own CPU and subrequests,
+ * until nothing is left that can go out now. A single instance, so runs never overlap. A failed
+ * alarm is retried by Cloudflare, and the cron sends anything left over either way.
+ */
+export class PushSender extends DurableObject<Env> {
+  /** Another run in NEXT_RUN_MS, unless one is due sooner. */
+  async soon(): Promise<void> {
+    const at = Date.now() + NEXT_RUN_MS;
+    const set = await this.ctx.storage.getAlarm();
+    if (set === null || set > at) await this.ctx.storage.setAlarm(at);
+  }
+
+  async alarm(): Promise<void> {
+    if (await drainPushes(this.env)) await this.soon();
+  }
+}
+
+/** Hands what is left to the PushSender. Never throws: the cron sends it otherwise. */
+export async function sendRest(env: Env): Promise<void> {
+  try {
+    await env.PUSH.get(env.PUSH.idFromName("push")).soon();
+  } catch (err) {
+    console.error("push sender failed:", err);
+  }
 }
 
 /** A push to one browser only (the one that just turned push on), so the member sees it works. */
