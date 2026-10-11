@@ -3157,3 +3157,21 @@ ul.audit li:first-child {
   flex: none;
   color: var(--acc-ink);
 }
+
+/* 下拉刷新 in the home-screen app (PullToRefresh.tsx). */
+.pull-refresh {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 50%;
+  z-index: 60;
+  margin-left: -50px;
+  width: 100px;
+  padding: 6px 0;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  color: var(--text-2);
+  font-size: 13px;
+  text-align: center;
+}
