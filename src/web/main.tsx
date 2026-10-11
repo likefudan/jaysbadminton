@@ -10,6 +10,7 @@ import { Member, MemberProfilePage } from "./pages/Member";
 import { Account, AccountProfile } from "./pages/Account";
 import { Privacy, Terms } from "./pages/Legal";
 import { NotFound } from "./pages/NotFound";
+import { PullToRefresh } from "./PullToRefresh";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "./styles.css";
@@ -17,6 +18,7 @@ import "./styles.css";
 function App() {
   return (
     <LocationProvider>
+      <PullToRefresh />
       <Router>
         <Route path="/" component={Home} />
         <Route path="/join" component={Join} />
