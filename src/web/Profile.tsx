@@ -3,7 +3,7 @@ import { toPacific } from "../shared/time";
 import type { ActivityDay, MemberProfile } from "../shared/types";
 import { api } from "./api";
 import { Card, Field, useAction } from "./components";
-import { fmtDate, month, t, tk, tx } from "./i18n";
+import { fmtDate, fmtDay, month, t, tk, tx } from "./i18n";
 
 const STATUS_LABEL: Record<ActivityDay["status"], string> = {
   done: tk("已参加"),
@@ -12,10 +12,10 @@ const STATUS_LABEL: Record<ActivityDay["status"], string> = {
 };
 const WEEKDAY_LABELS = ["", tk("一"), "", tk("三"), "", tk("五"), ""];
 
-/** "2026年3月14日 周六 19:05" in Pacific time. */
+/** "2026年3月14日 19:05" in Pacific time. */
 function formatJoined(iso: string): string {
   const p = toPacific(iso);
-  return `${fmtDate(p.date)} ${p.time}`;
+  return `${fmtDay(p.date)} ${p.time}`;
 }
 
 const day = (date: string) => Date.parse(`${date}T12:00:00Z`);

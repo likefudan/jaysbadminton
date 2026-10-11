@@ -82,6 +82,7 @@ describe("t / tm", () => {
     expect(tm(checkUsername("a".repeat(30))!)).toBe("Usernames can be at most 20 characters");
     expect(tm("找不到这个活动")).toBe("Event not found");
     expect(tm("服务器说了别的")).toBe("服务器说了别的");
+    expect(tm("请填写邮箱 或 微信名")).toBe("请填写邮箱 或 微信名");
   });
 
   it("writes dates the way each language does", () => {

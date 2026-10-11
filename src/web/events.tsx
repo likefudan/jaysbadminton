@@ -1,6 +1,6 @@
 import type { EventStatus, EventSummary } from "../shared/types";
 import { STATUS_ZH } from "../shared/types";
-import { fmtDate, fmtInstant, t, tx, weekday as weekdayName } from "./i18n";
+import { fmtDate, fmtInstant, t, tx, weekdayOf } from "./i18n";
 
 /** Apple Maps on iPhone, Google Maps elsewhere. */
 export function mapLink(address: string): string {
@@ -24,7 +24,7 @@ function publicStatus(s: EventStatus): { cls: string; label: string } | null {
 /** The calendar block on the left of an event: year, month/day, weekday. */
 export function DateTile(props: { date: string }) {
   const [y, m, d] = props.date.split("-").map(Number) as [number, number, number];
-  const weekday = weekdayName(new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay());
+  const weekday = weekdayOf(props.date);
   return (
     <div class="date-tile" role="img" aria-label={fmtDate(props.date)}>
       <span class="dt-year">{y}</span>

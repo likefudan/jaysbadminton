@@ -6,14 +6,14 @@ import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
 import { ShareCardButton } from "../ShareCard";
 import { LeaderboardCard } from "../Stats";
-import { t, weekday as weekdayName } from "../i18n";
+import { t, weekdayOf } from "../i18n";
 
 /** 下次活动 / 已报名 / 近期活动, from the events already on the page. */
 function overview(events: EventSummary[]) {
   const next = events.find((e) => e.status === "open") ?? events[0];
   if (!next) return null;
-  const [y, m, d] = next.date.split("-").map(Number) as [number, number, number];
-  const weekday = weekdayName(new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay());
+  const [, m, d] = next.date.split("-").map(Number) as [number, number, number];
+  const weekday = weekdayOf(next.date);
   return [
     { label: t("下次活动"), value: `${m}/${d}`, sub: `${weekday} ${next.startTime}` },
     { label: t("已报名"), value: next.headcount, unit: t("人") },

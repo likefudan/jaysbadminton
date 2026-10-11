@@ -39,9 +39,20 @@ function saved(): Lang | null {
 }
 
 let chosen: Lang = saved() ?? detect();
+
+/** The Owner's and organizers' pages, which stay Simplified Chinese with no switch. */
+export const isAdminPath = (path: string) => path === "/admin" || path.startsWith("/admin/");
 /** What this render is in: the visitor's choice, or Simplified on the admin pages. */
 let active: Lang = chosen;
 const listeners = new Set<(l: Lang) => void>();
+// A choice made in another tab of this browser.
+if (typeof addEventListener === "function")
+  addEventListener("storage", (e) => {
+    if (e.key === KEY && isLang(e.newValue) && e.newValue !== chosen) {
+      chosen = e.newValue;
+      listeners.forEach((l) => l(chosen));
+    }
+  });
 
 export function setLang(lang: Lang) {
   chosen = lang;
@@ -58,6 +69,7 @@ export function useLang(): Lang {
   const [l, setL] = useState(chosen);
   useEffect(() => {
     listeners.add(setL);
+    setL(chosen); // in case it changed between render and now
     return () => void listeners.delete(setL);
   }, []);
   return l;
@@ -113,8 +125,9 @@ let patterns: { re: RegExp; names: string[]; key: string }[] | null = null;
 export function tm(message: string): string {
   if (active === "zh-CN" || !message) return message;
   if (MESSAGES[message]) return t(message);
+  // Only keys with enough words of their own: "{a} 或 {b}" would match any message with 或 in it.
   patterns ??= Object.keys(MESSAGES)
-    .filter((k) => k.includes("{"))
+    .filter((k) => k.includes("{") && k.replace(/\{\w+\}/g, "").trim().length >= 4)
     .map((key) => {
       const names: string[] = [];
       const src = key
@@ -142,6 +155,12 @@ const WEEK_TW = ["週日", "週一", "週二", "週三", "週四", "週五", "�
 const WEEK_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+/** 周六 / 週六 / Sat for a YYYY-MM-DD date. */
+export function weekdayOf(date: string): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return weekday(new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay());
+}
+
 /** 周六 / 週六 / Sat for 0 = Sunday. */
 export function weekday(n: number): string {
   return (active === "en" ? WEEK_EN : active === "zh-TW" ? WEEK_TW : WEEK_ZH)[n]!;
@@ -151,9 +170,15 @@ export function weekday(n: number): string {
 export function fmtDate(date: string, withYear = true): string {
   if (active === "zh-CN") return formatDateZh(date, withYear);
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
-  const w = weekday(new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay());
+  const w = weekdayOf(date);
   if (active === "en") return `${w}, ${MONTH_EN[m - 1]} ${d}${withYear ? `, ${y}` : ""}`;
   return `${withYear ? `${y}年` : ""}${m}月${d}日 ${w}`;
+}
+
+/** "2026年10月6日", or "Oct 6, 2026": a date without its weekday. */
+export function fmtDay(date: string): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return active === "en" ? `${MONTH_EN[m - 1]} ${d}, ${y}` : `${y}年${m}月${d}日`;
 }
 
 /** "10月5日 周一 20:00" for a UTC instant, in Pacific time. */

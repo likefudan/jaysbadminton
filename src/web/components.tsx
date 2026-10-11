@@ -6,7 +6,7 @@ import { useSiteTitle, useStaging } from "./site";
 import { DeveloperSwitch } from "./DeveloperTools";
 import { GoogleAccount } from "./GoogleAccount";
 import { useLocation } from "preact-iso";
-import { t, tm } from "./i18n";
+import { isAdminPath, t, tm } from "./i18n";
 import { LangSwitch } from "./LangSwitch";
 
 export function Page(props: { title: string; eyebrow?: string; subtitle?: string; children: ComponentChildren }) {
@@ -14,7 +14,7 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
   const staging = useStaging();
   const [looks, setLooks] = useState(false);
   const { path } = useLocation();
-  const admin = path === "/admin" || path.startsWith("/admin/");
+  const admin = isAdminPath(path);
   useEffect(() => {
     document.title = props.title === site ? site : `${props.title} · ${site}`;
   }, [props.title, site]);

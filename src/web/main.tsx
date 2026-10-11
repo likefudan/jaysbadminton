@@ -11,7 +11,7 @@ import { Account, AccountProfile } from "./pages/Account";
 import { Privacy, Terms } from "./pages/Legal";
 import { NotFound } from "./pages/NotFound";
 import { PullToRefresh } from "./PullToRefresh";
-import { useActiveLang } from "./i18n";
+import { isAdminPath, useActiveLang } from "./i18n";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "./styles.css";
@@ -19,7 +19,7 @@ import "./styles.css";
 /** Renders the page in the chosen language (admin pages in Simplified), afresh when it changes. */
 function Localized(props: { children: ComponentChildren }) {
   const { path } = useLocation();
-  const lang = useActiveLang(path === "/admin" || path.startsWith("/admin/"));
+  const lang = useActiveLang(isAdminPath(path));
   return <Fragment key={lang}>{props.children}</Fragment>;
 }
 

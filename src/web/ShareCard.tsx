@@ -4,11 +4,14 @@ import { eventCardText, type CardText } from "../shared/shareCard";
 import type { EventSummary } from "../shared/types";
 import { CalendarButtons, canAddToCalendar } from "./Calendar";
 import { useSiteTitle } from "./site";
-import { fmtDate, t } from "./i18n";
+import { currentLang, fmtDate, t } from "./i18n";
 
 const W = 1080;
 const H = 1560;
-const SANS = `-apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif`;
+const SC = `"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC"`;
+const TC = `"PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC"`;
+/** Traditional Chinese cards take the TC fonts first, so 掃碼報名 isn't drawn with Simplified glyph shapes. */
+const sans = () => `-apple-system, ${currentLang() === "zh-TW" ? `${TC}, ${SC}` : `${SC}, ${TC}`}, sans-serif`;
 const MONO = `"Geist Mono Variable", ui-monospace, Menlo, monospace`;
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -44,6 +47,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
  * shows up here without touching this code.
  */
 export async function drawShareCard(siteTitle: string, text: CardText): Promise<string> {
+  const SANS = sans();
   const [QRCode, logo] = await Promise.all([import("qrcode"), loadImage("/icon.svg")]);
   // Level H survives the logo covering the middle.
   const qr = QRCode.create(text.url, { errorCorrectionLevel: "H" }).modules;

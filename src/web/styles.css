@@ -3176,7 +3176,10 @@ ul.audit li:first-child {
   text-align: center;
 }
 
-/* 简 / 繁 / EN in the top bar, beside 外观. */
+/* 简 / 繁 / EN in the top bar, between the Google avatar and 外观: the avatar's panel reaches past both. */
+.topbar-actions:has(.lang-switch) .google-account-panel {
+  right: -88px;
+}
 .lang-switch {
   position: relative;
   flex: none;
