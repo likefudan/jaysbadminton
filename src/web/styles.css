@@ -2632,6 +2632,16 @@ button.calendar-link {
   color: inherit;
 }
 
+.legal-list {
+  margin: 0.4rem 0 0.9rem;
+  padding-left: 1.2rem;
+}
+
+.legal-list li {
+  margin: 0.35rem 0;
+  line-height: 1.6;
+}
+
 /* ---- 个人信息: basics + activity heatmap ---- */
 :root {
   --heat-upcoming: #4f86c6;

@@ -11,10 +11,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "Google 账号信息": { tw: "Google 帳號資訊", en: "Google account" },
   "Google 账号头像": { tw: "Google 帳號頭像", en: "Google account photo" },
   "Google 账号：{email}": { tw: "Google 帳號：{email}", en: "Google account: {email}" },
-  "Jay's Badminton 用于社群成员报名活动、查看出勤和费用记录。请使用本人账号并提供准确的成员资料。": {
-    tw: "Jay's Badminton 用於社群成員報名活動、查看出勤和費用記錄。請使用本人帳號並提供準確的成員資料。",
-    en: "Jay's Badminton lets group members sign up for events and see their attendance and costs. Please use your own account and give accurate member details.",
-  },
   "iPhone / iPad 需要先把网站添加到主屏幕（见上面的「添加到主屏幕」），然后从主屏幕的图标打开，再回到这里开启。": {
     tw: "iPhone / iPad 需要先把網站加入主畫面（見上面的「加入主畫面」），然後從主畫面的圖示開啟，再回到這裡開啟。",
     en: 'On iPhone and iPad, first add the site to your Home Screen (see "Add to Home Screen" above), open it from the Home Screen icon, then come back here to turn it on.',
@@ -112,21 +108,10 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "你的帳號已停用，不能再報名活動。如果還有沒付清的費用，可以在下面繼續付款。",
     en: "Your account is deactivated and can't sign up for events. If you still owe anything, you can pay it below.",
   },
-  "使用 Google 登录时，我们接收你的 Google 账号标识、邮箱地址和头像链接；头像链接保存在登录会话中，用于显示右上角账号头像。申请入群时，我们会保存你填写的用户名、微信名和给群主的留言（选填），供群主审核；用邮箱注册时还会保存你的邮箱，用来发送你的专属链接。":
-    {
-      tw: "使用 Google 登入時，我們接收你的 Google 帳號識別碼、電子郵件地址和頭像連結；頭像連結儲存在登入工作階段中，用於顯示右上角帳號頭像。申請入群時，我們會儲存你填寫的使用者名稱、微信名和給群主的留言（選填），供群主審核；用電子郵件註冊時還會儲存你的電子郵件，用來發送你的專屬連結。",
-      en: "When you sign in with Google, we receive your Google account ID, email address and profile photo link; the photo link is kept in your sign-in session to show your photo at the top right. When you ask to join, we keep the username, WeChat name and optional note to the group owner that you enter, for the group owner to review; if you register by email, we also keep your email to send you your personal link.",
-    },
   使用条款: { tw: "使用條款", en: "Terms of Use" },
   保存: { tw: "儲存", en: "Save" },
   "保存中…": { tw: "儲存中…", en: "Saving…" },
   保存修改: { tw: "儲存修改", en: "Save changes" },
-  保留与删除: { tw: "保留與刪除", en: "Retention and deletion" },
-  "信息会在成员账号和相关活动记录存在期间保留。如需查询、更正或删除个人信息，请通过羽毛球群联系群主。": {
-    tw: "資訊會在成員帳號和相關活動記錄存在期間保留。如需查詢、更正或刪除個人資訊，請透過羽毛球群聯絡群主。",
-    en: "Information is kept for as long as the member account and related event records exist. To see, correct or delete your personal information, contact the group owner through the badminton group.",
-  },
-  信息的使用与共享: { tw: "資訊的使用與共享", en: "How information is used and shared" },
   修改: { tw: "修改", en: "Edit" },
   修改用户名: { tw: "修改使用者名稱", en: "Change username" },
   "像 App 一样一点就打开你的页面。iPhone 添加以后才能收到推送通知。": {
@@ -207,10 +192,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   复制链接: { tw: "複製連結", en: "Copy link" },
   外观: { tw: "外觀", en: "Appearance" },
   多一个: { tw: "多一個", en: "One more" },
-  "如对这些条款有疑问，请联系本网站负责人（群主）：ningdafei@gmail.com。": {
-    tw: "如對這些條款有疑問，請聯絡本網站負責人（群主）：ningdafei@gmail.com。",
-    en: "For questions about these terms, contact the person who runs this site (the group owner): ningdafei@gmail.com.",
-  },
   "如果 {email} 是已通过审核的成员邮箱，专属链接已经发过去了，请查看邮箱（也看一下垃圾邮件）。": {
     tw: "如果 {email} 是已通過審核的成員電子郵件，專屬連結已經發過去了，請查看電子郵件（也看一下垃圾郵件）。",
     en: "If {email} belongs to an approved member, the personal link is on its way. Check your inbox (and your spam folder).",
@@ -270,10 +251,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Turn on notifications to hear right away when a new event opens or your bill is ready.",
   },
   强调色: { tw: "強調色", en: "Accent color" },
-  "当你使用本应用时，我们会保存活动报名、出勤、费用和付款记录，用于组织羽毛球活动及向你展示个人记录。": {
-    tw: "當你使用本應用程式時，我們會儲存活動報名、出勤、費用和付款記錄，用於組織羽毛球活動及向你展示個人記錄。",
-    en: "When you use this app, we keep event sign-up, attendance, cost and payment records to run badminton events and to show you your own records.",
-  },
   "当前：普通成员视图": { tw: "當前：普通成員視角", en: "Now: member view" },
   "当前：管理员视图": { tw: "當前：管理員視角", en: "Now: admin view" },
   "往下滑，选「添加到主屏幕」": { tw: "往下滑，選「加入主畫面」", en: 'Scroll down and choose "Add to Home Screen"' },
@@ -294,7 +271,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   怎么打开: { tw: "怎麼開啟", en: "How to open" },
   恢复网站默认: { tw: "恢復網站預設", en: "Use site default" },
   我也报名: { tw: "我也報名", en: "Sign me up too" },
-  我们收集的信息: { tw: "我們收集的資訊", en: "Information we collect" },
   我报名的活动: { tw: "我報名的活動", en: "My sign-ups" },
   "我是新成员，创建账号": { tw: "我是新成員，建立帳號", en: "I'm new, create an account" },
   我的活动: { tw: "我的活動", en: "My events" },
@@ -344,8 +320,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   时间范围: { tw: "時間範圍", en: "Time range" },
   "明细（{n} 场）": { tw: "明細（{n} 場）", en: "Details ({n} events)" },
   暂时没有活动: { tw: "暫時沒有活動", en: "No events right now" },
-  "最后更新：2026 年 10 月 1 日": { tw: "最後更新：2026 年 10 月 1 日", en: "Last updated: October 1, 2026" },
-  "最后更新：2026 年 10 月 6 日": { tw: "最後更新：2026 年 10 月 6 日", en: "Last updated: October 6, 2026" },
   "最多 {n} 个朋友": { tw: "最多 {n} 個朋友", en: "Up to {n} friends" },
   "最近 1 年": { tw: "最近 1 年", en: "past year" },
   "最近 3 个月": { tw: "最近 3 個月", en: "past 3 months" },
@@ -354,24 +328,14 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "最近 7 天": { tw: "最近 7 天", en: "past 7 days" },
   最近没有报名的活动: { tw: "最近沒有報名的活動", en: "No recent sign-ups" },
   最长连续: { tw: "最長連續", en: "Streak" },
-  "有关隐私或账号的问题，请联系本网站负责人（群主）：ningdafei@gmail.com。": {
-    tw: "有關隱私或帳號的問題，請聯絡本網站負責人（群主）：ningdafei@gmail.com。",
-    en: "For questions about privacy or your account, contact the person who runs this site (the group owner): ningdafei@gmail.com.",
-  },
   "有新活动开始报名、或者你的账单出来时，在这台设备上通知你。": {
     tw: "有新活動開始報名、或者你的帳單出來時，在這臺裝置上通知你。",
     en: "Get a notification on this device when a new event opens for sign-up or your bill is ready.",
   },
   "朋友 {n} 的名字（选填）": { tw: "朋友 {n} 的名字（選填）", en: "Friend {n}'s name (optional)" },
-  服务变更: { tw: "服務變更", en: "Changes to the service" },
-  服务用途: { tw: "服務用途", en: "What the service is for" },
   未出席: { tw: "未出席", en: "Absent" },
   未填写: { tw: "未填寫", en: "Not set" },
   本人: { tw: "本人", en: "You" },
-  "本应用可能根据社群需要调整功能或短暂停止服务。重要变化会通过应用或羽毛球群通知。": {
-    tw: "本應用程式可能根據社群需要調整功能或短暫停止服務。重要變化會透過應用程式或羽毛球群通知。",
-    en: "The app may change its features or pause briefly as the group needs. Important changes will be announced in the app or the badminton group.",
-  },
   "本次应付 · 付给{name}": { tw: "本次應付 · 付給{name}", en: "Amount due · pay {name}" },
   松开刷新: { tw: "鬆開重新整理", en: "Release to refresh" },
   模式: { tw: "模式", en: "Mode" },
@@ -383,11 +347,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "没收到的话，请看一下垃圾邮件文件夹；也可以在「登录 / 注册」页点「找回我的专属链接」。": {
     tw: "沒收到的話，請看一下垃圾郵件資料夾；也可以在「登入 / 註冊」頁點「找回我的專屬連結」。",
     en: 'If it doesn\'t arrive, check your spam folder, or tap "Get my personal link again" on the Sign in page.',
-  },
-  活动与费用: { tw: "活動與費用", en: "Events and costs" },
-  "活动时间、场地、名额和费用以应用及组织者发布的信息为准。报名、取消和付款请遵守每场活动的说明以及社群约定。": {
-    tw: "活動時間、場地、名額和費用以應用程式及組織者發布的資訊為準。報名、取消和付款請遵守每場活動的說明以及社群約定。",
-    en: "Event times, venues, spots and costs are as posted in the app and by the organizers. For sign-ups, cancellations and payments, please follow each event's notes and the group's rules.",
   },
   活动热力图: { tw: "活動熱力圖", en: "Activity map" },
   活动记录: { tw: "活動記錄", en: "Activity" },
@@ -467,11 +426,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "網路連線失敗，請檢查網路後重試",
     en: "Network error. Check your connection and try again.",
   },
-  "群主可以在管理活动所需的范围内查看成员资料、报名和费用记录。群主任命了组织者时，组织者可以查看所有成员和入群申请的资料（包括邮箱、微信名、申请留言、群主填写的备注名和出勤记录等，不含专属链接），以及他们自己负责的活动的费用和付款记录、付到他们自己账户的收款（付款人、金额和备注）；这些活动的费用付到组织者本人的 Venmo 或 Zelle 账户。除提供应用运行所必需的服务外，我们不会向其他第三方共享个人信息。":
-    {
-      tw: "群主可以在管理活動所需的範圍內查看成員資料、報名和費用記錄。群主任命了組織者時，組織者可以查看所有成員和入群申請的資料（包括電子郵件、微信名、申請留言、群主填寫的備註名和出勤記錄等，不含專屬連結），以及他們自己負責的活動的費用和付款記錄、付到他們自己帳戶的收款（付款人、金額和備註）；這些活動的費用付到組織者本人的 Venmo 或 Zelle 帳戶。除提供應用程式運作所必需的服務外，我們不會向其他第三方共享個人資訊。",
-      en: "The group owner can see member details, sign-ups and cost records as needed to run events. When the group owner appoints organizers, organizers can see the details of all members and join requests (including email, WeChat name, request notes, the owner's note names and attendance, but not personal links), plus costs and payment records for the events they run and payments into their own accounts (payer, amount and memo); payments for those events go to the organizer's own Venmo or Zelle account. Apart from services the app needs to run, we don't share personal information with any other third party.",
-    },
   "群主审核通过后，你的专属链接会发到 {email}。以后报名、查看账单都用这个链接。": {
     tw: "群主審核通過後，你的專屬連結會發到 {email}。以後報名、查看帳單都用這個連結。",
     en: "Once the group owner approves you, your personal link will be sent to {email}. Use it to sign up and see your bills from then on.",
@@ -485,7 +439,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Your group nickname or WeChat ID, anything the group owner will recognize",
   },
   羽毛球活动: { tw: "羽毛球活動", en: "Badminton" },
-  联系我们: { tw: "聯絡我們", en: "Contact us" },
   自动: { tw: "自動", en: "Auto" },
   花费: { tw: "花費", en: "Spent" },
   "花费 {amount} · 打球 {n} 次": { tw: "花費 {amount} · 打球 {n} 次", en: "spent {amount} · played {n}" },
@@ -499,12 +452,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Please don't forward this link to anyone.",
   },
   请填写原来的成员专属链接: { tw: "請填寫原來的成員專屬連結", en: "Enter your existing member link" },
-  "请妥善保护 Google 账号和成员链接，不要冒用他人身份或干扰应用运行。群主可为维护活动秩序暂停或删除违规账号。": {
-    tw: "請妥善保護 Google 帳號和成員連結，不要冒用他人身份或干擾應用程式運作。群主可為維護活動秩序暫停或刪除違規帳號。",
-    en: "Keep your Google account and member link safe. Don't pretend to be someone else or disrupt the app. The group owner may suspend or delete accounts that break the rules.",
-  },
   "请求失败（{status}）": { tw: "請求失敗（{status}）", en: "Request failed ({status})" },
-  账号使用: { tw: "帳號使用", en: "Using your account" },
   "过去一年参加 {done} 次 · 缺席 {absent} 次 · 即将参加 {upcoming} 次": {
     tw: "過去一年參加 {done} 次 · 缺席 {absent} 次 · 即將參加 {upcoming} 次",
     en: "Past year: attended {done} · missed {absent} · upcoming {upcoming}",
@@ -523,11 +471,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "這個瀏覽器沒能開啟推播，請換個瀏覽器再試",
     en: "This browser couldn't turn on notifications. Please try another browser.",
   },
-  "这些信息仅用于账号登录、头像展示、成员识别、申请审核、审核结果和专属链接的邮件通知、活动组织、费用管理和应用维护。我们不会读取 Gmail 邮件，也不会出售个人信息。":
-    {
-      tw: "這些資訊僅用於帳號登入、頭像展示、成員識別、申請審核、審核結果和專屬連結的郵件通知、活動組織、費用管理和應用程式維護。我們不會讀取 Gmail 郵件，也不會出售個人資訊。",
-      en: "This information is used only for sign-in, showing your photo, recognizing members, reviewing join requests, emailing approval results and personal links, running events, managing costs and maintaining the app. We never read Gmail and never sell personal information.",
-    },
   "这台设备已开启推送。其他设备需要分别开启。": {
     tw: "這臺裝置已開啟推播。其他裝置需要分別開啟。",
     en: "Notifications are on for this device. Turn them on separately on other devices.",

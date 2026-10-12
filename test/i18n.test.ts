@@ -6,6 +6,7 @@ import { STYLES } from "../src/shared/themes";
 import { STATUS_ZH } from "../src/shared/types";
 import { activate, fmtDate, t, tm } from "../src/web/lang";
 import { MESSAGES } from "../src/web/messages";
+import { PRIVACY, TERMS } from "../src/web/pages/legalText";
 
 const sources = import.meta.glob("../src/web/**/*.{ts,tsx}", {
   query: "?raw",
@@ -15,8 +16,10 @@ const sources = import.meta.glob("../src/web/**/*.{ts,tsx}", {
 
 const CALL = /\b(?:t|tx|tk)\(\s*"((?:[^"\\]|\\.)*)"/g;
 // Pages and parts only the Owner and organizers see stay Chinese (main.tsx renders /admin in 简体);
-// the language names and the 文A icon are the same in every language.
-const ADMIN_ONLY = /pages\/Admin|DeveloperTools|AddressInput|organizers\.ts|messages\.ts|lang\.ts|site\.ts|LangSwitch/;
+// the language names and the 文A icon are the same in every language; the privacy policy and terms
+// carry all three languages in legalText.ts.
+const ADMIN_ONLY =
+  /pages\/Admin|DeveloperTools|AddressInput|organizers\.ts|messages\.ts|lang\.ts|site\.ts|LangSwitch|legalText\.ts/;
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 afterEach(() => {
@@ -66,6 +69,18 @@ describe("translations", () => {
       shared.push(eventCardText("", { status, date: "2026-10-06" } as never).hint);
     shared.push(eventCardText("", { status: "cancelled", date: "2026-10-06" } as never).lines[0]!); // 本场已取消
     expect(shared.filter((s) => s && !MESSAGES[s])).toEqual([]);
+  });
+});
+
+describe("privacy policy and terms", () => {
+  it("say the same things in every language", () => {
+    // Same sections, same paragraphs and list lengths: a sentence added in one language only fails here.
+    const shape = (doc: (typeof PRIVACY)["en"]) =>
+      doc.sections.map((s) => s.body.map((b) => (typeof b === "string" ? "p" : b.length)));
+    for (const doc of [PRIVACY, TERMS]) {
+      expect(shape(doc["zh-TW"])).toEqual(shape(doc["zh-CN"]));
+      expect(shape(doc.en)).toEqual(shape(doc["zh-CN"]));
+    }
   });
 });
 
