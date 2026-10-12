@@ -1,60 +1,32 @@
 import { Card, Page } from "../components";
-import { t } from "../i18n";
+import { currentLang, t } from "../i18n";
+import { type LegalDoc, PRIVACY, TERMS } from "./legalText";
 
-export function Privacy() {
+function LegalPage(props: { title: string; doc: LegalDoc }) {
   return (
-    <Page title={t("隐私政策")} subtitle={t("最后更新：2026 年 10 月 6 日")}>
+    <Page title={props.title} subtitle={props.doc.updated}>
       <Card>
-        <h2>{t("我们收集的信息")}</h2>
-        <p>
-          {t(
-            "使用 Google 登录时，我们接收你的 Google 账号标识、邮箱地址和头像链接；头像链接保存在登录会话中，用于显示右上角账号头像。申请入群时，我们会保存你填写的用户名、微信名和给群主的留言（选填），供群主审核；用邮箱注册时还会保存你的邮箱，用来发送你的专属链接。",
-          )}
-        </p>
-        <p>{t("当你使用本应用时，我们会保存活动报名、出勤、费用和付款记录，用于组织羽毛球活动及向你展示个人记录。")}</p>
-        <h2>{t("信息的使用与共享")}</h2>
-        <p>
-          {t(
-            "这些信息仅用于账号登录、头像展示、成员识别、申请审核、审核结果和专属链接的邮件通知、活动组织、费用管理和应用维护。我们不会读取 Gmail 邮件，也不会出售个人信息。",
-          )}
-        </p>
-        <p>
-          {t(
-            "群主可以在管理活动所需的范围内查看成员资料、报名和费用记录。群主任命了组织者时，组织者可以查看所有成员和入群申请的资料（包括邮箱、微信名、申请留言、群主填写的备注名和出勤记录等，不含专属链接），以及他们自己负责的活动的费用和付款记录、付到他们自己账户的收款（付款人、金额和备注）；这些活动的费用付到组织者本人的 Venmo 或 Zelle 账户。除提供应用运行所必需的服务外，我们不会向其他第三方共享个人信息。",
-          )}
-        </p>
-        <h2>{t("保留与删除")}</h2>
-        <p>{t("信息会在成员账号和相关活动记录存在期间保留。如需查询、更正或删除个人信息，请通过羽毛球群联系群主。")}</p>
-        <h2>{t("联系我们")}</h2>
-        <p>{t("有关隐私或账号的问题，请联系本网站负责人（群主）：ningdafei@gmail.com。")}</p>
+        {props.doc.sections.map((s) => (
+          <section key={s.h}>
+            <h2>{s.h}</h2>
+            {s.body.map((b, i) =>
+              typeof b === "string" ? (
+                <p key={i}>{b}</p>
+              ) : (
+                <ul key={i} class="legal-list">
+                  {b.map((item, j) => (
+                    <li key={j}>{item}</li>
+                  ))}
+                </ul>
+              ),
+            )}
+          </section>
+        ))}
       </Card>
     </Page>
   );
 }
 
-export function Terms() {
-  return (
-    <Page title={t("使用条款")} subtitle={t("最后更新：2026 年 10 月 1 日")}>
-      <Card>
-        <h2>{t("服务用途")}</h2>
-        <p>{t("Jay's Badminton 用于社群成员报名活动、查看出勤和费用记录。请使用本人账号并提供准确的成员资料。")}</p>
-        <h2>{t("活动与费用")}</h2>
-        <p>
-          {t(
-            "活动时间、场地、名额和费用以应用及组织者发布的信息为准。报名、取消和付款请遵守每场活动的说明以及社群约定。",
-          )}
-        </p>
-        <h2>{t("账号使用")}</h2>
-        <p>
-          {t(
-            "请妥善保护 Google 账号和成员链接，不要冒用他人身份或干扰应用运行。群主可为维护活动秩序暂停或删除违规账号。",
-          )}
-        </p>
-        <h2>{t("服务变更")}</h2>
-        <p>{t("本应用可能根据社群需要调整功能或短暂停止服务。重要变化会通过应用或羽毛球群通知。")}</p>
-        <h2>{t("联系我们")}</h2>
-        <p>{t("如对这些条款有疑问，请联系本网站负责人（群主）：ningdafei@gmail.com。")}</p>
-      </Card>
-    </Page>
-  );
-}
+export const Privacy = () => <LegalPage title={t("隐私政策")} doc={PRIVACY[currentLang()]} />;
+
+export const Terms = () => <LegalPage title={t("使用条款")} doc={TERMS[currentLang()]} />;
