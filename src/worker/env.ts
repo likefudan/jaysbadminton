@@ -20,6 +20,10 @@ export interface Env {
   EMAIL_FROM?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  /** Cloudflare Turnstile on the public forms (turnstile.ts): the site key is a public var, the secret
+   *  is pushed from the GitHub secret; the check is off until both are set. */
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_SECRET?: string;
   /** Public site address, for links in messages sent by the cron job (which has no request). */
   SITE_ORIGIN: string;
   /** "production" or "staging" (the test site); missing in tests, which count as production. */

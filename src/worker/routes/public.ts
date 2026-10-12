@@ -11,11 +11,17 @@ import { isStaging, siteTheme, siteTitle } from "../site";
 import { leaderboard } from "../stats";
 import { assertPendingRoom, createMember } from "../members";
 import { sendApplicationNotice, sendLinkRecovery } from "../approvalEmail";
+import { turnstileSiteKey, verifyTurnstile } from "../turnstile";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
 publicRoutes.get("/site", async (c) =>
-  c.json({ title: await siteTitle(c.env), theme: await siteTheme(c.env), staging: isStaging(c.env) }),
+  c.json({
+    title: await siteTitle(c.env),
+    theme: await siteTheme(c.env),
+    staging: isStaging(c.env),
+    turnstileSiteKey: turnstileSiteKey(c.env),
+  }),
 );
 
 publicRoutes.get("/home", async (c) => {
@@ -60,6 +66,7 @@ publicRoutes.post("/join", async (c) => {
   const body = await readJson(c.req.raw);
   // Honeypot: real people never see this field, bots fill it in.
   if (str(body.website)) return c.json({ ok: true });
+  await verifyTurnstile(c.env, c.req.raw, str(body.turnstileToken), "join");
   await assertPendingRoom(c.env);
   // 用邮箱注册: the link is emailed on approval, so the address must be typed twice and match.
   const email = str(body.email).trim();
@@ -86,6 +93,7 @@ publicRoutes.post("/join", async (c) => {
 publicRoutes.post("/recover-link", async (c) => {
   const body = await readJson(c.req.raw);
   if (str(body.website)) return c.json({ ok: true });
+  await verifyTurnstile(c.env, c.req.raw, str(body.turnstileToken), "recover_link");
   const err = checkEmail(str(body.email));
   if (err) throw badRequest(err);
   try {

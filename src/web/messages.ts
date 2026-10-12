@@ -53,6 +53,19 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   下载图片: { tw: "下載圖片", en: "Download image" },
   不用了: { tw: "不用了", en: "No thanks" },
   专属链接会发到这个邮箱: { tw: "專屬連結會發到這個電子郵件", en: "Your personal link will be sent to this email" },
+  请先完成人机验证: { tw: "請先完成人機驗證", en: "Please complete the human check first" },
+  "人机验证加载失败，请刷新页面再试": {
+    tw: "人機驗證載入失敗，請重新整理頁面再試",
+    en: "The human check didn't load. Please refresh the page and try again",
+  },
+  "人机验证没有通过，请重新验证后再提交": {
+    tw: "人機驗證沒有通過，請重新驗證後再送出",
+    en: "The human check didn't pass. Please complete it again and resubmit",
+  },
+  "页面还在加载，请稍等一下再提交": {
+    tw: "頁面還在載入，請稍等一下再送出",
+    en: "The page is still loading. Please wait a moment and submit again",
+  },
   两次输入的邮箱不一致: { tw: "兩次輸入的電子郵件不一致", en: "The two emails don't match" },
   个人信息: { tw: "個人資訊", en: "Profile" },
   "也可以用 Zelle 转到 {account}，但需要{name}手动确认。": {

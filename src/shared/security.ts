@@ -11,7 +11,9 @@ export const CSP_HEADER = "Content-Security-Policy-Report-Only";
 
 export const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  // Cloudflare Turnstile (人机验证) on 申请加入 / 找回链接: its script, and the iframe it draws.
+  "script-src 'self' https://challenges.cloudflare.com",
+  "frame-src https://challenges.cloudflare.com",
   // Inline style attributes (theme swatches, chart bars).
   "style-src 'self' 'unsafe-inline'",
   // QR codes are data: URLs; Google profile pictures come from googleusercontent.com.
