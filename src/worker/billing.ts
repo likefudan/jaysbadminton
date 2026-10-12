@@ -30,6 +30,7 @@ export async function savedInput(env: Env, eventId: number): Promise<SettleInput
 }
 
 const PAYEE_CHANGED = "payee changed";
+const STATE_CHANGED = "event state changed";
 
 /**
  * Writes the settlement and brings the payment rows in line with it. Every row follows the new
@@ -41,6 +42,16 @@ const PAYEE_CHANGED = "payee changed";
  * kept at nothing owed, so its history stays and linked Venmo payments still point at it.
  */
 export async function applySettlement(env: Env, e: EventRow, input: SettleInput): Promise<Settlement> {
+  return (await writeSettlement(env, e, input, false)).settlement;
+}
+
+/** Finalize commits its state transition together with the bills, never in a later transaction. */
+async function writeSettlement(
+  env: Env,
+  e: EventRow,
+  input: SettleInput,
+  finalizing: boolean,
+): Promise<{ settlement: Settlement; first: boolean }> {
   const result = settle(await settleRows(env, e.id), input);
   const ts = now();
   const { results: existing } = await env.DB.prepare(
@@ -65,6 +76,13 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
   const billed = new Set(result.bills.map((b) => b.memberId));
 
   const stmts: D1PreparedStatement[] = [
+    // Recheck at write time: cancellation, reopening or collection may have won since the
+    // handler read `e`. json() raises an error and rolls back the entire D1 batch. A repeated
+    // Finalize may still find finalized, but must never reopen a settled or cancelled event.
+    env.DB.prepare(
+      `SELECT json('${STATE_CHANGED}') WHERE NOT EXISTS
+         (SELECT 1 FROM events WHERE id = ? AND status IN (${finalizing ? "'closed', 'finalized'" : "'finalized'"}))`,
+    ).bind(e.id),
     // The bills below follow `e`'s payee, and whoever is acting was allowed to by `e`'s manager. A
     // 转交 or 撤销 that moved either since `e` was read fails the whole batch rather than billing
     // for the wrong person: json() of a non-JSON string is an error, raised only when the row matches.
@@ -163,14 +181,33 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
     }
   }
   stmts.push(...syncPayments(env.DB, "event_id = ?", e.id));
+  const claimIndex = stmts.length;
+  if (finalizing) {
+    const owner = await ownerId(env.DB);
+    stmts.push(
+      env.DB.prepare("UPDATE events SET finalized_at = ? WHERE id = ? AND finalized_at IS NULL").bind(ts, e.id),
+      env.DB.prepare("UPDATE events SET status = 'finalized' WHERE id = ?").bind(e.id),
+      setSetting(
+        env.DB,
+        lastKey("last_shuttle_price_cents", await eventManager(env.DB, e), owner),
+        String(input.shuttlePriceCents),
+      ),
+    );
+  }
   try {
-    await env.DB.batch(stmts);
+    const committed = await env.DB.batch(stmts);
+    return { settlement: result, first: finalizing && (committed[claimIndex]?.meta.changes ?? 0) > 0 };
   } catch (err) {
-    if (String(err).includes("malformed JSON"))
+    if (String(err).includes("malformed JSON")) {
+      const current = await env.DB.prepare("SELECT status FROM events WHERE id = ?")
+        .bind(e.id)
+        .first<{ status: string }>();
+      if (!current || !(finalizing ? ["closed", "finalized"] : ["finalized"]).includes(current.status))
+        throw new HttpError(409, "event_changed", "这场活动的状态刚刚变了，请刷新页面后再试");
       throw new HttpError(409, "payee_changed", "这场活动的负责人或收款人刚刚换了，请刷新页面后再试");
+    }
     throw err;
   }
-  return result;
 }
 
 /**
@@ -179,20 +216,7 @@ export async function applySettlement(env: Env, e: EventRow, input: SettleInput)
  * bill may already be paid.
  */
 export async function finalize(env: Env, e: EventRow, input: SettleInput): Promise<boolean> {
-  await applySettlement(env, e, input);
-  const owner = await ownerId(env.DB);
-  const [claimed] = await env.DB.batch([
-    // Set once, by whichever request finalizes first.
-    env.DB.prepare("UPDATE events SET finalized_at = ? WHERE id = ? AND finalized_at IS NULL").bind(now(), e.id),
-    env.DB.prepare("UPDATE events SET status = 'finalized' WHERE id = ?").bind(e.id),
-    // The price is remembered for whoever runs the event, for their next one.
-    setSetting(
-      env.DB,
-      lastKey("last_shuttle_price_cents", await eventManager(env.DB, e), owner),
-      String(input.shuttlePriceCents),
-    ),
-  ]);
-  const first = (claimed?.meta.changes ?? 0) > 0;
+  const { first } = await writeSettlement(env, e, input, true);
   if (first) await notifyFinalized(env, e);
   return first;
 }

@@ -1,12 +1,118 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { Client, approveMember, billingScenario as scenario, createTestEvent, expire, setUpAdmin } from "./helpers";
+import { applySettlement, finalize } from "../src/worker/billing";
+import { getEvent } from "../src/worker/events";
 
 const anon = new Client();
 type Scenario = Awaited<ReturnType<typeof scenario>>;
 
 const payment = async (s: Scenario, name: string) =>
   (await s.admin.call(`${s.eb}/settlement`)).data.payments.find((p: { memberName: string }) => p.memberName === name);
+
+describe("atomic settlement state changes", () => {
+  const input = { courtTotalCents: 10000, shuttleCount: 6, shuttlePriceCents: 300 };
+  const changed = { ...input, courtTotalCents: 20000 };
+  const snapshot = async () =>
+    Promise.all(
+      ["events", "settlements", "payments", "payment_receipts", "settings", "notification_log"].map((table) =>
+        env.DB.prepare(`SELECT * FROM ${table} ORDER BY rowid`)
+          .all()
+          .then((r) => r.results),
+      ),
+    );
+
+  it("rejects a Finalize whose event was cancelled after it was read, without writing bills", async () => {
+    const s = await scenario();
+    const stale = await getEvent(env, s.e.id);
+    expect((await s.admin.call(`${s.eb}/cancel`, {})).status).toBe(200);
+    const before = await snapshot();
+    await expect(finalize(env, stale, input)).rejects.toMatchObject({ status: 409, code: "event_changed" });
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("rejects a Finalize whose event was reopened after it was read", async () => {
+    const s = await scenario();
+    const stale = await getEvent(env, s.e.id);
+    await env.DB.prepare("UPDATE events SET status = 'open' WHERE id = ?").bind(s.e.id).run();
+    const before = await snapshot();
+    await expect(finalize(env, stale, input)).rejects.toMatchObject({ status: 409, code: "event_changed" });
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("neither changes archived bills nor reopens an event collected after it was read", async () => {
+    const s = await scenario();
+    await s.admin.call(`${s.eb}/finalize`, s.fees);
+    const stale = await getEvent(env, s.e.id);
+    for (const name of ["Alice", "Bob"]) {
+      const p = await payment(s, name);
+      expect((await s.admin.call(`${s.base}/payments/${p.id}/mark-paid`, {})).status).toBe(200);
+    }
+    expect((await getEvent(env, s.e.id)).status).toBe("settled");
+    const before = await snapshot();
+    await expect(finalize(env, stale, changed)).rejects.toMatchObject({ status: 409, code: "event_changed" });
+    await expect(applySettlement(env, stale, changed)).rejects.toMatchObject({ status: 409, code: "event_changed" });
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("rolls back bills, the status transition and remembered price if the Finalize batch fails", async () => {
+    const s = await scenario();
+    const e = await getEvent(env, s.e.id);
+    const before = await snapshot();
+    // A runtime constraint failure at the end of the batch simulates a failed commit after
+    // writing the bills and event state. Neither can survive on its own.
+    const failing = {
+      ...env,
+      DB: new Proxy(env.DB, {
+        get(target, key) {
+          if (key === "batch")
+            return (statements: D1PreparedStatement[]) =>
+              target.batch([
+                ...statements,
+                target.prepare("INSERT INTO settings (key, value) VALUES ('test-finalize-failure', NULL)"),
+              ]);
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }),
+    };
+    await expect(finalize(failing, e, input)).rejects.toThrow();
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("commits bills and finalized state together and claims first Finalize only once", async () => {
+    const s = await scenario();
+    const stale = await getEvent(env, s.e.id);
+    const committedStates: string[] = [];
+    const observed = {
+      ...env,
+      DB: new Proxy(env.DB, {
+        get(target, key) {
+          if (key === "batch")
+            return async (statements: D1PreparedStatement[]) => {
+              const result = await target.batch(statements);
+              committedStates.push((await getEvent(env, s.e.id)).status);
+              return result;
+            };
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }),
+    };
+    expect(await finalize(observed, stale, input)).toBe(true);
+    expect(await finalize(observed, stale, input)).toBe(false);
+    // No completed batch may leave bills committed while the event still reads closed.
+    expect(committedStates).toEqual(["finalized", "finalized"]);
+    const e = await getEvent(env, s.e.id);
+    expect(e.status).toBe("finalized");
+    expect(e.finalized_at).not.toBeNull();
+    expect((await payment(s, "Alice")).amountDueCents).toBe(5600);
+    expect((await payment(s, "Jay")).receipts).toHaveLength(1);
+    expect(await env.DB.prepare("SELECT value FROM settings WHERE key = 'last_shuttle_price_cents'").first()).toEqual({
+      value: "300",
+    });
+  });
+});
 
 describe("settlement", () => {
   it("previews, finalizes and bills each member for themselves and their friends", async () => {
