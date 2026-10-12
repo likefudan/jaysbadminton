@@ -10,7 +10,7 @@ export interface LegalDoc {
   sections: { h: string; body: (string | string[])[] }[];
 }
 
-const CONTACT = "ningdafei@gmail.com";
+const CONTACT = "likefudan@gmail.com";
 
 export const PRIVACY: Record<Lang, LegalDoc> = {
   "zh-CN": {
@@ -75,7 +75,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       {
         h: "你的选择",
         body: [
-          "你可以在「个人信息」里修改名字和邮箱、开关推送通知，也可以随时退出 Google 登录。想查看、更正或删除你的个人信息，请联系群主。",
+          "你可以在「个人信息」里修改名字和邮箱、开关推送通知，也可以随时退出 Google 登录。想查看、更正或删除你的个人信息，请联系网站维护者（见下面的「联系我们」）。",
           "本网站不面向 13 岁以下的儿童。",
         ],
       },
@@ -85,7 +85,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       },
       {
         h: "联系我们",
-        body: [`有关隐私或账号的问题，请联系群主：${CONTACT}。`],
+        body: [`有关隐私或账号的问题，请联系网站维护者：${CONTACT}。`],
       },
     ],
   },
@@ -151,7 +151,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       {
         h: "你的選擇",
         body: [
-          "你可以在「個人資訊」裡修改名字和電子郵件、開關推播通知，也可以隨時登出 Google。想查看、更正或刪除你的個人資訊，請聯絡群主。",
+          "你可以在「個人資訊」裡修改名字和電子郵件、開關推播通知，也可以隨時登出 Google。想查看、更正或刪除你的個人資訊，請聯絡網站維護者（見下面的「聯絡我們」）。",
           "本網站不以 13 歲以下的兒童為對象。",
         ],
       },
@@ -161,7 +161,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       },
       {
         h: "聯絡我們",
-        body: [`有關隱私或帳號的問題，請聯絡群主：${CONTACT}。`],
+        body: [`有關隱私或帳號的問題，請聯絡網站維護者：${CONTACT}。`],
       },
     ],
   },
@@ -227,7 +227,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       {
         h: "Your choices",
         body: [
-          'You can change your name and email address and turn push notifications on or off under "Profile", and sign out of Google at any time. To see, correct or delete your personal information, contact the group owner.',
+          'You can change your name and email address and turn push notifications on or off under "Profile", and sign out of Google at any time. To see, correct or delete your personal information, contact the site maintainer (see "Contact" below).',
           "This site is not meant for children under 13.",
         ],
       },
@@ -239,7 +239,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       },
       {
         h: "Contact",
-        body: [`For questions about privacy or your account, contact the group owner: ${CONTACT}.`],
+        body: [`For questions about privacy or your account, contact the site maintainer: ${CONTACT}.`],
       },
     ],
   },
@@ -301,7 +301,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
       },
       {
         h: "联系我们",
-        body: [`如对这些条款有疑问，请联系群主：${CONTACT}。`],
+        body: [`如对这些条款有疑问，请联系网站维护者：${CONTACT}。`],
       },
     ],
   },
@@ -360,7 +360,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
       },
       {
         h: "聯絡我們",
-        body: [`如對這些條款有疑問，請聯絡群主：${CONTACT}。`],
+        body: [`如對這些條款有疑問，請聯絡網站維護者：${CONTACT}。`],
       },
     ],
   },
@@ -421,7 +421,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
       },
       {
         h: "Contact",
-        body: [`For questions about these terms, contact the group owner: ${CONTACT}.`],
+        body: [`For questions about these terms, contact the site maintainer: ${CONTACT}.`],
       },
     ],
   },
