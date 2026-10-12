@@ -36,7 +36,7 @@ export function Join() {
         emailConfirm,
         message,
         website,
-        turnstileToken: turnstile.token,
+        ...turnstile.field,
       }),
     );
     if (ok) setDone(true);

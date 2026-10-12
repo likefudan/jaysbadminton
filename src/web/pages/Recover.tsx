@@ -17,7 +17,7 @@ export function Recover() {
     e.preventDefault();
     const err = checkEmail(email) ?? turnstile.check();
     if (err) return setError(err);
-    const ok = await run(() => api("/api/public/recover-link", { email, website, turnstileToken: turnstile.token }));
+    const ok = await run(() => api("/api/public/recover-link", { email, website, ...turnstile.field }));
     if (ok) setSent(email.trim());
     else turnstile.reset();
   }

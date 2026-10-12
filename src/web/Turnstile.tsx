@@ -46,9 +46,9 @@ function loadScript(): Promise<TurnstileApi> {
 const LANGUAGE = { "zh-CN": "zh-cn", "zh-TW": "zh-tw", en: "en" } as const;
 
 /**
- * Cloudflare Turnstile (人机验证) for a public form. `widget` goes inside the form; `check()` gives
- * the message to show while it isn't solved yet (null when it is, or when Turnstile is off);
- * `reset()` after every submission, since a token works once.
+ * Cloudflare Turnstile (人机验证) for a public form. `widget` goes inside the form and `field` in the
+ * request body; `check()` gives the message to show while it isn't solved yet (null when it is, or
+ * when Turnstile is off); `reset()` after every submission, since a token works once.
  */
 export function useTurnstile(action: "join" | "recover_link") {
   const siteKey = useTurnstileSiteKey();
@@ -88,7 +88,8 @@ export function useTurnstile(action: "join" | "recover_link") {
   }, [siteKey, action]);
 
   return {
-    token,
+    /** Spread into the request body; nothing while Turnstile is off. */
+    field: token ? { turnstileToken: token } : {},
     widget: siteKey ? <div class="turnstile" ref={box} /> : null,
     check(): string | null {
       if (siteKey === undefined) return t("页面还在加载，请稍等一下再提交");
