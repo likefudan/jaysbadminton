@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_ACCESS } from "../src/worker/access";
 import { can } from "../src/worker/organizers";
 import { adminRoutes } from "../src/worker/routes/admin";
+import { pacificToUtc } from "../src/shared/time";
 import {
   approveMember,
   appoint,
@@ -81,6 +82,78 @@ async function scenario() {
   return { ctx, alice, bob, org, ownerId, ids: out };
 }
 
+/** The matrix tests authorization, so insert its known starting state in one real D1 batch
+ * instead of re-running account approval and Finalize for every endpoint. Those flows have
+ * their own integration tests, and the multi-step scenarios below still use scenario(). */
+async function matrixScenario() {
+  const ts = new Date().toISOString();
+  const statements = [
+    env.DB.prepare(
+      `INSERT INTO members (id, username, wechat_nickname, status, is_owner, role, google_sub, requested_at, approved_at)
+       VALUES ('M001', 'Jay', 'Jay微信', 'active', 1, 'member', NULL, ?1, ?1),
+              ('M002', 'Alice', 'Alice微信', 'active', 0, 'organizer', 'google-alice', ?1, ?1),
+              ('M003', 'Bob', 'Bob微信', 'active', 0, 'member', NULL, ?1, ?1)`,
+    ).bind(ts),
+    env.DB.prepare(
+      `INSERT INTO payment_profiles (member_id, venmo_username, venmo_email, updated_at)
+       VALUES ('M002', 'alice-v', 'alice@venmo.test', ?)`,
+    ).bind(ts),
+  ];
+  for (const [id, manager] of [
+    [1, "M001"],
+    [2, "M002"],
+  ] as const) {
+    const date = futureDate(6 + id);
+    const number = `jbm${date.replace(/-/g, "")}`;
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO events (id, number, code, date, start_at, end_at, location, deadline_at,
+           deadline_offset_min, status, finalized_at, created_at, manager_id, payee_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1440, 'finalized', ?, ?, ?, ?)`,
+      ).bind(
+        id,
+        number,
+        date.slice(5).replace("-", ""),
+        date,
+        pacificToUtc(date, "19:00"),
+        pacificToUtc(date, "21:00"),
+        "Test Gym",
+        ts,
+        ts,
+        ts,
+        manager,
+        manager,
+      ),
+      env.DB.prepare(
+        `INSERT INTO registrations (id, event_id, member_id, friend_index, friend_name, created_at, updated_at)
+         VALUES (?1 * 2 - 1, ?1, 'M003', 0, NULL, ?2, ?2), (?1 * 2, ?1, 'M003', 1, 'Tom', ?2, ?2)`,
+      ).bind(id, ts),
+      env.DB.prepare(
+        `INSERT INTO settlements (event_id, court_total_cents, shuttle_count, shuttle_price_cents,
+           registered_count, attended_count, court_share_cents, shuttle_share_cents, finalized_at)
+         VALUES (?, 4000, 2, 300, 2, 2, 2000, 300, ?)`,
+      ).bind(id, ts),
+      env.DB.prepare(
+        `INSERT INTO payments (id, event_id, member_id, amount_due_cents, amount_paid_cents, payment_code, status)
+         VALUES (?1, ?1, 'M003', 4600, 100, ?2, 'partial')`,
+      ).bind(id, `bob-${number}-m003`),
+      env.DB.prepare(
+        `INSERT INTO payment_receipts (id, payment_id, amount_cents, method, received_at)
+         VALUES (?1, ?1, 100, 'manual', ?2)`,
+      ).bind(id, ts),
+      env.DB.prepare(
+        `INSERT INTO inbound_payments (id, venmo_txn_id, payer_name, amount_cents, note, received_at, kind, payee_id)
+         VALUES (?, ?, 'Bob', 500, 'x', ?, 'unmatched', ?)`,
+      ).bind(id, `txn-${id}`, ts, manager),
+    );
+  }
+  await env.DB.batch(statements);
+  return {
+    org: await googleCookie("google-alice", "alice@gmail.com"),
+    ids: { id: 2, rid: 4, pid: 2, receipt: 2, iid: 2 },
+  };
+}
+
 /** Fills a route pattern like /events/:id/roster/:rid/remove with one side's ids. */
 function fill(pattern: string, ids: Record<string, number>) {
   return pattern.replace(/:(\w+)/g, (_, name: string) => {
@@ -139,12 +212,12 @@ describe("organizers on the admin pages", () => {
 
   // Each endpoint gets fresh D1 data, so a destructive handler cannot affect another case.
   it.each(Object.entries(ADMIN_ACCESS))("checks organizer access to %s", async (key, rule) => {
-    const { org, ids } = await scenario();
+    const { org, ids } = await matrixScenario();
     const [method, pattern] = key.split(" ") as [string, string];
     const res = await request(
-      `${GOOGLE}${fill(pattern, ids.mine)}`,
+      `${GOOGLE}${fill(pattern, ids)}`,
       org,
-      method === "POST" ? { paymentId: ids.mine.pid, friends: [], ...fees } : undefined,
+      method === "POST" ? { paymentId: ids.pid, friends: [], ...fees } : undefined,
     );
     if (rule.cap === null || can("organizer", rule.cap))
       // Some refuse for the event's state (already paid, already finalized); none for who is asking.
