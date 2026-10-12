@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_ACCESS } from "../src/worker/access";
 import { can } from "../src/worker/organizers";
 import { adminRoutes } from "../src/worker/routes/admin";
@@ -106,6 +106,17 @@ describe("the admin access table", () => {
 });
 
 describe("organizers on the admin pages", () => {
+  // The permission matrix reaches Telegram connect/test handlers. Mock the transport so
+  // their network timeout cannot consume the test budget; auth, handlers and D1 stay real.
+  beforeEach(() => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (!url.startsWith("https://api.telegram.org/bottest-bot-token/")) throw new Error(`unexpected fetch ${url}`);
+      return Response.json({ ok: true, result: { username: "jb_test_bot", message_id: 1 } });
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
   it("refuses every event and payee endpoint for someone else's event or payment", async () => {
     const { org, ids } = await scenario();
     for (const [key] of scoped) {
@@ -126,25 +137,21 @@ describe("organizers on the admin pages", () => {
     ).toBe("open");
   });
 
-  // This walks every admin endpoint against D1; allow time for the full matrix on slower runners.
-  it("lets them use exactly the endpoints their capabilities allow, on their own event and payments", async () => {
+  // Each endpoint gets fresh D1 data, so a destructive handler cannot affect another case.
+  it.each(Object.entries(ADMIN_ACCESS))("checks organizer access to %s", async (key, rule) => {
     const { org, ids } = await scenario();
-    // 不再当组织者 ends their admin access, so it goes last.
-    const last = "POST /organizer/retire";
-    const entries = Object.entries(ADMIN_ACCESS).sort(([a], [b]) => Number(a === last) - Number(b === last));
-    for (const [key, rule] of entries) {
-      const [method, pattern] = key.split(" ") as [string, string];
-      const res = await request(
-        `${GOOGLE}${fill(pattern, ids.mine)}`,
-        org,
-        method === "POST" ? { paymentId: ids.mine.pid, friends: [], ...fees } : undefined,
-      );
-      if (rule.cap === null || can("organizer", rule.cap))
-        // Some refuse for the event's state (already paid, already finalized); none for who is asking.
-        expect([401, 403], `${key} → ${res.status}`).not.toContain(res.status);
-      else expect(res.status, key).toBe(403);
-    }
-  }, 20_000);
+    const [method, pattern] = key.split(" ") as [string, string];
+    const res = await request(
+      `${GOOGLE}${fill(pattern, ids.mine)}`,
+      org,
+      method === "POST" ? { paymentId: ids.mine.pid, friends: [], ...fees } : undefined,
+    );
+    if (rule.cap === null || can("organizer", rule.cap))
+      // Some refuse for the event's state (already paid, already finalized); none for who is asking.
+      expect([401, 403], `${key} → ${res.status}`).not.toContain(res.status);
+    else expect(res.status, key).toBe(403);
+    if (key === "POST /telegram/connect") expect(res.status).toBe(200);
+  });
 
   it("gives /events/defaults its own rule rather than /events/:id's, and remembers each person's own", async () => {
     const { ctx, org } = await scenario();
