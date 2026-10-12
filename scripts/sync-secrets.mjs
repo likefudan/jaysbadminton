@@ -77,6 +77,8 @@ if (process.env.GOOGLE_CLIENT_SECRET) secrets.GOOGLE_CLIENT_SECRET = process.env
 
 if (process.env.RESEND_API_KEY) secrets.RESEND_API_KEY = process.env.RESEND_API_KEY;
 if (process.env.EMAIL_FROM) secrets.EMAIL_FROM = process.env.EMAIL_FROM;
+// Cloudflare Turnstile on the public forms: off until the secret is set (src/worker/turnstile.ts).
+if (process.env.TURNSTILE_SECRET) secrets.TURNSTILE_SECRET = process.env.TURNSTILE_SECRET;
 
 if (!existing.has("TOKEN_KEY")) {
   if (backup) {

@@ -21,7 +21,13 @@
   ],
   // ORGANIZERS: the 组织者 features stay off in production until they have been tried on staging
   // (docs/launch-checklist.md, section 五). Local dev turns them on with ORGANIZERS="1" in .dev.vars.
-  "vars": { "SITE_ORIGIN": "https://jaysbadminton.llmat.dev", "ENVIRONMENT": "production", "ORGANIZERS": "0" },
+  "vars": {
+    "SITE_ORIGIN": "https://jaysbadminton.llmat.dev",
+    "ENVIRONMENT": "production",
+    "ORGANIZERS": "0",
+    // Cloudflare Turnstile on 申请加入 / 找回链接 (src/worker/turnstile.ts); on once TURNSTILE_SECRET is set.
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFUb_oSOH6t9YmZL"
+  },
   // 截止前提醒 and 报名截止 go out on time from each event's alarm (src/worker/deadlines.ts);
   // PUSH sends a backlog of member pushes one batch a second (src/worker/push.ts).
   "durable_objects": {
@@ -57,7 +63,12 @@
           "migrations_dir": "migrations"
         }
       ],
-      "vars": { "SITE_ORIGIN": "https://staging.jaysbadminton.llmat.dev", "ENVIRONMENT": "staging", "ORGANIZERS": "1" },
+      "vars": {
+        "SITE_ORIGIN": "https://staging.jaysbadminton.llmat.dev",
+        "ENVIRONMENT": "staging",
+        "ORGANIZERS": "1",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAFUb_oSOH6t9YmZL"
+      },
       "durable_objects": {
         "bindings": [
           { "name": "DEADLINES", "class_name": "DeadlineAlarm" },

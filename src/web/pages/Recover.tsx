@@ -3,6 +3,7 @@ import { checkEmail } from "../../shared/rules";
 import { api } from "../api";
 import { Card, Field, Page, useAction } from "../components";
 import { t, tx } from "../i18n";
+import { useTurnstile } from "../Turnstile";
 
 /** 找回我的专属链接: the link is emailed again to the address the member registered with. */
 export function Recover() {
@@ -10,12 +11,15 @@ export function Recover() {
   const [website, setWebsite] = useState("");
   const [sent, setSent] = useState("");
   const { busy, error, run, setError } = useAction();
+  const turnstile = useTurnstile("recover_link");
 
   async function submit(e: Event) {
     e.preventDefault();
-    const err = checkEmail(email);
+    const err = checkEmail(email) ?? turnstile.check();
     if (err) return setError(err);
-    if (await run(() => api("/api/public/recover-link", { email, website }))) setSent(email.trim());
+    const ok = await run(() => api("/api/public/recover-link", { email, website, turnstileToken: turnstile.token }));
+    if (ok) setSent(email.trim());
+    else turnstile.reset();
   }
 
   return (
@@ -43,6 +47,7 @@ export function Recover() {
               onInput={(e) => setWebsite((e.target as HTMLInputElement).value)}
               aria-hidden="true"
             />
+            {turnstile.widget}
             {error && <p class="error">{error}</p>}
             <button type="submit" class="button block" disabled={busy}>
               {busy ? t("发送中…") : t("发送专属链接")}

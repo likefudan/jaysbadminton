@@ -4,6 +4,7 @@ import { api } from "../api";
 import { ApplicationFields } from "../ApplicationFields";
 import { Card, Field, Page, useAction } from "../components";
 import { t, tx } from "../i18n";
+import { useTurnstile } from "../Turnstile";
 
 /** 用邮箱注册: the same application as with Google, plus an email (typed twice) for the link. */
 export function Join() {
@@ -15,6 +16,7 @@ export function Join() {
   const [website, setWebsite] = useState("");
   const [done, setDone] = useState(false);
   const { busy, error, run, setError } = useAction();
+  const turnstile = useTurnstile("join");
 
   async function submit(e: Event) {
     e.preventDefault();
@@ -23,12 +25,22 @@ export function Join() {
       checkNickname(nickname) ??
       checkEmail(email) ??
       (email.trim().toLowerCase() !== emailConfirm.trim().toLowerCase() ? t("两次输入的邮箱不一致") : null) ??
-      checkMessage(message);
+      checkMessage(message) ??
+      turnstile.check();
     if (err) return setError(err);
     const ok = await run(() =>
-      api("/api/public/join", { username, wechatNickname: nickname, email, emailConfirm, message, website }),
+      api("/api/public/join", {
+        username,
+        wechatNickname: nickname,
+        email,
+        emailConfirm,
+        message,
+        website,
+        turnstileToken: turnstile.token,
+      }),
     );
     if (ok) setDone(true);
+    else turnstile.reset();
   }
 
   if (done) {
@@ -86,6 +98,7 @@ export function Join() {
             onInput={(e) => setWebsite((e.target as HTMLInputElement).value)}
             aria-hidden="true"
           />
+          {turnstile.widget}
           {error && <p class="error">{error}</p>}
           <button type="submit" class="button block" disabled={busy}>
             {busy ? t("提交中…") : t("提交申请")}
