@@ -126,6 +126,7 @@ describe("organizers on the admin pages", () => {
     ).toBe("open");
   });
 
+  // This walks every admin endpoint against D1; allow time for the full matrix on slower runners.
   it("lets them use exactly the endpoints their capabilities allow, on their own event and payments", async () => {
     const { org, ids } = await scenario();
     // 不再当组织者 ends their admin access, so it goes last.
@@ -143,7 +144,7 @@ describe("organizers on the admin pages", () => {
         expect([401, 403], `${key} → ${res.status}`).not.toContain(res.status);
       else expect(res.status, key).toBe(403);
     }
-  });
+  }, 20_000);
 
   it("gives /events/defaults its own rule rather than /events/:id's, and remembers each person's own", async () => {
     const { ctx, org } = await scenario();

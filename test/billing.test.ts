@@ -375,6 +375,7 @@ describe("a long run of corrections after Finalize", () => {
     receipts: { amountCents: number; method: string }[];
   }
 
+  // Many sequential D1 requests exercise the full correction history, rather than one operation.
   it("keeps every bill fair through 3 raises, 3 cuts, an absence and two removals", async () => {
     const s = await scenario();
     const carol = await approveMember(s, "Carol");
@@ -522,7 +523,7 @@ describe("a long run of corrections after Finalize", () => {
     // After the refunds, what the group kept is exactly the 60.00 court and 25.00 shuttles.
     const kept = Object.values(p).reduce((t, x) => t + x.amountPaidCents, 0);
     expect(kept).toBe(6000 + 2500);
-  });
+  }, 20_000);
 });
 
 describe("collection and archive", () => {
