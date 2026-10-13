@@ -74,6 +74,7 @@ export function EventInfo(props: {
             </a>
           ))}
         {props.runBy && <div class="ev-meta">{props.runBy}</div>}
+        {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
         {e.status === "open" && <div class="ev-meta">{t("报名截止 {time}", { time: fmtInstant(e.deadlineAt) })}</div>}
         <div class="ev-foot">
           {props.showStatus !== false && badge ? <StatusPill cls={badge.cls} label={badge.label} /> : <span />}

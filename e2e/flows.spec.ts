@@ -110,11 +110,13 @@ test("the Owner creates an event and is signed up for it", async ({ page }) => {
   await expect(page.locator('input[role="switch"]')).toBeChecked(); // 我自己也报名
   await field(page, "日期").fill(inAWeek());
   await field(page, "场馆").fill(VENUE);
+  await page.getByLabel("备注（选填）").fill("请自带球拍\n提前十分钟到场");
   await page.getByRole("button", { name: "创建活动" }).click();
   // It opens the new event: open for sign-up, with the Owner on the roster.
   const info = page.locator(".card", { hasText: VENUE }).first();
   await expect(info).toContainText("1 人已报名");
   await expect(info).toContainText("报名中");
+  await expect(info.locator(".event-notes")).toHaveText("请自带球拍\n提前十分钟到场");
   await expect(page.getByRole("heading", { name: "名单（1）" })).toBeVisible();
 
   // 我的报名: the Owner manages their own sign-up right here.
@@ -151,6 +153,9 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await page.goto(memberPath);
   await expect(page.getByRole("heading", { name: "你好，小明" })).toBeVisible();
   const card = page.locator(".card", { hasText: VENUE });
+  await expect(card.locator(".event-notes")).toHaveText("请自带球拍\n提前十分钟到场");
+  expect(await card.locator(".event-notes").evaluate((el) => getComputedStyle(el).whiteSpace)).toBe("pre-wrap");
+  await expect(card.locator(".event-notes + .ev-meta")).toContainText("报名截止");
   await card.getByRole("button", { name: "报名" }).click();
   await expect(card.locator(".friends-row")).toContainText(/带朋友最多 \d+ 个朋友/);
   await card.locator(".stepper button").last().click();
