@@ -27,6 +27,7 @@ import {
   friendCount,
   checkVenue,
   cleanTitle,
+  cleanNotes,
   getEvent,
   isDeletable,
   saveVenue,
@@ -197,6 +198,7 @@ adminEventRoutes.post("/events", async (c) => {
     location: str(b.location),
     address: str(b.address),
     title: str(b.title),
+    notes: str(b.notes),
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
@@ -406,7 +408,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   // Only over what was read: a close, Finalize or archive landing in between is never undone.
   const [res] = await c.env.DB.batch([
     c.env.DB.prepare(
-      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, deadline_at = ?, status = ?
+      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, notes = ?, deadline_at = ?, status = ?
        WHERE id = ? AND status = ? AND deadline_at = ?`,
     ).bind(
       date,
@@ -415,6 +417,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
       location,
       address,
       b.title === undefined ? e.title : cleanTitle(str(b.title)),
+      b.notes === undefined ? e.notes : cleanNotes(str(b.notes)),
       deadline,
       status,
       e.id,
@@ -439,6 +442,7 @@ function editChanges(a: EventRow, b: EventRow): string[] {
     ["时间", time(a), time(b)],
     ["场馆", a.location, b.location],
     ["地址", a.address, b.address],
+    ["备注", a.notes || "（无）", b.notes || "（无）"],
     ["标题", a.title || "（无）", b.title || "（无）"],
   ];
   const out = fields.filter(([, x, y]) => x !== y).map(([k, x, y]) => `${k} ${x} → ${y}`);

@@ -157,6 +157,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
   const [endTime, setEnd] = useState(d.endTime);
   const [location, setLocation] = useState(d.location);
   const [address, setAddress] = useState(d.address);
+  const [notes, setNotes] = useState("");
   const [days, setDays] = useState(d.deadlineDays);
   const [hours, setHours] = useState(d.deadlineHours);
   const [joinSelf, setJoinSelf] = useState(true);
@@ -172,6 +173,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
       endTime,
       location,
       address,
+      notes,
       deadlineDays: days,
       deadlineHours: hours,
       joinSelf,
@@ -216,6 +218,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
           onVenue={setLocation}
           onAddress={setAddress}
         />
+        <NotesField value={notes} onInput={setNotes} />
         <div class="field">
           <span>报名截止：活动开始前</span>
         </div>
@@ -252,6 +255,20 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
 }
 
 /** 场馆 + 地址, with one-tap 最近的场馆 that fill both (the Owner can also forget one with ✕). */
+function NotesField(props: { value: string; onInput: (value: string) => void }) {
+  return (
+    <label class="field">
+      <span>备注（选填）</span>
+      <textarea
+        rows={3}
+        maxLength={1000}
+        value={props.value}
+        onInput={(e) => props.onInput((e.target as HTMLTextAreaElement).value)}
+      />
+    </label>
+  );
+}
+
 function VenueFields(props: {
   base: string;
   canForget?: boolean;
@@ -853,13 +870,14 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const [endTime, setEnd] = useState(props.e.endTime);
   const [location, setLocation] = useState(props.e.location);
   const [address, setAddress] = useState(props.e.address);
+  const [notes, setNotes] = useState(props.e.notes ?? "");
   const [title, setTitle] = useState(props.e.title);
   const { busy, error, run } = useAction();
 
   if (!open) {
     return (
       <button type="button" class="link-button" onClick={() => setOpen(true)}>
-        修改活动标题、时间或地点（仅限紧急情况）
+        修改活动标题、时间、地点或备注（仅限紧急情况）
       </button>
     );
   }
@@ -867,7 +885,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
     const msg =
       "修改会立即显示在活动页和成员页，但不会自动通知任何人，请自己在群里说明。活动代号和已发出的链接不变。确定修改吗？";
     if (!confirm(msg)) return;
-    if (await run(() => api(`${props.eb}/edit`, { title, date, startTime, endTime, location, address }))) {
+    if (await run(() => api(`${props.eb}/edit`, { title, date, startTime, endTime, location, address, notes }))) {
       setOpen(false);
       props.onDone();
     }
@@ -889,6 +907,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
         onVenue={setLocation}
         onAddress={setAddress}
       />
+      <NotesField value={notes} onInput={setNotes} />
       {props.e.status === "open" && (
         <p class="muted small">
           报名截止时间会跟着开始时间一起移动（间隔不变），但不晚于活动结束；如果已经过了，报名会立即截止。只改标题或地点不影响截止时间。

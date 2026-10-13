@@ -147,6 +147,7 @@ export interface EventSummary {
   endTime: string;
   location: string; // venue name
   address: string; // street address, may be empty for older events
+  notes?: string; // optional multiline activity notes
   title: string; // optional, e.g. "HappyTuesday 比赛"; "" when not set
   deadlineAt: string; // UTC ISO
   status: EventStatus;

@@ -19,6 +19,7 @@ export interface EventRow {
   location: string;
   address: string;
   title: string;
+  notes: string;
   deadline_at: string;
   deadline_offset_min: number;
   status: EventStatus;
@@ -63,6 +64,7 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
     location: e.location,
     address: e.address,
     title: e.title,
+    notes: e.notes,
     deadlineAt: e.deadline_at,
     status: liveStatus(e),
     headcount,
@@ -198,6 +200,7 @@ export interface CreateEventInput {
   location: string;
   address: string;
   title?: string;
+  notes?: string;
   deadlineDays: number;
   deadlineHours: number;
 }
@@ -234,6 +237,12 @@ export function cleanTitle(title: string | undefined): string {
   return t;
 }
 
+export function cleanNotes(notes: string | undefined): string {
+  const value = (notes ?? "").trim();
+  if ([...value].length > 1000) throw badRequest("备注最多 1000 个字");
+  return value;
+}
+
 export function checkVenue(venue: string, address: string): void {
   if (!venue.trim()) throw badRequest("请填写场馆");
   if ([...venue.trim()].length > 60) throw badRequest("场馆名最多 60 个字");
@@ -254,6 +263,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const location = input.location.trim();
   const address = input.address.trim();
   const title = cleanTitle(input.title);
+  const notes = cleanNotes(input.notes);
   const ts = now();
   const owner = await ownerId(env.DB);
   const manager = input.managerId ?? owner;
@@ -283,8 +293,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     if (!number) throw badRequest("同一天的活动太多了");
     try {
       const res = await env.DB.prepare(
-        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?) RETURNING id`,
+        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?) RETURNING id`,
       )
         .bind(
           number,
@@ -295,6 +305,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
           location,
           address,
           title,
+          notes,
           v.deadlineAt,
           v.offsetMin,
           ts,

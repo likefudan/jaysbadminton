@@ -737,3 +737,39 @@ describe("我的活动 (the member's events)", () => {
     expect((await new Client().call(`${alice.base}/events`)).data).toMatchObject({ events: [], history: [] });
   });
 });
+
+describe("activity notes", () => {
+  it("saves multiline notes, exposes them to members, and supports preserving or clearing them", async () => {
+    const ctx = await setUpAdmin();
+    const notes = "请自带球拍\n提前十分钟到场";
+    const e = await createTestEvent(ctx, { notes: `  ${notes}  ` });
+    expect(e.notes).toBe(notes);
+    const member = await approveMember(ctx, "小明");
+    const memberEvent = () => anon.call(`${member.base}/events`);
+    expect((await memberEvent()).data.events.find((row: { id: number }) => row.id === e.id).notes).toBe(notes);
+    const edit = { date: e.date, startTime: e.startTime, endTime: e.endTime, location: e.location };
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, edit)).data.notes).toBe(notes);
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, { ...edit, notes: "新备注" })).data.notes).toBe(
+      "新备注",
+    );
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, { ...edit, notes: "   " })).data.notes).toBe("");
+    expect((await createTestEvent(ctx)).notes).toBe("");
+  });
+
+  it("rejects excessive notes when creating or editing", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx);
+    const input = {
+      date: e.date,
+      startTime: e.startTime,
+      endTime: e.endTime,
+      location: e.location,
+      deadlineDays: 1,
+      deadlineHours: 0,
+      notes: "字".repeat(1001),
+    };
+    expect((await ctx.admin.call(`${ctx.base}/events`, input)).status).toBe(400);
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, input)).status).toBe(400);
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.notes).toBe("");
+  });
+});
