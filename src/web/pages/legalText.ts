@@ -68,7 +68,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "成员资料和活动记录：在你是成员期间一直保存。",
             "删除成员后：专属链接、Google 账号关联和推送订阅立即删除；你的名字会加上成员编号留在过去的名单和账单里，因为账目需要完整。",
-            "登录状态保存 30 天；移到回收站的 Venmo 收款 30 天后永久删除；付款邮件的处理日志（只有时间和结果）120 天后删除；数据库备份 90 天后删除。",
+            "登录状态保存 30 天；移到回收站的 Venmo 收款 30 天后永久删除；付款邮件的处理日志（只有时间和结果）120 天后删除；群主开启付款记录诊断后，还会保存邮件标题、付款人、交易编号、备注和处理步骤，仅群主可见，不保存完整邮件正文，诊断记录 14 天后删除；数据库备份 90 天后删除。",
           ],
         ],
       },
@@ -144,7 +144,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "成員資料和活動記錄：在你是成員期間一直保存。",
             "刪除成員後：專屬連結、Google 帳號連結和推播訂閱立即刪除；你的名字會加上成員編號留在過去的名單和帳單裡，因為帳目需要完整。",
-            "登入狀態保存 30 天；移到資源回收筒的 Venmo 收款 30 天後永久刪除；付款郵件的處理日誌（只有時間和結果）120 天後刪除；資料庫備份 90 天後刪除。",
+            "登入狀態保存 30 天；移到資源回收筒的 Venmo 收款 30 天後永久刪除；付款郵件的處理日誌（只有時間和結果）120 天後刪除；群主開啟付款記錄診斷後，還會保存郵件標題、付款人、交易編號、備註和處理步驟，僅群主可見，不保存完整郵件正文，診斷記錄 14 天後刪除；資料庫備份 90 天後刪除。",
           ],
         ],
       },
@@ -220,7 +220,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "Member details and event records: for as long as you are a member.",
             "When a member is deleted: their personal link, Google account link and push subscriptions are removed at once; their name stays on past rosters and bills with their member number added, because the accounts must stay complete.",
-            "Sign-ins last 30 days. Venmo payments moved to the trash are deleted for good after 30 days. The payment email log (time and outcome only) is deleted after 120 days. Database backups are deleted after 90 days.",
+            "Sign-ins last 30 days. Venmo payments moved to the trash are deleted for good after 30 days. The payment email log (time and outcome only) is deleted after 120 days. If the Owner enables payment diagnostics, email subjects, payer names, transaction IDs, notes and processing steps are also stored, visible only to the Owner; full email bodies are not retained, and diagnostic records are deleted after 14 days. Database backups are deleted after 90 days.",
           ],
         ],
       },

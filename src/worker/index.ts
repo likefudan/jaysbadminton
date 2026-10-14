@@ -26,6 +26,7 @@ import { adminRoutes } from "./routes/admin";
 import { memberRoutes } from "./routes/member";
 import { publicRoutes } from "./routes/public";
 import { googleRoutes } from "./googleAuth";
+import { diagnoseOversizedEmail, purgePaymentDiagnostics } from "./paymentDiagnostics";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -117,6 +118,13 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
   async scheduled(_controller, env, _ctx) {
+    // Independent of the rest of cron and the opt-in switch: other job failures must not
+    // prevent diagnostic data from expiring.
+    try {
+      await purgePaymentDiagnostics(env);
+    } catch (err) {
+      console.error("payment diagnostic cleanup failed:", err);
+    }
     try {
       await closeExpired(env);
       // Re-aims every open event's alarm, so events created before alarms existed (or whose
@@ -137,6 +145,7 @@ export default {
     // Never bounce or throw: a bounce would land in the Owner's Gmail for every non-receipt.
     try {
       if (message.rawSize > MAX_EMAIL_BYTES) {
+        await diagnoseOversizedEmail(env, message.headers.get("From") ?? message.from);
         console.warn("email too large:", message.rawSize);
         return;
       }

@@ -178,6 +178,8 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "POST /sheets/enable": cap("system"),
   "POST /sheets/disable": cap("system"),
   "GET /email-status": cap("system"),
+  "GET /payment-diagnostics": cap("system"),
+  "POST /payment-diagnostics": cap("system"),
 
   // group: running the group
   "POST /members/:id/approve": cap("group"),

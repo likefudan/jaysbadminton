@@ -83,6 +83,7 @@ import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../
 import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
 import { pushBills, pushNewEvent, sendSoon } from "../push";
 import { actorId, audit, auditRows, billOwner, friendName, money, record, rosterLabel } from "../audit";
+import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -1244,3 +1245,17 @@ adminEventRoutes.get("/places/:id", async (c) =>
 
 /** 转发状态: when the last Venmo/Gmail email arrived and what happened to it. */
 adminEventRoutes.get("/email-status", async (c) => c.json(await emailStatus(c.env)));
+
+adminEventRoutes.get("/payment-diagnostics", async (c) => {
+  const raw = c.req.query("before");
+  const before = raw === undefined ? undefined : Number(raw);
+  if (before !== undefined && (!Number.isSafeInteger(before) || before <= 0)) throw badRequest("诊断分页编号无效");
+  return c.json(await paymentDiagnostics(c.env, before));
+});
+
+adminEventRoutes.post("/payment-diagnostics", async (c) => {
+  const body = await readJson(c.req.raw);
+  if (typeof body.enabled !== "boolean") throw badRequest("请选择开启或关闭诊断");
+  await setSetting(c.env.DB, DIAGNOSTIC_SETTING, body.enabled ? "1" : "0").run();
+  return c.json({ enabled: body.enabled });
+});

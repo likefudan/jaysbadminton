@@ -13,6 +13,7 @@ import { sendToMember, sendToOwner } from "./telegram";
 import { codeName, noteName, parsePaymentCode } from "./paymentCode";
 import { ownerName, payeeExpired, payeeName, payeeSql } from "./payees";
 import type { RefundRow } from "../shared/types";
+import { beginVenmoDiagnostic, type PaymentDiagnostic } from "./paymentDiagnostics";
 
 export const MAX_EMAIL_BYTES = 512 * 1024;
 const VENMO = "venmo@venmo.com";
@@ -129,15 +130,31 @@ interface Account {
  * it to: the Owner's settings, then organizers' 收款设置 (former organizers' too), then accounts
  * they changed in the last 60 days (payment_aliases). Null when nobody's account matches.
  */
-async function receivingAccount(env: Env, sentTo: string, to: string[]): Promise<Account | null> {
+async function receivingAccount(
+  env: Env,
+  sentTo: string,
+  to: string[],
+  diagnostic?: PaymentDiagnostic | null,
+): Promise<Account | null> {
+  diagnostic?.step(
+    "recipient_count",
+    "原始收件邮箱数量",
+    to.length === 1 ? "passed" : "failed",
+    to.length === 1 ? undefined : "原始 To 必须只有一个邮箱",
+    String(to.length),
+    "1",
+  );
   if (to.length !== 1) return null;
   const mail = to[0]!;
   const { venmo_username: owner = "", venmo_email: ownerEmail = "" } = await getSettings(env.DB, [
     "venmo_username",
     "venmo_email",
   ]);
-  if (owner && sentTo.toLowerCase() === owner.toLowerCase() && ownerEmail && mail === ownerEmail)
+  if (owner && sentTo.toLowerCase() === owner.toLowerCase() && ownerEmail && mail === ownerEmail) {
+    diagnostic?.step("recipient_username", "收款用户名", "passed", undefined, sentTo, owner);
+    diagnostic?.step("recipient_email", "收款通知邮箱", "passed", undefined, mail, ownerEmail);
     return { id: await ownerId(env.DB), owner: true, label: async () => `@${sentTo}（${await ownerName(env.DB)}）` };
+  }
   // The columns are COLLATE NOCASE, as the Owner's username is compared above.
   const found = await env.DB.prepare(
     `SELECT member_id FROM payment_profiles WHERE venmo_username = ?1 AND venmo_email = ?2
@@ -147,7 +164,41 @@ async function receivingAccount(env: Env, sentTo: string, to: string[]): Promise
   )
     .bind(sentTo, mail, now())
     .first<{ member_id: string }>();
-  if (!found) return null;
+  if (!found) {
+    if (diagnostic) {
+      const { results } = await env.DB.prepare(
+        `SELECT venmo_username, venmo_email FROM payment_profiles
+         UNION ALL SELECT venmo_username, venmo_email FROM payment_aliases WHERE until > ?`,
+      )
+        .bind(now())
+        .all<{ venmo_username: string | null; venmo_email: string | null }>();
+      const accounts = [{ venmo_username: owner, venmo_email: ownerEmail }, ...results];
+      const names = accounts.filter((a) => a.venmo_username?.toLowerCase() === sentTo.toLowerCase());
+      diagnostic.step(
+        "recipient_username",
+        "收款用户名",
+        names.length ? "passed" : "failed",
+        names.length ? undefined : "收款用户名不在已登记账户中",
+        sentTo,
+        accounts
+          .map((a) => a.venmo_username)
+          .filter(Boolean)
+          .join("、"),
+      );
+      if (names.length)
+        diagnostic.step(
+          "recipient_email",
+          "收款通知邮箱",
+          "failed",
+          "用户名已识别，但原始 To 与该账户的通知邮箱不一致",
+          mail,
+          names.map((a) => a.venmo_email || "（未设置）").join("、"),
+        );
+    }
+    return null;
+  }
+  diagnostic?.step("recipient_username", "收款用户名", "passed", "匹配到组织者当前账户或有效旧账户", sentTo);
+  diagnostic?.step("recipient_email", "收款通知邮箱", "passed", undefined, mail);
   return {
     id: found.member_id,
     owner: false,
@@ -206,10 +257,43 @@ export async function receiveEmail(
   raw: Uint8Array,
   opts: EmailOptions = {},
 ): Promise<{ outcome: EmailOutcome; organizer: string | null }> {
+  const diagnostic = await beginVenmoDiagnostic(env, raw);
+  try {
+    const result = await processEmail(env, raw, opts, diagnostic);
+    if (result.outcome !== "not_venmo" && !result.outcome.startsWith("gmail_"))
+      await diagnostic?.finish(result.outcome);
+    else await diagnostic?.discard();
+    return result;
+  } catch (err) {
+    diagnostic?.error();
+    await diagnostic?.finish("processing_error");
+    console.error("email processing failed; diagnostic:", diagnostic?.id ?? "off", err);
+    throw err;
+  }
+}
+
+async function processEmail(
+  env: Env,
+  raw: Uint8Array,
+  opts: EmailOptions,
+  diagnostic: PaymentDiagnostic | null,
+): Promise<{ outcome: EmailOutcome; organizer: string | null }> {
+  diagnostic?.step(
+    "size",
+    "邮件大小",
+    raw.byteLength > MAX_EMAIL_BYTES ? "failed" : "passed",
+    undefined,
+    `${raw.byteLength} 字节`,
+    `不超过 ${MAX_EMAIL_BYTES} 字节`,
+  );
   if (raw.byteLength > MAX_EMAIL_BYTES) return { outcome: "too_large", organizer: null };
+  diagnostic?.step("mime", "邮件解析", "processing");
   const mail = await parseEmail(raw);
+  diagnostic?.mail(mail);
+  diagnostic?.step("mime", "邮件解析", "passed");
   if (mail.fromAddress === GMAIL_FORWARDING) return gmailConfirmation(env, raw, mail.subject, mail.text, opts);
   if (mail.fromAddress !== VENMO) return { outcome: "not_venmo", organizer: null };
+  diagnostic?.step("sender", "发件地址", "passed", "地址匹配，邮件真实性还需签名验证", mail.fromAddress, VENMO);
   // Not matched to an account. Addressed to an organizer, it is theirs: it says nothing about the
   // Owner's forwarding. Only a signed one proves theirs works, as the To header of an unchecked
   // email proves nothing.
@@ -218,14 +302,34 @@ export async function receiveEmail(
     if (to && signed) await forwarded(env, to, mail.toAddresses[0]!);
     return { outcome, organizer: to };
   };
-  if (!/ paid \$[\d,]+\.\d{2} to your Venmo account/.test(mail.subject.replace(/\s+/g, " "))) {
+  const receiptSubject = / paid \$[\d,]+\.\d{2} to your Venmo account/.test(mail.subject.replace(/\s+/g, " "));
+  diagnostic?.step(
+    "subject",
+    "收款通知标题",
+    receiptSubject ? "passed" : "failed",
+    receiptSubject ? undefined : "不是支持的 Venmo 收款通知标题",
+    mail.subject,
+    "… paid $金额 to your Venmo account",
+  );
+  if (!receiptSubject) {
     // Other Venmo mail is never acted on, so it isn't checked; an organizer's is, as it is the
     // only sign of their forwarding on days nobody pays them.
     const to = await mailedTo(env, mail.toAddresses);
     if (to && (await verifyDkim(raw, "venmo.com", opts.resolveKey)).ok) await forwarded(env, to, mail.toAddresses[0]!);
     return { outcome: "not_receipt", organizer: to };
   }
+  diagnostic?.step("dkim", "Venmo 签名验证", "processing");
   const dkim = await verifyDkim(raw, "venmo.com", opts.resolveKey);
+  diagnostic?.step(
+    "dkim",
+    "Venmo 签名验证",
+    dkim.ok ? "passed" : dkim.retryable ? "warning" : "failed",
+    dkim.ok
+      ? "From、To、Subject 和正文通过 Venmo 签名验证"
+      : dkim.retryable
+        ? `公钥查询暂时失败，不会自动入账：${dkim.reason}`
+        : dkim.reason,
+  );
   if (!dkim.ok && !dkim.retryable) {
     console.warn("venmo email rejected:", dkim.reason);
     // Always the Owner's: a forged email's To proves nothing, and the Owner should see it.
@@ -235,15 +339,33 @@ export async function receiveEmail(
   const unverified = !dkim.ok;
 
   const r = mail.receipt;
+  diagnostic?.step(
+    "receipt",
+    "收款字段与金额一致性",
+    r ? "passed" : "failed",
+    r ? undefined : mail.receiptError || "无法提取完整收款字段",
+    r ? `付款人 ${r.payer}；金额 ${money(r.amountCents)}；交易 ${r.txnId}；日期 ${r.date}` : undefined,
+  );
   if (!r) return unknown("parse_failed", !unverified);
 
-  const account = await receivingAccount(env, r.sentTo, mail.toAddresses);
+  diagnostic?.step("receiving_account", "识别收款账户", "processing");
+  const account = await receivingAccount(env, r.sentTo, mail.toAddresses, diagnostic);
+  diagnostic?.step(
+    "receiving_account",
+    "识别收款账户",
+    account ? "passed" : "failed",
+    account ? undefined : "收款用户名或原始收件邮箱不匹配",
+    account?.id ?? undefined,
+  );
   if (!account) return unknown("wrong_recipient", !unverified);
   if (account.owner)
-    return { outcome: await matchReceipt(env, r, mail.messageId, account, unverified), organizer: null };
+    return { outcome: await matchReceipt(env, r, mail.messageId, account, unverified, diagnostic), organizer: null };
   // Only signed emails, from the inbox of their current account (forwarded() checks the address).
   if (!unverified && account.id) await forwarded(env, account.id, mail.toAddresses[0]!);
-  return { outcome: await matchReceipt(env, r, mail.messageId, account, unverified), organizer: account.id };
+  return {
+    outcome: await matchReceipt(env, r, mail.messageId, account, unverified, diagnostic),
+    organizer: account.id,
+  };
 }
 
 /**
@@ -252,9 +374,34 @@ export async function receiveEmail(
  * (bills made before event numbers existed may carry another date than their event's number); then
  * the event by its fixed number, which a date edit never changes. `e` is null for a deleted event.
  */
-export async function noteTarget(env: Env, note: string | null) {
+export async function noteTarget(env: Env, note: string | null, diagnostic?: PaymentDiagnostic | null) {
   const code = note ? parsePaymentCode(note) : null;
-  if (!code?.name || !(await isGroupName(env, code.name))) return null;
+  diagnostic?.step(
+    "note_code",
+    "付款备注编号",
+    code?.name ? "passed" : "failed",
+    code?.name ? undefined : "未识别到带名字的本群付款编号",
+    note ?? "（无备注）",
+    "名字-jbm年月日-m成员编号",
+  );
+  if (!code?.name) return null;
+  diagnostic?.step("group_name", "群内名字识别", "processing");
+  const knownName = await isGroupName(env, code.name);
+  diagnostic?.step(
+    "group_name",
+    "群内名字识别",
+    knownName ? "passed" : "failed",
+    knownName ? "匹配当前成员名字或历史账单名字" : "名字不属于已知成员或历史账单",
+    code.name ?? "",
+  );
+  if (!knownName) return null;
+  diagnostic?.step(
+    "bill_lookup",
+    "按活动编号和成员编号查账单",
+    "processing",
+    undefined,
+    `${code.number} / ${code.memberId}`,
+  );
   const billed = await env.DB.prepare(
     `SELECT p.id, p.payment_code, p.event_id FROM payments p JOIN events e ON e.id = p.event_id
      WHERE p.member_id = ?1 AND instr(lower(p.payment_code), ?2) > 0
@@ -262,6 +409,14 @@ export async function noteTarget(env: Env, note: string | null) {
   )
     .bind(code.memberId, `-${code.number}-`)
     .first<{ id: number; payment_code: string; event_id: number }>();
+  diagnostic?.step(
+    "bill_lookup",
+    "按活动编号和成员编号查账单",
+    billed ? "passed" : "warning",
+    billed ? undefined : "未找到账单，继续按固定编号查活动",
+    billed ? `账单 ${billed.id}` : undefined,
+  );
+  diagnostic?.step("event", "查找活动", "processing", undefined, code.number);
   const e = billed
     ? await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(billed.event_id).first<EventRow>()
     : await env.DB.prepare("SELECT * FROM events WHERE number = ?").bind(code.number).first<EventRow>();
@@ -275,35 +430,82 @@ async function matchReceipt(
   emailId: string,
   account: Account,
   unverified: boolean,
+  diagnostic?: PaymentDiagnostic | null,
 ): Promise<EmailOutcome> {
-  const target = await noteTarget(env, r.note);
+  const target = await noteTarget(env, r.note, diagnostic);
   if (!target) return "ignored";
   const { code, billed, e } = target;
   // A payment for an event the Owner deleted is still a group member's money: 待确认, not ignored.
   const deleted =
     !e && (await env.DB.prepare("SELECT 1 FROM deleted_events WHERE number = ?").bind(code.number).first());
+  diagnostic?.step(
+    "event",
+    "查找活动",
+    e ? "passed" : "failed",
+    e ? undefined : deleted ? "活动已永久删除" : "活动编号不存在",
+    code.number,
+    e ? `活动 ${e.id}（${e.status}）` : undefined,
+  );
   if (!e && !deleted) return "ignored";
 
+  diagnostic?.step("duplicate", "交易 ID 去重", "processing", undefined, r.txnId);
   const seen = await env.DB.prepare(
     "SELECT 1 FROM inbound_payments WHERE venmo_txn_id = ?1 UNION ALL SELECT 1 FROM payment_receipts WHERE venmo_txn_id = ?1",
   )
     .bind(r.txnId)
     .first();
+  diagnostic?.step(
+    "duplicate",
+    "交易 ID 去重",
+    seen ? "warning" : "passed",
+    seen ? "交易已在付款记录或待确认中，不重复记账" : undefined,
+    r.txnId,
+  );
   if (seen) return "duplicate";
 
-  const review = (reason: string) => record(env, r, emailId, reason, account.id);
+  const review = (reason: string) => {
+    diagnostic?.step("manual_review", "转入待确认", "processing", reason);
+    return record(env, r, emailId, reason, account.id).then((outcome) => {
+      diagnostic?.step("manual_review", "转入待确认", "warning", reason);
+      return outcome;
+    });
+  };
   if (!e) return review("这次活动已从数据库永久删除");
   // A former organizer's account still forwards: group money that lands there is the Owner's to sort out.
-  if (!account.owner && account.id && (await payeeExpired(env.DB, account.id)))
-    return review(`付到了 ${await account.label()}的账户，这个账户已经不再收本群的款`);
+  diagnostic?.step("account_active", "收款账户有效性", "processing");
+  const expired = !account.owner && account.id && (await payeeExpired(env.DB, account.id));
+  diagnostic?.step(
+    "account_active",
+    "收款账户有效性",
+    expired ? "failed" : "passed",
+    expired ? "该账户已不再收本群款项" : undefined,
+  );
+  if (expired) return review(`付到了 ${await account.label()}的账户，这个账户已经不再收本群的款`);
+  diagnostic?.step("event_payee", "活动指定收款人", "processing");
   const payee = await eventPayee(env.DB, e);
+  diagnostic?.step(
+    "event_payee",
+    "活动指定收款人",
+    payee === account.id ? "passed" : "failed",
+    payee === account.id ? undefined : "钱进入了另一位收款人的账户",
+    account.id ?? "群主",
+    payee ?? "群主",
+  );
   if (payee !== account.id)
     return review(`付到了 ${await account.label()}的账户，但这场的收款人是 ${await payeeName(env.DB, payee)}`);
+  diagnostic?.step("bill", "成员账单", "processing", undefined, `${code.memberId} / 活动 ${e.id}`);
   const p =
     billed ??
     (await env.DB.prepare("SELECT id, payment_code FROM payments WHERE event_id = ? AND member_id = ?")
       .bind(e.id, code.memberId)
       .first<{ id: number; payment_code: string }>());
+  diagnostic?.step(
+    "bill",
+    "成员账单",
+    p ? "passed" : "failed",
+    p ? undefined : `未找到应付款，活动状态为 ${e.status}`,
+    p ? `账单 ${p.id}` : undefined,
+  );
 
   if (!p) {
     if (e.status === "open" || e.status === "closed") return review("这次活动还没结算");
@@ -311,13 +513,28 @@ async function matchReceipt(
     return review("编号里的成员没有这次活动的应付款");
   }
   // The code, name included, is fixed when the bill is created; a later rename does not change it.
+  diagnostic?.step(
+    "bill_name",
+    "名字与账单编号一致性",
+    code.name === codeName(p.payment_code) ? "passed" : "failed",
+    undefined,
+    code.name ?? "",
+    codeName(p.payment_code),
+  );
   if (code.name !== codeName(p.payment_code)) {
     return review(`备注里的名字和编号 ${code.memberId.toLowerCase()} 不是同一个人`);
   }
+  diagnostic?.step(
+    "verified",
+    "允许自动入账",
+    unverified ? "failed" : "passed",
+    unverified ? "签名尚未验证，禁止自动入账" : undefined,
+  );
   if (unverified) return review("暂时无法校验 Venmo 签名，请核对后手动关联");
 
   // Every payment counts toward the bill, however many there are; an archived (fully paid)
   // event can only gain an over-payment, which shows up under 需要退款.
+  diagnostic?.step("ledger", "写入付款记录并重算账单", "processing");
   if (
     !(await addReceipt(env, p.id, {
       amountCents: r.amountCents,
@@ -327,8 +544,17 @@ async function matchReceipt(
       note: r.note,
     }))
   ) {
+    diagnostic?.step("ledger", "写入付款记录并重算账单", "warning", "交易已被其他请求记账，不重复写入");
     return "duplicate";
   }
+  diagnostic?.step(
+    "ledger",
+    "写入付款记录并重算账单",
+    "passed",
+    "付款已入账",
+    `账单 ${p.id}，本笔 ${money(r.amountCents)}`,
+  );
+  diagnostic?.step("audit", "记录对账操作", "processing");
   await audit(
     env,
     e.id,
@@ -337,17 +563,40 @@ async function matchReceipt(
     async () =>
       `Venmo 自动对账：${r.payer ?? "付款人不明"} 付 ${money(r.amountCents)}，记到 ${await billOwner(env, code.memberId)} 的账单`,
   );
+  diagnostic?.step("audit", "记录对账操作", "passed");
+  diagnostic?.step("balance", "读取入账后的账单余额", "processing");
   const after = (await env.DB.prepare("SELECT status, amount_due_cents, amount_paid_cents FROM payments WHERE id = ?")
     .bind(p.id)
     .first<{ status: string; amount_due_cents: number; amount_paid_cents: number }>())!;
+  diagnostic?.step(
+    "balance",
+    "读取入账后的账单余额",
+    "passed",
+    after.status,
+    `实收 ${money(after.amount_paid_cents)}`,
+    `应付 ${money(after.amount_due_cents)}`,
+  );
   const info = { payer: r.payer, amountCents: r.amountCents, note: r.note, paymentId: p.id };
   if (after.status === "partial") {
+    diagnostic?.step("notification", "发送付款通知", "processing");
     await notifyPayment(env, "partial", info);
+    diagnostic?.step("notification", "发送付款通知", "passed", "已完成通知处理；未连接通知渠道时不发送");
     return "partial";
   }
-  if (e.status === "finalized") await checkCollected(env, e.id);
+  if (e.status === "finalized") {
+    diagnostic?.step("archive", "检查是否收齐归档", "processing");
+    const archived = await checkCollected(env, e.id);
+    diagnostic?.step(
+      "archive",
+      "检查是否收齐归档",
+      "passed",
+      archived ? "所有人付清，活动已归档" : "本次未触发归档（可能尚未付清或已被其他请求归档）",
+    );
+  }
   if (after.amount_paid_cents > after.amount_due_cents) {
+    diagnostic?.step("notification", "发送付款通知", "processing");
     await notifyPayment(env, "overpaid", info);
+    diagnostic?.step("notification", "发送付款通知", "passed", "已完成通知处理；未连接通知渠道时不发送");
     return "overpaid";
   }
   return "paid";
