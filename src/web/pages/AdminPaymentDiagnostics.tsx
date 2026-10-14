@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { PaymentDiagnosticsResponse, PaymentDiagnosticRecord } from "../../shared/paymentDiagnostics";
 import { formatInstantZh } from "../../shared/time";
 import { api } from "../api";
@@ -29,9 +29,16 @@ export function PaymentDiagnostics(props: { base: string }) {
     `${props.base}/payment-diagnostics${before ? `?before=${before}` : ""}`,
   );
   const { busy, error, run } = useAction();
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    if (data.state === "ok") setEnabled(data.data.enabled);
+  }, [data]);
 
   async function toggle(on: boolean) {
+    const previous = enabled;
+    setEnabled(on);
     if (await run(() => api(`${props.base}/payment-diagnostics`, { enabled: on }))) reload();
+    else setEnabled(previous);
   }
 
   return (
@@ -40,19 +47,19 @@ export function PaymentDiagnostics(props: { base: string }) {
         默认关闭。开启后记录新收到的 Venmo 邮件处理步骤，包括忽略和失败的邮件。记录最多保留 14
         天，关闭后也会自动清理。不会保存完整邮件正文。
       </p>
+      <label class="check-row">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={busy || data.state !== "ok"}
+          onChange={(e) => toggle(e.currentTarget.checked)}
+        />
+        开启付款记录诊断
+      </label>
+      {error && <p class="error">{error}</p>}
       <Load result={data}>
         {(d) => (
           <>
-            <label class="check-row">
-              <input
-                type="checkbox"
-                checked={d.enabled}
-                disabled={busy}
-                onChange={(e) => toggle(e.currentTarget.checked)}
-              />
-              开启付款记录诊断
-            </label>
-            {error && <p class="error">{error}</p>}
             <p class="muted small">仅群主可查看。诊断记录本身不代表付款已入账，请查看记录里的入账步骤。</p>
             <button type="button" class="button secondary" onClick={reload}>
               刷新诊断
