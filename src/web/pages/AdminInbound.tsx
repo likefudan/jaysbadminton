@@ -5,6 +5,7 @@ import type { InboundResponse, InboundRow, OpenPayment, Receipt, RefundRow } fro
 import { api } from "../api";
 import { Card, Empty, Field, Load, useAction } from "../components";
 import { useApi } from "../hooks";
+import { PaymentDiagnostics } from "./AdminPaymentDiagnostics";
 
 /** Forwarded Venmo payments that carry our code but could not be pinned to one bill. */
 export function InboundTab(props: { base: string; owner: boolean }) {
@@ -17,6 +18,7 @@ export function InboundTab(props: { base: string; owner: boolean }) {
             Venmo
             收款邮件自动对账：编号和名字对上的自动记到这个人的账上：付够了标记已付，不够的显示「部分付款」等补付，多付的列在「需要退款」里；备注里没有本群付款编号的收款直接忽略，不会出现在这里。
           </p>
+          {props.owner && <PaymentDiagnostics base={props.base} />}
           <Refunds base={props.base} list={d.refunds} onDone={reload} />
           <OpenList base={props.base} open={d.open} payments={d.payments} onDone={reload} />
           {(d.ignored ?? []).length > 0 && (

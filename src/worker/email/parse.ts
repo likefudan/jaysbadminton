@@ -21,6 +21,7 @@ export interface ParsedEmail {
   /** Visible text of the message, one line per block element; kept for parse_failed rows. */
   text: string;
   receipt: VenmoReceipt | null;
+  receiptError?: string;
 }
 
 const BLOCK = /<\/?(?:br|p|div|h[1-6]|tr|td|th|li|table|section|header|footer)\b[^>]*>/gi;
@@ -61,9 +62,17 @@ const after = (lines: string[], label: string, from: number) => {
  * the amount after it, the note up to "Money credited to your Venmo account.", then the
  * Date / Transaction ID / Sent to values. Returns null when any field is missing.
  */
-export function parseReceipt(lines: string[], subject: string): VenmoReceipt | null {
+export function parseReceipt(
+  lines: string[],
+  subject: string,
+  onFailure?: (reason: string) => void,
+): VenmoReceipt | null {
+  const fail = (reason: string) => {
+    onFailure?.(reason);
+    return null;
+  };
   const title = lines.findIndex((l) => / paid you$/.test(l));
-  if (title < 0) return null;
+  if (title < 0) return fail("正文未找到付款人和 paid you 标记");
   const payer = lines[title]!.replace(/ paid you$/, "").trim();
 
   // The amount follows as one line ("$7.00") or as fragments ("$", "7", ".", "00").
@@ -71,10 +80,10 @@ export function parseReceipt(lines: string[], subject: string): VenmoReceipt | n
   let amountText = "";
   while (i < lines.length && /^[$\d.,]+$/.test(lines[i]!)) amountText += lines[i++];
   const amountCents = toCents(amountText);
-  if (amountCents === null) return null;
+  if (amountCents === null) return fail("正文付款金额无法解析为美元金额（两位小数）");
 
   const credited = lines.indexOf("Money credited to your Venmo account.", i);
-  if (credited < 0) return null;
+  if (credited < 0) return fail("正文未找到 Money credited to your Venmo account. 标记");
   const note = lines
     .slice(i, credited)
     .filter((l) => l !== "See transaction")
@@ -84,11 +93,15 @@ export function parseReceipt(lines: string[], subject: string): VenmoReceipt | n
   const date = after(lines, "Date", credited);
   const txnId = after(lines, "Transaction ID", credited);
   const sentTo = after(lines, "Sent to", credited)?.replace(/^@/, "");
-  if (!payer || !date || !txnId || !/^[A-Za-z0-9]+$/.test(txnId) || !sentTo) return null;
+  if (!payer || !date || !txnId || !sentTo)
+    return fail(
+      `正文缺少字段：${[!payer && "付款人", !date && "日期", !txnId && "交易 ID", !sentTo && "收款用户名"].filter(Boolean).join("、")}`,
+    );
+  if (!/^[A-Za-z0-9]+$/.test(txnId)) return fail("交易 ID 格式不正确（应为字母或数字）");
 
   // The subject is signed too; disagreeing amounts mean the layout changed under us.
   const subjectAmount = /paid (\$[\d,]+\.\d{2}) to your Venmo account/.exec(subject.replace(/\s+/g, " "));
-  if (subjectAmount && toCents(subjectAmount[1]!) !== amountCents) return null;
+  if (subjectAmount && toCents(subjectAmount[1]!) !== amountCents) return fail("标题金额与正文金额不一致");
 
   return { payer, amountCents, note, date, txnId, sentTo };
 }
@@ -102,6 +115,10 @@ export async function parseEmail(raw: ArrayBuffer | Uint8Array): Promise<ParsedE
         .map((l) => l.trim())
         .filter(Boolean);
   const subject = mail.subject ?? "";
+  let receiptError: string | undefined;
+  const receipt = parseReceipt(lines, subject, (reason) => {
+    receiptError = reason;
+  });
   return {
     fromAddress: (mail.from?.address ?? "").toLowerCase(),
     subject,
@@ -110,6 +127,7 @@ export async function parseEmail(raw: ArrayBuffer | Uint8Array): Promise<ParsedE
     ),
     messageId: (mail.messageId ?? "").slice(0, 200),
     text: lines.join("\n"),
-    receipt: parseReceipt(lines, subject),
+    receipt,
+    receiptError,
   };
 }

@@ -3255,3 +3255,16 @@ ul.audit li:first-child {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Payment diagnostics are text-only and may contain long transaction IDs or notes. */
+.diagnostic-value {
+  overflow-wrap: anywhere;
+}
+.diagnostic-steps {
+  padding-left: 1.4rem;
+}
+.diagnostic-steps li {
+  margin: 0.8rem 0;
+}
+.diagnostic-steps p {
+  margin: 0.25rem 0;
+}
