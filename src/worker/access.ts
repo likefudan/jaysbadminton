@@ -226,6 +226,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "GET /members/:id/revoke": memberTarget(),
   "POST /members/:id/revoke": memberTarget(),
   "POST /events/:id/transfer": cap("group"),
+  "GET /group-audit": cap("group"),
 
   // members.read: the member and pending pages (they carry no personal links)
   "GET /members": cap("members.read"),

@@ -146,3 +146,73 @@ export async function billOwner(env: Env, memberId: string): Promise<string> {
 }
 
 export const money = (cents: number) => `$${dollars(cents)}`;
+
+/**
+ * 群操作记录 (admin-role.zh.md §7): who did what to the group rather than to one event: members,
+ * appointments, global settings, exports and transfers. The Owner's own actions too.
+ */
+export type GroupAction =
+  | "approve"
+  | "reject"
+  | "note"
+  | "link_regen"
+  | "deactivate"
+  | "reactivate"
+  | "delete"
+  | "appoint"
+  | "appoint_admin"
+  | "demote_admin"
+  | "revoke"
+  | "retire"
+  | "settings"
+  | "export"
+  | "transfer";
+
+/** Records one group action after it has happened; like record(), a failure is logged, never thrown. */
+export async function groupAudit(
+  env: Env,
+  actor: Actor,
+  action: GroupAction,
+  targetId: string | null,
+  detail: string,
+): Promise<void> {
+  try {
+    await env.DB.prepare("INSERT INTO group_audit (actor_id, target_id, action, detail, at) VALUES (?, ?, ?, ?, ?)")
+      .bind(actorId(actor), targetId, action, detail.slice(0, DETAIL_MAX), now())
+      .run();
+  } catch (err) {
+    console.error("group_audit insert failed", { action, err });
+  }
+}
+
+/** One page of 群操作记录, newest first; `before` is the last id of the previous page. */
+export async function groupAuditRows(
+  env: Env,
+  before: number | null,
+  limit = 30,
+): Promise<{ entries: AuditEntry[]; more: boolean }> {
+  const { results } = await env.DB.prepare(
+    `SELECT a.id, a.actor_id, a.action, a.detail, a.at, m.username, m.is_owner
+     FROM group_audit a LEFT JOIN members m ON m.id = a.actor_id
+     WHERE ?1 IS NULL OR a.id < ?1 ORDER BY a.id DESC LIMIT ?2`,
+  )
+    .bind(before, limit + 1)
+    .all<{
+      id: number;
+      actor_id: string;
+      action: string;
+      detail: string | null;
+      at: string;
+      username: string | null;
+      is_owner: number | null;
+    }>();
+  const owner = await ownerName(env.DB);
+  const entries = results.slice(0, limit).map((r) => ({
+    id: r.id,
+    at: r.at,
+    action: r.action,
+    detail: r.detail ?? "",
+    actor: r.actor_id === OWNER ? owner : r.username?.trim() || (r.is_owner === 1 ? owner : r.actor_id),
+  }));
+  return { entries, more: results.length > limit };
+}

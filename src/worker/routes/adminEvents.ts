@@ -84,7 +84,7 @@ import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
 import { pushBills, pushNewEvent, sendSoon } from "../push";
-import { actorId, audit, auditRows, billOwner, friendName, money, record, rosterLabel } from "../audit";
+import { actorId, audit, auditRows, billOwner, friendName, groupAudit, money, record, rosterLabel } from "../audit";
 import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
@@ -309,23 +309,40 @@ adminEventRoutes.post("/events/:id/transfer", async (c) => {
   await transferEvent(c.env, before.id, str((await readJson(c.req.raw)).to));
   const after = await getEvent(c.env, id);
   const actor = c.get("actor");
+  // Compared as people (NULL is the Owner, as in eventManager / eventPayee), so handing an event to
+  // whoever already runs it records nothing.
   const owner = await ownerId(c.env.DB);
+  const [from, to] = [before.manager_id ?? owner, after.manager_id ?? owner];
   const [paidBefore, paidAfter] = [before.payee_id ?? owner, after.payee_id ?? owner];
-  await audit(c.env, id, actorId(c.get("actor")), "transfer", async () => {
-    // Compared as people (NULL is the Owner, as in eventManager / eventPayee), so handing an event
-    // to whoever already runs it records nothing.
-    const [from, to] = [before.manager_id ?? owner, after.manager_id ?? owner];
-    if (from === to) return null;
-    const payee = paidBefore === paidAfter ? `，收款人仍是 ${await payeeName(c.env.DB, paidAfter)}` : "，收款人一起换";
-    return `把活动从 ${await payeeName(c.env.DB, from)} 转交给 ${await payeeName(c.env.DB, to)}${payee}`;
-  });
+  const label = `${after.date}${after.title ? ` ${after.title}` : ""}（${after.code}）`;
+  if (from !== to) {
+    const [fromName, toName, paidName] = await Promise.all([
+      payeeName(c.env.DB, from),
+      payeeName(c.env.DB, to),
+      payeeName(c.env.DB, paidAfter),
+    ]);
+    const moved = `从 ${fromName} 转交给 ${toName}`;
+    await audit(
+      c.env,
+      id,
+      actorId(actor),
+      "transfer",
+      `把活动${moved}${paidBefore === paidAfter ? `，收款人仍是 ${paidName}` : "，收款人一起换"}`,
+    );
+    await groupAudit(
+      c.env,
+      actor,
+      "transfer",
+      null,
+      `把活动 ${label} ${moved}${paidBefore === paidAfter ? "" : "，收款人一起换"}`,
+    );
+  }
   if (paidBefore && paidAfter && paidBefore !== paidAfter && paidBefore !== actor.memberId) {
-    const [by, to] = await Promise.all([payeeName(c.env.DB, actor.memberId), payeeName(c.env.DB, paidAfter)]);
-    const label = `${after.date}${after.title ? ` ${after.title}` : ""}（${after.code}）`;
+    const [by, toName] = await Promise.all([payeeName(c.env.DB, actor.memberId), payeeName(c.env.DB, paidAfter)]);
     await sendToMember(
       c.env,
       paidBefore,
-      message(`🔁 ${by} 把活动 ${label} 转交给了 ${to}。\n成员的钱以后付给 ${to}，不再付给你。`),
+      message(`🔁 ${by} 把活动 ${label} 转交给了 ${toName}。\n成员的钱以后付给 ${toName}，不再付给你。`),
     );
   }
   return c.json(await detail(c.env, after, c.get("actor").memberId));
@@ -576,38 +593,55 @@ adminEventRoutes.get("/settings", async (c) => {
 adminEventRoutes.post("/settings", async (c) => {
   const b = await readJson(c.req.raw);
   const writes = [];
+  // 群操作记录: what was set, in words.
+  const said: string[] = [];
+  const onOff = (v: unknown) => (v === false ? "关" : "开");
   if (b.friendCap !== undefined) {
     const cap = num(b.friendCap);
     if (!Number.isInteger(cap) || cap < 0 || cap > 10) throw badRequest("带朋友上限请填 0–10");
     writes.push(setSetting(c.env.DB, "friend_cap", String(cap)));
+    said.push(`带朋友上限 ${cap}`);
   }
   if (b.siteTitle !== undefined) {
     const t = str(b.siteTitle).trim();
     if (!t) throw badRequest("请填写网站标题");
     if ([...t].length > SITE_TITLE_MAX) throw badRequest(`网站标题最多 ${SITE_TITLE_MAX} 个字`);
     writes.push(setSetting(c.env.DB, "site_title", t));
+    said.push(`网站标题「${t}」`);
   }
-  if (b.showLeaderboard !== undefined)
+  if (b.showLeaderboard !== undefined) {
     writes.push(setSetting(c.env.DB, "show_leaderboard", b.showLeaderboard === false ? "0" : "1"));
+    said.push(`排行榜 ${onOff(b.showLeaderboard)}`);
+  }
   if (b.theme !== undefined) {
     if (!isTheme(b.theme)) throw badRequest("没有这个配色");
     writes.push(setSetting(c.env.DB, "theme", b.theme));
+    said.push(`默认外观 ${b.theme}`);
   }
-  if (b.reminderEnabled !== undefined)
+  if (b.reminderEnabled !== undefined) {
     writes.push(setSetting(c.env.DB, "reminder_enabled", b.reminderEnabled === false ? "0" : "1"));
+    said.push(`截止前提醒 ${onOff(b.reminderEnabled)}`);
+  }
   if (b.reminderHours !== undefined) {
     const h = num(b.reminderHours);
     if (!Number.isInteger(h) || h < 1 || h > 72) throw badRequest("截止前提醒请填 1–72 小时");
     writes.push(setSetting(c.env.DB, "reminder_hours", String(h)));
+    said.push(`截止前 ${h} 小时提醒`);
   }
   if (b.dunningHour !== undefined) {
     const h = num(b.dunningHour);
     if (!Number.isInteger(h) || h < 0 || h > 23) throw badRequest("账单提醒时间请选 0–23 点");
     writes.push(setSetting(c.env.DB, "dunning_hour", String(h)));
+    said.push(`账单提醒 ${h} 点`);
   }
-  if (b.weeklyDigest !== undefined)
+  if (b.weeklyDigest !== undefined) {
     writes.push(setSetting(c.env.DB, "weekly_digest", b.weeklyDigest === false ? "0" : "1"));
-  if (writes.length) await c.env.DB.batch(writes);
+    said.push(`每周简报 ${onOff(b.weeklyDigest)}`);
+  }
+  if (writes.length) {
+    await c.env.DB.batch(writes);
+    await groupAudit(c.env, c.get("actor"), "settings", null, `修改设置：${said.join("，")}`);
+  }
   if (b.reminderEnabled !== undefined || b.reminderHours !== undefined) await syncAllDeadlines(c.env);
   return c.json({ ok: true });
 });
@@ -1224,6 +1258,7 @@ adminEventRoutes.get("/export/:file", async (c) => {
   if (!m || !isTable(m[1]!)) throw badRequest("没有这个表");
   const t = await TABLES[m[1]!].build(c.env);
   const name = `${t.title}-${new Date().toISOString().slice(0, 10)}.csv`;
+  await groupAudit(c.env, c.get("actor"), "export", null, `导出「${t.title}」`);
   return new Response(toCsv(t), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
