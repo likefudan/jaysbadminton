@@ -117,7 +117,8 @@ function GoogleAdminLogin() {
       <Card>
         {other && (
           <p class="error">
-            当前登录的 Google 账号 {other} {organizers ? "不是群主绑定的账号，也不是管理员或组织者。" : "不是群主绑定的账号。"}
+            当前登录的 Google 账号 {other}{" "}
+            {organizers ? "不是群主绑定的账号，也不是管理员或组织者。" : "不是群主绑定的账号。"}
           </p>
         )}
         <button

@@ -179,9 +179,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   备注: { tw: "備註", en: "Memo" },
   备注名: { tw: "備註名", en: "Note name" },
-  "备注名（只有群主和组织者能看到）": {
-    tw: "備註名（只有群主和組織者能看到）",
-    en: "Note name (only the group owner and organizers see it)",
+  "备注名（只有群主、管理员和组织者能看到）": {
+    tw: "備註名（只有群主、管理員和組織者能看到）",
+    en: "Note name (only the group owner, admins and organizers see it)",
   },
   "备注名（只有群主能看到）": { tw: "備註名（只有群主能看到）", en: "Note name (only the group owner sees it)" },
   "备注里一定要带上这个编号，系统才能自动确认你的付款。": {

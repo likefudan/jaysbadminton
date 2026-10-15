@@ -95,7 +95,7 @@ export function EventsTab(props: {
             ))}
             {formerManagers.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.name}（已不是组织者）
+                {o.name}（已卸任）
               </option>
             ))}
           </select>

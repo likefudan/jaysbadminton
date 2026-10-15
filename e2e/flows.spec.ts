@@ -223,7 +223,7 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await expect(detail.locator(".profile-info")).toContainText("xm@example.com");
   await expect(detail.locator(".heatmap-grid .upcoming")).toHaveCount(1);
   await detail.getByRole("button", { name: "添加" }).click();
-  await field(page, "备注名（只有群主和组织者能看到）").fill("周六队长");
+  await field(page, "备注名（只有群主、管理员和组织者能看到）").fill("周六队长");
   await detail.getByRole("button", { name: "保存" }).click();
   await expect(detail.locator(".profile-info")).toContainText("周六队长");
   await page.getByRole("button", { name: "‹ 成员" }).click();
