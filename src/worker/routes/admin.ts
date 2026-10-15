@@ -301,13 +301,9 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
       return c.json({ ok: true, revoked });
     }
     await recordLeft(removed);
-    await groupAudit(
-      c.env,
-      c.get("actor"),
-      "deactivate",
-      who.id,
-      `停用 ${who.username}（同时撤销${ROLE_TITLE[who.role as "admin"] ?? "组织者"}身份）`,
-    );
+    // Revoked meanwhile by someone else (who recorded that): only the 停用 is this request's.
+    const also = revoked ? `（同时撤销${ROLE_TITLE[who.role as "admin"] ?? "组织者"}身份）` : "";
+    await groupAudit(c.env, c.get("actor"), "deactivate", who.id, `停用 ${who.username}${also}`);
     return c.json({ ok: true, revoked });
   };
   if (isStaff(m.role)) return revoke(m);
@@ -372,7 +368,14 @@ adminRoutes.post("/:token/members/:id/reactivate", async (c) => {
       actor: c.get("actor").memberId,
     });
   else restored = !!(await back.run()).meta.changes;
-  if (restored) await groupAudit(c.env, c.get("actor"), "reactivate", m.id, `恢复 ${m.username}`);
+  if (restored)
+    await groupAudit(
+      c.env,
+      c.get("actor"),
+      "reactivate",
+      m.id,
+      `恢复 ${m.username}${isStaff(m.role) ? `（同时撤销${ROLE_TITLE[m.role as "admin"] ?? "组织者"}身份）` : ""}`,
+    );
   const link = m.token_enc ? null : memberLink(origin(c.req.url), await issueMemberToken(c.env, m.id));
   return c.json({ ok: true, link });
 });
@@ -406,13 +409,14 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   // History stays; the link, the Google account and the name are released, so the person (or
   // someone else with that name) can apply again. The old record keeps the name with its ID
   // appended, e.g. "Alice（M004）", so rosters and rankings never mix the two up.
-  await c.env.DB.batch([
+  const [deleted] = await c.env.DB.batch([
     c.env.DB.prepare(
-      "UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL, username = ? WHERE id = ?",
+      "UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL, username = ? WHERE id = ? AND deleted_at IS NULL",
     ).bind(now(), deletedName(m), m.id),
     forgetPush(c.env.DB, m.id),
   ]);
-  await groupAudit(c.env, c.get("actor"), "delete", m.id, `删除成员 ${m.username}`);
+  // A second click finds them deleted already: nothing more to record.
+  if (deleted?.meta.changes) await groupAudit(c.env, c.get("actor"), "delete", m.id, `删除成员 ${m.username}`);
   return c.json({ ok: true });
 });
 

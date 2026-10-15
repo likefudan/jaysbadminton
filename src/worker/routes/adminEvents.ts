@@ -181,11 +181,12 @@ adminEventRoutes.get("/events/defaults", async (c) => {
 /** 最近的场馆 ✕: forgets a venue. Events keep their own copy of the venue and address. */
 adminEventRoutes.post("/locations/remove", async (c) => {
   const name = str((await readJson(c.req.raw)).name);
-  await c.env.DB.batch([
+  const [gone] = await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM locations WHERE name = ?").bind(name),
     // Otherwise the next new event would still start with it filled in.
     ...forgetLastValue(c.env.DB, "last_location", name),
   ]);
+  if (gone?.meta.changes) await groupAudit(c.env, c.get("actor"), "settings", null, `从最近的场馆里删掉「${name}」`);
   return c.json({ ok: true });
 });
 
@@ -316,11 +317,12 @@ adminEventRoutes.post("/events/:id/transfer", async (c) => {
   const [paidBefore, paidAfter] = [before.payee_id ?? owner, after.payee_id ?? owner];
   const label = `${after.date}${after.title ? ` ${after.title}` : ""}（${after.code}）`;
   if (from !== to) {
+    // Names for the logs only: a failed lookup must not fail a transfer that has happened.
     const [fromName, toName, paidName] = await Promise.all([
       payeeName(c.env.DB, from),
       payeeName(c.env.DB, to),
       payeeName(c.env.DB, paidAfter),
-    ]);
+    ]).catch(() => [from ?? "", to ?? "", paidAfter ?? ""]);
     const moved = `从 ${fromName} 转交给 ${toName}`;
     await audit(
       c.env,
@@ -672,6 +674,13 @@ adminEventRoutes.post("/settings/payment", async (c) => {
   if (changes.length) {
     const lines = changes.map(([k, a, z]) => `${k}：${a || "（空）"} → ${z || "（空）"}`).join("\n");
     await sendToOwner(c.env, message(`🔐 收款设置已修改\n${lines}\n\n如果不是你本人操作，请立刻修改群主密码。`));
+    await groupAudit(
+      c.env,
+      c.get("actor"),
+      "settings",
+      null,
+      `修改群主的收款设置：${changes.map(([k]) => k).join("、")}`,
+    );
   }
   return c.json({ ok: true });
 });
@@ -1258,8 +1267,9 @@ adminEventRoutes.get("/export/:file", async (c) => {
   if (!m || !isTable(m[1]!)) throw badRequest("没有这个表");
   const t = await TABLES[m[1]!].build(c.env);
   const name = `${t.title}-${new Date().toISOString().slice(0, 10)}.csv`;
+  const csv = toCsv(t);
   await groupAudit(c.env, c.get("actor"), "export", null, `导出「${t.title}」`);
-  return new Response(toCsv(t), {
+  return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${m[1]}.csv"; filename*=UTF-8''${encodeURIComponent(name)}`,
@@ -1278,10 +1288,15 @@ adminEventRoutes.get("/sheets", async (c) =>
 );
 
 /** 开启同步 / 重新生成密钥: either way a fresh key, so a leaked script stops working. */
-adminEventRoutes.post("/sheets/enable", async (c) => c.json({ script: await rotateExportKey(c.env) }));
+adminEventRoutes.post("/sheets/enable", async (c) => {
+  const script = await rotateExportKey(c.env);
+  await groupAudit(c.env, c.get("actor"), "settings", null, "开启 Google 表格同步（生成新的同步密钥）");
+  return c.json({ script });
+});
 
 adminEventRoutes.post("/sheets/disable", async (c) => {
   await disableExport(c.env);
+  await groupAudit(c.env, c.get("actor"), "settings", null, "关闭 Google 表格同步");
   return c.json({ ok: true });
 });
 

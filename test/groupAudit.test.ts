@@ -41,6 +41,7 @@ describe("群操作记录", () => {
     await asAdmin(`/members/${bob.id}/reactivate`, {});
     await asAdmin(`/members/${bob.id}/deactivate`, {});
     expect((await owner(`/members/${bob.id}/delete`, {})).status).toBe(200);
+    await owner(`/members/${bob.id}/delete`, {}); // second click: nothing more
     expect(await log()).toEqual([
       {
         id: expect.any(Number),
@@ -91,11 +92,12 @@ describe("群操作记录", () => {
     expect((await request(`${GOOGLE}/organizer/retire`, org, {})).status).toBe(200);
     await owner("/settings", { friendCap: 3, showLeaderboard: false });
     await owner("/export/members.csv");
+    await owner("/sheets/enable", {});
     const e = await createTestEvent(ctx);
     await owner(`/members/${bob.id}/appoint`, {});
     await owner(`/events/${e.id}/transfer`, { to: bob.id });
     const details = (await log()).map((r) => `${r.actor}: ${r.detail}`);
-    expect(details.slice(0, 9)).toEqual([
+    expect(details.slice(0, 10)).toEqual([
       "Carol: 任命 Bob 为组织者",
       "Carol: 撤销 Bob 的组织者身份",
       "Jay: 把 Alice 从组织者升为管理员",
@@ -104,9 +106,10 @@ describe("群操作记录", () => {
       "Alice: Alice 不再当组织者",
       "Jay: 修改设置：带朋友上限 3，排行榜 关",
       "Jay: 导出「成员」",
+      "Jay: 开启 Google 表格同步（生成新的同步密钥）",
       "Jay: 任命 Bob 为组织者",
     ]);
-    expect(details[9]).toMatch(/^Jay: 把活动 .+（.+） 从 Jay 转交给 Bob，收款人一起换$/);
+    expect(details[10]).toMatch(/^Jay: 把活动 .+（.+） 从 Jay 转交给 Bob，收款人一起换$/);
   });
 
   it("is for the Owner and admins, a page at a time, and goes with 清空所有数据", async () => {
