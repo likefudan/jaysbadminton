@@ -1,5 +1,6 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type {
+  AuditEntry,
   ApprovalEmailStatus,
   ApproveResponse,
   LinkResponse,
@@ -628,6 +629,61 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
             ))}
           </details>
         </Card>
+      )}
+      {!readOnly && <GroupLog base={props.base} />}
+    </>
+  );
+}
+
+/** 群操作记录: who did what to the group, newest first, loaded when opened and a page at a time. */
+function GroupLog(props: { base: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card>
+      <details class="fold" onToggle={(ev) => setOpen((ev.currentTarget as HTMLDetailsElement).open)}>
+        <summary>群操作记录</summary>
+        {open && <GroupLogList base={props.base} />}
+      </details>
+    </Card>
+  );
+}
+
+function GroupLogList(props: { base: string }) {
+  const [pages, setPages] = useState<AuditEntry[][]>([]);
+  const [more, setMore] = useState(true);
+  const { busy, error, run } = useAction();
+  async function next() {
+    const flat = pages.flat();
+    const last = flat[flat.length - 1];
+    const r = await run(() =>
+      api<{ entries: AuditEntry[]; more: boolean }>(`${props.base}/group-audit${last ? `?before=${last.id}` : ""}`),
+    );
+    if (!r) return;
+    setPages((p) => [...p, r.entries]);
+    setMore(r.more);
+  }
+  useEffect(() => {
+    void next();
+  }, []);
+  const entries = pages.flat();
+  return (
+    <>
+      {error && <p class="error">{error}</p>}
+      {pages.length > 0 && entries.length === 0 && <Empty>还没有记录</Empty>}
+      <ul class="audit">
+        {entries.map((a) => (
+          <li key={a.id}>
+            <small class="muted">
+              {formatInstantZh(a.at)} · {a.actor}
+            </small>
+            <div>{a.detail}</div>
+          </li>
+        ))}
+      </ul>
+      {pages.length > 0 && more && (
+        <button type="button" class="button secondary block" disabled={busy} onClick={next}>
+          显示更早的记录
+        </button>
       )}
     </>
   );

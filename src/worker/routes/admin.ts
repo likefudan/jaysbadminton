@@ -18,7 +18,7 @@ import {
 import { checkPassword, endSession, issueAdminToken, setPassword, startSession } from "../auth";
 import { now } from "../db";
 import { closeExpired } from "../events";
-import { actorId, audit } from "../audit";
+import { actorId, audit, groupAudit, groupAuditRows } from "../audit";
 import type { Env } from "../env";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { adminEventRoutes } from "./adminEvents";
@@ -82,22 +82,39 @@ adminRoutes.get("/:token/members", async (c) => {
   });
 });
 
+/** 群操作记录, a page at a time (the Owner and admins). */
+adminRoutes.get("/:token/group-audit", async (c) => {
+  const before = Number(c.req.query("before"));
+  return c.json(await groupAuditRows(c.env, Number.isInteger(before) && before > 0 ? before : null));
+});
+
 /** 设为组织者 (design §8). */
 adminRoutes.post("/:token/members/:id/appoint", async (c) => {
   assertOrganizersOn(c.env);
-  return c.json(await appointOrganizer(c.env, c.req.param("id"), c.get("actor").memberId));
+  const res = await appointOrganizer(c.env, c.req.param("id"), c.get("actor").memberId);
+  const m = await requireMember(c.env, c.req.param("id"));
+  await groupAudit(c.env, c.get("actor"), "appoint", m.id, `任命 ${m.username} 为组织者`);
+  return c.json(res);
 });
 
 /** 设为管理员 / 升为管理员 (admin-role.zh.md §8; Owner only). */
 adminRoutes.post("/:token/members/:id/appoint-admin", async (c) => {
   assertOrganizersOn(c.env);
-  return c.json(await appointAdmin(c.env, c.req.param("id")));
+  const before = await requireMember(c.env, c.req.param("id"));
+  const res = await appointAdmin(c.env, before.id);
+  const how =
+    before.role === "organizer" ? `把 ${before.username} 从组织者升为管理员` : `任命 ${before.username} 为管理员`;
+  await groupAudit(c.env, c.get("actor"), "appoint_admin", before.id, how);
+  return c.json(res);
 });
 
 /** 降为组织者 (Owner only): keeps their events. */
 adminRoutes.post("/:token/members/:id/demote-admin", async (c) => {
   assertOrganizersOn(c.env);
-  return c.json(await demoteAdmin(c.env, c.req.param("id")));
+  const res = await demoteAdmin(c.env, c.req.param("id"));
+  const m = await requireMember(c.env, c.req.param("id"));
+  await groupAudit(c.env, c.get("actor"), "demote_admin", m.id, `把 ${m.username} 从管理员降为组织者`);
+  return c.json(res);
 });
 
 /** What 撤销组织者 / 撤销管理员 would do, for the confirmation. */
@@ -113,7 +130,15 @@ adminRoutes.post("/:token/members/:id/revoke", async (c) => {
   const m = await target(c);
   // Disabled ones (by older code) are revoked by 恢复, with the right email.
   if (m.status !== "active") throw badRequest("请先「恢复」这个成员（会撤销组织者身份）");
-  return c.json(await revokeOrganizer(c.env, m, "owner", { actor: c.get("actor").memberId }));
+  const res = await revokeOrganizer(c.env, m, "owner", { actor: c.get("actor").memberId });
+  await groupAudit(
+    c.env,
+    c.get("actor"),
+    "revoke",
+    m.id,
+    `撤销 ${m.username} 的${ROLE_TITLE[m.role as "admin"] ?? "组织者"}身份`,
+  );
+  return c.json(res);
 });
 
 /** 不再当组织者 / 不再当管理员: one steps down; the same rules as being revoked. */
@@ -126,7 +151,10 @@ adminRoutes.get("/:token/organizer/retire", async (c) => {
 adminRoutes.post("/:token/organizer/retire", async (c) => {
   const actor = c.get("actor");
   if (!isStaff(actor.role) || !actor.memberId) throw badRequest("只有组织者或管理员可以这样做");
-  return c.json(await revokeOrganizer(c.env, await requireMember(c.env, actor.memberId), "self"));
+  const m = await requireMember(c.env, actor.memberId);
+  const res = await revokeOrganizer(c.env, m, "self");
+  await groupAudit(c.env, actor, "retire", m.id, `${m.username} 不再当${ROLE_TITLE[actor.role]}`);
+  return c.json(res);
 });
 
 const origin = (url: string) => new URL(url).origin;
@@ -150,6 +178,7 @@ adminRoutes.post("/:token/members/:id/approve", async (c) => {
     .bind(now(), m.id)
     .run();
   if (!updated.meta.changes) throw badRequest("这个申请已经处理过了");
+  await groupAudit(c.env, c.get("actor"), "approve", m.id, `通过 ${m.username} 的入群申请`);
   // Applied with Google: they sign in with it, so there is no link to send (a spare one can still
   // be made from the members list).
   if (m.google_sub)
@@ -179,7 +208,8 @@ adminRoutes.post("/:token/members/:id/approval-email", async (c) => {
 adminRoutes.post("/:token/members/:id/reject", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.status !== "pending") throw badRequest("只能拒绝待审核的申请");
-  await c.env.DB.prepare("DELETE FROM members WHERE id = ?").bind(m.id).run();
+  const gone = await c.env.DB.prepare("DELETE FROM members WHERE id = ? AND status = 'pending'").bind(m.id).run();
+  if (gone.meta.changes) await groupAudit(c.env, c.get("actor"), "reject", m.id, `拒绝 ${m.username} 的入群申请`);
   return c.json({ ok: true });
 });
 
@@ -190,7 +220,16 @@ adminRoutes.get("/:token/members/:id/profile", async (c) => {
 
 adminRoutes.post("/:token/members/:id/note", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
-  await setAdminNote(c.env, m, str((await readJson(c.req.raw)).note));
+  const note = str((await readJson(c.req.raw)).note).trim();
+  await setAdminNote(c.env, m, note);
+  if (note !== (m.admin_note ?? ""))
+    await groupAudit(
+      c.env,
+      c.get("actor"),
+      "note",
+      m.id,
+      note ? `把 ${m.username} 的备注名改为「${note}」` : `清空 ${m.username} 的备注名`,
+    );
   return c.json({ ok: true });
 });
 
@@ -204,6 +243,7 @@ adminRoutes.post("/:token/members/:id/regenerate", async (c) => {
   // Disabled members may need a (new) link to pay what they owe; deleted ones never get one.
   if (m.status === "pending" || m.deleted_at) throw badRequest("只能给正常或已停用的成员生成链接");
   const token = await issueMemberToken(c.env, m.id);
+  await groupAudit(c.env, c.get("actor"), "link_regen", m.id, `重新生成 ${m.username} 的专属链接`);
   return c.json<LinkResponse>({ link: memberLink(origin(c.req.url), token) });
 });
 
@@ -261,6 +301,9 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
       return c.json({ ok: true, revoked });
     }
     await recordLeft(removed);
+    // Revoked meanwhile by someone else (who recorded that): only the 停用 is this request's.
+    const also = revoked ? `（同时撤销${ROLE_TITLE[who.role as "admin"] ?? "组织者"}身份）` : "";
+    await groupAudit(c.env, c.get("actor"), "deactivate", who.id, `停用 ${who.username}${also}`);
     return c.json({ ok: true, revoked });
   };
   if (isStaff(m.role)) return revoke(m);
@@ -268,6 +311,7 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
   const [plain, removed] = await c.env.DB.batch(deactivate(null));
   if (plain!.meta.changes) {
     await recordLeft(removed);
+    await groupAudit(c.env, c.get("actor"), "deactivate", m.id, `停用 ${m.username}`);
     return c.json({ ok: true, revoked: null });
   }
   const fresh = await requireMember(c.env, m.id);
@@ -312,10 +356,26 @@ adminRoutes.post("/:token/members/:id/reactivate", async (c) => {
   const m = await target(c);
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能恢复已停用的成员");
   const back = c.env.DB.prepare("UPDATE members SET status = 'active' WHERE id = ? AND status = 'inactive'").bind(m.id);
+  let restored = false;
   // Back as a plain member: an organizer disabled without being revoked (before 停用 did that) is
   // revoked now, so being one again takes a new appointment.
-  if (isStaff(m.role)) await revokeOrganizer(c.env, m, "owner", { with: [back], actor: c.get("actor").memberId });
-  else await back.run();
+  if (isStaff(m.role))
+    await revokeOrganizer(c.env, m, "owner", {
+      with: [back],
+      withResults: (r) => {
+        restored = !!r[0]?.meta.changes;
+      },
+      actor: c.get("actor").memberId,
+    });
+  else restored = !!(await back.run()).meta.changes;
+  if (restored)
+    await groupAudit(
+      c.env,
+      c.get("actor"),
+      "reactivate",
+      m.id,
+      `恢复 ${m.username}${isStaff(m.role) ? `（同时撤销${ROLE_TITLE[m.role as "admin"] ?? "组织者"}身份）` : ""}`,
+    );
   const link = m.token_enc ? null : memberLink(origin(c.req.url), await issueMemberToken(c.env, m.id));
   return c.json({ ok: true, link });
 });
@@ -349,12 +409,14 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   // History stays; the link, the Google account and the name are released, so the person (or
   // someone else with that name) can apply again. The old record keeps the name with its ID
   // appended, e.g. "Alice（M004）", so rosters and rankings never mix the two up.
-  await c.env.DB.batch([
+  const [deleted] = await c.env.DB.batch([
     c.env.DB.prepare(
-      "UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL, username = ? WHERE id = ?",
+      "UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL, username = ? WHERE id = ? AND deleted_at IS NULL",
     ).bind(now(), deletedName(m), m.id),
     forgetPush(c.env.DB, m.id),
   ]);
+  // A second click finds them deleted already: nothing more to record.
+  if (deleted?.meta.changes) await groupAudit(c.env, c.get("actor"), "delete", m.id, `删除成员 ${m.username}`);
   return c.json({ ok: true });
 });
 
@@ -460,6 +522,7 @@ adminRoutes.post("/:token/settings/reset", async (c) => {
 const RESET_PHRASE = "清空所有数据";
 // Children first, so no foreign key is ever left dangling.
 const RESET_TABLES = [
+  "group_audit",
   "payment_diagnostics",
   "push_outbox",
   "push_subscriptions",

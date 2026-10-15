@@ -565,6 +565,10 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   const inactive = page.locator(".row", { hasText: "小红" });
   await expect(inactive.getByRole("button", { name: "恢复" })).toBeVisible();
   await expect(inactive.getByRole("button", { name: "删除" })).toHaveCount(0);
+  // 群操作记录 names who did what.
+  await page.getByText("群操作记录").click();
+  await expect(page.locator(".audit")).toContainText("通过 小红 的入群申请");
+  await expect(page.locator(".audit")).toContainText("停用 小红");
 
   // 活动: the Owner's event too, and he can hand it to someone.
   await tabs.getByRole("button", { name: "活动" }).click();
