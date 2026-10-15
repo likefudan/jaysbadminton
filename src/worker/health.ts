@@ -106,7 +106,7 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
     if (!owing) continue;
     const account = `@${p.venmo_username}（${p.username}）`;
     const text = message(
-      `📭 ${quietFor(at, p.email_last_at, ` ${account}的 Venmo 邮件`)}，但付到这个账户的账单还有 ${owing} 笔没付清。\n如果最近确实有人用 Venmo 付过款，说明这个账户的 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（组织者的管理页「设置 › Venmo 邮件转发」）。`,
+      `📭 ${quietFor(at, p.email_last_at, ` ${account}的 Venmo 邮件`)}，但付到这个账户的账单还有 ${owing} 笔没付清。\n如果最近确实有人用 Venmo 付过款，说明这个账户的 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（组织者或管理员的管理页「设置 › Venmo 邮件转发」）。`,
     );
     // Changing account starts a new quiet spell (email_last_at goes back to empty), so "never" is per account.
     const key = p.email_last_at ?? `never:${p.venmo_username}:${p.venmo_email ?? ""}`;

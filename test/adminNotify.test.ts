@@ -90,7 +90,40 @@ describe("新成员申请", () => {
   });
 });
 
+describe("新成员申请, delivery", () => {
+  it("is sent once anyone got it, and not when nobody did", async () => {
+    const { carol, bob } = await scenario();
+    await connectOwner();
+    await connect(carol.id, CAROL_CHAT);
+    refuse.add(OWNER_CHAT);
+    expect(await sendApplicationNotice(on, (await memberRow(bob.id))!)).toBe(true);
+    refuse.add(CAROL_CHAT);
+    expect(await sendApplicationNotice(on, (await memberRow(bob.id))!)).toBe(false);
+  });
+
+  it("goes to the Owner alone while the flag is off", async () => {
+    const { carol, bob } = await scenario();
+    await connectOwner();
+    await connect(carol.id, CAROL_CHAT);
+    expect(await sendApplicationNotice(off, (await memberRow(bob.id))!)).toBe(true);
+    expect(to(OWNER_CHAT)).toHaveLength(1);
+    expect(to(CAROL_CHAT)).toEqual([]);
+  });
+});
+
 describe("an admin's event", () => {
+  it("falls back to the Owner, naming the admin, when they have no Telegram", async () => {
+    const { ctx, carol } = await scenario();
+    await connectOwner();
+    const mine = await createTestEvent(ctx, { date: futureDate(10) });
+    await env.DB.prepare("UPDATE events SET manager_id = ?1, payee_id = ?1 WHERE id = ?2")
+      .bind(carol.id, mine.id)
+      .run();
+    await notifyFinalized(on, (await eventRow(mine.id))!);
+    expect(to(OWNER_CHAT)).toHaveLength(1);
+    expect(to(OWNER_CHAT)[0]).toContain("管理员 Carol 还没连接 Telegram，这条发给群主");
+  });
+
   it("names them as 管理员 in the Owner's copies", async () => {
     const { carol, admin } = await scenario();
     await connectOwner();

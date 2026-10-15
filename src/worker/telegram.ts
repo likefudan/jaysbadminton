@@ -388,7 +388,7 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
   await sendTo(
     env,
     chatId,
-    `✅ 已连接。你负责的活动的提醒、结算和账单提醒都会发到这里。\n管理页（用 Google 登录）：${escapeHtml(organizerAdminLink(env))}`,
+    `✅ 已连接。你负责的活动的提醒、结算和账单提醒（管理员还有入群申请）都会发到这里。\n管理页（用 Google 登录）：${escapeHtml(organizerAdminLink(env))}`,
   );
 }
 
