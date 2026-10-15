@@ -8,7 +8,21 @@ for (const role of ["owner", "organizer"] as const) {
     );
     await page.route("**/api/admin/google/members", (route) =>
       route.fulfill({
-        json: { active: [], inactive: [], deleted: [], pending: [], organizers: null, viewer: { id: "M007", role } },
+        json: {
+          active: [],
+          inactive: [],
+          deleted: [],
+          pending: [],
+          organizers: null,
+          viewer: {
+            id: "M007",
+            role,
+            caps:
+              role === "owner"
+                ? ["owner", "data", "group", "events.create", "event", "payee", "members.read", "self"]
+                : ["events.create", "event", "payee", "members.read", "self"],
+          },
+        },
       }),
     );
     await page.route("**/api/admin/google/events**", (route) =>

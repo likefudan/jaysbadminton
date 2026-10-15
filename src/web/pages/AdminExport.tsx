@@ -39,8 +39,11 @@ interface SheetsState {
   keyLost: boolean;
 }
 
-/** Google 表格同步: the sheet pulls from the site daily with a script the Owner pastes once. */
-export function SheetsCard(props: { base: string }) {
+/**
+ * Google 表格同步: the sheet pulls from the site daily with a script the Owner pastes once. Admins
+ * (`readOnly`) see whether it runs, not the script (it holds the export key) or the switches.
+ */
+export function SheetsCard(props: { base: string; readOnly?: boolean }) {
   const [state, reload] = useApi<SheetsState>(`${props.base}/sheets`);
   const [script, setScript] = useState<string | null>(null);
   const { busy, error, run } = useAction();
@@ -66,6 +69,21 @@ export function SheetsCard(props: { base: string }) {
       <Load result={state}>
         {(s) => {
           const code = script ?? s.script;
+          if (props.readOnly) {
+            return (
+              <>
+                <p class="small">
+                  {!s.enabled
+                    ? "没有开启。"
+                    : s.lastSyncAt
+                      ? `✓ 已开启，上次同步：${formatInstantZh(s.lastSyncAt)}`
+                      : "已开启，还没有同步过。"}
+                </p>
+                {s.enabled && s.keyLost && <p class="error">网站密钥换过，需要群主重新生成同步脚本。</p>}
+                <p class="muted small">开启、关闭同步和查看脚本只有群主能做。</p>
+              </>
+            );
+          }
           if (!s.enabled) {
             return (
               <>

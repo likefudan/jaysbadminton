@@ -48,7 +48,7 @@ export function Join() {
       <Page title={t("申请已提交")}>
         <Card>
           <p>
-            {tx("群主审核通过后，你的专属链接会发到 {email}。以后报名、查看账单都用这个链接。", {
+            {tx("审核通过后，你的专属链接会发到 {email}。以后报名、查看账单都用这个链接。", {
               email: <strong>{email.trim()}</strong>,
             })}
           </p>

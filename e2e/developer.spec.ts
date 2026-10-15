@@ -35,7 +35,11 @@ test("staging offers developer login, a recolored logo and a floating role switc
         inactive: [],
         deleted: [],
         organizers: null,
-        viewer: { id: "MDEV", role: "owner" },
+        viewer: {
+          id: "MDEV",
+          role: "owner",
+          caps: ["owner", "data", "group", "events.create", "event", "payee", "members.read", "self"],
+        },
       },
     }),
   );

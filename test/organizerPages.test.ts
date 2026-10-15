@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { ROLE_CAPABILITIES } from "../src/worker/organizers";
 import {
   appoint,
   approveMember,
@@ -52,8 +53,16 @@ async function scenario() {
 describe("the admin pages for an organizer", () => {
   it("tells the page who is looking", async () => {
     const { ctx, org, alice, owner } = await scenario();
-    expect((await get(`${GOOGLE}/members`, org)).data.viewer).toEqual({ id: alice.id, role: "organizer" });
-    expect((await ctx.admin.call(`${ctx.base}/members`)).data.viewer).toEqual({ id: owner, role: "owner" });
+    expect((await get(`${GOOGLE}/members`, org)).data.viewer).toEqual({
+      id: alice.id,
+      role: "organizer",
+      caps: [...ROLE_CAPABILITIES.organizer],
+    });
+    expect((await ctx.admin.call(`${ctx.base}/members`)).data.viewer).toEqual({
+      id: owner,
+      role: "owner",
+      caps: [...ROLE_CAPABILITIES.owner],
+    });
   });
 
   it("never returns a member's personal link to an organizer", async () => {
@@ -190,7 +199,11 @@ describe("the member pages", () => {
         .bind(theirs, alice.id)
         .first(),
     ).toEqual({ member_id: alice.id });
-    expect((await get(`${GOOGLE}/members`, org)).data.viewer).toEqual({ id: alice.id, role: "organizer" });
+    expect((await get(`${GOOGLE}/members`, org)).data.viewer).toEqual({
+      id: alice.id,
+      role: "organizer",
+      caps: [...ROLE_CAPABILITIES.organizer],
+    });
   });
 
   it("names the organizer on the events they run, and nobody on the Owner's", async () => {

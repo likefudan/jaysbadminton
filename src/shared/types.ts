@@ -89,7 +89,12 @@ export interface AdminViewer {
   /** Null only for the Owner before their member record exists. */
   id: string | null;
   role: "owner" | "admin" | "organizer";
+  /** What they may do (ROLE_CAPABILITIES): pages check these rather than the role. */
+  caps: Capability[];
 }
+
+/** What a role may do; see ROLE_CAPABILITIES in src/worker/organizers.ts. */
+export type Capability = "owner" | "data" | "group" | "events.create" | "event" | "payee" | "members.read" | "self";
 
 export interface LinkResponse {
   link: string;

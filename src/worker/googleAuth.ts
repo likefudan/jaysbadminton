@@ -70,7 +70,7 @@ export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): 
   const m = await memberByGoogle(c.env, session.google_sub);
   if (!m) throw new HttpError(409, "profile_required", "请先完善成员资料");
   if (m.status === "pending")
-    throw new HttpError(403, "pending_approval", "你的入群申请正在等待群主审核，通过后才能报名活动");
+    throw new HttpError(403, "pending_approval", "你的入群申请正在等待审核，通过后才能报名活动");
   return m;
 }
 
@@ -216,8 +216,7 @@ googleRoutes.post("/register", async (c) => {
   const session = await googleSession(c);
   if (!session) throw loginRequired();
   const existing = await memberByGoogle(c.env, session.google_sub);
-  if (existing?.status === "pending")
-    throw new HttpError(409, "already_applied", "你的入群申请已经提交，请等待群主审核");
+  if (existing?.status === "pending") throw new HttpError(409, "already_applied", "你的入群申请已经提交，请等待审核");
   if (existing) throw new HttpError(409, "already_registered", "此 Google 账号已关联成员，请返回我的页面");
   const body = await readJson(c.req.raw);
   if (await emailTaken(c.env, session.email)) throw googleEmailTaken();
