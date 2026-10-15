@@ -14,7 +14,7 @@ const CONTACT = "likefudan@gmail.com";
 
 export const PRIVACY: Record<Lang, LegalDoc> = {
   "zh-CN": {
-    updated: "最后更新：2026 年 10 月 12 日",
+    updated: "最后更新：2026 年 10 月 15 日",
     sections: [
       {
         h: "这个网站是谁的",
@@ -48,6 +48,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
             "所有人（不用登录）：活动的时间、地点和报名人数，不显示谁报了名。如果群主打开了出勤排行榜，首页会显示成员名字和出勤次数，不含金额。",
             "其他成员：报了名的成员能看到这场活动的完整名单，包括名字和带的朋友。别人看不到你的账单、邮箱或微信名。",
             "群主：能看到全部信息，用于管理活动和成员。",
+            "管理员（如果群主任命了管理员）：和群主一样能看到全部信息，包括成员的专属链接、所有活动的费用和付款，用于帮群主管理活动和成员。",
             "组织者（如果群主任命了组织者）：可以查看所有成员和入群申请的资料，包括邮箱、微信名、申请留言、群主写的备注名和出勤记录，但看不到成员的专属链接；还能看到他们自己负责的活动的费用和付款，以及付到他们自己 Venmo 或 Zelle 账户的收款。",
           ],
           "网站靠以下服务运行，它们只在提供服务所需的范围内处理数据：",
@@ -90,7 +91,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
     ],
   },
   "zh-TW": {
-    updated: "最後更新：2026 年 10 月 12 日",
+    updated: "最後更新：2026 年 10 月 15 日",
     sections: [
       {
         h: "這個網站是誰的",
@@ -124,6 +125,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
             "所有人（不用登入）：活動的時間、地點和報名人數，不顯示誰報了名。如果群主打開了出席排行榜，首頁會顯示成員名字和出席次數，不含金額。",
             "其他成員：報了名的成員能看到這場活動的完整名單，包括名字和帶的朋友。別人看不到你的帳單、電子郵件或微信名。",
             "群主：能看到全部資訊，用於管理活動和成員。",
+            "管理員（如果群主任命了管理員）：和群主一樣能看到全部資訊，包括成員的專屬連結、所有活動的費用和付款，用於幫群主管理活動和成員。",
             "組織者（如果群主任命了組織者）：可以查看所有成員和入群申請的資料，包括電子郵件、微信名、申請留言、群主寫的備註名和出席記錄，但看不到成員的專屬連結；還能看到他們自己負責的活動的費用和付款，以及付到他們自己 Venmo 或 Zelle 帳戶的收款。",
           ],
           "網站靠以下服務運作，它們只在提供服務所需的範圍內處理資料：",
@@ -166,7 +168,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
     ],
   },
   en: {
-    updated: "Last updated: October 12, 2026",
+    updated: "Last updated: October 15, 2026",
     sections: [
       {
         h: "Who runs this site",
@@ -200,6 +202,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
             "Anyone, without signing in: each event's time, place and number of sign-ups, but not who signed up. If the group owner turns on the attendance leaderboard, the home page shows members' names and how many times they came, with no amounts.",
             "Other members: members signed up for an event see its full roster, with names and the friends each person brings. Nobody else sees your bills, email address or WeChat name.",
             "The group owner: everything, to manage events and members.",
+            "Admins, if the group owner appoints any: everything the owner sees, including members' personal links and every event's costs and payments, to help manage events and members.",
             "Organizers, if the group owner appoints any: the details of all members and applicants, including email addresses, WeChat names, application notes, the owner's notes and attendance, but not members' personal links; and, for the events they run, the costs and payments, plus the payments made to their own Venmo or Zelle account.",
           ],
           "The site runs on these services, which handle data only as needed to provide their service:",
@@ -247,7 +250,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
 
 export const TERMS: Record<Lang, LegalDoc> = {
   "zh-CN": {
-    updated: "最后更新：2026 年 10 月 12 日",
+    updated: "最后更新：2026 年 10 月 15 日",
     sections: [
       {
         h: "服务是什么",
@@ -306,7 +309,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
     ],
   },
   "zh-TW": {
-    updated: "最後更新：2026 年 10 月 12 日",
+    updated: "最後更新：2026 年 10 月 15 日",
     sections: [
       {
         h: "服務是什麼",
@@ -365,7 +368,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
     ],
   },
   en: {
-    updated: "Last updated: October 12, 2026",
+    updated: "Last updated: October 15, 2026",
     sections: [
       {
         h: "What the service is",
