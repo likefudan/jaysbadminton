@@ -1,0 +1,279 @@
+import { env } from "cloudflare:workers";
+import { describe, expect, it } from "vitest";
+import { handBackIfRevoked } from "../src/worker/appointments";
+import { sendToMember } from "../src/worker/telegram";
+import { approveMember, appoint, createTestEvent, futureDate, GOOGLE, request, setUpAdmin } from "./helpers";
+
+const db = env.DB;
+const on = { ...env, ORGANIZERS: "1" };
+
+/** Owner Jay, admin Carol (Google), organizer Alice (Google) and member Bob. */
+async function scenario() {
+  const ctx = await setUpAdmin();
+  const carol = await approveMember(ctx, "Carol");
+  const alice = await approveMember(ctx, "Alice");
+  const bob = await approveMember(ctx, "Bob");
+  const admin = await appoint(carol.id, "carol", "admin");
+  const org = await appoint(alice.id, "alice");
+  const owner = async (path: string, body?: unknown) => {
+    const res = await request(`${ctx.base}${path}`, ctx.admin.cookie, body);
+    return { status: res.status, data: (await res.json()) as any };
+  };
+  const asAdmin = async (path: string, body?: unknown) => {
+    const res = await request(`${GOOGLE}${path}`, admin, body);
+    return { status: res.status, data: (await res.json()) as any };
+  };
+  return { ctx, carol, alice, bob, admin, org, owner, asAdmin };
+}
+
+const role = async (id: string) =>
+  (await db.prepare("SELECT role, status FROM members WHERE id = ?").bind(id).first()) as {
+    role: string;
+    status: string;
+  };
+
+describe("an admin", () => {
+  it("signs in with Google and sees every event and payment, like the Owner", async () => {
+    const { ctx, asAdmin, admin, org } = await scenario();
+    const theirs = await createTestEvent(ctx);
+    const created = await request(`${GOOGLE}/events`, org, {
+      date: futureDate(8),
+      startTime: "19:00",
+      endTime: "21:00",
+      location: "Alice Gym",
+      deadlineDays: 1,
+      deadlineHours: 0,
+    });
+    const mine = (await created.json()) as { id: number };
+    const events = (await asAdmin("/events")).data;
+    expect(events.current.map((e: { id: number }) => e.id).sort()).toEqual([theirs.id, mine.id].sort());
+    expect((await asAdmin(`/events/${theirs.id}`)).status).toBe(200);
+    expect(await (await request("/api/auth/session", admin)).json()).toMatchObject({ role: "admin" });
+  });
+
+  it("creates events they run and are paid for", async () => {
+    const { carol, asAdmin } = await scenario();
+    const res = await asAdmin("/events", {
+      date: futureDate(9),
+      startTime: "19:00",
+      endTime: "21:00",
+      location: "Carol Gym",
+      deadlineDays: 1,
+      deadlineHours: 0,
+    });
+    expect(res.status).toBe(200);
+    expect(await db.prepare("SELECT manager_id, payee_id FROM events WHERE id = ?").bind(res.data.id).first()).toEqual({
+      manager_id: carol.id,
+      payee_id: carol.id,
+    });
+  });
+
+  it("manages members and organizers, but never the Owner or an admin", async () => {
+    const { carol, alice, bob, asAdmin, owner } = await scenario();
+    // A plain member and an organizer: link, note, disable and enable again.
+    expect((await asAdmin(`/members/${bob.id}/link`)).status).toBe(200);
+    expect((await asAdmin(`/members/${bob.id}/note`, { note: "左手" })).status).toBe(200);
+    expect((await asAdmin(`/members/${alice.id}/link`)).status).toBe(200);
+    expect((await asAdmin(`/members/${bob.id}/deactivate`, {})).status).toBe(200);
+    expect((await asAdmin(`/members/${bob.id}/reactivate`, {})).status).toBe(200);
+    // Deleting a member can't be undone: the Owner's alone.
+    expect((await asAdmin(`/members/${bob.id}/delete`, {})).status).toBe(403);
+    // The Owner (M001), and any admin, themselves included: only the note.
+    for (const id of ["M001", carol.id]) {
+      for (const [path, body] of [
+        [`/members/${id}/link`, undefined],
+        [`/members/${id}/regenerate`, {}],
+        [`/members/${id}/deactivate`, {}],
+        [`/members/${id}/reactivate`, {}],
+        [`/members/${id}/appoint`, {}],
+        [`/members/${id}/revoke`, undefined],
+        [`/members/${id}/revoke`, {}],
+      ] as const)
+        expect((await asAdmin(path, body)).status, `${path} ${id}`).toBe(403);
+      expect((await asAdmin(`/members/${id}/note`, { note: "n" })).status).toBe(200);
+    }
+    expect(await role(carol.id)).toEqual({ role: "admin", status: "active" });
+    // Appointing and revoking organizers is theirs.
+    expect((await asAdmin(`/members/${alice.id}/revoke`, {})).status).toBe(200);
+    expect((await role(alice.id)).role).toBe("member");
+    expect((await asAdmin(`/members/${alice.id}/appoint`, {})).status).toBe(200);
+    expect((await role(alice.id)).role).toBe("organizer");
+    // 设为组织者 never turns an admin into an organizer, even for the Owner.
+    const refused = await owner(`/members/${carol.id}/appoint`, {});
+    expect(refused.status).toBe(400);
+    expect(refused.data.error.message).toContain("已经是管理员");
+    expect((await role(carol.id)).role).toBe("admin");
+  });
+
+  it("leaves another admin to the Owner", async () => {
+    const { ctx, asAdmin, owner } = await scenario();
+    const dave = await approveMember(ctx, "Dave");
+    await appoint(dave.id, "dave", "admin");
+    for (const [path, body] of [
+      [`/members/${dave.id}/link`, undefined],
+      [`/members/${dave.id}/regenerate`, {}],
+      [`/members/${dave.id}/deactivate`, {}],
+      [`/members/${dave.id}/revoke`, {}],
+    ] as const)
+      expect((await asAdmin(path, body)).status, path).toBe(403);
+    expect(await role(dave.id)).toEqual({ role: "admin", status: "active" });
+    // The Owner may, and the email and 操作记录 name whoever did it.
+    expect((await owner(`/members/${dave.id}/revoke`, {})).status).toBe(200);
+    expect((await role(dave.id)).role).toBe("member");
+  });
+
+  it("is named as the one who revoked an organizer", async () => {
+    const { carol, alice, asAdmin, org } = await scenario();
+    const created = await request(`${GOOGLE}/events`, org, {
+      date: futureDate(8),
+      startTime: "19:00",
+      endTime: "21:00",
+      location: "Alice Gym",
+      deadlineDays: 1,
+      deadlineHours: 0,
+    });
+    const e = (await created.json()) as { id: number };
+    expect((await asAdmin(`/members/${alice.id}/revoke`, {})).status).toBe(200);
+    const row = await db
+      .prepare("SELECT actor_id, detail FROM event_audit WHERE event_id = ? AND action = 'reassign'")
+      .bind(e.id)
+      .first<{ actor_id: string; detail: string }>();
+    expect(row).toMatchObject({ actor_id: carol.id });
+    expect(row!.detail).toContain("撤销 Alice 的组织者身份");
+  });
+
+  it("gets the Sheets status but never the script with the export key", async () => {
+    const { owner, asAdmin, admin } = await scenario();
+    expect((await owner("/sheets/enable", {})).status).toBe(200);
+    expect((await asAdmin("/sheets/enable", {})).status).toBe(403);
+    const mine = (await asAdmin("/sheets")).data;
+    expect(mine.script).toBeNull();
+    expect(mine.enabled).toBe(true);
+    expect((await owner("/sheets")).data.script).toEqual(expect.any(String));
+    expect((await request(`${GOOGLE}/export/members.csv`, admin)).status).toBe(200);
+    expect((await asAdmin("/email-status")).status).toBe(200);
+  });
+
+  it("keeps the Owner's own powers away", async () => {
+    const { asAdmin } = await scenario();
+    for (const [path, body] of [
+      ["/settings/reset", { confirm: "清空所有数据", password: "initial-password" }],
+      ["/settings/backup-key", { password: "initial-password" }],
+      ["/settings/password", { current: "initial-password", next: "another-password-1" }],
+      ["/settings/rotate-admin", {}],
+      ["/settings/payment", { password: "initial-password" }],
+      ["/settings/google", undefined],
+      ["/payment-diagnostics", undefined],
+      ["/inbound/trash/clear", {}],
+    ] as const)
+      expect((await asAdmin(path, body)).status, path).toBe(403);
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM members").first()).toEqual({ n: 4 });
+    // The global settings are theirs, the Owner's own payment settings are not.
+    await db.prepare("INSERT INTO settings (key, value) VALUES ('venmo_email', 'owner@venmo.test')").run();
+    const settings = await asAdmin("/settings");
+    expect(settings.status).toBe(200);
+    expect(settings.data).not.toHaveProperty("venmoEmail");
+    expect(settings.data).not.toHaveProperty("zelleAccount");
+    expect(settings.data.friendCap).toEqual(expect.any(Number));
+  });
+
+  it("can be handed an event, and is revoked when the Owner disables them", async () => {
+    const { ctx, carol, owner, asAdmin } = await scenario();
+    const e = await createTestEvent(ctx);
+    expect((await owner(`/events/${e.id}/transfer`, { to: carol.id })).status).toBe(200);
+    expect(await db.prepare("SELECT manager_id, payee_id FROM events WHERE id = ?").bind(e.id).first()).toEqual({
+      manager_id: carol.id,
+      payee_id: carol.id,
+    });
+    // An admin hands events on too.
+    expect((await asAdmin(`/events/${e.id}/transfer`, { to: "M001" })).status).toBe(200);
+    expect((await owner(`/events/${e.id}/transfer`, { to: carol.id })).status).toBe(200);
+
+    const off = await owner(`/members/${carol.id}/deactivate`, {});
+    expect(off.status).toBe(200);
+    expect(off.data.revoked).not.toBeNull();
+    expect(await role(carol.id)).toEqual({ role: "member", status: "inactive" });
+    expect(await db.prepare("SELECT manager_id, payee_id FROM events WHERE id = ?").bind(e.id).first()).toEqual({
+      manager_id: "M001",
+      payee_id: "M001",
+    });
+    expect((await asAdmin("/events")).status).toBe(401);
+  });
+
+  it("is not listed as a 历史收款人 while running their own events", async () => {
+    const { carol, owner, asAdmin } = await scenario();
+    const res = await asAdmin("/events", {
+      date: futureDate(9),
+      startTime: "19:00",
+      endTime: "21:00",
+      location: "Carol Gym",
+      deadlineDays: 1,
+      deadlineHours: 0,
+    });
+    expect(res.status).toBe(200);
+    const block = (await owner("/members")).data.organizers;
+    expect(block.former.map((f: { id: string }) => f.id)).not.toContain(carol.id);
+  });
+
+  it("answers a second 停用 of an organizer as it always has", async () => {
+    const { alice, owner } = await scenario();
+    expect((await owner(`/members/${alice.id}/deactivate`, {})).status).toBe(200);
+    const again = await owner(`/members/${alice.id}/deactivate`, {});
+    expect(again.status).toBe(400);
+    expect(await role(alice.id)).toEqual({ role: "member", status: "inactive" });
+  });
+
+  it("is revoked by 恢复 if disabled by older code, and can't be deleted before", async () => {
+    const { carol, owner } = await scenario();
+    await db.prepare("UPDATE members SET status = 'inactive' WHERE id = ?").bind(carol.id).run();
+    const refused = await owner(`/members/${carol.id}/delete`, {});
+    expect(refused.status).toBe(400);
+    expect(refused.data.error.message).toContain("还有管理员身份");
+    expect((await owner(`/members/${carol.id}/reactivate`, {})).status).toBe(200);
+    expect(await role(carol.id)).toEqual({ role: "member", status: "active" });
+  });
+
+  it("hands an event back if revoked while creating it", async () => {
+    const { ctx, carol } = await scenario();
+    const e = await createTestEvent(ctx);
+    await db.prepare("UPDATE events SET manager_id = ?1, payee_id = ?1 WHERE id = ?2").bind(carol.id, e.id).run();
+    await handBackIfRevoked(on, e.id, carol.id);
+    expect((await db.prepare("SELECT manager_id FROM events WHERE id = ?").bind(e.id).first())?.manager_id).toBe(
+      carol.id,
+    );
+    await db.prepare("UPDATE members SET role = 'member' WHERE id = ?").bind(carol.id).run();
+    await handBackIfRevoked(on, e.id, carol.id);
+    expect((await db.prepare("SELECT manager_id FROM events WHERE id = ?").bind(e.id).first())?.manager_id).toBe(
+      "M001",
+    );
+  });
+
+  it("steps down with 不再当管理员", async () => {
+    const { carol, asAdmin } = await scenario();
+    expect((await asAdmin("/organizer/retire")).status).toBe(200);
+    expect((await asAdmin("/organizer/retire", {})).status).toBe(200);
+    expect((await role(carol.id)).role).toBe("member");
+  });
+
+  it("is a plain member while the flag is off", async () => {
+    const { admin } = await scenario();
+    expect((await request(`${GOOGLE}/events`, admin, undefined, "0")).status).toBe(401);
+  });
+
+  it("gets Telegram in their own chat", async () => {
+    const { carol } = await scenario();
+    await db.prepare("INSERT INTO telegram_bindings (member_id, chat_id) VALUES (?, '77')").bind(carol.id).run();
+    const sent: string[] = [];
+    const real = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo, init?: RequestInit) => {
+      sent.push(String(init?.body ?? ""));
+      return Response.json({ ok: true, result: { message_id: 1 } });
+    }) as typeof fetch;
+    try {
+      expect(await sendToMember(on, carol.id, "hi")).toBe(true);
+    } finally {
+      globalThis.fetch = real;
+    }
+    expect(sent.some((b) => b.includes('"chat_id":"77"'))).toBe(true);
+  });
+});

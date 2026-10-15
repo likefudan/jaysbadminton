@@ -20,7 +20,7 @@ export const GOOGLE_ADMIN = "google";
 /** /admin/developer: the test site's developer login (developer.ts). */
 const DEVELOPER_ADMIN = "developer";
 
-/** Who is calling: the Owner (link + password, or their Google account) or an organizer (Google only). */
+/** Who is calling: the Owner (link + password, or their Google account), or an admin or organizer (Google only). */
 export interface Actor {
   /** Null only for the Owner before their member record exists, which the link never outlives. */
   memberId: string | null;
@@ -153,50 +153,76 @@ const inboundToBill = (): Rule => ({
 const cap = (capability: Capability | null): Rule => ({ cap: capability });
 
 /**
+ * Only the Owner may act on the Owner or an admin (any admin, oneself included): a member link
+ * signs in as that person, and disabling or revoking an admin is the Owner's alone
+ * (admin-role.zh.md §3.3). Handlers check it again on the member they read, in case that member
+ * was made an admin after this table let the request through.
+ */
+export function assertMayActOn(actor: Actor, m: { is_owner: number; role: string }): void {
+  if ((m.is_owner === 1 || m.role === "admin") && !can(actor.role, "owner"))
+    throw new HttpError(403, "forbidden", "只有群主可以对群主或管理员做这个操作");
+}
+
+/** group, on the member in the path (assertMayActOn). A missing member is left to the handler. */
+const memberTarget = (): Rule => ({
+  cap: "group",
+  check: async (c, actor, p) => {
+    if (can(actor.role, "owner")) return;
+    const m = await c.env.DB.prepare("SELECT is_owner, role FROM members WHERE id = ?")
+      .bind(p.id ?? "")
+      .first<{ is_owner: number; role: string }>();
+    if (m) assertMayActOn(actor, m);
+  },
+});
+
+/**
  * Every admin endpoint, as `METHOD path` under /api/admin/:token. The forwarding status is still
  * the Owner's; Telegram is each person's own (`self`).
  */
 export const ADMIN_ACCESS: Record<string, Rule> = {
   // Signing in and out
-  "POST /login": { cap: "system", login: true },
+  "POST /login": { cap: "owner", login: true },
   "POST /logout": cap(null),
 
-  // system: account security and the whole database
-  "POST /settings/password": cap("system"),
-  "POST /settings/backup-key": cap("system"),
-  "POST /settings/rotate-admin": cap("system"),
-  "GET /settings/google": cap("system"),
-  "POST /settings/google/bind": cap("system"),
-  "POST /settings/google/unbind": cap("system"),
-  "POST /settings/reset": cap("system"),
-  "POST /settings/payment": cap("system"),
-  "POST /events/:id/delete": cap("system"),
-  "POST /inbound/:iid/purge": cap("system"),
-  "POST /inbound/trash/clear": cap("system"),
-  "GET /export/:file": cap("system"),
-  "GET /sheets": cap("system"),
-  "POST /sheets/enable": cap("system"),
-  "POST /sheets/disable": cap("system"),
-  "GET /email-status": cap("system"),
-  "GET /payment-diagnostics": cap("system"),
-  "POST /payment-diagnostics": cap("system"),
+  // owner: the Owner's own sign-in, secrets and money, wiping the database, deletes that can't be undone
+  "POST /settings/password": cap("owner"),
+  "POST /settings/backup-key": cap("owner"),
+  "POST /settings/rotate-admin": cap("owner"),
+  "GET /settings/google": cap("owner"),
+  "POST /settings/google/bind": cap("owner"),
+  "POST /settings/google/unbind": cap("owner"),
+  "POST /settings/reset": cap("owner"),
+  "POST /settings/payment": cap("owner"),
+  "POST /events/:id/delete": cap("owner"),
+  "POST /inbound/:iid/purge": cap("owner"),
+  "POST /inbound/trash/clear": cap("owner"),
+  "POST /members/:id/delete": cap("owner"),
+  // Turning Sheets on makes a new export key: a secret, like the script GET /sheets shows the Owner
+  "POST /sheets/enable": cap("owner"),
+  "POST /sheets/disable": cap("owner"),
+  "GET /payment-diagnostics": cap("owner"),
+  "POST /payment-diagnostics": cap("owner"),
+
+  // data: reading the group's data out, nothing changed (GET /sheets leaves out the script without `owner`)
+  "GET /export/:file": cap("data"),
+  "GET /sheets": cap("data"),
+  "GET /email-status": cap("data"),
 
   // group: running the group
-  "POST /members/:id/approve": cap("group"),
-  "POST /members/:id/approval-email": cap("group"),
-  "POST /members/:id/reject": cap("group"),
+  "POST /members/:id/approve": memberTarget(),
+  "POST /members/:id/approval-email": memberTarget(),
+  "POST /members/:id/reject": memberTarget(),
   "POST /members/:id/note": cap("group"),
-  "GET /members/:id/link": cap("group"),
-  "POST /members/:id/regenerate": cap("group"),
-  "POST /members/:id/deactivate": cap("group"),
-  "POST /members/:id/reactivate": cap("group"),
-  "POST /members/:id/delete": cap("group"),
+  "GET /members/:id/link": memberTarget(),
+  "POST /members/:id/regenerate": memberTarget(),
+  "POST /members/:id/deactivate": memberTarget(),
+  "POST /members/:id/reactivate": memberTarget(),
   "GET /settings": cap("group"),
   "POST /settings": cap("group"),
   "POST /locations/remove": cap("group"),
-  "POST /members/:id/appoint": cap("group"),
-  "GET /members/:id/revoke": cap("group"),
-  "POST /members/:id/revoke": cap("group"),
+  "POST /members/:id/appoint": memberTarget(),
+  "GET /members/:id/revoke": memberTarget(),
+  "POST /members/:id/revoke": memberTarget(),
   "POST /events/:id/transfer": cap("group"),
 
   // members.read: the member and pending pages (they carry no personal links)
@@ -288,10 +314,11 @@ async function resolveActor(c: Ctx, rule: Rule | undefined): Promise<Actor> {
     if (c.req.method !== "GET") requireSameOrigin(c);
     const session = await googleSession(c);
     const m = session ? await memberByGoogle(c.env, session.google_sub) : null;
-    // memberRole only makes an organizer while the ORGANIZERS flag is on, and reads the database on
+    // memberRole only makes an organizer or admin while the ORGANIZERS flag is on, and reads the database on
     // every request, so revoking or disabling one shuts them out at once.
     const role = m && m.status === "active" ? memberRole(c.env, m) : "member";
-    if (!m || role === "member") throw new HttpError(401, "google_admin_required", "请用群主绑定的 Google 账号登录");
+    if (!m || role === "member")
+      throw new HttpError(401, "google_admin_required", "请用群主、管理员或组织者的 Google 账号登录");
     return { memberId: m.id, role };
   }
   await assertAdminToken(c.env, c.req.param("token") ?? "");

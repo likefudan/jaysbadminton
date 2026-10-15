@@ -195,21 +195,27 @@ describe("memberRole", () => {
     expect(memberRole(on, { ...base, status: "inactive" })).toBe("member");
     expect(memberRole(on, { ...base, deleted_at: "2026-10-01" })).toBe("member");
     expect(memberRole(on, { ...base, role: "member" })).toBe("member");
-    expect(memberRole(on, { ...base, role: "admin" })).toBe("member");
+    expect(memberRole(on, { ...base, role: "admin" })).toBe("admin");
+    expect(memberRole(off, { ...base, role: "admin" })).toBe("member");
+    expect(memberRole(on, { ...base, role: "admin", status: "inactive" })).toBe("member");
   });
 });
 
 describe("capabilities", () => {
-  it("gives the Owner every capability and an organizer exactly the five in the design", () => {
+  it("gives the Owner every capability, an admin all but the Owner's, an organizer the five in the design", () => {
     expect([...ROLE_CAPABILITIES.owner].sort()).toEqual(
-      ["event", "events.create", "group", "members.read", "payee", "self", "system"].sort(),
+      ["data", "event", "events.create", "group", "members.read", "owner", "payee", "self"].sort(),
     );
+    expect([...ROLE_CAPABILITIES.admin].sort()).toEqual(ROLE_CAPABILITIES.owner.filter((c) => c !== "owner").sort());
     expect([...ROLE_CAPABILITIES.organizer].sort()).toEqual(
       ["event", "events.create", "members.read", "payee", "self"].sort(),
     );
     expect(ROLE_CAPABILITIES.member).toEqual([]);
     expect(can("organizer", "group")).toBe(false);
-    expect(can("owner", "system")).toBe(true);
+    expect(can("owner", "owner")).toBe(true);
+    expect(can("admin", "owner")).toBe(false);
+    expect(can("admin", "group")).toBe(true);
+    expect(can("organizer", "data")).toBe(false);
   });
 });
 

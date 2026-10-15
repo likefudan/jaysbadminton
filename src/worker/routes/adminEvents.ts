@@ -45,7 +45,9 @@ import {
   eventManager,
   eventPayee,
   forgetLastValue,
+  ROLE_TITLE,
   inboundPayee,
+  isStaff,
   lastValues,
   organizersEnabled,
   ownerId,
@@ -205,7 +207,7 @@ adminEventRoutes.post("/events", async (c) => {
   });
   await audit(c.env, e.id, actorId(actor), "create", `创建活动（${e.date} ${e.location}）`);
   // Revoked while this request was on its way: the event goes to the Owner like their others did.
-  if (actor.role === "organizer") await handBackIfRevoked(c.env, e.id, actor.memberId);
+  if (isStaff(actor.role)) await handBackIfRevoked(c.env, e.id, actor.memberId);
   const created = await getEvent(c.env, e.id);
   await notifyCreated(c.env, created);
   // "我自己也报名": the creator signs up as a normal player (ticked by default in the form).
@@ -547,12 +549,14 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
 });
 
 adminEventRoutes.get("/settings", async (c) => {
+  // The Owner's own payment settings are theirs (owner): left out for an admin, not shown as empty.
   const s = await getSettings(c.env.DB, ["venmo_username", "venmo_email", "zelle_account"]);
+  const payment = can(c.get("actor").role, "owner")
+    ? { venmoUsername: s.venmo_username ?? "", venmoEmail: s.venmo_email ?? "", zelleAccount: s.zelle_account ?? "" }
+    : {};
   return c.json({
     friendCap: await friendCap(c.env),
-    venmoUsername: s.venmo_username ?? "",
-    venmoEmail: s.venmo_email ?? "",
-    zelleAccount: s.zelle_account ?? "",
+    ...payment,
     siteTitle: await siteTitle(c.env),
     theme: await siteTheme(c.env),
     showLeaderboard: (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard !== "0",
@@ -679,11 +683,11 @@ adminEventRoutes.post("/payment-profile", async (c) => {
     throw badRequest("群主的收款设置请在「设置 › 收款设置」里修改（需要群主密码）");
   const { changes } = await savePaymentProfile(c.env, actor.memberId, readPaymentInput(await readJson(c.req.raw)));
   if (changes.length) {
-    // The Owner hears of it, as of their own, and so does the organizer, in case it wasn't them.
+    // The Owner hears of it, as of their own, and so does the organizer or admin, in case it wasn't them.
     const lines = changes.map(([k, a, z]) => `${k}：${a || "（空）"} → ${z || "（空）"}`).join("\n");
     await sendToOwner(
       c.env,
-      message(`🔐 组织者 ${await payeeName(c.env.DB, actor.memberId)} 的收款设置已修改\n${lines}`),
+      message(`🔐 ${ROLE_TITLE[actor.role]} ${await payeeName(c.env.DB, actor.memberId)} 的收款设置已修改\n${lines}`),
     );
     await sendToMember(
       c.env,
@@ -1219,8 +1223,14 @@ adminEventRoutes.get("/export/:file", async (c) => {
   });
 });
 
+/** Only the Owner gets the script: it carries the export key, which reads out the whole group. */
 adminEventRoutes.get("/sheets", async (c) =>
-  c.json({ ...(await sheetsStatus(c.env)), ...(await currentScript(c.env)) }),
+  c.json({
+    ...(await sheetsStatus(c.env)),
+    ...(can(c.get("actor").role, "owner")
+      ? await currentScript(c.env)
+      : { script: null, keyLost: (await currentScript(c.env)).keyLost }),
+  }),
 );
 
 /** 开启同步 / 重新生成密钥: either way a fresh key, so a leaked script stops working. */

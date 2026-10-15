@@ -32,6 +32,8 @@ export interface MemberSummary {
 export interface OrganizerInfo {
   id: string;
   username: string;
+  /** 管理员 or 组织者: both run events and take payments into their own account. */
+  role: "admin" | "organizer";
   /** 任命时间. */
   since: string | null;
   /** Venmo username and notification email both filled in (Finalize needs them). */
@@ -80,11 +82,11 @@ export interface MembersResponse {
   viewer: AdminViewer;
 }
 
-/** The person on the admin pages: the Owner, or an organizer signed in with Google. */
+/** The person on the admin pages: the Owner, or an admin or organizer signed in with Google. */
 export interface AdminViewer {
   /** Null only for the Owner before their member record exists. */
   id: string | null;
-  role: "owner" | "organizer";
+  role: "owner" | "admin" | "organizer";
 }
 
 export interface LinkResponse {

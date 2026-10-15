@@ -22,7 +22,7 @@ const OUTCOMES: Record<string, string> = {
 };
 const STATUS = { processing: "进行中", passed: "通过", failed: "未通过", warning: "需留意" };
 
-/** All-mail diagnostics stay behind the Owner's system capability, including unverified mail. */
+/** All-mail diagnostics stay behind the Owner's own capability (`owner`), including unverified mail. */
 export function PaymentDiagnostics(props: { base: string }) {
   const [before, setBefore] = useState<number | null>(null);
   const [data, reload] = useApi<PaymentDiagnosticsResponse>(

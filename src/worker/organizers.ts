@@ -7,12 +7,14 @@ import type { Env } from "./env";
  * (an event from before 0023, or one created by older code after a rollback) always means the Owner.
  */
 
-export type Role = "owner" | "organizer" | "member";
+export type Role = "owner" | "admin" | "organizer" | "member";
 
 /**
- * What a role may do (design §10.1). Admin routes register the capability they need rather than
- * "Owner only", so a future role (管理员) is one more line in ROLE_CAPABILITIES.
- * - system: database-level and account security (permanent deletes, reset, password, export, Sheets)
+ * What a role may do (organizers.zh.md §10.1, admin-role.zh.md §4). Admin routes register the
+ * capability they need rather than a role, so a role is one line in ROLE_CAPABILITIES.
+ * - owner: the Owner's alone: appointing admins, wiping the database, secrets and the Owner's own
+ *   sign-in and payment settings, and every delete that can't be undone
+ * - data: reading the whole group's data out (exports, the Sheets and forwarding status), read-only
  * - group: running the group (members, links, notes, global settings, appointing organizers, and
  *   every event and payment as if it were one's own)
  * - events.create: creating events
@@ -21,17 +23,31 @@ export type Role = "owner" | "organizer" | "member";
  * - members.read: the member and pending pages, read-only and without personal links
  * - self: one's own payment settings and Telegram
  */
-export type Capability = "system" | "group" | "events.create" | "event" | "payee" | "members.read" | "self";
+export type Capability = "owner" | "data" | "group" | "events.create" | "event" | "payee" | "members.read" | "self";
 
 export const ROLE_CAPABILITIES: Record<Role, readonly Capability[]> = {
-  owner: ["system", "group", "events.create", "event", "payee", "members.read", "self"],
+  owner: ["owner", "data", "group", "events.create", "event", "payee", "members.read", "self"],
+  admin: ["data", "group", "events.create", "event", "payee", "members.read", "self"],
   organizer: ["events.create", "event", "payee", "members.read", "self"],
   member: [],
 };
 
 export const can = (role: Role, cap: Capability) => ROLE_CAPABILITIES[role].includes(cap);
 
-/** The rollout switch: it gates every way into the organizer features, never where money goes. */
+/** What the site calls each role. */
+export const ROLE_TITLE: Record<Role, string> = { owner: "群主", admin: "管理员", organizer: "组织者", member: "成员" };
+
+/**
+ * 管理员 and 组织者: appointed (members.role), signing in with Google, running events and taking
+ * payments into their own account. The Owner is not one: their settings live elsewhere.
+ */
+export const STAFF_ROLES = ["admin", "organizer"] as const;
+export type StaffRole = (typeof STAFF_ROLES)[number];
+export const isStaff = (role: string): role is StaffRole => (STAFF_ROLES as readonly string[]).includes(role);
+/** STAFF_ROLES as an SQL list: `role IN ${STAFF_SQL}`. */
+export const STAFF_SQL = `(${STAFF_ROLES.map((r) => `'${r}'`).join(", ")})`;
+
+/** The rollout switch: it gates every way into the organizer and admin features, never where money goes. */
 export const organizersEnabled = (env: Pick<Env, "ORGANIZERS">) => env.ORGANIZERS === "1";
 
 export interface RoleFields {
@@ -41,16 +57,16 @@ export interface RoleFields {
   deleted_at: string | null;
 }
 
-/** Read from the database on every request, so revoking an organizer takes effect at once. */
+/** Read from the database on every request, so revoking an organizer or admin takes effect at once. */
 export function memberRole(env: Pick<Env, "ORGANIZERS">, m: RoleFields): Role {
   if (m.is_owner === 1) return "owner";
-  if (m.role === "organizer" && m.status === "active" && !m.deleted_at && organizersEnabled(env)) return "organizer";
+  if (isStaff(m.role) && m.status === "active" && !m.deleted_at && organizersEnabled(env)) return m.role;
   return "member";
 }
 
-/** memberRole's "organizer" inside SQL (`alias` is the members table's); the flag is checked in code. */
-export const currentOrganizerSql = (alias: string) =>
-  `${alias}.is_owner = 0 AND ${alias}.role = 'organizer' AND ${alias}.status = 'active' AND ${alias}.deleted_at IS NULL`;
+/** memberRole's admin or organizer inside SQL (`alias` is the members table's); the flag is checked in code. */
+export const currentStaffSql = (alias: string) =>
+  `${alias}.is_owner = 0 AND ${alias}.role IN ${STAFF_SQL} AND ${alias}.status = 'active' AND ${alias}.deleted_at IS NULL`;
 
 /** The Owner's member id; null before first-time setup (or right after 清空所有数据). */
 export async function ownerId(db: D1Database): Promise<string | null> {

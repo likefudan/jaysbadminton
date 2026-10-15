@@ -2,7 +2,7 @@ import { toPacific } from "../shared/time";
 import { STATUS_ZH, type EventStatus } from "../shared/types";
 import type { Env } from "./env";
 import { friendLabel } from "./events";
-import { memberRole, type Role, type RoleFields } from "./organizers";
+import { ROLE_TITLE, memberRole, type RoleFields } from "./organizers";
 import { managerSql, payeeSql } from "./payees";
 
 /**
@@ -29,7 +29,6 @@ const yes = (v: unknown) => (v ? "是" : "");
  * query joins the person through managerSql / payeeSql, so old rows with the column empty name the Owner.
  */
 const person = (name: string | null) => name?.trim() || "群主";
-const ROLE_ZH: Record<Role, string> = { owner: "群主", organizer: "组织者", member: "成员" };
 const MEMBER_STATUS: Record<string, string> = {
   pending: "待审核",
   active: "正常",
@@ -64,7 +63,7 @@ export const TABLES = {
           m.admin_note ?? "",
           m.deleted_at ? "已删除" : (MEMBER_STATUS[m.status] ?? m.status),
           // As the site treats them now: an organizer counts only while the feature is on.
-          ROLE_ZH[memberRole(env, m as RoleFields)],
+          ROLE_TITLE[memberRole(env, m as RoleFields)],
           at(m.requested_at),
           at(m.approved_at),
         ]),

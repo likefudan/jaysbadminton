@@ -3,7 +3,7 @@ import type { Env } from "./env";
 import { HttpError } from "./http";
 import { hmac, randomToken, sha256 } from "./lib/crypto";
 import { currentAdminToken } from "./auth";
-import { currentOrganizerSql, eventManager, memberRole, organizersEnabled } from "./organizers";
+import { ROLE_TITLE, currentStaffSql, eventManager, isStaff, memberRole, organizersEnabled } from "./organizers";
 
 /**
  * One bot (created by whoever hosts the site) talks to one chat per person: the Owner's, kept in
@@ -93,15 +93,15 @@ function withAdminLink(env: Env, html: string, adminPage: boolean): string {
 }
 
 /**
- * Sends to one person's own chat: the Owner's, or a current organizer's (only while the feature is
- * on). False when they have none, are no longer an organizer, or Telegram refused it.
+ * Sends to one person's own chat: the Owner's, or a current organizer's or admin's (only while the
+ * feature is on). False when they have none, are no longer one, or Telegram refused it.
  */
 export async function sendToMember(env: Env, memberId: string, html: string): Promise<boolean> {
   const m = await recipient(env.DB, memberId);
   if (!m) return false;
   const role = memberRole(env, m);
   if (role === "owner") return sendToOwner(env, html);
-  if (role !== "organizer" || !m.chat_id) return false;
+  if (!isStaff(role) || !m.chat_id) return false;
   return sendTo(env, m.chat_id, html);
 }
 
@@ -133,7 +133,7 @@ export async function sendToManager(
 ): Promise<ManagerDelivery> {
   return sendToResponsible(env, await eventManager(env.DB, e), html, adminPage, {
     off: (name) => `这场由 ${name} 负责，但组织者功能已关闭`,
-    former: (name) => `这场的负责人 ${name} 已经不是组织者`,
+    former: (name) => `这场的负责人 ${name} 已经不是组织者或管理员`,
   });
 }
 
@@ -145,7 +145,7 @@ export async function sendToManager(
 export async function sendToPayee(env: Env, payeeId: string | null, html: string): Promise<ManagerDelivery> {
   return sendToResponsible(env, payeeId, html, true, {
     off: (name) => `这条是关于 ${name} 的收款账户的，但组织者功能已关闭`,
-    former: (name) => `这条是关于历史收款人 ${name} 的收款账户的（已经不是组织者）`,
+    former: (name) => `这条是关于历史收款人 ${name} 的收款账户的（已经不是组织者或管理员）`,
   });
 }
 
@@ -160,12 +160,13 @@ async function sendToResponsible(
   if (!m || m.is_owner === 1) return { ok: await sendToOwner(env, html), owner: true, organizer: null, chatId: null };
   const name = escapeHtml(m.username);
   let why: string;
+  const role = memberRole(env, m);
   if (!organizersEnabled(env)) why = why_.off(name);
-  else if (memberRole(env, m) !== "organizer") why = why_.former(name);
-  else if (!m.chat_id) why = `组织者 ${name} 还没连接 Telegram`;
+  else if (!isStaff(role)) why = why_.former(name);
+  else if (!m.chat_id) why = `${ROLE_TITLE[role]} ${name} 还没连接 Telegram`;
   else if (await sendTo(env, m.chat_id, withAdminLink(env, html, adminPage)))
     return { ok: true, owner: false, organizer: m.username, chatId: m.chat_id };
-  else why = `发给组织者 ${name} 的 Telegram 没有成功`;
+  else why = `发给${ROLE_TITLE[role]} ${name} 的 Telegram 没有成功`;
   const ok = await sendToOwner(env, `ℹ️ ${why}，这条发给群主。\n${html}`);
   return { ok, owner: true, organizer: m.username, chatId: null };
 }
@@ -354,7 +355,7 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
   const ts = now();
   const claim = `(SELECT t.member_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
      WHERE t.bind_hash = ?1 AND t.bind_expires >= ?2
-       AND ${currentOrganizerSql("m")})`;
+       AND ${currentStaffSql("m")})`;
   const [, bound] = await env.DB.batch([
     // One chat belongs to one organizer: the same Telegram account connected again moves here.
     env.DB.prepare(
@@ -382,7 +383,7 @@ async function organizerAdminEntry(env: Env, chatId: string): Promise<void> {
   if (!organizersEnabled(env)) return;
   const o = await env.DB.prepare(
     `SELECT 1 FROM telegram_bindings t JOIN members m ON m.id = t.member_id
-     WHERE t.chat_id = ? AND ${currentOrganizerSql("m")}`,
+     WHERE t.chat_id = ? AND ${currentStaffSql("m")}`,
   )
     .bind(chatId)
     .first();

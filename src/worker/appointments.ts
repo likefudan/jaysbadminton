@@ -6,9 +6,18 @@ import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 import { LIVE_SQL } from "./events";
 import { type MemberRow, requireMember } from "./members";
-import { memberRole, organizersEnabled, ownerId } from "./organizers";
+import {
+  ROLE_TITLE,
+  STAFF_SQL,
+  type StaffRole,
+  currentStaffSql,
+  isStaff,
+  memberRole,
+  organizersEnabled,
+  ownerId,
+} from "./organizers";
 import { once } from "./notify";
-import { ownerName, payeeExpired, payeeUnlockedSql } from "./payees";
+import { ownerName, payeeExpired, payeeName, payeeUnlockedSql } from "./payees";
 import { SYSTEM, audit } from "./audit";
 import { quietBills } from "./health";
 
@@ -27,16 +36,17 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
   if (!organizersEnabled(env)) return null;
   const [{ results: list }, { results: former }] = await Promise.all([
     env.DB.prepare(
-      `SELECT m.id, m.username, m.role_since, p.venmo_username, p.venmo_email, p.email_last_at, t.chat_id,
+      `SELECT m.id, m.username, m.role, m.role_since, p.venmo_username, p.venmo_email, p.email_last_at, t.chat_id,
        (SELECT COUNT(*) FROM events e WHERE e.manager_id = m.id AND e.status IN ${LIVE_SQL}) AS events
      FROM members m
      LEFT JOIN payment_profiles p ON p.member_id = m.id
      LEFT JOIN telegram_bindings t ON t.member_id = m.id
-     WHERE m.role = 'organizer' AND m.is_owner = 0 AND m.status = 'active' AND m.deleted_at IS NULL
+     WHERE ${currentStaffSql("m")}
      ORDER BY m.role_since, m.id`,
     ).all<{
       id: string;
       username: string;
+      role: StaffRole;
       role_since: string | null;
       venmo_username: string | null;
       venmo_email: string | null;
@@ -44,10 +54,10 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
       chat_id: string | null;
       events: number;
     }>(),
-    // 历史收款人: no longer organizers, but members still pay into their account.
+    // 历史收款人: no longer organizers or admins, but members still pay into their account.
     env.DB.prepare(
       `SELECT m.id, m.username, COUNT(*) AS collecting FROM members m JOIN events e ON e.payee_id = m.id
-     WHERE m.is_owner = 0 AND NOT (m.role = 'organizer' AND m.status = 'active' AND m.deleted_at IS NULL)
+     WHERE m.is_owner = 0 AND NOT (${currentStaffSql("m")})
        AND e.status IN ${LIVE_SQL}
      GROUP BY m.id ORDER BY m.id`,
     ).all<{ id: string; username: string; collecting: number }>(),
@@ -58,6 +68,7 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
       list.map(async (o) => ({
         id: o.id,
         username: o.username,
+        role: o.role,
         since: o.role_since,
         paymentReady: !!o.venmo_username && !!o.venmo_email,
         lastVenmoEmailAt: o.email_last_at,
@@ -73,21 +84,28 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
 function assertAppointable(m: MemberRow): void {
   if (m.is_owner) throw badRequest("群主本来就有全部权限");
   if (m.status !== "active" || m.deleted_at) throw badRequest("只能任命状态正常的成员");
-  if (m.role === "organizer") throw badRequest(`${m.username} 已经是组织者了`);
+  if (isStaff(m.role)) throw badRequest(`${m.username} 已经是${ROLE_TITLE[m.role]}了`);
   // The admin pages open for organizers only through Google, and a member link can't swap in
   // another Google account once one is bound, so the link alone never makes someone an organizer.
   if (!m.google_sub) throw badRequest(`${m.username} 还没有关联 Google 账号。请他先用 Google 登录关联，再任命`);
 }
 
-/** Appoints an active member who signs in with Google (only that way reaches the admin pages). */
-export async function appointOrganizer(env: Env, id: string): Promise<{ emailStatus: NoticeEmail }> {
+/**
+ * Appoints an active member who signs in with Google (only that way reaches the admin pages).
+ * `by` is who did it (the Owner or an admin), named in the email.
+ */
+export async function appointOrganizer(
+  env: Env,
+  id: string,
+  by: string | null = null,
+): Promise<{ emailStatus: NoticeEmail }> {
   const m = await requireMember(env, id);
   assertAppointable(m);
   const ts = now();
   const done = await env.DB.batch([
     env.DB.prepare(
       `UPDATE members SET role = 'organizer', role_since = ?2
-       WHERE id = ?1 AND role != 'organizer' AND status = 'active' AND deleted_at IS NULL AND google_sub IS NOT NULL`,
+       WHERE id = ?1 AND role NOT IN ${STAFF_SQL} AND status = 'active' AND deleted_at IS NULL AND google_sub IS NOT NULL`,
     ).bind(m.id, ts),
     // Someone appointed before keeps their payment settings and is no longer a 历史收款人 (only if
     // the line above appointed them).
@@ -102,12 +120,12 @@ export async function appointOrganizer(env: Env, id: string): Promise<{ emailSta
     throw badRequest("刚才有别的操作改了他的状态，请刷新页面后再试");
   }
   if (!m.google_email) return { emailStatus: "no_address" };
-  const owner = await ownerName(env.DB);
+  const who = await payeeName(env.DB, by);
   const emailStatus = await sendEmail(env, {
     to: m.google_email,
     subject: "你已成为羽毛球群的组织者",
     text:
-      `${m.username}，你好！\n${owner} 已把你设为组织者：你可以发起活动、管理自己的活动、给自己的活动收款。\n\n` +
+      `${m.username}，你好！\n${who} 已把你设为组织者：你可以发起活动、管理自己的活动、给自己的活动收款。\n\n` +
       `请用 Google 账号 ${m.google_email} 登录，然后打开管理页：\n${site(env, "/admin/google")}\n\n` +
       "发起活动前，请先在管理页「设置」里填好你的收款设置（Venmo 用户名和 Venmo 通知邮箱）：成员会把钱直接付到你的 Venmo，没填好不能结算。\n" +
       "用专属链接打开网站时仍是普通成员页面，管理功能只在 Google 登录时可用。\n\n" +
@@ -173,11 +191,18 @@ export async function revokeOrganizer(
   env: Env,
   m: MemberRow,
   by: RevokeBy,
-  with_: D1PreparedStatement[] = [],
-  /** Receives the results of `with_`, once the transaction has run. */
-  withResults: (r: D1Result[]) => void = () => {},
+  opts: {
+    /** Statements run in the same transaction (停用's own), after the role is taken away. */
+    with?: D1PreparedStatement[];
+    /** Receives the results of `with`, once the transaction has run. */
+    withResults?: (r: D1Result[]) => void;
+    /** Who revoked them, for 操作记录 and the email: the Owner when not given. Ignored for "self". */
+    actor?: string | null;
+  } = {},
 ): Promise<{ emailStatus: NoticeEmail } | null> {
-  if (m.role !== "organizer") throw badRequest(`${m.username} 不是组织者`);
+  const { with: with_ = [], withResults = () => {}, actor = null } = opts;
+  if (!isStaff(m.role)) throw badRequest(`${m.username} 不是组织者或管理员`);
+  const title = ROLE_TITLE[m.role];
   const owner = await ownerId(env.DB);
   if (!owner) throw new HttpError(409, "no_owner", "找不到群主的成员记录");
   const ts = now();
@@ -185,9 +210,12 @@ export async function revokeOrganizer(
   // second click, or a revoke racing this one, changes nothing more.
   const mine = "EXISTS (SELECT 1 FROM members WHERE id = ?2 AND role = 'member' AND role_since = ?3)";
   const done = await env.DB.batch([
-    env.DB.prepare("UPDATE members SET role = 'member', role_since = ?2 WHERE id = ?1 AND role = 'organizer'").bind(
+    // Only the role that was read: someone made an admin meanwhile is not revoked by a request that
+    // was let through for an organizer (only the Owner may revoke an admin).
+    env.DB.prepare("UPDATE members SET role = 'member', role_since = ?2 WHERE id = ?1 AND role = ?3").bind(
       m.id,
       ts,
+      m.role,
     ),
     // Before Finalize nobody has a bill, so the money moves with the event. Both return the events
     // they moved, for 操作记录.
@@ -206,13 +234,14 @@ export async function revokeOrganizer(
     ...with_,
   ]);
   withResults(done.slice(done.length - with_.length));
-  // Someone else revoked them in between: that request did all of this and told them. `with_`
-  // (停用) has still happened, so that is not an error; null says there was nothing to revoke.
+  // Someone else revoked them in between (that request did all of this and told them), or their
+  // role changed: null says there was nothing to revoke; the caller checks what `with_` did.
   if (!done[0]!.meta.changes) {
     if (with_.length) return null;
-    throw badRequest(`${m.username} 不是组织者`);
+    throw badRequest(`${m.username} 不是${title}`);
   }
-  await recordHandBack(env, m, by, by === "self" ? m.id : owner, done[1]!, done[2]!);
+  const doer = by === "self" ? m.id : (actor ?? owner);
+  await recordHandBack(env, m, by, doer, done[1]!, done[2]!, title);
   // Nothing of theirs still collects: the notice email says the filter can go, so the 失效
   // reminder (remindIfExpired) counts as sent. Claimed first so the sweep can't send one meanwhile,
   // and given back if the notice didn't go out, so the sweep sends the reminder later.
@@ -220,7 +249,7 @@ export async function revokeOrganizer(
     "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (0, ?1, ?2, ?2)",
   ).bind(filterReminder(m.id), ts);
   const claimed = (await payeeExpired(env.DB, m.id)) && !!(await claim.run()).meta.changes;
-  const emailStatus = await sendNoticeEmail(env, m, by, ts);
+  const emailStatus = await sendNoticeEmail(env, m, by, ts, title, doer);
   if (claimed && emailStatus !== "sent")
     await env.DB.prepare("DELETE FROM notification_log WHERE event_id = 0 AND type = ? AND sent_on = ?")
       .bind(filterReminder(m.id), ts)
@@ -239,11 +268,12 @@ async function recordHandBack(
   actor: string,
   payees: D1Result,
   managers: D1Result,
+  title: string,
 ): Promise<void> {
   const who = {
-    owner: `撤销 ${m.username} 的组织者身份`,
-    self: `${m.username} 不再当组织者`,
-    deactivate: `停用 ${m.username}，组织者身份一并撤销`,
+    owner: `撤销 ${m.username} 的${title}身份`,
+    self: `${m.username} 不再当${title}`,
+    deactivate: `停用 ${m.username}，${title}身份一并撤销`,
   }[by];
   const handed = managers.results as { id: number; payee_id: string | null }[];
   const owner = await ownerName(env.DB);
@@ -261,9 +291,18 @@ async function recordHandBack(
 }
 
 /** They can no longer open the admin pages, so this is how they learn what happens to their events. */
-async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string): Promise<NoticeEmail> {
+async function sendNoticeEmail(
+  env: Env,
+  m: MemberRow,
+  by: RevokeBy,
+  ts: string,
+  title: string,
+  /** Who revoked or disabled them (member id), named in the email. */
+  doerId: string,
+): Promise<NoticeEmail> {
   const to = m.google_email ?? m.email;
   if (!to) return "no_address";
+  const doer = by === "self" ? "" : await payeeName(env.DB, doerId);
   const [venmo, { results: collecting }] = await Promise.all([
     env.DB.prepare("SELECT venmo_username FROM payment_profiles WHERE member_id = ?")
       .bind(m.id)
@@ -280,9 +319,9 @@ async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string)
   const lines = [
     `${m.username}，你好！`,
     {
-      owner: `${owner} 已撤销你的组织者身份。管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。`,
-      self: "你已经不再当组织者。管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。",
-      deactivate: `${owner} 已停用你的账号，你的组织者身份也一并撤销。管理页对你的 Google 账号不再开放；你不能再报名，但还可以打开自己的页面付清欠款。`,
+      owner: `${doer} 已撤销你的${title}身份。管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。`,
+      self: `你已经不再当${title}。管理页对你的 Google 账号不再开放；你仍是群里的成员，可以照常报名打球。`,
+      deactivate: `${doer} 已停用你的账号，你的${title}身份也一并撤销。管理页对你的 Google 账号不再开放；你不能再报名，但还可以打开自己的页面付清欠款。`,
     }[by],
     "",
   ];
@@ -297,7 +336,7 @@ async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string)
   lines.push("", site(env, "/"), "", SPAM_HINT);
   return sendEmail(env, {
     to,
-    subject: "你已不再是羽毛球群的组织者",
+    subject: `你已不再是羽毛球群的${title}`,
     text: lines.join("\n"),
     key: `organizer-revoke/${m.id}/${ts}`,
   });
@@ -309,7 +348,7 @@ async function sendNoticeEmail(env: Env, m: MemberRow, by: RevokeBy, ts: string)
  */
 export async function transferEvent(env: Env, eventId: number, to: string): Promise<void> {
   const target = await requireMember(env, to);
-  if (memberRole(env, target) === "member") throw badRequest("只能转给群主或现任组织者");
+  if (memberRole(env, target) === "member") throw badRequest("只能转给群主、管理员或现任组织者");
   // The target is
   // checked again inside the write, in case they stopped being an organizer a moment ago.
   const r = await env.DB.prepare(
@@ -318,12 +357,12 @@ export async function transferEvent(env: Env, eventId: number, to: string): Prom
                        THEN ?1 ELSE payee_id END
      WHERE id = ?2 AND status IN ${LIVE_SQL}
        AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND deleted_at IS NULL
-                     AND (is_owner = 1 OR (role = 'organizer' AND status = 'active')))`,
+                     AND (is_owner = 1 OR (${currentStaffSql("members")})))`,
   )
     .bind(target.id, eventId)
     .run();
   if (r.meta.changes) return;
-  if (memberRole(env, await requireMember(env, to)) === "member") throw badRequest("只能转给群主或现任组织者");
+  if (memberRole(env, await requireMember(env, to)) === "member") throw badRequest("只能转给群主、管理员或现任组织者");
   throw badRequest("已收齐归档或已取消的活动不能转交");
 }
 
@@ -332,12 +371,18 @@ export async function handBackIfRevoked(env: Env, eventId: number, creator: stri
   const r = await env.DB.prepare(
     `UPDATE events SET manager_id = ?3, payee_id = ?3
      WHERE id = ?1 AND manager_id = ?2
-       AND NOT EXISTS (SELECT 1 FROM members WHERE id = ?2 AND role = 'organizer' AND status = 'active')`,
+       AND NOT EXISTS (SELECT 1 FROM members WHERE id = ?2 AND ${currentStaffSql("members")})`,
   )
     .bind(eventId, creator, await ownerId(env.DB))
     .run();
   if (r.meta.changes)
-    await audit(env, eventId, SYSTEM, "reassign", `创建者刚被撤销组织者身份，活动交给 ${await ownerName(env.DB)}`);
+    await audit(
+      env,
+      eventId,
+      SYSTEM,
+      "reassign",
+      `创建者刚被撤销组织者或管理员身份，活动交给 ${await ownerName(env.DB)}`,
+    );
 }
 
 /**

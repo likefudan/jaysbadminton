@@ -1,10 +1,10 @@
 import { endDeveloperSession } from "../developer";
 import { sendApprovalEmail } from "../approvalEmail";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
-import { type AdminEnv, adminAccess } from "../access";
-import { can, memberRole, ownerId } from "../organizers";
+import { type AdminEnv, adminAccess, assertMayActOn } from "../access";
+import { ROLE_TITLE, STAFF_SQL, can, isStaff, memberRole, ownerId } from "../organizers";
 import {
   appointOrganizer,
   assertNotRunning,
@@ -64,7 +64,8 @@ adminRoutes.get("/:token/members", async (c) => {
   const all = results.map((m) => ({
     ...toSummary(m),
     owingCents: owing.get(m.id) ?? 0,
-    isOrganizer: memberRole(c.env, m) === "organizer",
+    // Admins too until the page tells them apart (admin-role-tasks PR 2): 停用 revokes either.
+    isOrganizer: isStaff(memberRole(c.env, m)),
   }));
   return c.json<MembersResponse>({
     pending: all.filter((m) => m.status === "pending"),
@@ -79,39 +80,49 @@ adminRoutes.get("/:token/members", async (c) => {
 /** 设为组织者 (design §8). */
 adminRoutes.post("/:token/members/:id/appoint", async (c) => {
   assertOrganizersOn(c.env);
-  return c.json(await appointOrganizer(c.env, c.req.param("id")));
+  return c.json(await appointOrganizer(c.env, c.req.param("id"), c.get("actor").memberId));
 });
 
 /** What 撤销组织者 would do, for the confirmation. */
 adminRoutes.get("/:token/members/:id/revoke", async (c) => {
   assertOrganizersOn(c.env);
-  const m = await requireMember(c.env, c.req.param("id"));
-  if (m.role !== "organizer") throw badRequest(`${m.username} 不是组织者`);
+  const m = await target(c);
+  if (!isStaff(m.role)) throw badRequest(`${m.username} 不是组织者或管理员`);
   return c.json({ events: await revokeImpact(c.env, m.id) });
 });
 
 adminRoutes.post("/:token/members/:id/revoke", async (c) => {
   assertOrganizersOn(c.env);
-  const m = await requireMember(c.env, c.req.param("id"));
+  const m = await target(c);
   // Disabled ones (by older code) are revoked by 恢复, with the right email.
   if (m.status !== "active") throw badRequest("请先「恢复」这个成员（会撤销组织者身份）");
-  return c.json(await revokeOrganizer(c.env, m, "owner"));
+  return c.json(await revokeOrganizer(c.env, m, "owner", { actor: c.get("actor").memberId }));
 });
 
-/** 不再当组织者: an organizer steps down; the same rules as being revoked. */
+/** 不再当组织者 / 不再当管理员: one steps down; the same rules as being revoked. */
 adminRoutes.get("/:token/organizer/retire", async (c) => {
   const actor = c.get("actor");
-  if (actor.role !== "organizer" || !actor.memberId) throw badRequest("只有组织者可以这样做");
+  if (!isStaff(actor.role) || !actor.memberId) throw badRequest("只有组织者或管理员可以这样做");
   return c.json({ events: await revokeImpact(c.env, actor.memberId) });
 });
 
 adminRoutes.post("/:token/organizer/retire", async (c) => {
   const actor = c.get("actor");
-  if (actor.role !== "organizer" || !actor.memberId) throw badRequest("只有组织者可以这样做");
+  if (!isStaff(actor.role) || !actor.memberId) throw badRequest("只有组织者或管理员可以这样做");
   return c.json(await revokeOrganizer(c.env, await requireMember(c.env, actor.memberId), "self"));
 });
 
 const origin = (url: string) => new URL(url).origin;
+
+/**
+ * The member in the path, read again in the handler: someone made an admin after access.ts let the
+ * request through (memberTarget) is still the Owner's alone.
+ */
+async function target(c: Context<AdminEnv>): Promise<MemberRow> {
+  const m = await requireMember(c.env, c.req.param("id") ?? "");
+  assertMayActOn(c.get("actor"), m);
+  return m;
+}
 
 adminRoutes.post("/:token/members/:id/approve", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
@@ -142,7 +153,7 @@ adminRoutes.post("/:token/members/:id/approve", async (c) => {
 });
 
 adminRoutes.post("/:token/members/:id/approval-email", async (c) => {
-  const m = await requireMember(c.env, c.req.param("id"));
+  const m = await target(c);
   if (!(m.google_sub || m.email) || m.status !== "active" || m.deleted_at || !m.approved_at)
     throw badRequest("只能向已通过审核、留了邮箱的成员发送通知");
   return c.json({ emailStatus: await sendApprovalEmail(c.env, m.id) });
@@ -167,12 +178,12 @@ adminRoutes.post("/:token/members/:id/note", async (c) => {
 });
 
 adminRoutes.get("/:token/members/:id/link", async (c) => {
-  const m = await requireMember(c.env, c.req.param("id"));
+  const m = await target(c);
   return c.json<LinkResponse>({ link: memberLink(origin(c.req.url), await revealMemberToken(c.env, m)) });
 });
 
 adminRoutes.post("/:token/members/:id/regenerate", async (c) => {
-  const m = await requireMember(c.env, c.req.param("id"));
+  const m = await target(c);
   // Disabled members may need a (new) link to pay what they owe; deleted ones never get one.
   if (m.status === "pending" || m.deleted_at) throw badRequest("只能给正常或已停用的成员生成链接");
   const token = await issueMemberToken(c.env, m.id);
@@ -180,7 +191,7 @@ adminRoutes.post("/:token/members/:id/regenerate", async (c) => {
 });
 
 adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
-  const m = await requireMember(c.env, c.req.param("id"));
+  const m = await target(c);
   if (m.is_owner) throw badRequest("不能停用群主本人");
   if (m.status !== "active") throw badRequest("这个成员不是正常状态");
   await closeExpired(c.env); // an event past its deadline keeps its sign-ups
@@ -196,11 +207,15 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
         `停用 ${m.username}，${m.username} 和带的朋友一起移出名单`,
       );
   };
-  const deactivate = (onlyIfNotOrganizer: boolean) => [
+  // `role` is the role this request read (revokeOrganizer has made it 'member' first in the same
+  // batch): an appointment landing in between is never undone by a request let through for the old
+  // role, e.g. an admin's 停用 of someone the Owner has just made an admin.
+  const deactivate = (role: string | null) => [
     // The link keeps working so they can still pay what they owe; sign-up is refused.
     c.env.DB.prepare(
-      `UPDATE members SET status = 'inactive' WHERE id = ? AND status = 'active' ${onlyIfNotOrganizer ? "AND role != 'organizer'" : ""}`,
-    ).bind(m.id),
+      `UPDATE members SET status = 'inactive' WHERE id = ?1 AND status = 'active'
+         AND ${role ? "role IN (?2, 'member')" : `role NOT IN ${STAFF_SQL}`}`,
+    ).bind(m.id, ...(role ? [role] : [])),
     // Requirements: deactivating cancels sign-ups for events still open; closed events keep theirs.
     c.env.DB.prepare(
       `DELETE FROM registrations WHERE member_id = ?1 AND event_id IN (SELECT id FROM events WHERE status = 'open')
@@ -208,25 +223,42 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
        RETURNING event_id`,
     ).bind(m.id),
   ];
-  // An organizer stops being one in the same transaction (design §8), whatever the flag says:
+  // An organizer or admin stops being one in the same transaction (design §8), whatever the flag says:
   // their events go back to the Owner and they are told what still pays into their account.
   const revoke = async (who: MemberRow) => {
     let removed: D1Result | undefined;
-    const revoked = await revokeOrganizer(c.env, who, "deactivate", deactivate(false), (r) => {
-      removed = r[1];
+    let disabled = false;
+    const revoked = await revokeOrganizer(c.env, who, "deactivate", {
+      with: deactivate(who.role),
+      withResults: (r) => {
+        disabled = !!r[0]?.meta.changes;
+        removed = r[1];
+      },
+      actor: c.get("actor").memberId,
     });
+    if (!disabled) {
+      // A second click (or another 停用 meanwhile) finds them disabled already, as before; anything
+      // else means their role changed in between and nothing was done.
+      const now_ = await requireMember(c.env, who.id);
+      if (now_.status !== "inactive") throw badRequest("刚才有别的操作改了他的身份或状态，请刷新页面后再试");
+      return c.json({ ok: true, revoked });
+    }
     await recordLeft(removed);
     return c.json({ ok: true, revoked });
   };
-  if (m.role === "organizer") return revoke(m);
-  // Not an organizer when read, and still not one when written (an appointment may land in between).
-  const [plain, removed] = await c.env.DB.batch(deactivate(true));
+  if (isStaff(m.role)) return revoke(m);
+  // Not an organizer or admin when read, and still not one when written (an appointment may land in between).
+  const [plain, removed] = await c.env.DB.batch(deactivate(null));
   if (plain!.meta.changes) {
     await recordLeft(removed);
     return c.json({ ok: true, revoked: null });
   }
   const fresh = await requireMember(c.env, m.id);
-  if (fresh.status === "active" && fresh.role === "organizer") return revoke(fresh);
+  if (fresh.status === "active" && isStaff(fresh.role)) {
+    // Made an admin while this request was on its way: that is the Owner's alone (access.ts memberTarget).
+    assertMayActOn(c.get("actor"), fresh);
+    return revoke(fresh);
+  }
   throw badRequest("这个成员不是正常状态");
 });
 
@@ -260,12 +292,12 @@ adminRoutes.post("/:token/settings/backup-key", async (c) => {
 
 /** 恢复: back to a normal member. Members disabled before links were kept get a fresh link. */
 adminRoutes.post("/:token/members/:id/reactivate", async (c) => {
-  const m = await requireMember(c.env, c.req.param("id"));
+  const m = await target(c);
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能恢复已停用的成员");
   const back = c.env.DB.prepare("UPDATE members SET status = 'active' WHERE id = ? AND status = 'inactive'").bind(m.id);
   // Back as a plain member: an organizer disabled without being revoked (before 停用 did that) is
   // revoked now, so being one again takes a new appointment.
-  if (m.role === "organizer") await revokeOrganizer(c.env, m, "owner", [back]);
+  if (isStaff(m.role)) await revokeOrganizer(c.env, m, "owner", { with: [back], actor: c.get("actor").memberId });
   else await back.run();
   const link = m.token_enc ? null : memberLink(origin(c.req.url), await issueMemberToken(c.env, m.id));
   return c.json({ ok: true, link });
@@ -276,8 +308,10 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   const m = await requireMember(c.env, c.req.param("id"));
   if (m.status !== "inactive" || m.deleted_at) throw badRequest("只能删除已停用的成员");
   // Disabled before 停用 revoked organizers: 恢复 revokes them, so that comes first.
-  if (m.role === "organizer")
-    throw badRequest(`${m.username} 还有组织者身份。请先「恢复」（会撤销组织者身份），再停用、删除`);
+  if (isStaff(m.role))
+    throw badRequest(
+      `${m.username} 还有${ROLE_TITLE[m.role]}身份。请先「恢复」（会撤销${ROLE_TITLE[m.role]}身份），再停用、删除`,
+    );
   const owing = (await owingByMember(c.env)).get(m.id) ?? 0;
   if (owing > 0) throw badRequest(`${m.username} 还有 $${(owing / 100).toFixed(2)} 没付清，付清或标记已付后才能删除`);
   // Still on a list that can change their bill: Finalize, or a fee or roster change after it, would

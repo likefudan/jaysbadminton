@@ -92,7 +92,8 @@ async function matrixScenario() {
       `INSERT INTO members (id, username, wechat_nickname, status, is_owner, role, google_sub, requested_at, approved_at)
        VALUES ('M001', 'Jay', 'Jay微信', 'active', 1, 'member', NULL, ?1, ?1),
               ('M002', 'Alice', 'Alice微信', 'active', 0, 'organizer', 'google-alice', ?1, ?1),
-              ('M003', 'Bob', 'Bob微信', 'active', 0, 'member', NULL, ?1, ?1)`,
+              ('M003', 'Bob', 'Bob微信', 'active', 0, 'member', NULL, ?1, ?1),
+              ('M004', 'Carol', 'Carol微信', 'active', 0, 'admin', 'google-carol', ?1, ?1)`,
     ).bind(ts),
     env.DB.prepare(
       `INSERT INTO payment_profiles (member_id, venmo_username, venmo_email, updated_at)
@@ -150,12 +151,15 @@ async function matrixScenario() {
   await env.DB.batch(statements);
   return {
     org: await googleCookie("google-alice", "alice@gmail.com"),
+    admin: await googleCookie("google-carol", "carol@gmail.com"),
     ids: { id: 2, rid: 4, pid: 2, receipt: 2, iid: 2 },
   };
 }
 
 /** Fills a route pattern like /events/:id/roster/:rid/remove with one side's ids. */
 function fill(pattern: string, ids: Record<string, number>) {
+  // /members/:id/… is about a member: Bob, a plain member, in the matrix.
+  if (pattern.startsWith("/members/:id")) pattern = pattern.replace(":id", "M003");
   return pattern.replace(/:(\w+)/g, (_, name: string) => {
     if (name === "rid") return String(pattern.startsWith("/receipts") ? ids.receipt : ids.rid);
     return String(ids[name]);
@@ -224,6 +228,20 @@ describe("organizers on the admin pages", () => {
       expect([401, 403], `${key} → ${res.status}`).not.toContain(res.status);
     else expect(res.status, key).toBe(403);
     if (key === "POST /telegram/connect") expect(res.status).toBe(200);
+  });
+
+  // An admin has everything but the Owner's own: every event and payment, and the group.
+  it.each(Object.entries(ADMIN_ACCESS))("checks admin access to %s", async (key, rule) => {
+    const { admin, ids } = await matrixScenario();
+    const [method, pattern] = key.split(" ") as [string, string];
+    const res = await request(
+      `${GOOGLE}${fill(pattern, ids)}`,
+      admin,
+      method === "POST" ? { paymentId: ids.pid, friends: [], ...fees } : undefined,
+    );
+    if (rule.cap === null || can("admin", rule.cap))
+      expect([401, 403], `${key} → ${res.status}`).not.toContain(res.status);
+    else expect(res.status, key).toBe(403);
   });
 
   it("gives /events/defaults its own rule rather than /events/:id's, and remembers each person's own", async () => {

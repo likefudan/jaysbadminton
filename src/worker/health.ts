@@ -7,7 +7,7 @@ import { message, once, type NotifySettings } from "./notify";
 import { sheetsStatus } from "./sheets";
 import { isStaging } from "./site";
 import { sendToOwner, sendToPayee, sendToPayeeAndOwner } from "./telegram";
-import { currentOrganizerSql, memberRole, ownerId } from "./organizers";
+import { ROLE_TITLE, currentStaffSql, isStaff, memberRole, ownerId } from "./organizers";
 import { payeeSql } from "./payees";
 
 /**
@@ -239,12 +239,12 @@ export async function digestText(env: Env, at: Date): Promise<string> {
     w.owing = { n: b.owing, cents: b.owing_cents };
     w.refund = { n: b.refund, cents: b.refund_cents };
   }
-  // Current organizers get a block even in a quiet week, so a forwarding never set up still shows.
+  // Current organizers and admins get a block even in a quiet week, so a forwarding never set up still shows.
   const { results: people } = await db
     .prepare(
       `SELECT m.id, m.username, m.is_owner, m.role, m.status, m.deleted_at, p.venmo_username, p.email_last_at
        FROM members m LEFT JOIN payment_profiles p ON p.member_id = m.id
-       WHERE m.is_owner = 0 AND (${currentOrganizerSql("m")} OR m.id IN (${[...weeks.keys()].map(() => "?").join(", ")}))
+       WHERE m.is_owner = 0 AND (${currentStaffSql("m")} OR m.id IN (${[...weeks.keys()].map(() => "?").join(", ")}))
        ORDER BY m.username, m.id`,
     )
     .bind(...weeks.keys())
@@ -258,7 +258,7 @@ export async function digestText(env: Env, at: Date): Promise<string> {
       venmo_username: string | null;
       email_last_at: string | null;
     }>();
-  const others = people.filter((m) => weeks.has(m.id) || memberRole(env, m) === "organizer");
+  const others = people.filter((m) => weeks.has(m.id) || isStaff(memberRole(env, m)));
 
   const played = await db
     .prepare("SELECT COUNT(*) AS n FROM events WHERE start_at >= ? AND start_at < ? AND status != 'cancelled'")
@@ -278,10 +278,11 @@ export async function digestText(env: Env, at: Date): Promise<string> {
   } else {
     lines.push("", "【群主（你）的账户】", ...ownerBlock);
     for (const m of others) {
-      const current = memberRole(env, m) === "organizer";
+      const role = memberRole(env, m);
+      const current = isStaff(role);
       lines.push(
         "",
-        `【${current ? "组织者" : "历史收款人"} ${m.username} 的账户】`,
+        `【${current ? ROLE_TITLE[role] : "历史收款人"} ${m.username} 的账户】`,
         ...weekLines(week(m.id), current ? `由 ${m.username} 处理` : "要你处理"),
         await forwardingCheck(
           db,
