@@ -221,6 +221,8 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "POST /settings": cap("group"),
   "POST /locations/remove": cap("group"),
   "POST /members/:id/appoint": memberTarget(),
+  "POST /members/:id/appoint-admin": cap("owner"),
+  "POST /members/:id/demote-admin": cap("owner"),
   "GET /members/:id/revoke": memberTarget(),
   "POST /members/:id/revoke": memberTarget(),
   "POST /events/:id/transfer": cap("group"),

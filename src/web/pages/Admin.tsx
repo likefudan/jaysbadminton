@@ -182,6 +182,7 @@ const who = (m: MemberSummary, onOpen?: (m: MemberSummary) => void) => {
         name
       )}
       {m.isOwner && <span class="badge">群主</span>}
+      {m.isAdmin && <span class="badge">管理员</span>}
       {m.isOrganizer && <span class="badge">组织者</span>}
       <small>
         {m.id} · 微信：{m.wechatAccount || m.wechatNickname}
@@ -321,6 +322,8 @@ function Pending(props: { base: string; list: MemberSummary[]; readOnly: boolean
 /** 成员; organizers see the same lists read-only (no links, notes, appointing or 停用). */
 function Members(props: { base: string; data: MembersResponse; onChange: () => void }) {
   const readOnly = props.data.viewer.role !== "owner";
+  /** Appointing, demoting and revoking admins: the Owner's alone. */
+  const ownerView = props.data.viewer.role === "owner";
   const [shown, setShown] = useState<{ name: string; link: string; fresh: boolean } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const { busy, error, run } = useAction();
@@ -347,13 +350,15 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
   }
   async function deactivate(m: MemberSummary) {
     // No preview (they stopped being an organizer meanwhile): 停用 still works, so ask without it.
-    const impact = m.isOrganizer
-      ? await api<{ events: RevokeImpact[] }>(`${props.base}/members/${m.id}/revoke`).then(
-          (r) => r.events,
-          () => null,
-        )
-      : null;
-    const revoke = impact ? `\n\n${m.username} 是组织者，停用会先撤销组织者身份。${revokeSummary(impact)}` : "";
+    const title = m.isAdmin ? "管理员" : "组织者";
+    const impact =
+      m.isOrganizer || m.isAdmin
+        ? await api<{ events: RevokeImpact[] }>(`${props.base}/members/${m.id}/revoke`).then(
+            (r) => r.events,
+            () => null,
+          )
+        : null;
+    const revoke = impact ? `\n\n${m.username} 是${title}，停用会先撤销${title}身份。${revokeSummary(impact)}` : "";
     if (
       !confirm(
         `停用后 ${m.username} 不能再报名，正在报名中的活动会被取消报名；他的链接还能用来付清欠款。${revoke}\n\n继续吗？`,
@@ -364,7 +369,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
       api<{ revoked: { emailStatus: string } | null }>(`${props.base}/members/${m.id}/deactivate`, {}),
     );
     if (!r) return;
-    if (r.revoked) setEmailMessage(revokeEmailMessage(m.username, r.revoked.emailStatus));
+    if (r.revoked) setEmailMessage(revokeEmailMessage(m.username, r.revoked.emailStatus, title));
     props.onChange();
   }
   async function revokePreview(m: { id: string }) {
@@ -387,18 +392,52 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     );
     props.onChange();
   }
-  async function revoke(m: { id: string; username: string }) {
+  async function revoke(m: { id: string; username: string; admin: boolean }) {
+    const title = m.admin ? "管理员" : "组织者";
     const events = await revokePreview(m);
     if (!events) return;
     if (
       !confirm(
-        `撤销 ${m.username} 的组织者身份？${revokeSummary(events)}\n\n撤销后他马上进不了管理页，系统会发邮件告诉他。`,
+        `撤销 ${m.username} 的${title}身份？${revokeSummary(events)}\n\n撤销后他马上进不了管理页，系统会发邮件告诉他。`,
       )
     )
       return;
     const done = await run(() => api<{ emailStatus: string }>(`${props.base}/members/${m.id}/revoke`, {}));
     if (!done) return;
-    setEmailMessage(revokeEmailMessage(m.username, done.emailStatus));
+    setEmailMessage(revokeEmailMessage(m.username, done.emailStatus, title));
+    props.onChange();
+  }
+  async function appointAdmin(m: MemberSummary) {
+    const kept = m.isOrganizer ? "\n\n他原来的活动、收款设置和 Telegram 都保留。" : "";
+    if (
+      !confirm(
+        `把 ${m.username} 设为管理员？\n\n他用 Google 登录后可以像群主一样管理整个群：审核和管理成员、任命组织者、管理所有活动和付款、修改设置、导出数据。只有任命管理员、清空数据、密钥和备份、永久删除仍然只有你能做。${kept}`,
+      )
+    )
+      return;
+    const r = await run(() => api<{ emailStatus: string }>(`${props.base}/members/${m.id}/appoint-admin`, {}));
+    if (!r) return;
+    setEmailMessage(
+      r.emailStatus === "sent"
+        ? `${m.username} 已成为管理员，已发邮件告诉他用 Google 登录后打开管理页。`
+        : `${m.username} 已成为管理员，但${emailProblem(r.emailStatus)}。请你自己告诉他：用 Google 登录后打开 ${location.origin}/admin/google。`,
+    );
+    props.onChange();
+  }
+  async function demoteAdmin(m: MemberSummary) {
+    if (
+      !confirm(
+        `把 ${m.username} 从管理员改为组织者？\n\n他只能管理自己的活动，不再管理成员、别人的活动和设置。他的活动、收款设置和 Telegram 都保留。`,
+      )
+    )
+      return;
+    const r = await run(() => api<{ emailStatus: string }>(`${props.base}/members/${m.id}/demote-admin`, {}));
+    if (!r) return;
+    setEmailMessage(
+      r.emailStatus === "sent"
+        ? `${m.username} 已改为组织者，并发邮件告诉了他。`
+        : `${m.username} 已改为组织者，但${emailProblem(r.emailStatus)}。`,
+    );
     props.onChange();
   }
   /** For members disabled before links were kept: a fresh link so they can pay what they owe. */
@@ -446,7 +485,14 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
           </button>
         </Card>
       )}
-      {props.data.organizers && <Organizers block={props.data.organizers} busy={busy} onRevoke={revoke} />}
+      {props.data.organizers && (
+        <Organizers
+          block={props.data.organizers}
+          ownerView={ownerView}
+          busy={busy}
+          onRevoke={(o) => revoke({ ...o, admin: o.role === "admin" })}
+        />
+      )}
       <Card title={`成员（${props.data.active.length}）`}>
         {emailMessage && <p role="status">{emailMessage}</p>}
         {error && <p class="error">{error}</p>}
@@ -469,15 +515,40 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
                 <button type="button" class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
                   {m.hasLink ? "重新生成" : "生成备用链接"}
                 </button>
-                {props.data.organizers?.canManage && !m.isOwner && !m.isOrganizer && (
+                {props.data.organizers?.canManage && !m.isOwner && !m.isOrganizer && !m.isAdmin && (
                   <button type="button" class="button secondary" disabled={busy} onClick={() => appoint(m)}>
                     设为组织者
                   </button>
                 )}
+                {props.data.organizers && ownerView && !m.isOwner && !m.isAdmin && (
+                  <button type="button" class="button secondary" disabled={busy} onClick={() => appointAdmin(m)}>
+                    {m.isOrganizer ? "升为管理员" : "设为管理员"}
+                  </button>
+                )}
                 {props.data.organizers?.canManage && m.isOrganizer && (
-                  <button type="button" class="button secondary" disabled={busy} onClick={() => revoke(m)}>
+                  <button
+                    type="button"
+                    class="button secondary"
+                    disabled={busy}
+                    onClick={() => revoke({ ...m, admin: false })}
+                  >
                     撤销组织者
                   </button>
+                )}
+                {props.data.organizers && ownerView && m.isAdmin && (
+                  <>
+                    <button type="button" class="button secondary" disabled={busy} onClick={() => demoteAdmin(m)}>
+                      降为组织者
+                    </button>
+                    <button
+                      type="button"
+                      class="button secondary"
+                      disabled={busy}
+                      onClick={() => revoke({ ...m, admin: true })}
+                    >
+                      撤销管理员
+                    </button>
+                  </>
                 )}
                 {!m.isOwner && (
                   <button type="button" class="button danger" disabled={busy} onClick={() => deactivate(m)}>
@@ -559,20 +630,25 @@ function emailProblem(status: string): string {
   return "邮件服务没有配置，通知邮件没有发出";
 }
 
-function revokeEmailMessage(name: string, status: string): string {
-  if (status === "sent") return `已撤销 ${name} 的组织者身份，并发邮件告诉了他。`;
-  return `已撤销 ${name} 的组织者身份，但${emailProblem(status)}。请你自己告诉他：还在收款的活动钱继续付到他的账户，收到后和你核对；之后可以删掉 Venmo 邮件转发。`;
+function revokeEmailMessage(name: string, status: string, title = "组织者"): string {
+  if (status === "sent") return `已撤销 ${name} 的${title}身份，并发邮件告诉了他。`;
+  return `已撤销 ${name} 的${title}身份，但${emailProblem(status)}。请你自己告诉他：还在收款的活动钱继续付到他的账户，收到后和你核对；之后可以删掉 Venmo 邮件转发。`;
 }
 
-/** 组织者 block at the top of the members page: the Owner and (read-only) organizers see it. */
+/**
+ * 管理员和组织者 block at the top of the members page: the Owner, admins and (read-only) organizers
+ * see it. Only the Owner revokes an admin.
+ */
 function Organizers(props: {
   block: OrganizersBlock;
+  ownerView: boolean;
   busy: boolean;
-  onRevoke: (o: { id: string; username: string }) => void;
+  onRevoke: (o: { id: string; username: string; role: "admin" | "organizer" }) => void;
 }) {
   const { list, former, canManage } = props.block;
+  const admins = list.filter((o) => o.role === "admin").length;
   return (
-    <Card title={`组织者（${list.length}）`}>
+    <Card title={admins > 0 ? `管理员和组织者（${list.length}）` : `组织者（${list.length}）`}>
       {list.length === 0 && former.length === 0 && (
         <Empty>{canManage ? "还没有组织者。在下面的成员列表点「设为组织者」。" : "还没有组织者"}</Empty>
       )}
@@ -580,6 +656,7 @@ function Organizers(props: {
         <div class="row" key={o.id}>
           <div class="who">
             <span class="who-name">{o.username}</span>
+            {o.role === "admin" && <span class="badge">管理员</span>}
             <small>
               {o.since && `${formatInstantZh(o.since)} 任命 · `}
               {o.paymentReady ? "收款设置已填好" : <span class="error">收款设置没填好</span>}
@@ -599,7 +676,7 @@ function Organizers(props: {
               {` · 负责 ${o.events} 场未归档活动`}
             </small>
           </div>
-          {canManage && (
+          {canManage && (o.role === "organizer" || props.ownerView) && (
             <div class="actions">
               <button type="button" class="button secondary" disabled={props.busy} onClick={() => props.onRevoke(o)}>
                 撤销

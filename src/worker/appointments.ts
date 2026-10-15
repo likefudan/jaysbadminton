@@ -15,6 +15,7 @@ import {
   memberRole,
   organizersEnabled,
   ownerId,
+  payeeProfile,
 } from "./organizers";
 import { once } from "./notify";
 import { ownerName, payeeExpired, payeeName, payeeUnlockedSql } from "./payees";
@@ -81,10 +82,12 @@ export async function organizersBlock(env: Env, canManage: boolean): Promise<Org
   };
 }
 
-function assertAppointable(m: MemberRow): void {
+/** Whether `m` may be made `role`: an organizer from a member, an admin from a member or organizer. */
+function assertAppointable(m: MemberRow, role: StaffRole = "organizer"): void {
   if (m.is_owner) throw badRequest("群主本来就有全部权限");
   if (m.status !== "active" || m.deleted_at) throw badRequest("只能任命状态正常的成员");
-  if (isStaff(m.role)) throw badRequest(`${m.username} 已经是${ROLE_TITLE[m.role]}了`);
+  if (isStaff(m.role) && (m.role === role || role === "organizer"))
+    throw badRequest(`${m.username} 已经是${ROLE_TITLE[m.role]}了`);
   // The admin pages open for organizers only through Google, and a member link can't swap in
   // another Google account once one is bound, so the link alone never makes someone an organizer.
   if (!m.google_sub) throw badRequest(`${m.username} 还没有关联 Google 账号。请他先用 Google 登录关联，再任命`);
@@ -131,6 +134,93 @@ export async function appointOrganizer(
       "用专属链接打开网站时仍是普通成员页面，管理功能只在 Google 登录时可用。\n\n" +
       SPAM_HINT,
     key: `organizer-appoint/${m.id}/${ts}`,
+  });
+  return { emailStatus };
+}
+
+/**
+ * 设为管理员 / 升为管理员 (Owner only, admin-role.zh.md §8): a member signing in with Google, or a
+ * current organizer, who keeps their events, payment settings and Telegram. Admins run the whole
+ * group except the Owner's own powers.
+ */
+export async function appointAdmin(
+  env: Env,
+  id: string,
+): Promise<{ emailStatus: NoticeEmail; from: "member" | "organizer" }> {
+  const m = await requireMember(env, id);
+  assertAppointable(m, "admin");
+  const from = m.role === "organizer" ? "organizer" : "member";
+  const ts = now();
+  const done = await env.DB.batch([
+    // Only from the role read, so a revoke or appointment landing in between is not overwritten.
+    env.DB.prepare(
+      `UPDATE members SET role = 'admin', role_since = ?2
+       WHERE id = ?1 AND role = ?3 AND status = 'active' AND deleted_at IS NULL AND google_sub IS NOT NULL`,
+    ).bind(m.id, ts, m.role),
+    // Someone who collected before keeps their payment settings and is no longer a 历史收款人.
+    env.DB.prepare(
+      `UPDATE payment_profiles SET retired_at = NULL WHERE member_id = ?1
+         AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND role = 'admin' AND role_since = ?2)`,
+    ).bind(m.id, ts),
+  ]);
+  if (!done[0]!.meta.changes) {
+    assertAppointable(await requireMember(env, id), "admin");
+    throw badRequest("刚才有别的操作改了他的状态，请刷新页面后再试");
+  }
+  const to = m.google_email ?? m.email;
+  if (!to) return { emailStatus: "no_address", from };
+  const owner = await ownerName(env.DB);
+  const emailStatus = await sendEmail(env, {
+    to,
+    subject: "你已成为羽毛球群的管理员",
+    text:
+      `${m.username}，你好！\n${owner} 已把你设为管理员：除了几项只有 ${owner} 能做的事（任命管理员、清空数据、密钥和备份、永久删除），` +
+      "你可以像群主一样管理整个群：审核和管理成员、任命组织者、管理所有活动和付款、修改全局设置、导出数据。\n\n" +
+      `请用你的 Google 账号${m.google_email ? ` ${m.google_email} ` : ""}登录，然后打开管理页：\n${site(env, "/admin/google")}\n\n` +
+      (from === "organizer"
+        ? "你原来的活动、收款设置和 Telegram 都保留不变。\n"
+        : "你自己发起活动前，请先在管理页「设置」里填好你的收款设置（Venmo 用户名和 Venmo 通知邮箱）：你发起的活动，成员会把钱直接付到你的 Venmo。\n") +
+      "用专属链接打开网站时仍是普通成员页面，管理功能只在 Google 登录时可用。\n\n" +
+      SPAM_HINT,
+    key: `admin-appoint/${m.id}/${ts}`,
+  });
+  return { emailStatus, from };
+}
+
+/**
+ * 降为组织者 (Owner only): an admin keeps their events, payment settings and Telegram, and runs
+ * only their own events from now on.
+ */
+export async function demoteAdmin(env: Env, id: string): Promise<{ emailStatus: NoticeEmail }> {
+  const m = await requireMember(env, id);
+  if (m.role !== "admin") throw badRequest(`${m.username} 不是管理员`);
+  // Disabled by older code (still an admin): 恢复 revokes them first, as for organizers.
+  if (m.status !== "active" || m.deleted_at) throw badRequest("请先「恢复」这个成员（会撤销管理员身份）");
+  const ts = now();
+  const r = await env.DB.prepare(
+    `UPDATE members SET role = 'organizer', role_since = ?2
+     WHERE id = ?1 AND role = 'admin' AND status = 'active' AND deleted_at IS NULL`,
+  )
+    .bind(m.id, ts)
+    .run();
+  if (!r.meta.changes) throw badRequest("刚才有别的操作改了他的状态，请刷新页面后再试");
+  const to = m.google_email ?? m.email;
+  if (!to) return { emailStatus: "no_address" };
+  const owner = await ownerName(env.DB);
+  // Organizers settle their own events only with their payment settings filled in.
+  const ready = await payeeProfile(env.DB, m.id);
+  const emailStatus = await sendEmail(env, {
+    to,
+    subject: "你在羽毛球群的身份改为组织者",
+    text:
+      `${m.username}，你好！\n${owner} 已把你从管理员改为组织者：你仍然可以发起活动、管理自己的活动、给自己的活动收款，` +
+      "但不再管理成员、别人的活动和全站设置。你的活动、收款设置和 Telegram 都保留不变。\n" +
+      (ready
+        ? ""
+        : "你还没有填收款设置：请在管理页「设置」里填好 Venmo 用户名和 Venmo 通知邮箱，否则不能结算自己的活动。\n") +
+      "\n" +
+      `${site(env, "/admin/google")}\n\n${SPAM_HINT}`,
+    key: `admin-demote/${m.id}/${ts}`,
   });
   return { emailStatus };
 }

@@ -26,6 +26,8 @@ export interface MemberSummary {
   owingCents: number;
   /** A current 组织者 (only on the admin member list, and only while the feature is on). */
   isOrganizer?: boolean;
+  /** A current 管理员 (likewise). */
+  isAdmin?: boolean;
 }
 
 /** One row of the 组织者 block on the members page. */

@@ -378,6 +378,35 @@ test("the Owner appoints an organizer, hands them an event and revokes them", as
   await expect(block).toContainText("还没有组织者");
 });
 
+test("the Owner appoints an admin, demotes them to organizer and revokes them", async ({ page }) => {
+  const dialogs: string[] = [];
+  page.on("dialog", (d) => {
+    dialogs.push(d.message());
+    void d.accept();
+  });
+  await openAdmin(page);
+  await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
+  const members = page.locator(".card", { has: page.getByRole("heading", { name: /^成员（/ }) });
+  const ming = members.locator(".row", { hasText: "小明" });
+  await ming.getByRole("button", { name: "设为管理员" }).click();
+  expect(dialogs.pop()).toContain("像群主一样管理整个群");
+  await expect(page.getByText(/小明 已成为管理员/)).toBeVisible();
+  await expect(ming.locator(".badge")).toHaveText("管理员");
+  const block = page.locator(".card", { has: page.getByRole("heading", { name: /^管理员和组织者（/ }) });
+  await expect(block).toContainText("小明");
+  await expect(ming.getByRole("button", { name: "设为组织者" })).toHaveCount(0);
+
+  await ming.getByRole("button", { name: "降为组织者" }).click();
+  await expect(page.getByText(/小明 已改为组织者/)).toBeVisible();
+  await expect(ming.locator(".badge")).toHaveText("组织者");
+  await ming.getByRole("button", { name: "升为管理员" }).click();
+  await expect(ming.locator(".badge")).toHaveText("管理员");
+
+  await ming.getByRole("button", { name: "撤销管理员" }).click();
+  await expect(page.getByText("已撤销 小明 的管理员身份")).toBeVisible();
+  await expect(ming.locator(".badge")).toHaveCount(0);
+});
+
 test("an organizer signs in with Google and runs their own event", async ({ page, context, baseURL }) => {
   const dialogs: string[] = [];
   page.on("dialog", (d) => {
