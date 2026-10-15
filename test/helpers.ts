@@ -125,12 +125,10 @@ export async function googleCookie(sub: string, email: string) {
   return `jb_member=${token}`;
 }
 
-/** Makes an approved member an organizer signed in with Google; returns their session cookie. */
-export async function appoint(memberId: string, name: string) {
-  await env.DB.prepare(
-    "UPDATE members SET role = 'organizer', role_since = ?, google_sub = ?, google_email = ? WHERE id = ?",
-  )
-    .bind(new Date().toISOString(), `google-${name}`, `${name}@gmail.com`, memberId)
+/** Makes an approved member an organizer (or admin) signed in with Google; returns their session cookie. */
+export async function appoint(memberId: string, name: string, role: "organizer" | "admin" = "organizer") {
+  await env.DB.prepare("UPDATE members SET role = ?, role_since = ?, google_sub = ?, google_email = ? WHERE id = ?")
+    .bind(role, new Date().toISOString(), `google-${name}`, `${name}@gmail.com`, memberId)
     .run();
   return googleCookie(`google-${name}`, `${name}@gmail.com`);
 }

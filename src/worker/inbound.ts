@@ -8,7 +8,7 @@ import { parseEmail, type VenmoReceipt } from "./email/parse";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
 import { message, notifyPayment } from "./notify";
-import { eventPayee, memberRole, ownerId } from "./organizers";
+import { eventPayee, isStaff, memberRole, ownerId } from "./organizers";
 import { sendToMember, sendToOwner } from "./telegram";
 import { codeName, noteName, parsePaymentCode } from "./paymentCode";
 import { ownerName, payeeExpired, payeeName, payeeSql } from "./payees";
@@ -62,7 +62,7 @@ async function gmailConfirmation(
 /** How long a Gmail confirmation stays on the organizer's 收款设置 page. */
 export const GMAIL_CONFIRM_HOURS = 24;
 
-/** The current organizer whose Venmo notification email the confirmation names, if any. */
+/** The current organizer or admin whose Venmo notification email the confirmation names, if any. */
 async function confirmationOrganizer(env: Env, text: string): Promise<string | null> {
   const mails = [...new Set((text.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) ?? []).map((m) => m.toLowerCase()))];
   // Any of the Owner's own addresses wins, so nobody can take their confirmation by saving one of
@@ -82,7 +82,7 @@ async function confirmationOrganizer(env: Env, text: string): Promise<string | n
   )
     .bind(...mails)
     .all<{ id: string; is_owner: number; role: string; status: string; deleted_at: string | null }>();
-  return results.find((m) => memberRole(env, m) === "organizer")?.id ?? null;
+  return results.find((m) => isStaff(memberRole(env, m)))?.id ?? null;
 }
 
 /** Clears Gmail confirmations older than GMAIL_CONFIRM_HOURS: they carry a working code. */

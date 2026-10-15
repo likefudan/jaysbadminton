@@ -50,7 +50,7 @@ export function GoogleAccount() {
   }, [open]);
   if (session.state !== "ok" || !session.data.signedIn || !session.data.email) return null;
   const email = session.data.email;
-  const canManage = session.data.role === "owner" || session.data.role === "organizer";
+  const canManage = !!session.data.role && session.data.role !== "member";
   async function logout() {
     setBusy(true);
     setError("");
