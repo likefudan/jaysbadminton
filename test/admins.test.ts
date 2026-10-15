@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { handBackIfRevoked } from "../src/worker/appointments";
+import { appointAdmin, handBackIfRevoked } from "../src/worker/appointments";
 import { sendToMember } from "../src/worker/telegram";
 import { approveMember, appoint, createTestEvent, futureDate, GOOGLE, request, setUpAdmin } from "./helpers";
 
@@ -275,5 +275,100 @@ describe("an admin", () => {
       globalThis.fetch = real;
     }
     expect(sent.some((b) => b.includes('"chat_id":"77"'))).toBe(true);
+  });
+});
+
+describe("appointing admins", () => {
+  const mailEnv = { ...env, ORGANIZERS: "1", RESEND_API_KEY: "re_test", EMAIL_FROM: "Jay <jay@example.com>" };
+  const emails: { subject: string; text: string }[] = [];
+  const withMail = async <T>(f: () => Promise<T>) => {
+    emails.length = 0;
+    const real = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo, init?: RequestInit) => {
+      if (String(input) === "https://api.resend.com/emails") emails.push(JSON.parse(String(init?.body)));
+      return Response.json({ id: "email-1" });
+    }) as typeof fetch;
+    try {
+      return await f();
+    } finally {
+      globalThis.fetch = real;
+    }
+  };
+
+  it("is the Owner's alone, and needs Google", async () => {
+    const { ctx, bob, alice, owner, asAdmin } = await scenario();
+    expect((await asAdmin(`/members/${bob.id}/appoint-admin`, {})).status).toBe(403);
+    expect(
+      (await request(`${GOOGLE}/members/${bob.id}/appoint-admin`, await appoint(alice.id, "alice"), {})).status,
+    ).toBe(403);
+    // Bob has no Google account.
+    const refused = await owner(`/members/${bob.id}/appoint-admin`, {});
+    expect(refused.status).toBe(400);
+    expect(refused.data.error.message).toContain("Google");
+    // With the flag off, nobody is appointed.
+    const dave = await approveMember(ctx, "Dave");
+    await db.prepare("UPDATE members SET google_sub = 'google-dave' WHERE id = ?").bind(dave.id).run();
+    expect((await request(`${ctx.base}/members/${dave.id}/appoint-admin`, ctx.admin.cookie, {}, "0")).status).toBe(403);
+    expect((await owner(`/members/${dave.id}/appoint-admin`, {})).status).toBe(200);
+    expect(await role(dave.id)).toEqual({ role: "admin", status: "active" });
+    expect((await owner(`/members/${dave.id}/appoint-admin`, {})).status).toBe(400);
+    expect((await owner("/members")).data.active.find((m: { id: string }) => m.id === dave.id)).toMatchObject({
+      isAdmin: true,
+      isOrganizer: false,
+    });
+  });
+
+  it("promotes an organizer, who keeps their events, and demotes them again", async () => {
+    const { alice, org, owner } = await scenario();
+    const created = await request(`${GOOGLE}/events`, org, {
+      date: futureDate(8),
+      startTime: "19:00",
+      endTime: "21:00",
+      location: "Alice Gym",
+      deadlineDays: 1,
+      deadlineHours: 0,
+    });
+    const e = (await created.json()) as { id: number };
+    const up = await withMail(() => appointAdmin(mailEnv, alice.id));
+    expect(up).toMatchObject({ from: "organizer", emailStatus: "sent" });
+    expect(emails[0]!.subject).toBe("你已成为羽毛球群的管理员");
+    expect(emails[0]!.text).toContain("保留不变");
+    expect(await role(alice.id)).toEqual({ role: "admin", status: "active" });
+    expect(await db.prepare("SELECT manager_id, payee_id FROM events WHERE id = ?").bind(e.id).first()).toEqual({
+      manager_id: alice.id,
+      payee_id: alice.id,
+    });
+    // Now she sees the whole group.
+    expect((await request(`${GOOGLE}/members/M001/profile`, org)).status).toBe(200);
+    expect((await request(`${GOOGLE}/settings`, org)).status).toBe(200);
+
+    const down = await owner(`/members/${alice.id}/demote-admin`, {});
+    expect(down.status).toBe(200);
+    expect(await role(alice.id)).toEqual({ role: "organizer", status: "active" });
+    expect((await request(`${GOOGLE}/settings`, org)).status).toBe(403);
+    expect(await db.prepare("SELECT manager_id FROM events WHERE id = ?").bind(e.id).first()).toEqual({
+      manager_id: alice.id,
+    });
+    expect((await owner(`/members/${alice.id}/demote-admin`, {})).status).toBe(400);
+  });
+
+  it("revokes an admin like an organizer: their events go back to the Owner", async () => {
+    const { carol, owner, asAdmin } = await scenario();
+    const res = await asAdmin("/events", {
+      date: futureDate(9),
+      startTime: "19:00",
+      endTime: "21:00",
+      location: "Carol Gym",
+      deadlineDays: 1,
+      deadlineHours: 0,
+    });
+    const preview = await owner(`/members/${carol.id}/revoke`);
+    expect(preview.data.events.map((e: { outcome: string }) => e.outcome)).toEqual(["to_owner"]);
+    expect((await owner(`/members/${carol.id}/revoke`, {})).status).toBe(200);
+    expect(await role(carol.id)).toEqual({ role: "member", status: "active" });
+    expect(await db.prepare("SELECT manager_id, payee_id FROM events WHERE id = ?").bind(res.data.id).first()).toEqual({
+      manager_id: "M001",
+      payee_id: "M001",
+    });
   });
 });

@@ -40,9 +40,9 @@ PR 2 合并后、PR 3 合并前，staging 上任命的管理员会看到组织�
 ## PR 2 · 任命、升降、撤销管理员
 
 - 新文件或在 `appointments.ts` 里加：`appointAdmin`（成员或组织者 → 管理员；条件同组织者：状态正常、绑定了 Google；组织者升级时活动、收款设置、Telegram 都保留）、`demoteAdmin`（→ 组织者，活动保留）、`revokeAdmin`（→ 成员，复用撤销组织者的交回逻辑）。写入都用带条件的 `UPDATE`，防并发。
-- 接口：`POST /members/:id/appoint-admin`、`POST /members/:id/demote-admin`、`GET/POST /members/:id/revoke-admin`（预览同组织者），都登记为 `cap("owner")`；「不再当管理员」复用 `/organizer/retire`（改名或加别名，`self`）。
+- 接口：`POST /members/:id/appoint-admin`、`POST /members/:id/demote-admin`，登记为 `cap("owner")`。撤销管理员复用 `GET/POST /members/:id/revoke`（PR 1 起已能撤销管理员，`memberTarget` 让只有群主能对管理员用）；「不再当管理员」复用 `/organizer/retire`（`self`）。
 - 停用一个管理员：只有群主能做（PR 1 的 `memberTarget`），先撤销再停用。
-- `GET /members`：`organizers` 区块旁加 `admins` 区块（谁是管理员、任命时间、收款设置和 Telegram 状态），每个成员加 `isAdmin`；`canManage` 改按能力返回。
+- `GET /members`：管理员和组织者放在同一个区块（`organizers.list` 每行带 `role`，页面标题变成「管理员和组织者」），每个成员加 `isAdmin`；`canManage` 仍是 `group`（管理员能管组织者），对管理员的撤销按钮只给群主。
 - 成员页按钮（只有群主看到）：「设为管理员」「升为管理员」「降为组织者」「撤销管理员」；管理员徽章。
 - 任命和撤销的通知邮件，文案同组织者，写明管理员能做什么、不能做什么。
 - **测试**：每种升降路径；对没绑定 Google 的人任命失败；撤销时活动的交回同组织者；并发任命/撤销；管理员调这些接口 403。

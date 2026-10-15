@@ -6,9 +6,11 @@ import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } fr
 import { type AdminEnv, adminAccess, assertMayActOn } from "../access";
 import { ROLE_TITLE, STAFF_SQL, can, isStaff, memberRole, ownerId } from "../organizers";
 import {
+  appointAdmin,
   appointOrganizer,
   assertNotRunning,
   assertOrganizersOn,
+  demoteAdmin,
   organizersBlock,
   revokeImpact,
   revokeOrganizer,
@@ -61,12 +63,15 @@ adminRoutes.get("/:token/members", async (c) => {
     owingByMember(c.env, can(actor.role, "group") ? null : actor.memberId),
     organizersBlock(c.env, can(actor.role, "group")),
   ]);
-  const all = results.map((m) => ({
-    ...toSummary(m),
-    owingCents: owing.get(m.id) ?? 0,
-    // Admins too until the page tells them apart (admin-role-tasks PR 2): 停用 revokes either.
-    isOrganizer: isStaff(memberRole(c.env, m)),
-  }));
+  const all = results.map((m) => {
+    const role = memberRole(c.env, m);
+    return {
+      ...toSummary(m),
+      owingCents: owing.get(m.id) ?? 0,
+      isOrganizer: role === "organizer",
+      isAdmin: role === "admin",
+    };
+  });
   return c.json<MembersResponse>({
     pending: all.filter((m) => m.status === "pending"),
     active: all.filter((m) => m.status === "active"),
@@ -83,7 +88,19 @@ adminRoutes.post("/:token/members/:id/appoint", async (c) => {
   return c.json(await appointOrganizer(c.env, c.req.param("id"), c.get("actor").memberId));
 });
 
-/** What 撤销组织者 would do, for the confirmation. */
+/** 设为管理员 / 升为管理员 (admin-role.zh.md §8; Owner only). */
+adminRoutes.post("/:token/members/:id/appoint-admin", async (c) => {
+  assertOrganizersOn(c.env);
+  return c.json(await appointAdmin(c.env, c.req.param("id")));
+});
+
+/** 降为组织者 (Owner only): keeps their events. */
+adminRoutes.post("/:token/members/:id/demote-admin", async (c) => {
+  assertOrganizersOn(c.env);
+  return c.json(await demoteAdmin(c.env, c.req.param("id")));
+});
+
+/** What 撤销组织者 / 撤销管理员 would do, for the confirmation. */
 adminRoutes.get("/:token/members/:id/revoke", async (c) => {
   assertOrganizersOn(c.env);
   const m = await target(c);
