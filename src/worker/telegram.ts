@@ -105,12 +105,28 @@ export async function sendToMember(env: Env, memberId: string, html: string): Pr
   return sendTo(env, m.chat_id, html);
 }
 
+/**
+ * Sends to every current admin's own chat (新成员申请, admin-role.zh.md §6), only while the feature
+ * is on. True when at least one of them got it.
+ */
+export async function sendToAdmins(env: Env, html: string): Promise<boolean> {
+  if (!organizersEnabled(env)) return false;
+  const { results } = await env.DB.prepare(
+    `SELECT t.chat_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
+     WHERE t.chat_id IS NOT NULL AND m.role = 'admin' AND ${currentStaffSql("m")}`,
+  ).all<{ chat_id: string }>();
+  const sent = await Promise.all(results.map((r) => sendTo(env, r.chat_id, withAdminLink(env, html, true))));
+  return sent.some(Boolean);
+}
+
 export interface ManagerDelivery {
   ok: boolean;
   /** Whether it went to the Owner: the event is theirs, or it fell back to them. */
   owner: boolean;
-  /** The organizer who runs the event, when that is not the Owner. */
+  /** The organizer or admin who runs the event, when that is not the Owner. */
   organizer: string | null;
+  /** 组织者 or 管理员, when it went to them: the Owner's copy names them so. */
+  title: string | null;
   /** The organizer's chat when it went there. */
   chatId: string | null;
 }
@@ -157,7 +173,8 @@ async function sendToResponsible(
   why_: { off: (name: string) => string; former: (name: string) => string },
 ): Promise<ManagerDelivery> {
   const m = id ? await recipient(env.DB, id) : null;
-  if (!m || m.is_owner === 1) return { ok: await sendToOwner(env, html), owner: true, organizer: null, chatId: null };
+  if (!m || m.is_owner === 1)
+    return { ok: await sendToOwner(env, html), owner: true, organizer: null, title: null, chatId: null };
   const name = escapeHtml(m.username);
   let why: string;
   const role = memberRole(env, m);
@@ -165,21 +182,21 @@ async function sendToResponsible(
   else if (!isStaff(role)) why = why_.former(name);
   else if (!m.chat_id) why = `${ROLE_TITLE[role]} ${name} 还没连接 Telegram`;
   else if (await sendTo(env, m.chat_id, withAdminLink(env, html, adminPage)))
-    return { ok: true, owner: false, organizer: m.username, chatId: m.chat_id };
+    return { ok: true, owner: false, organizer: m.username, title: ROLE_TITLE[role], chatId: m.chat_id };
   else why = `发给${ROLE_TITLE[role]} ${name} 的 Telegram 没有成功`;
   const ok = await sendToOwner(env, `ℹ️ ${why}，这条发给群主。\n${html}`);
-  return { ok, owner: true, organizer: m.username, chatId: null };
+  return { ok, owner: true, organizer: m.username, title: null, chatId: null };
 }
 
-/** sendToPayee, plus a copy for the Owner when the organizer got it (转发可能中断). */
+/** sendToPayee, plus a copy for the Owner when the organizer or admin got it (转发可能中断). */
 export async function sendToPayeeAndOwner(env: Env, payeeId: string, html: string): Promise<boolean> {
   const d = await sendToPayee(env, payeeId, html);
-  if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：组织者 ${escapeHtml(d.organizer!)} 的收款账户\n${html}`);
+  if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：${d.title} ${escapeHtml(d.organizer!)} 的收款账户\n${html}`);
   return d.ok;
 }
 
 /**
- * sendToManager, plus a copy for the Owner when an organizer got it (群主抄送: only 新活动发起,
+ * sendToManager, plus a copy for the Owner when an organizer or admin got it (群主抄送: only 新活动发起,
  * 结算完成 and 收齐). The copy is best effort: the notice counts as sent once the manager has it.
  */
 export async function sendToManagerAndOwner(
@@ -189,7 +206,7 @@ export async function sendToManagerAndOwner(
   adminPage = false,
 ): Promise<boolean> {
   const d = await sendToManager(env, e, html, adminPage);
-  if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：组织者 ${escapeHtml(d.organizer!)} 负责的活动\n${html}`);
+  if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：${d.title} ${escapeHtml(d.organizer!)} 负责的活动\n${html}`);
   return d.ok;
 }
 

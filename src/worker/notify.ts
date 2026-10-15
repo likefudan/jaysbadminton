@@ -5,7 +5,7 @@ import type { Env } from "./env";
 import { type EventRow, closeExpired, roster } from "./events";
 import { day, venue, when } from "./eventText";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
-import { eventManager, organizersEnabled } from "./organizers";
+import { ROLE_TITLE, eventManager, isStaff, memberRole, organizersEnabled } from "./organizers";
 import { drainPushes, sendRest } from "./push";
 import {
   WECHAT_BLOCK,
@@ -81,12 +81,19 @@ const eventLink = (env: Env, e: EventRow) => `${env.SITE_ORIGIN}/e/${e.code}`;
 
 /** The name of the organizer who runs the event; null for the Owner's events. */
 async function organizerOf(env: Env, e: EventRow): Promise<string | null> {
+  return (await managerOf(env, e))?.name ?? null;
+}
+
+/** Who runs the event and as what (管理员 / 组织者), when that is not the Owner. */
+async function managerOf(env: Env, e: EventRow): Promise<{ name: string; title: string } | null> {
   const id = await eventManager(env.DB, e);
   if (!id) return null;
-  const m = await env.DB.prepare("SELECT username, is_owner FROM members WHERE id = ?")
+  const m = await env.DB.prepare("SELECT username, is_owner, role, status, deleted_at FROM members WHERE id = ?")
     .bind(id)
-    .first<{ username: string; is_owner: number }>();
-  return !m || m.is_owner === 1 ? null : m.username;
+    .first<{ username: string; is_owner: number; role: string; status: string; deleted_at: string | null }>();
+  if (!m || m.is_owner === 1) return null;
+  const role = memberRole(env, m);
+  return { name: m.username, title: isStaff(role) ? ROLE_TITLE[role] : "组织者" };
 }
 
 /** 「（组织：某某）」 in the WeChat group texts of an organizer's event; nothing for the Owner's or with the feature off, as before. */
@@ -425,14 +432,14 @@ export async function notifyPayment(
 }
 
 /**
- * 新活动发起: the Owner hears when an organizer creates an event (their own, as before, send
+ * 新活动发起: the Owner hears when an organizer or admin creates an event (their own, as before, send
  * nothing). The organizer isn't told about what they just did.
  */
 export async function notifyCreated(env: Env, e: EventRow): Promise<void> {
-  const name = await organizerOf(env, e);
-  if (!name) return;
+  const by = await managerOf(env, e);
+  if (!by) return;
   await sendToOwner(
     env,
-    message(`🆕 组织者 ${name} 发起了新活动：\n${when(e)}\n地点：${venue(e)}\n${eventLink(env, e)}`),
+    message(`🆕 ${by.title} ${by.name} 发起了新活动：\n${when(e)}\n地点：${venue(e)}\n${eventLink(env, e)}`),
   );
 }

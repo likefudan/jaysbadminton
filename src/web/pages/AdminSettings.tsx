@@ -185,7 +185,7 @@ export function AdminRoleSettings(props: { base: string }) {
       />
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
       <ForwardingCard profile={p} />
-      <TelegramCard base={props.base} organizer status={telegram} reload={reloadTelegram} />
+      <TelegramCard base={props.base} organizer admin status={telegram} reload={reloadTelegram} />
       <ThemeCard base={props.base} />
       <FriendCap base={props.base} />
       <RemindersCard base={props.base} />

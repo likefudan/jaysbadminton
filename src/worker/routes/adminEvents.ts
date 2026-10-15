@@ -298,27 +298,36 @@ adminEventRoutes.get("/events/:id/audit", async (c) => {
   return c.json({ entries: await auditRows(c.env, e.id) });
 });
 
-/** 转交 (Owner): another organizer, or the Owner, runs the event; before Finalize the money goes too. */
+/**
+ * 转交 (Owner, admins): another organizer or admin, or the Owner, runs the event; before Finalize
+ * the money goes too, and whoever was paid hears of it unless they did it themselves.
+ */
 adminEventRoutes.post("/events/:id/transfer", async (c) => {
   assertOrganizersOn(c.env);
   const id = Number(c.req.param("id"));
   const before = await getEvent(c.env, id);
   await transferEvent(c.env, before.id, str((await readJson(c.req.raw)).to));
   const after = await getEvent(c.env, id);
+  const actor = c.get("actor");
+  const owner = await ownerId(c.env.DB);
+  const [paidBefore, paidAfter] = [before.payee_id ?? owner, after.payee_id ?? owner];
   await audit(c.env, id, actorId(c.get("actor")), "transfer", async () => {
     // Compared as people (NULL is the Owner, as in eventManager / eventPayee), so handing an event
     // to whoever already runs it records nothing.
-    const owner = await ownerId(c.env.DB);
-    const [from, to, paidBefore, paidAfter] = [
-      before.manager_id ?? owner,
-      after.manager_id ?? owner,
-      before.payee_id ?? owner,
-      after.payee_id ?? owner,
-    ];
+    const [from, to] = [before.manager_id ?? owner, after.manager_id ?? owner];
     if (from === to) return null;
     const payee = paidBefore === paidAfter ? `，收款人仍是 ${await payeeName(c.env.DB, paidAfter)}` : "，收款人一起换";
     return `把活动从 ${await payeeName(c.env.DB, from)} 转交给 ${await payeeName(c.env.DB, to)}${payee}`;
   });
+  if (paidBefore && paidAfter && paidBefore !== paidAfter && paidBefore !== actor.memberId) {
+    const [by, to] = await Promise.all([payeeName(c.env.DB, actor.memberId), payeeName(c.env.DB, paidAfter)]);
+    const label = `${after.date}${after.title ? ` ${after.title}` : ""}（${after.code}）`;
+    await sendToMember(
+      c.env,
+      paidBefore,
+      message(`🔁 ${by} 把活动 ${label} 转交给了 ${to}。\n成员的钱以后付给 ${to}，不再付给你。`),
+    );
+  }
   return c.json(await detail(c.env, after, c.get("actor").memberId));
 });
 
