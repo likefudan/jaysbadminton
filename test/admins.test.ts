@@ -49,6 +49,11 @@ describe("an admin", () => {
     expect(events.current.map((e: { id: number }) => e.id).sort()).toEqual([theirs.id, mine.id].sort());
     expect((await asAdmin(`/events/${theirs.id}`)).status).toBe(200);
     expect(await (await request("/api/auth/session", admin)).json()).toMatchObject({ role: "admin" });
+    // The pages show what the caps allow: everything but the Owner's own.
+    const { caps } = (await asAdmin("/members")).data.viewer;
+    expect(caps).toContain("group");
+    expect(caps).toContain("data");
+    expect(caps).not.toContain("owner");
   });
 
   it("creates events they run and are paid for", async () => {

@@ -4,7 +4,7 @@ import { type Context, Hono } from "hono";
 import { checkPassword as checkPasswordRule } from "../../shared/rules";
 import type { ApproveResponse, LinkResponse, MemberProfile, MembersResponse } from "../../shared/types";
 import { type AdminEnv, adminAccess, assertMayActOn } from "../access";
-import { ROLE_TITLE, STAFF_SQL, can, isStaff, memberRole, ownerId } from "../organizers";
+import { ROLE_CAPABILITIES, ROLE_TITLE, STAFF_SQL, can, isStaff, memberRole, ownerId } from "../organizers";
 import {
   appointAdmin,
   appointOrganizer,
@@ -78,7 +78,7 @@ adminRoutes.get("/:token/members", async (c) => {
     inactive: all.filter((m) => m.status === "inactive" && !m.deletedAt),
     deleted: all.filter((m) => !!m.deletedAt),
     organizers,
-    viewer: { id: actor.memberId, role: actor.role },
+    viewer: { id: actor.memberId, role: actor.role, caps: [...ROLE_CAPABILITIES[actor.role]] },
   });
 });
 

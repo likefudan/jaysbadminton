@@ -62,14 +62,14 @@ export async function sendApprovalEmail(env: Env, id: string): Promise<ApprovalE
   const mail = m.google_sub
     ? {
         subject: "你的羽毛球社群申请已通过审核",
-        text: `${m.username}，你好！\n你的入群申请已通过群主审核。\n请使用申请时的 Google 账号登录，即可报名活动、查看自己的活动和账单。\n${site(env, "/login")}`,
+        text: `${m.username}，你好！\n你的入群申请已通过审核。\n请使用申请时的 Google 账号登录，即可报名活动、查看自己的活动和账单。\n${site(env, "/login")}`,
       }
     : {
         subject: "你的羽毛球群专属链接",
         text: linkEmailText(
           m,
           memberLink(new URL(env.SITE_ORIGIN).origin, await revealMemberToken(env, m)),
-          "你的入群申请已通过群主审核。",
+          "你的入群申请已通过审核。",
         ),
       };
   const status = await sendEmail(env, { to, ...mail, key: `member-approval/${id}/${m.approved_at}` });

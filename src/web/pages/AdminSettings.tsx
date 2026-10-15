@@ -154,6 +154,63 @@ export function OrganizerSettings(props: { base: string }) {
   );
 }
 
+/**
+ * 设置 for an admin (admin-role.zh.md): their own payment settings, forwarding and Telegram as an
+ * organizer has them, then the group's settings, export and the Sheets status. The password, admin
+ * link, backup key, the Owner's Google sign-in and payment settings, and 清空数据 stay the Owner's.
+ */
+export function AdminRoleSettings(props: { base: string }) {
+  const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
+  const p = profile.state === "ok" ? profile.data : null;
+  const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
+  const [sub, setSub] = useState<"sheets" | null>(null);
+
+  if (sub === "sheets") {
+    return (
+      <>
+        <button type="button" class="back" onClick={() => setSub(null)}>
+          ‹ 设置
+        </button>
+        <SheetsCard base={props.base} readOnly />
+      </>
+    );
+  }
+  return (
+    <>
+      <OrganizerGuide
+        admin
+        payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}
+        forwarding={done(profile, (d) => !!d.lastVenmoEmailAt)}
+        telegram={done(telegram, (d) => (d.botReady ? d.connected : null))}
+      />
+      <MyPaymentCard base={props.base} profile={profile} reload={reload} />
+      <ForwardingCard profile={p} />
+      <TelegramCard base={props.base} organizer status={telegram} reload={reloadTelegram} />
+      <ThemeCard base={props.base} />
+      <FriendCap base={props.base} />
+      <RemindersCard base={props.base} />
+      <ExportCard base={props.base} />
+      <Card>
+        <button type="button" class="menu-row" onClick={() => setSub("sheets")}>
+          <span>
+            <strong>Google 表格同步</strong>
+            <small>看看每天的备份是否正常</small>
+          </span>
+          <span class="chevron">›</span>
+        </button>
+      </Card>
+      <RetireCard base={props.base} title="管理员" />
+      <button
+        type="button"
+        class="button secondary block"
+        onClick={() => signOutGoogle().catch(() => location.assign("/login"))}
+      >
+        退出登录
+      </button>
+    </>
+  );
+}
+
 /** A checklist step's state: undefined while loading; a status that failed to load counts as not done. */
 function done<T, R>(loaded: Loaded<T>, test: (data: T) => R): R | false | undefined {
   if (loaded.state === "ok") return test(loaded.data);
@@ -323,25 +380,26 @@ function ForwardingCard(props: { profile: PaymentProfile | null }) {
 }
 
 /** 不再当组织者: the same as being revoked, by oneself; afterwards the admin page is closed to them. */
-function RetireCard(props: { base: string }) {
+function RetireCard(props: { base: string; title?: "管理员" | "组织者" }) {
+  const title = props.title ?? "组织者";
   const { busy, error, run } = useAction();
   async function retire() {
     const preview = await run(() => api<{ events: RevokeImpact[] }>(`${props.base}/organizer/retire`));
     if (!preview) return;
     if (
       !confirm(
-        `确定不再当组织者？${revokeSummary(preview.events, "你")}\n\n之后你就进不了管理页了，想再当组织者要请群主重新任命。`,
+        `确定不再当${title}？${revokeSummary(preview.events, "你")}\n\n之后你就进不了管理页了，想再当${title}要请群主重新任命。`,
       )
     )
       return;
     if (await run(() => api(`${props.base}/organizer/retire`, {}))) location.assign("/me");
   }
   return (
-    <Card title="不再当组织者">
+    <Card title={`不再当${title}`}>
       <p class="muted small">你负责的活动会交给群主。已经结算的活动，成员的钱仍然付到你的账户，直到收齐。</p>
       {error && <p class="error">{error}</p>}
       <button type="button" class="button danger block" disabled={busy} onClick={retire}>
-        不再当组织者
+        不再当{title}
       </button>
     </Card>
   );

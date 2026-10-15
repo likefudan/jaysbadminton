@@ -156,7 +156,7 @@ export function ProfileCard(props: {
             base={props.base}
             note={p.adminNote ?? ""}
             readOnly={!!props.noteReadOnly}
-            label={props.organizers ? t("备注名（只有群主和组织者能看到）") : t("备注名（只有群主能看到）")}
+            label={props.organizers ? t("备注名（只有群主、管理员和组织者能看到）") : t("备注名（只有群主能看到）")}
             onChange={props.onChange}
           />
         )}

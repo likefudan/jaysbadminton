@@ -102,7 +102,7 @@ function SignIn(props: { googleEnabled: boolean }) {
   const code = ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""];
   const error = code && t(code);
   return (
-    <Page title={t("登录 / 注册")} subtitle={t("已经是成员就登录；新朋友在这里申请入群，群主审核后就能报名。")}>
+    <Page title={t("登录 / 注册")} subtitle={t("已经是成员就登录；新朋友在这里申请入群，审核通过后就能报名。")}>
       {error && (
         <p class="error" role="alert">
           {error}
@@ -146,7 +146,7 @@ export function Account(props: { page?: "profile" }) {
           return (
             <Page title={t("申请已提交")} subtitle={t("Google 账号：{email}", { email: s.email ?? "" })}>
               <Card>
-                <p>{t("群主审核通过后，用这个 Google 账号登录就能报名活动、查看账单。")}</p>
+                <p>{t("审核通过后，用这个 Google 账号登录就能报名活动、查看账单。")}</p>
                 <p class="muted small">{t("审核前还不能报名。你可以刷新查看审核状态。")}</p>
                 {s.emailNotificationsEnabled && (
                   <p class="muted small">{t("审核通过后会向你的 Google 邮箱发送通知，请留意收件箱和垃圾邮件。")}</p>
@@ -221,7 +221,7 @@ function Profile(props: { email: string; onDone: () => void }) {
                 message={message}
                 setMessage={setMessage}
               />
-              <p class="muted small">{t("提交后需要群主审核，通过后才能报名活动。")}</p>
+              <p class="muted small">{t("提交后需要审核，通过后才能报名活动。")}</p>
             </>
           )}
           {error && (

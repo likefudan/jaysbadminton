@@ -39,7 +39,11 @@ test("the admin reviews application details, sees email failure and retries with
         inactive: [],
         deleted: [],
         organizers: null,
-        viewer: { id: "M001", role: "owner" },
+        viewer: {
+          id: "M001",
+          role: "owner",
+          caps: ["owner", "data", "group", "events.create", "event", "payee", "members.read", "self"],
+        },
       },
     }),
   );

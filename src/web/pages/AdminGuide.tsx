@@ -255,13 +255,19 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
  * `telegram` from the status the Telegram card shares, so connecting there ticks it here; null when
  * the site has no Telegram bot, so there is nothing to connect. Undefined means still loading.
  */
-export function OrganizerGuide(props: { payment?: boolean; forwarding?: boolean; telegram?: boolean | null }) {
+export function OrganizerGuide(props: {
+  payment?: boolean;
+  forwarding?: boolean;
+  telegram?: boolean | null;
+  /** 给管理员的说明: the same first steps; they run the whole group, not only their own events. */
+  admin?: boolean;
+}) {
   const { payment, forwarding, telegram } = props;
   // The first Venmo email can take days, so the list must not fold away when it ticks.
   const known = payment !== undefined && forwarding !== undefined && telegram !== undefined;
   const open = useOpenOnce(known ? !(payment && forwarding && telegram !== false) : undefined);
   return (
-    <Card title="给组织者的说明">
+    <Card title={props.admin ? "给管理员的说明" : "给组织者的说明"}>
       <Section title="一、开始前要做的事" open={open}>
         <ol class="checklist">
           <Step done={payment}>
@@ -289,10 +295,19 @@ export function OrganizerGuide(props: { payment?: boolean; forwarding?: boolean;
             没有自动对上的 Venmo 付款在「收款 › 待确认」里，关联到对应的账单；Zelle
             和现金在活动的账单里手动标记已付。全部付清后活动自动归档。
           </li>
+          {props.admin ? (
+            <li>
+              你还能像群主一样管理整个群：审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、修改下面的群设置、导出数据。群主和管理员（包括你自己）的成员记录、任命管理员、密码和密钥、清空数据、永久删除只有群主能做。
+            </li>
+          ) : (
+            <li>
+              群主能看到并修改你的活动，会收到发起、结算完成、收齐三条抄送。你看不到别人负责的活动和收款；「待审核」「成员」只能看，不能改。
+            </li>
+          )}
           <li>
-            群主能看到并修改你的活动，会收到发起、结算完成、收齐三条抄送。你看不到别人负责的活动和收款；「待审核」「成员」只能看，不能改。
+            不想再当{props.admin ? "管理员" : "组织者"}时，点下面的「不再当{props.admin ? "管理员" : "组织者"}
+            」，弹窗会先列出你的活动会怎么处理。
           </li>
-          <li>不想再当组织者时，点下面的「不再当组织者」，弹窗会先列出你的活动会怎么处理。</li>
         </ul>
       </Section>
     </Card>

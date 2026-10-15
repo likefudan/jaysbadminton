@@ -15,9 +15,9 @@ import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../componen
 import { useApi } from "../hooks";
 import { EventsTab } from "./AdminEvents";
 import { InboundTab } from "./AdminInbound";
-import { OrganizerSettings, Settings } from "./AdminSettings";
+import { AdminRoleSettings, OrganizerSettings, Settings } from "./AdminSettings";
 import { ProfileCard } from "../Profile";
-import { revokeSummary } from "../organizers";
+import { has, revokeSummary } from "../organizers";
 
 type Tab = "events" | "inbound" | "pending" | "members" | "settings";
 
@@ -86,14 +86,16 @@ export function Admin(props: { token?: string }) {
             {tab === "events" && (
               <EventsTab base={base} members={m.active} organizers={m.organizers} viewer={m.viewer} />
             )}
-            {tab === "inbound" && <InboundTab base={base} owner={m.viewer.role === "owner"} />}
+            {tab === "inbound" && <InboundTab base={base} owner={has(m.viewer, "owner")} />}
             {tab === "pending" && (
-              <Pending base={base} list={m.pending} readOnly={m.viewer.role !== "owner"} onChange={reload} />
+              <Pending base={base} list={m.pending} readOnly={!has(m.viewer, "group")} onChange={reload} />
             )}
             {tab === "members" && <Members base={base} data={m} onChange={reload} />}
             {tab === "settings" &&
-              (m.viewer.role === "owner" ? (
+              (has(m.viewer, "owner") ? (
                 <Settings base={base} viaGoogle={props.token === "google"} />
+              ) : has(m.viewer, "group") ? (
+                <AdminRoleSettings base={base} />
               ) : (
                 <OrganizerSettings base={base} />
               ))}
@@ -104,18 +106,19 @@ export function Admin(props: { token?: string }) {
   );
 }
 
-/** /admin/google without the bound Google account (or an organizer's) signed in, or with another one. */
+/** /admin/google without the bound Google account (or an admin's or organizer's) signed in, or with another one. */
 function GoogleAdminLogin() {
   const [session] = useApi<{ signedIn: boolean; email: string | null; organizers?: boolean }>("/api/auth/session");
   const other = session.state === "ok" && session.data.signedIn ? session.data.email : null;
-  // With the 组织者 feature on, organizers come in this way too.
+  // With the 组织者 feature on, admins and organizers come in this way too.
   const organizers = session.state === "ok" && !!session.data.organizers;
   return (
     <Page title={organizers ? "管理页登录" : "群主登录"}>
       <Card>
         {other && (
           <p class="error">
-            当前登录的 Google 账号 {other} {organizers ? "不是群主绑定的账号，也不是组织者。" : "不是群主绑定的账号。"}
+            当前登录的 Google 账号 {other}{" "}
+            {organizers ? "不是群主绑定的账号，也不是管理员或组织者。" : "不是群主绑定的账号。"}
           </p>
         )}
         <button
@@ -127,7 +130,7 @@ function GoogleAdminLogin() {
         </button>
         <p class="muted small">
           {organizers
-            ? "群主在管理页「设置」里绑定过的 Google 账号，以及组织者自己的 Google 账号能进。群主没绑定的话，请用管理链接和密码登录。"
+            ? "群主在管理页「设置」里绑定过的 Google 账号，以及管理员和组织者自己的 Google 账号能进。群主没绑定的话，请用管理链接和密码登录。"
             : "只有在管理页「设置」里绑定过的那个 Google 账号能进。没绑定的话，请用管理链接和密码登录。"}
         </p>
       </Card>
@@ -239,7 +242,7 @@ function approvalEmailMessage(status?: ApprovalEmailStatus, byEmail = false): st
   return "成员已通过审核，可以使用 Google 账号登录。";
 }
 
-/** 待审核; organizers see it read-only (Ke Li 2026-10-04): the same list, without 通过 / 拒绝. */
+/** 待审核: the Owner and admins approve; organizers see it read-only (Ke Li 2026-10-04): the same list, without 通过 / 拒绝. */
 function Pending(props: { base: string; list: MemberSummary[]; readOnly: boolean; onChange: () => void }) {
   const [issued, setIssued] = useState<{
     name: string;
@@ -293,7 +296,7 @@ function Pending(props: { base: string; list: MemberSummary[]; readOnly: boolean
         </Card>
       )}
       <Card title="待审核申请">
-        {props.readOnly && <p class="muted small">只有群主可以通过或拒绝申请。</p>}
+        {props.readOnly && <p class="muted small">只有群主和管理员可以通过或拒绝申请。</p>}
         {error && <p class="error">{error}</p>}
         {props.list.length === 0 && <Empty>没有待审核的申请</Empty>}
         {props.list.map((m) => (
@@ -319,11 +322,16 @@ function Pending(props: { base: string; list: MemberSummary[]; readOnly: boolean
   );
 }
 
-/** 成员; organizers see the same lists read-only (no links, notes, appointing or 停用). */
+/**
+ * 成员: the Owner and admins manage it; organizers see the same lists read-only (no links, notes,
+ * appointing or 停用). Admins leave the Owner's and admins' rows alone (access.ts memberTarget).
+ */
 function Members(props: { base: string; data: MembersResponse; onChange: () => void }) {
-  const readOnly = props.data.viewer.role !== "owner";
-  /** Appointing, demoting and revoking admins: the Owner's alone. */
-  const ownerView = props.data.viewer.role === "owner";
+  const readOnly = !has(props.data.viewer, "group");
+  /** Appointing, demoting and revoking admins, and deleting members: the Owner's alone. */
+  const ownerView = has(props.data.viewer, "owner");
+  /** Links, 停用 and the rest on this row: an admin may not act on the Owner or an admin, themselves included. */
+  const mayActOn = (m: MemberSummary) => ownerView || (!m.isOwner && !m.isAdmin);
   const [shown, setShown] = useState<{ name: string; link: string; fresh: boolean } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const { busy, error, run } = useAction();
@@ -500,7 +508,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
         {props.data.active.map((m) => (
           <div class="row" key={m.id}>
             {who(m, openMember)}
-            {!readOnly && (
+            {!readOnly && mayActOn(m) && (
               <div class="actions">
                 {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && (
                   <button type="button" class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>
@@ -591,14 +599,16 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
                     <button type="button" class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
                       恢复
                     </button>
-                    <button
-                      type="button"
-                      class="button danger"
-                      disabled={busy || m.owingCents > 0}
-                      onClick={() => remove(m)}
-                    >
-                      删除
-                    </button>
+                    {ownerView && (
+                      <button
+                        type="button"
+                        class="button danger"
+                        disabled={busy || m.owingCents > 0}
+                        onClick={() => remove(m)}
+                      >
+                        删除
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

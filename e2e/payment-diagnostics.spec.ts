@@ -28,7 +28,11 @@ test("Owner can enable diagnosis, inspect the failed layer and disable recording
         inactive: [],
         deleted: [],
         organizers: null,
-        viewer: { id: "M001", role: "owner" },
+        viewer: {
+          id: "M001",
+          role: "owner",
+          caps: ["owner", "data", "group", "events.create", "event", "payee", "members.read", "self"],
+        },
       },
     }),
   );

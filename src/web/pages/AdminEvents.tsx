@@ -16,6 +16,7 @@ import { Card, CopyButton, Empty, Field, Load, useAction } from "../components";
 import { EventInfo } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { useApi } from "../hooks";
+import { has } from "../organizers";
 import { Billing } from "./AdminSettle";
 
 const PAST_PAGE = 30;
@@ -27,8 +28,8 @@ export function EventsTab(props: {
   viewer: AdminViewer;
 }) {
   const [pastShown, setPastShown] = useState(PAST_PAGE);
-  // The Owner, with the 组织者 feature on, sees who runs each event and can show one person's.
-  const byManager = props.viewer.role === "owner" && !!props.organizers;
+  // The Owner and admins, with the 组织者 feature on, see who runs each event and can show one person's.
+  const byManager = has(props.viewer, "group") && !!props.organizers;
   const [manager, setManager] = useState("");
   const path = `${props.base}/events?past=${pastShown}${byManager && manager ? `&manager=${encodeURIComponent(manager)}` : ""}`;
   const [list, reload] = useApi<{
@@ -53,7 +54,7 @@ export function EventsTab(props: {
     return (
       <CreateEvent
         base={props.base}
-        owner={props.viewer.role === "owner"}
+        owner={has(props.viewer, "group")}
         onDone={(id) => {
           reload();
           setMode(id ?? "list");
@@ -94,7 +95,7 @@ export function EventsTab(props: {
             ))}
             {formerManagers.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.name}（已不是组织者）
+                {o.name}（已卸任）
               </option>
             ))}
           </select>
@@ -378,7 +379,7 @@ function EventAdminBody(props: {
   onBack: () => void;
 }) {
   const e = props.e;
-  const isOwner = props.viewer.role === "owner";
+  const isOwner = has(props.viewer, "owner");
   const owner = props.members.find((m) => m.isOwner);
   // Rows added from the admin page. With organizers, events change hands and either may have added
   // them, so the badge doesn't say who.
@@ -418,7 +419,7 @@ function EventAdminBody(props: {
         eb={eb}
         e={e}
         me={props.members.find((m) => m.id === props.viewer.id)}
-        asOwner={isOwner}
+        title={props.viewer.role === "owner" ? "群主" : props.viewer.role === "admin" ? "管理员" : "负责人"}
         onDone={props.onChange}
       />
 
@@ -658,7 +659,8 @@ function MySignup(props: {
   eb: string;
   e: EventDetail;
   me: MemberSummary | undefined;
-  asOwner: boolean;
+  /** 群主 / 管理员 / 负责人: why they may still change their sign-up after it closed. */
+  title: string;
   onDone: () => void;
 }) {
   const { e, me } = props;
@@ -738,9 +740,7 @@ function MySignup(props: {
             </button>
           )}
           {e.status === "closed" && (
-            <p class="muted small">
-              报名已截止，你作为{props.asOwner ? "群主" : "负责人"}仍可以修改自己的报名，直到结算。
-            </p>
+            <p class="muted small">报名已截止，你作为{props.title}仍可以修改自己的报名，直到结算。</p>
           )}
         </>
       )}

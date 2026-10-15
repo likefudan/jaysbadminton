@@ -1,5 +1,8 @@
-import type { RevokeImpact } from "../shared/types";
+import type { AdminViewer, Capability, RevokeImpact } from "../shared/types";
 import { formatDateZh } from "../shared/time";
+
+/** Whether the person on the admin pages may do this (the API enforces it; pages only hide what they may not). */
+export const has = (viewer: AdminViewer, cap: Capability) => viewer.caps.includes(cap);
 
 /**
  * The revoke (or step-down) confirmation: what happens to each of their events that is not

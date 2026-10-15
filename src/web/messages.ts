@@ -98,9 +98,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "You aren't signed up yourself; {n} friend(s) under your name are on the list, and they're on your bill.",
   },
   "你没有报名这次活动。": { tw: "你沒有報名這次活動。", en: "You didn't sign up for this event." },
-  "你的入群申请正在等待群主审核，通过后就能报名。": {
-    tw: "你的入群申請正在等待群主審核，通過後就能報名。",
-    en: "Your request to join is waiting for the group owner's approval. You can sign up once it's approved.",
+  "你的入群申请正在等待审核，通过后就能报名。": {
+    tw: "你的入群申請正在等待審核，通過後就能報名。",
+    en: "Your request to join is waiting for approval. You can sign up once it's approved.",
   },
   "你的报名、活动和账单。": { tw: "你的報名、活動和帳單。", en: "Your sign-ups, events and bills." },
   "你的统计、资料和账号设置。": { tw: "你的統計、資料和帳號設定。", en: "Your stats, details and account settings." },
@@ -179,9 +179,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   备注: { tw: "備註", en: "Memo" },
   备注名: { tw: "備註名", en: "Note name" },
-  "备注名（只有群主和组织者能看到）": {
-    tw: "備註名（只有群主和組織者能看到）",
-    en: "Note name (only the group owner and organizers see it)",
+  "备注名（只有群主、管理员和组织者能看到）": {
+    tw: "備註名（只有群主、管理員和組織者能看到）",
+    en: "Note name (only the group owner, admins and organizers see it)",
   },
   "备注名（只有群主能看到）": { tw: "備註名（只有群主能看到）", en: "Note name (only the group owner sees it)" },
   "备注里一定要带上这个编号，系统才能自动确认你的付款。": {
@@ -233,9 +233,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "已登录 Google": { tw: "已登入 Google", en: "Signed in with Google" },
   "已登录 Google：{email}": { tw: "已登入 Google：{email}", en: "Signed in with Google: {email}" },
   "已登录：{email}": { tw: "已登入：{email}", en: "Signed in: {email}" },
-  "已经是成员就登录；新朋友在这里申请入群，群主审核后就能报名。": {
-    tw: "已經是成員就登入；新朋友在這裡申請入群，群主審核後就能報名。",
-    en: "Members, sign in here. New friends can ask to join here and sign up once the group owner approves.",
+  "已经是成员就登录；新朋友在这里申请入群，审核通过后就能报名。": {
+    tw: "已經是成員就登入；新朋友在這裡申請入群，審核通過後就能報名。",
+    en: "Members, sign in here. New friends can ask to join here and sign up once approved.",
   },
   "已经是成员？找回我的专属链接": {
     tw: "已經是成員？找回我的專屬連結",
@@ -310,9 +310,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   推送通知: { tw: "推播通知", en: "Notifications" },
   "提交中…": { tw: "提交中…", en: "Submitting…" },
   提交入群申请: { tw: "提交入群申請", en: "Ask to join" },
-  "提交后需要群主审核，通过后才能报名活动。": {
-    tw: "提交後需要群主審核，通過後才能報名活動。",
-    en: "The group owner reviews your request; you can sign up for events once it's approved.",
+  "提交后需要审核，通过后才能报名活动。": {
+    tw: "提交後需要審核，通過後才能報名活動。",
+    en: "Your request will be reviewed; you can sign up for events once it's approved.",
   },
   提交申请: { tw: "提交申請", en: "Submit" },
   改为推送给我: { tw: "改為推播給我", en: "Send notifications to me instead" },
@@ -426,13 +426,13 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "網路連線失敗，請檢查網路後重試",
     en: "Network error. Check your connection and try again.",
   },
-  "群主审核通过后，你的专属链接会发到 {email}。以后报名、查看账单都用这个链接。": {
-    tw: "群主審核通過後，你的專屬連結會發到 {email}。以後報名、查看帳單都用這個連結。",
-    en: "Once the group owner approves you, your personal link will be sent to {email}. Use it to sign up and see your bills from then on.",
+  "审核通过后，你的专属链接会发到 {email}。以后报名、查看账单都用这个链接。": {
+    tw: "審核通過後，你的專屬連結會發到 {email}。以後報名、查看帳單都用這個連結。",
+    en: "Once you're approved, your personal link will be sent to {email}. Use it to sign up and see your bills from then on.",
   },
-  "群主审核通过后，用这个 Google 账号登录就能报名活动、查看账单。": {
-    tw: "群主審核通過後，用這個 Google 帳號登入就能報名活動、查看帳單。",
-    en: "Once the group owner approves you, sign in with this Google account to sign up for events and see your bills.",
+  "审核通过后，用这个 Google 账号登录就能报名活动、查看账单。": {
+    tw: "審核通過後，用這個 Google 帳號登入就能報名活動、查看帳單。",
+    en: "Once you're approved, sign in with this Google account to sign up for events and see your bills.",
   },
   "群昵称或微信号都可以，群主能认出你就行": {
     tw: "群暱稱或微信號都可以，群主能認出你就行",
@@ -553,13 +553,13 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   没有权限做这个操作: { tw: "沒有權限做這個操作", en: "You don't have permission to do that" },
   "请先使用 Google 登录": { tw: "請先使用 Google 登入", en: "Please sign in with Google first" },
-  "你的入群申请正在等待群主审核，通过后才能报名活动": {
-    tw: "你的入群申請正在等待群主審核，通過後才能報名活動",
-    en: "Your request to join is waiting for the group owner's approval. You can sign up for events once it's approved.",
+  "你的入群申请正在等待审核，通过后才能报名活动": {
+    tw: "你的入群申請正在等待審核，通過後才能報名活動",
+    en: "Your request to join is waiting for approval. You can sign up for events once it's approved.",
   },
-  "你的入群申请已经提交，请等待群主审核": {
-    tw: "你的入群申請已經提交，請等待群主審核",
-    en: "Your request to join has been sent. Please wait for the group owner's approval.",
+  "你的入群申请已经提交，请等待审核": {
+    tw: "你的入群申請已經提交，請等待審核",
+    en: "Your request to join has been sent. Please wait for approval.",
   },
   "此成员或 Google 账号已绑定，请使用原账号登录": {
     tw: "此成員或 Google 帳號已綁定，請使用原帳號登入",

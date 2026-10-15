@@ -1,3 +1,4 @@
+import type { Capability } from "../shared/types";
 import { getSettings } from "./db";
 import type { Env } from "./env";
 
@@ -23,7 +24,7 @@ export type Role = "owner" | "admin" | "organizer" | "member";
  * - members.read: the member and pending pages, read-only and without personal links
  * - self: one's own payment settings and Telegram
  */
-export type Capability = "owner" | "data" | "group" | "events.create" | "event" | "payee" | "members.read" | "self";
+export type { Capability };
 
 export const ROLE_CAPABILITIES: Record<Role, readonly Capability[]> = {
   owner: ["owner", "data", "group", "events.create", "event", "payee", "members.read", "self"],
