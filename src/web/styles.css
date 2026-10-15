@@ -518,6 +518,7 @@ select:focus {
 }
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -527,19 +528,21 @@ select:focus {
 .row:first-of-type {
   border-top: 0;
 }
-.row .who {
+.row > :first-child {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 10em;
 }
 .row .who small {
   display: block;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
+/* Buttons that don't fit beside the name drop below it instead of squeezing it. */
 .actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  margin-left: auto;
 }
 .actions .button {
   min-height: 40px;
@@ -553,6 +556,7 @@ select:focus {
 }
 .badge {
   display: inline-block;
+  white-space: nowrap;
   font-size: 12px;
   padding: 0 6px;
   border-radius: 6px;
