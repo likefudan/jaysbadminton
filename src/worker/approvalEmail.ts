@@ -2,8 +2,9 @@ import type { ApprovalEmailStatus } from "../shared/types";
 import type { Env } from "./env";
 import { now } from "./db";
 import { memberLink, requireMember, revealMemberToken, type MemberRow } from "./members";
-import { escapeHtml, sendToOwner } from "./telegram";
+import { escapeHtml, sendToAdmins, sendToOwner } from "./telegram";
 
+/** 新成员申请: to the Owner and every admin (Ke Li 2026-10-15); sent once anyone got it. */
 export async function sendApplicationNotice(env: Env, m: MemberRow): Promise<boolean> {
   const lines = [
     "新成员申请待审核",
@@ -13,7 +14,9 @@ export async function sendApplicationNotice(env: Env, m: MemberRow): Promise<boo
     m.application_message ? `留言：${m.application_message}` : "",
     "请在管理页「待审核」处理。",
   ];
-  return sendToOwner(env, escapeHtml(lines.filter(Boolean).join("\n")));
+  const text = escapeHtml(lines.filter(Boolean).join("\n"));
+  const [owner, admins] = await Promise.all([sendToOwner(env, text), sendToAdmins(env, text)]);
+  return owner || admins;
 }
 
 export type SendResult = "sent" | "failed" | "not_configured";
