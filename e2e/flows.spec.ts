@@ -235,7 +235,7 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
 
 test("public pages show the headcount and a link preview, never names", async ({ page }) => {
   await page.goto("/");
-  const row = page.locator(".event-link", { hasText: VENUE });
+  const row = page.locator(".next-event, .event-link", { hasText: VENUE });
   await expect(row).toContainText("3 人已报名");
   await expect(page.locator("main")).not.toContainText("小明");
   await expect(page.locator("main")).not.toContainText("阿强");

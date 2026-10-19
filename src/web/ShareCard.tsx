@@ -212,7 +212,7 @@ export function ShareCardButton(props: { text: CardText; filename: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button class="button secondary block" type="button" onClick={() => setOpen(true)}>
+      <button class="share-site" type="button" onClick={() => setOpen(true)}>
         {t("生成分享名片")}
       </button>
       {open && <ShareCardSheet {...props} onClose={() => setOpen(false)} />}
