@@ -1,52 +1,26 @@
 import { useState } from "preact/hooks";
 import type { EventSummary, HomeResponse, Leaderboard } from "../../shared/types";
-import { toPacific } from "../../shared/time";
 import { Empty, Load, Page, SectionTitle } from "../components";
-import { EventLink, StatusPill } from "../events";
+import { EventHero, EventLink, MiniEventCard } from "../events";
 import { useApi, useMemberSession } from "../hooks";
 import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
 import { ShareCardButton } from "../ShareCard";
 import { BOARDS } from "../Stats";
-import { fmtInstant, t, tx, weekdayOf } from "../i18n";
+import { t, tx } from "../i18n";
 
-const md = (date: string) => {
-  const [, m, d] = date.split("-").map(Number) as [number, number, number];
-  return `${m}/${d}`;
-};
-
-/** 今天 16:30 / 明天 16:30, else the full date and time. */
-function deadlineText(iso: string): string {
-  const p = toPacific(iso);
-  const today = toPacific(new Date()).date;
-  const tomorrow = toPacific(new Date(Date.now() + 86_400_000)).date;
-  if (p.date === today) return t("今天 {time}", { time: p.time });
-  if (p.date === tomorrow) return t("明天 {time}", { time: p.time });
-  return fmtInstant(iso);
-}
-
-/** The next event as one big card; 我的活动 (or 登录 / 注册) sits in its corner. */
+/** The next event as one big card; 报名 (or 登录 / 注册) sits in its corner. */
 function NextEvent(props: { e: EventSummary; cta: string }) {
   const e = props.e;
   const status = e.status === "open" ? { cls: "open", label: t("报名中") } : { cls: "closed", label: t("已截止") };
   return (
-    <section class="next-card">
+    <section class="next-card tone-hero">
       <a class="next-event" href={`/e/${e.code}`}>
-        <span class="next-top">
-          <StatusPill cls={status.cls} label={status.label} />
-          {e.status === "open" && <span>{t("截止 {time}", { time: deadlineText(e.deadlineAt) })}</span>}
-        </span>
-        <span class="next-date">
-          {md(e.date)}
-          <small>
-            {weekdayOf(e.date)} {e.startTime}
-          </small>
-        </span>
-        <span class="next-title">{e.title || e.location}</span>
-        {e.title && <span class="next-venue">{e.location}</span>}
-        <span class="next-count">
-          <span>{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</span>
-        </span>
+        <EventHero e={e} status={status}>
+          <span class="next-count">
+            <span>{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</span>
+          </span>
+        </EventHero>
       </a>
       <a class="next-cta" href="/me">
         {props.cta}
@@ -94,24 +68,10 @@ function Leaders(props: { board: Leaderboard }) {
   );
 }
 
-function PastCard(props: { e: EventSummary }) {
-  const e = props.e;
-  return (
-    <a class={e.status === "cancelled" ? "past-card cancelled" : "past-card"} href={`/e/${e.code}`}>
-      <span class="past-date">
-        {md(e.date)}
-        <small>{weekdayOf(e.date)}</small>
-      </span>
-      <span class="past-title">{e.title || e.location}</span>
-      <span class="past-count">{e.status === "cancelled" ? t("已取消") : t("{n} 人参加", { n: e.headcount })}</span>
-    </a>
-  );
-}
-
 export function Home() {
   const [home] = useApi<HomeResponse>("/api/public/home");
   const member = useMemberSession();
-  const cta = member === "member" || member === "pending" ? t("我的活动") : t("登录 / 注册");
+  const cta = member === "member" || member === "pending" ? t("报名") : t("登录 / 注册");
   return (
     <Page title={useSiteTitle()} bare>
       <Load result={home}>
@@ -147,7 +107,12 @@ export function Home() {
               ) : (
                 <div class="swipe">
                   {data.pastEvents.map((e) => (
-                    <PastCard key={e.id} e={e} />
+                    <MiniEventCard
+                      key={e.id}
+                      e={e}
+                      muted={e.status === "cancelled"}
+                      line={e.status === "cancelled" ? t("已取消") : t("{n} 人参加", { n: e.headcount })}
+                    />
                   ))}
                 </div>
               )}

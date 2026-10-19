@@ -155,7 +155,7 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   const card = page.locator(".card", { hasText: VENUE });
   await expect(card.locator(".event-notes")).toHaveText("请自带球拍\n提前十分钟到场");
   expect(await card.locator(".event-notes").evaluate((el) => getComputedStyle(el).whiteSpace)).toBe("pre-wrap");
-  await expect(card.locator(".event-notes + .ev-meta")).toContainText("报名截止");
+  await expect(card.locator(".hero-top")).toContainText("截止");
   await card.getByRole("button", { name: "报名" }).click();
   await expect(card.locator(".friends-row")).toContainText(/带朋友最多 \d+ 个朋友/);
   await card.locator(".stepper button").last().click();
@@ -281,7 +281,7 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await expect(page.getByText("✓ 已报名，带 1 个朋友")).toBeVisible();
   await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "我的活动", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "报名", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(0);
 
   // The Owner binds their Google account in 设置, then gets in with it alone.
