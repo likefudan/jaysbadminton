@@ -9,7 +9,14 @@ import { useLocation } from "preact-iso";
 import { isAdminPath, t, tm } from "./i18n";
 import { LangSwitch } from "./LangSwitch";
 
-export function Page(props: { title: string; eyebrow?: string; subtitle?: string; children: ComponentChildren }) {
+export function Page(props: {
+  title: string;
+  eyebrow?: string;
+  subtitle?: string;
+  /** No big title on the page itself (the home page: the top bar already names the site). */
+  bare?: boolean;
+  children: ComponentChildren;
+}) {
   const site = useSiteTitle();
   const staging = useStaging();
   const [looks, setLooks] = useState(false);
@@ -36,11 +43,15 @@ export function Page(props: { title: string; eyebrow?: string; subtitle?: string
       </header>
       {looks && <AppearanceSheet onClose={() => setLooks(false)} />}
       <main>
-        <div class="hero">
-          {props.eyebrow && <p class="eyebrow">{props.eyebrow}</p>}
-          <h1>{props.title}</h1>
-          {props.subtitle && <p class="subtitle">{props.subtitle}</p>}
-        </div>
+        {props.bare ? (
+          <h1 class="sr-only">{props.title}</h1>
+        ) : (
+          <div class="hero">
+            {props.eyebrow && <p class="eyebrow">{props.eyebrow}</p>}
+            <h1>{props.title}</h1>
+            {props.subtitle && <p class="subtitle">{props.subtitle}</p>}
+          </div>
+        )}
         {props.children}
       </main>
       {staging && <DeveloperSwitch />}
@@ -103,31 +114,6 @@ export function SectionTitle(props: { children: ComponentChildren; more?: Compon
       <span>{props.children}</span>
       {props.more}
     </h2>
-  );
-}
-
-export interface Tile {
-  label: string;
-  value: ComponentChildren;
-  unit?: string;
-  sub?: string;
-}
-
-/** Big numbers in a row (3) or a 2×2 grid (4); the first one is the headline. */
-export function Tiles(props: { items: Tile[] }) {
-  return (
-    <div class={`tiles tiles-${props.items.length}`}>
-      {props.items.map((t, i) => (
-        <div key={t.label} class={i === 0 ? "tile lead" : "tile"}>
-          <span class="tile-label">{t.label}</span>
-          <span class="tile-value">
-            {t.value}
-            {t.unit && <small>{t.unit}</small>}
-          </span>
-          {t.sub && <span class="tile-sub">{t.sub}</span>}
-        </div>
-      ))}
-    </div>
   );
 }
 

@@ -1,54 +1,16 @@
 import { useState } from "preact/hooks";
 import { dollars } from "../shared/settle";
 import { RANGES, bucketTitle, niceScale, summarize, type BucketUnit, type RangeId } from "../shared/spending";
-import type { Leaderboard, MyStats, RankEntry } from "../shared/types";
-import { Card, Empty, Load, SectionTitle } from "./components";
+import type { MyStats } from "../shared/types";
+import { Card, Load, SectionTitle } from "./components";
 import { useApi } from "./hooks";
 import { dateText, fmtDate, t, tk } from "./i18n";
 
-const BOARDS = [
+export const BOARDS = [
   { key: "attendance", label: tk("出勤次数"), unit: tk("次") },
   { key: "streak", label: tk("最长连续"), unit: tk("场") },
   { key: "friends", label: tk("带朋友"), unit: tk("人次") },
 ] as const;
-
-/** 公开排行榜 with a small segmented switch between the three lists. */
-export function LeaderboardCard(props: { board: Leaderboard }) {
-  const [tab, setTab] = useState<(typeof BOARDS)[number]["key"]>("attendance");
-  const b = BOARDS.find((x) => x.key === tab)!;
-  const list: RankEntry[] = props.board[tab];
-  return (
-    <Card title={t("{year} 年排行榜", { year: props.board.year })}>
-      <div class="seg">
-        {BOARDS.map((x) => (
-          <button type="button" key={x.key} class={x.key === tab ? "on" : ""} onClick={() => setTab(x.key)}>
-            {t(x.label)}
-          </button>
-        ))}
-      </div>
-      {list.length === 0 ? (
-        <Empty>{t("还没有出勤记录")}</Empty>
-      ) : (
-        <ol class="ranks">
-          {list.map((r, i) => (
-            <li key={r.name}>
-              <span class={`place p${i + 1}`}>{i + 1}</span>
-              <span class="who">{r.name}</span>
-              <span class="bar">
-                <i style={{ width: `${Math.max(4, (r.value / (list[0]!.value || 1)) * 100)}%` }} />
-              </span>
-              <span class="value">
-                {r.value}
-                <small>{t(b.unit)}</small>
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-      {tab === "streak" && <p class="muted small">{t("连续参加的活动场数，取消的活动不算。")}</p>}
-    </Card>
-  );
-}
 
 /** 个人统计: visible only on the member's own page. */
 export function MyStatsCard(props: { base: string }) {

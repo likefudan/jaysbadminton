@@ -17,6 +17,10 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "{a} 或 {b}": { tw: "{a} 或 {b}", en: "{a} or {b}" },
   "{name}还没设置 Venmo 账号。": { tw: "{name}還沒設定 Venmo 帳號。", en: "{name} hasn't set up a Venmo account yet." },
+  "{n} 人参加": { tw: "{n} 人參加", en: "{n} played" },
+  "今天 {time}": { tw: "今天 {time}", en: "today {time}" },
+  "明天 {time}": { tw: "明天 {time}", en: "tomorrow {time}" },
+  "截止 {time}": { tw: "截止 {time}", en: "Closes {time}" },
   "{n} 人已报名": { tw: "{n} 人已報名", en: "{n} signed up" },
   "{range}每周的花费，点柱子看详情": {
     tw: "{range}每週的花費，點柱子看詳情",
