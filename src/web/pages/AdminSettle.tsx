@@ -7,6 +7,10 @@ import { Card, Empty, Field, Load, useAction } from "../components";
 import { useApi } from "../hooks";
 
 /** Fee inputs, live preview and Finalize. After Finalize the same form saves changes. */
+/** "$13.33", or "$13.33（1 份 $13.34）" when some shares carry a leftover cent. */
+const perShare = (cents: number, extra: number) =>
+  `$${dollars(cents)}${extra > 0 ? `（${extra} 份 $${dollars(cents + 1)}）` : ""}`;
+
 export function SettleCard(props: { base: string; e: EventDetail; view: SettlementView; onDone: () => void }) {
   const eb = `${props.base}/events/${props.e.id}`;
   const v = props.view;
@@ -58,8 +62,9 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
       {preview && (
         <>
           <p class="small">
-            报名 {preview.registered} 人 · 到场 {preview.attended} 人 · 每人场地费 ${dollars(preview.courtShareCents)} ·
-            每人球费 ${dollars(preview.shuttleShareCents)}
+            报名 {preview.registered} 人 · 到场 {preview.attended} 人 · 每人场地费{" "}
+            {perShare(preview.courtShareCents, preview.courtExtraShares)} · 每人球费{" "}
+            {perShare(preview.shuttleShareCents, preview.shuttleExtraShares)}
           </p>
           <table class="bills">
             <tbody>
