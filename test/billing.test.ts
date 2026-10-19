@@ -324,17 +324,40 @@ describe("settlement", () => {
     const roster = (await s.admin.call(s.eb)).data.roster;
     await s.admin.call(`${s.eb}/roster/${roster.find((r: { name: string }) => r.name === "Alice").id}/remove`, {});
     // Tom stays, absent, on Alice's bill: 3 registered share the court, 2 attended share the shuttles.
+    // $100 in three is 33.34 + 33.33 + 33.33, the extra cent on the first share in sign-up order (Jay).
     expect((await s.admin.call(s.eb)).data.roster.map((r: { name: string }) => r.name).sort()).toEqual([
       "Bob",
       "Jay",
       "Tom",
     ]);
     expect(await payment(s, "Alice")).toMatchObject({
-      amountDueCents: 3334,
+      amountDueCents: 3333,
       amountPaidCents: 5600,
-      refundCents: 5600 - 3334,
+      refundCents: 5600 - 3333,
     });
-    expect((await payment(s, "Bob")).amountDueCents).toBe(3334 + 900);
+    expect((await payment(s, "Bob")).amountDueCents).toBe(3333 + 900);
+  });
+
+  it("keeps a settlement saved under the old round-up rule until its fees are saved again", async () => {
+    const s = await scenario();
+    const fees = { ...s.fees, courtTotal: "100.01" }; // 10001 cents for 4 registered
+    await s.admin.call(`${s.eb}/finalize`, fees);
+    expect((await payment(s, "Bob")).amountDueCents).toBe(2500 + 600);
+    // As if saved before exact splitting: a roster or attendance change recomputes with the old rule.
+    await env.DB.prepare("UPDATE settlements SET exact_split = 0 WHERE event_id = ?").bind(s.e.id).run();
+    const tom = (await s.admin.call(s.eb)).data.roster.find((r: { name: string }) => r.name === "Tom");
+    await s.admin.call(`${s.eb}/attendance`, { registrationId: tom.id, attended: true });
+    await s.admin.call(`${s.eb}/attendance`, { registrationId: tom.id, attended: false });
+    expect((await payment(s, "Alice")).amountDueCents).toBe(2501 + 600 + 2501);
+    expect((await payment(s, "Bob")).amountDueCents).toBe(2501 + 600);
+    // Saving the fees from the settle card switches the event to the exact split.
+    await s.admin.call(`${s.eb}/finalize`, fees);
+    expect((await payment(s, "Alice")).amountDueCents).toBe(2500 + 600 + 2500);
+    expect((await payment(s, "Bob")).amountDueCents).toBe(2500 + 600);
+    const row = await env.DB.prepare("SELECT exact_split FROM settlements WHERE event_id = ?")
+      .bind(s.e.id)
+      .first<{ exact_split: number }>();
+    expect(row?.exact_split).toBe(1);
   });
 
   it("asks for the difference again when a bill goes back up after a refund", async () => {

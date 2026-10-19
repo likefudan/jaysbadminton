@@ -20,12 +20,18 @@ export const toSettleRows = (list: RosterEntry[]): SettleRow[] =>
 
 export async function savedInput(env: Env, eventId: number): Promise<SettleInput | null> {
   const s = await env.DB.prepare(
-    "SELECT court_total_cents, shuttle_count, shuttle_price_cents FROM settlements WHERE event_id = ?",
+    "SELECT court_total_cents, shuttle_count, shuttle_price_cents, exact_split FROM settlements WHERE event_id = ?",
   )
     .bind(eventId)
-    .first<{ court_total_cents: number; shuttle_count: number; shuttle_price_cents: number }>();
+    .first<{ court_total_cents: number; shuttle_count: number; shuttle_price_cents: number; exact_split: number }>();
+  // A settlement saved before exact splitting keeps its rounded-up shares when it is recomputed.
   return s
-    ? { courtTotalCents: s.court_total_cents, shuttleCount: s.shuttle_count, shuttlePriceCents: s.shuttle_price_cents }
+    ? {
+        courtTotalCents: s.court_total_cents,
+        shuttleCount: s.shuttle_count,
+        shuttlePriceCents: s.shuttle_price_cents,
+        ...(s.exact_split ? {} : { roundUp: true }),
+      }
     : null;
 }
 
@@ -91,12 +97,13 @@ async function writeSettlement(
     ).bind(e.id, e.payee_id, e.manager_id),
     env.DB.prepare(
       `INSERT INTO settlements (event_id, court_total_cents, shuttle_count, shuttle_price_cents, registered_count,
-         attended_count, court_share_cents, shuttle_share_cents, finalized_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         attended_count, court_share_cents, shuttle_share_cents, exact_split, finalized_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (event_id) DO UPDATE SET court_total_cents = excluded.court_total_cents,
          shuttle_count = excluded.shuttle_count, shuttle_price_cents = excluded.shuttle_price_cents,
          registered_count = excluded.registered_count, attended_count = excluded.attended_count,
-         court_share_cents = excluded.court_share_cents, shuttle_share_cents = excluded.shuttle_share_cents`,
+         court_share_cents = excluded.court_share_cents, shuttle_share_cents = excluded.shuttle_share_cents,
+         exact_split = excluded.exact_split`,
     ).bind(
       e.id,
       input.courtTotalCents,
@@ -106,6 +113,7 @@ async function writeSettlement(
       result.attended,
       result.courtShareCents,
       result.shuttleShareCents,
+      input.roundUp ? 0 : 1,
       ts,
     ),
   ];
