@@ -1,11 +1,14 @@
 // Fee split from the requirements: courts are shared by everyone registered, shuttles by everyone
 // who attended. Each total is split in whole cents so the shares add up to it exactly: everyone pays
-// the same base amount and the leftover cents go one each to the first shares in sign-up order. A
+// the same base amount and the leftover cents go one each to shares picked at random, but stably:
+// the pick is a hash of the registration, so recomputing or showing a bill gives the same result. A
 // member owes the sum of their own share and their friends' shares. Settlements saved before exact
 // splitting (`roundUp`) keep rounding every share up, so their bills never change behind anyone's
 // back. Shared by the Worker and the preview UI.
 
 export interface SettleRow {
+  /** The registration's id: decides, stably, which shares carry a leftover cent. */
+  id: number;
   memberId: string;
   friendIndex: number;
   name: string;
@@ -37,7 +40,7 @@ export interface MemberBill {
 export interface Settlement {
   registered: number;
   attended: number;
-  /** The base share; the first `courtExtraShares` shares pay one cent more. */
+  /** The base share; `courtExtraShares` of the shares pay one cent more. */
   courtShareCents: number;
   courtExtraShares: number;
   shuttleShareCents: number;
@@ -53,6 +56,21 @@ function split(total: number, count: number, roundUp: boolean): [number, number]
   return [Math.floor(total / count), total % count];
 }
 
+/** FNV-1a: a cheap, stable hash, so the shares that carry a cent look random but never change. */
+function hash(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+
+/** The ids of the `extra` rows picked to pay one cent more (separate picks per fee, by `salt`). */
+function picked(rows: SettleRow[], extra: number, salt: string): Set<number> {
+  if (extra === 0) return new Set();
+  const ranked = rows.map((r) => ({ id: r.id, h: hash(`${salt}:${r.id}`) }));
+  ranked.sort((a, b) => a.h - b.h || a.id - b.id);
+  return new Set(ranked.slice(0, extra).map((r) => r.id));
+}
+
 export function settle(rows: SettleRow[], input: SettleInput): Settlement {
   const roundUp = input.roundUp === true;
   const registered = rows.length;
@@ -63,16 +81,20 @@ export function settle(rows: SettleRow[], input: SettleInput): Settlement {
     attended,
     roundUp,
   );
+  const courtExtra = picked(rows, courtExtraShares, "court");
+  const shuttleExtra = picked(
+    rows.filter((r) => r.attended),
+    shuttleExtraShares,
+    "shuttle",
+  );
   const byMember = new Map<string, MemberBill>();
-  let courtSeen = 0;
-  let shuttleSeen = 0;
   for (const r of rows) {
     const share: Share = {
       name: r.name,
       friendIndex: r.friendIndex,
       attended: r.attended,
-      courtCents: courtShareCents + (courtSeen++ < courtExtraShares ? 1 : 0),
-      shuttleCents: r.attended ? shuttleShareCents + (shuttleSeen++ < shuttleExtraShares ? 1 : 0) : 0,
+      courtCents: courtShareCents + (courtExtra.has(r.id) ? 1 : 0),
+      shuttleCents: r.attended ? shuttleShareCents + (shuttleExtra.has(r.id) ? 1 : 0) : 0,
     };
     const bill = byMember.get(r.memberId) ?? { memberId: r.memberId, totalCents: 0, shares: [] };
     bill.shares.push(share);
