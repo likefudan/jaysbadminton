@@ -21,6 +21,11 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "今天 {time}": { tw: "今天 {time}", en: "today {time}" },
   "明天 {time}": { tw: "明天 {time}", en: "tomorrow {time}" },
   "截止 {time}": { tw: "截止 {time}", en: "Closes {time}" },
+  "已付清 {amount}": { tw: "已付清 {amount}", en: "Paid {amount}" },
+  已结清: { tw: "已結清", en: "Settled" },
+  待结清: { tw: "待結清", en: "To settle" },
+  没有费用: { tw: "沒有費用", en: "No charge" },
+  暂时没有可以报名的活动: { tw: "暫時沒有可以報名的活動", en: "Nothing open for sign-up right now" },
   "{n} 人已报名": { tw: "{n} 人已報名", en: "{n} signed up" },
   "{range}每周的花费，点柱子看详情": {
     tw: "{range}每週的花費，點柱子看詳情",
@@ -330,7 +335,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "最近 30 天": { tw: "最近 30 天", en: "past 30 days" },
   "最近 6 个月": { tw: "最近 6 個月", en: "past 6 months" },
   "最近 7 天": { tw: "最近 7 天", en: "past 7 days" },
-  最近没有报名的活动: { tw: "最近沒有報名的活動", en: "No recent sign-ups" },
   最长连续: { tw: "最長連續", en: "Streak" },
   "有新活动开始报名、或者你的账单出来时，在这台设备上通知你。": {
     tw: "有新活動開始報名、或者你的帳單出來時，在這臺裝置上通知你。",

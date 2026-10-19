@@ -1,5 +1,7 @@
 import type { EventStatus, EventSummary } from "../shared/types";
 import { STATUS_ZH } from "../shared/types";
+import type { ComponentChildren } from "preact";
+import { toPacific } from "../shared/time";
 import { fmtDate, fmtInstant, t, tx, weekdayOf } from "./i18n";
 
 /** Apple Maps on iPhone, Google Maps elsewhere. */
@@ -90,6 +92,72 @@ export function EventLink(props: { e: EventSummary; href: string; publicView?: b
     <a class="event-link" href={props.href}>
       <EventInfo e={props.e} inLink publicView={props.publicView} />
       <span class="chevron">›</span>
+    </a>
+  );
+}
+
+/** "10/27" from a Pacific YYYY-MM-DD. */
+export function monthDay(date: string): string {
+  const [, m, d] = date.split("-").map(Number) as [number, number, number];
+  return `${m}/${d}`;
+}
+
+/** 今天 16:30 / 明天 16:30, else the full date and time. */
+export function deadlineText(iso: string): string {
+  const p = toPacific(iso);
+  const today = toPacific(new Date()).date;
+  const tomorrow = toPacific(new Date(Date.now() + 86_400_000)).date;
+  if (p.date === today) return t("今天 {time}", { time: p.time });
+  if (p.date === tomorrow) return t("明天 {time}", { time: p.time });
+  return fmtInstant(iso);
+}
+
+/**
+ * The top of an event card, as on the home page: status, deadline, a big date, then name · venue.
+ * `tone` colours it: hero (accent), soft (light accent) or plain.
+ */
+export function EventHero(props: {
+  e: EventSummary;
+  status: { cls: string; label: string } | null;
+  children?: ComponentChildren;
+}) {
+  const e = props.e;
+  return (
+    <>
+      <span class="hero-top">
+        {props.status ? <StatusPill cls={props.status.cls} label={props.status.label} /> : <span />}
+        {e.status === "open" && <span>{t("截止 {time}", { time: deadlineText(e.deadlineAt) })}</span>}
+      </span>
+      <span class="hero-date">
+        {monthDay(e.date)}
+        <small>
+          {weekdayOf(e.date)} {e.startTime}
+        </small>
+      </span>
+      <span class="hero-what">
+        {e.title || e.location}
+        {e.title && <small> · {e.location}</small>}
+      </span>
+      {props.children}
+    </>
+  );
+}
+
+/** A small card in a sideways row: date, name, and one line underneath (headcount or what they paid). */
+export function MiniEventCard(props: {
+  e: { code: string; date: string; title: string; location: string };
+  line: ComponentChildren;
+  muted?: boolean;
+}) {
+  const e = props.e;
+  return (
+    <a class={props.muted ? "mini-card muted-card" : "mini-card"} href={`/e/${e.code}`}>
+      <span class="mini-date">
+        {monthDay(e.date)}
+        <small>{weekdayOf(e.date)}</small>
+      </span>
+      <span class="mini-title">{e.title || e.location}</span>
+      <span class="mini-line">{props.line}</span>
     </a>
   );
 }
