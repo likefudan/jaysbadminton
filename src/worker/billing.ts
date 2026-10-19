@@ -16,7 +16,7 @@ export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]
 }
 
 export const toSettleRows = (list: RosterEntry[]): SettleRow[] =>
-  list.map((r) => ({ memberId: r.memberId, friendIndex: r.friendIndex, name: r.name, attended: r.attended }));
+  list.map((r) => ({ id: r.id, memberId: r.memberId, friendIndex: r.friendIndex, name: r.name, attended: r.attended }));
 
 export async function savedInput(env: Env, eventId: number): Promise<SettleInput | null> {
   const s = await env.DB.prepare(
