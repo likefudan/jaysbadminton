@@ -2,7 +2,7 @@ import { createPortal } from "preact/compat";
 import { useEffect, useState } from "preact/hooks";
 import { eventCardText, type CardText } from "../shared/shareCard";
 import type { EventSummary } from "../shared/types";
-import { CalendarButtons, canAddToCalendar } from "./Calendar";
+import { CalendarButton, canAddToCalendar } from "./Calendar";
 import { useSiteTitle } from "./site";
 import { currentLang, fmtDate, t } from "./i18n";
 
@@ -221,20 +221,20 @@ export function ShareCardButton(props: { text: CardText; filename: string }) {
 }
 
 /**
- * The action row inside an event card: 加入日历 (iPhone / Outlook, Google 日历) and 分享名片, side by
- * side with no row title. Calendar buttons only where `calendar` allows and the event is still
- * ahead; 分享名片 only while sign-up is open (报名中): a closed, cancelled or billed event has nobody
- * left to invite. Cards with a coloured top pass `share={false}` and put {@link ShareIconButton} there.
+ * The action row inside a public event card: 加入日历 (a menu of Apple 日历 / Outlook and Google 日历)
+ * and 分享名片, side by side with no row title. 加入日历 only while the event is still ahead; 分享名片
+ * only while sign-up is open (报名中): a closed, cancelled or billed event has nobody left to invite.
+ * Cards with a coloured top put both in the corner instead: {@link CardCornerIcons}.
  */
-export function EventActions(props: { e: EventSummary; calendar?: boolean; share?: boolean }) {
+export function EventActions(props: { e: EventSummary }) {
   const e = props.e;
   const [open, setOpen] = useState(false);
-  const calendar = (props.calendar ?? true) && canAddToCalendar(e);
-  const share = (props.share ?? true) && e.status === "open";
+  const calendar = canAddToCalendar(e);
+  const share = e.status === "open";
   if (!calendar && !share) return null;
   return (
     <div class="calendar">
-      {calendar && <CalendarButtons e={e} />}
+      {calendar && <CalendarButton e={e} />}
       {share && (
         <button class="calendar-link" type="button" onClick={() => setOpen(true)}>
           {t("分享名片")}
@@ -242,6 +242,21 @@ export function EventActions(props: { e: EventSummary; calendar?: boolean; share
       )}
       {open && <EventShareSheet e={e} onClose={() => setOpen(false)} />}
     </div>
+  );
+}
+
+/**
+ * The top right corner of an event card with a coloured top: 加入日历 as a calendar icon (when
+ * `calendar` allows and the event is still ahead), then 分享名片 as the share icon.
+ */
+export function CardCornerIcons(props: { e: EventSummary; calendar: boolean }) {
+  const calendar = props.calendar && canAddToCalendar(props.e);
+  if (!calendar && props.e.status !== "open") return null;
+  return (
+    <span class="corner-icons">
+      {calendar && <CalendarButton e={props.e} icon />}
+      <ShareIconButton e={props.e} />
+    </span>
   );
 }
 

@@ -5,13 +5,13 @@ import type { MeResponse, MemberProfile, MyEvent, MyEventsResponse, PaymentStatu
 import { STATUS_ZH } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, Load, Page, SectionTitle, useAction } from "../components";
-import { EventHero, MiniEventCard, mapLink } from "../events";
+import { EventHero, MINE_STATUS, MiniEventCard, mapLink } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { ProfileCard } from "../Profile";
 import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
-import { EventActions, ShareIconButton } from "../ShareCard";
+import { CardCornerIcons } from "../ShareCard";
 import { SwipeSection } from "../Swipe";
 import { MyStatsCard } from "../Stats";
 import { InstallCard, InstallPrompt } from "../Install";
@@ -222,9 +222,13 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   const adder = e.managerName === e.ownerName ? e.ownerName : t("{a} 或 {b}", { a: e.managerName, b: e.ownerName });
   // Whoever runs it may hang friends under a member who isn't coming: they are on the bill, not the list.
   const friendsOnly = !signedUp && (e.myFriends?.length ?? 0) > 0;
+  // 我已报名 with a tick in place of 报名中 once they're on it (Ke Li), so no 已报名 line underneath.
+  const mineOpen = signedUp && e.status === "open" && !e.payment;
   const badge = e.payment
     ? { ...BILL_STATUS[e.payment.status], label: t(BILL_STATUS[e.payment.status].label) }
-    : { cls: e.status, label: t(STATUS_ZH[e.status]) };
+    : mineOpen
+      ? MINE_STATUS()
+      : { cls: e.status, label: t(STATUS_ZH[e.status]) };
   // Accent for the ones they're on that are still open, light accent for ones they could join, plain once closed.
   const tone = e.status !== "open" ? "plain" : signedUp || friendsOnly ? "hero" : "soft";
 
@@ -249,7 +253,16 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   return (
     <section class={`card ev-card tone-${tone}`}>
       <div class="ev-head">
-        <EventHero e={e} status={badge} action={<ShareIconButton e={e} />} />
+        <EventHero
+          e={e}
+          status={badge}
+          action={
+            <CardCornerIcons
+              e={e}
+              calendar={signedUp && !e.payment && (e.status === "open" || e.status === "closed")}
+            />
+          }
+        />
       </div>
       <div class="ev-main">
         {e.address && (
@@ -263,7 +276,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {e.roster && e.roster.length > 0 && (
           <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
         )}
-        {signedUp && !editing && !e.payment && (
+        {signedUp && !editing && !e.payment && !mineOpen && (
           <p class="ok">
             ✓ {e.myFriends!.length > 0 ? t("已报名，带 {n} 个朋友", { n: e.myFriends!.length }) : t("已报名")}
           </p>
@@ -282,13 +295,6 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
           </p>
         )}
         {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">{t("你没有报名这次活动。")}</p>}
-        {!editing && (
-          <EventActions
-            e={e}
-            calendar={signedUp && !e.payment && (e.status === "open" || e.status === "closed")}
-            share={false}
-          />
-        )}
         {e.canEdit && editing && (
           <>
             <FriendsEditor

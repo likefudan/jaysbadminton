@@ -2119,8 +2119,7 @@ a.ev-meta {
   color: var(--muted);
 }
 .tone-hero .hero-top {
-  color: inherit;
-  opacity: 0.92;
+  color: rgba(255, 255, 255, 0.92);
 }
 .tone-hero .status,
 [data-style="aurora"] .tone-hero .status {
@@ -2161,6 +2160,22 @@ a.ev-meta {
 .tone-hero .status i {
   background: #b5f2c8;
   box-shadow: 0 0 0 3px rgba(181, 242, 200, 0.25);
+}
+/* 我已报名: a tick instead of the dot */
+.status-mine i,
+.tone-hero .status-mine i {
+  width: 9px;
+  height: 5px;
+  margin: -3px 1px 0;
+  border: solid var(--ok-dot);
+  border-width: 0 0 2px 2px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: rotate(-45deg);
+}
+.tone-hero .status-mine i {
+  border-color: #b5f2c8;
 }
 .tone-hero .status-closed i {
   background: rgba(255, 255, 255, 0.6);
@@ -2750,6 +2765,7 @@ a.ev-meta {
 .ok + .calendar {
   margin-top: 4px;
 }
+.roster-fold + .inline,
 .calendar + .inline,
 .calendar + .button {
   margin-top: 14px;
@@ -2757,6 +2773,68 @@ a.ev-meta {
 button.calendar-link {
   font-family: inherit;
   cursor: pointer;
+}
+
+/* 加入日历: one button (a pill in the action row, or a calendar icon in a card's top corner) opening a short menu */
+.cal-box {
+  position: relative;
+  display: inline-flex;
+}
+.cal-pill {
+  gap: 6px;
+}
+.cal-pill svg,
+.cal-corner svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cal-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  max-width: 260px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--account-menu-bg);
+  box-shadow: 0 12px 32px #0003;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+.cal-corner .cal-menu {
+  left: auto;
+  right: 0;
+}
+.cal-menu a {
+  padding: 10px 12px;
+  border-radius: 9px;
+  color: var(--text);
+  text-decoration: none;
+}
+.cal-menu a:hover {
+  background: var(--acc-soft);
+}
+.cal-menu .calendar-note {
+  padding: 4px 12px 6px;
+  font-weight: 400;
+}
+/* The calendar and share icons side by side in an event card's top right corner */
+.corner-icons {
+  display: flex;
+  gap: 8px;
+  margin: -4px -6px -4px auto;
+}
+.corner-icons .share-icon {
+  margin: 0;
 }
 
 /* ---- 名单 on the member's event card ---- */

@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
-import type { EventSummary, HomeResponse, Leaderboard } from "../../shared/types";
+import type { EventSummary, HomeResponse, Leaderboard, MyEventsResponse } from "../../shared/types";
 import { Empty, Load, Page, SectionTitle } from "../components";
-import { EventHero, EventLink, MiniEventCard } from "../events";
+import { EventHero, EventLink, MINE_STATUS, MiniEventCard } from "../events";
 import { useApi, useMemberSession } from "../hooks";
 import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
@@ -11,9 +11,14 @@ import { SwipeSection } from "../Swipe";
 import { t, tx } from "../i18n";
 
 /** The next event as one big card; 报名 (or 登录 / 注册) sits in its corner. */
-function NextEvent(props: { e: EventSummary; cta: string }) {
+function NextEvent(props: { e: EventSummary; cta: string; mine?: boolean }) {
   const e = props.e;
-  const status = e.status === "open" ? { cls: "open", label: t("报名中") } : { cls: "closed", label: t("已截止") };
+  const status =
+    e.status !== "open"
+      ? { cls: "closed", label: t("已截止") }
+      : props.mine
+        ? MINE_STATUS()
+        : { cls: "open", label: t("报名中") };
   return (
     <section class="next-card tone-hero">
       <a class="next-event" href={`/e/${e.code}`}>
@@ -29,6 +34,13 @@ function NextEvent(props: { e: EventSummary; cta: string }) {
       </a>
     </section>
   );
+}
+
+/** The next event for a signed-in member: 我已报名 in its corner once they're on it, as on 我的活动. */
+function MyNextEvent(props: { e: EventSummary; cta: string }) {
+  const [mine] = useApi<MyEventsResponse>("/api/m/session/events");
+  const signedUp = mine.state === "ok" && mine.data.events.some((x) => x.id === props.e.id && x.selfSignedUp);
+  return <NextEvent {...props} mine={signedUp} />;
 }
 
 /** 排行榜 as a row of small cards that scrolls sideways, first place in the accent colour. */
@@ -82,7 +94,11 @@ export function Home() {
           return (
             <>
               {next ? (
-                <NextEvent e={next} cta={cta} />
+                member === "member" ? (
+                  <MyNextEvent e={next} cta={cta} />
+                ) : (
+                  <NextEvent e={next} cta={cta} />
+                )
               ) : (
                 <>
                   <a class="button block" href="/me">

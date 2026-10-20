@@ -161,29 +161,34 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await card.locator(".stepper button").last().click();
   await field(page, "朋友 1 的名字（选填）").fill("阿强");
   await card.getByRole("button", { name: "确认报名" }).click();
-  await expect(card.getByText("✓ 已报名，带 1 个朋友")).toBeVisible();
+  // Signed up: the corner reads 我已报名 with a tick, and there's no 已报名 line underneath.
+  await expect(card.locator(".hero-top .status-mine")).toHaveText("我已报名");
+  await expect(card.locator(".ok")).toHaveCount(0);
 
   // Signed up, so they see who else is coming, friends included.
   const names = card.locator(".roster-fold");
   await expect(names.locator("summary")).toHaveText("名单（3 人）");
   await expect(names.locator(".names li")).toHaveText(["Jay", "小明（我）", "阿强（小明带）"]);
 
+  // 加入日历 is a calendar icon in the card's top right corner, next to 分享名片's share icon;
+  // it opens a short menu of Apple 日历 / Outlook (the .ics) and Google 日历.
+  await expect(card.locator(".ev-head .hero-top .share-icon")).toHaveCount(2);
+  await expect(card.locator(".calendar")).toHaveCount(0);
+  await card.getByRole("button", { name: "加入日历" }).click();
+  await expect(card.getByRole("menuitem")).toHaveText(["Apple 日历 / Outlook", "Google 日历"]);
+  const google = new URL((await card.getByRole("menuitem", { name: "Google 日历" }).getAttribute("href"))!);
+  expect(google.searchParams.get("dates")).toMatch(/^\d{8}T\d{6}Z\/\d{8}T\d{6}Z$/);
   // Tapping it must reach the server's .ics, not the app's own router (which showed 页面不存在).
   const download = page.waitForEvent("download");
-  await card.getByRole("link", { name: "iPhone / Outlook" }).click();
+  await card.getByRole("menuitem", { name: "Apple 日历 / Outlook" }).click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/^badminton-\d{4}-\d{2}-\d{2}\.ics$/);
   const ics = await (await import("node:fs/promises")).readFile((await file.path())!, "utf8");
   expect(ics).toContain("BEGIN:VCALENDAR");
   expect(ics).toContain(`LOCATION:${VENUE}`);
   await expect(page.getByRole("heading", { name: "你好，小明" })).toBeVisible(); // still on the member page
-  const google = new URL((await card.getByRole("link", { name: "Google 日历" }).getAttribute("href"))!);
-  expect(google.searchParams.get("dates")).toMatch(/^\d{8}T\d{6}Z\/\d{8}T\d{6}Z$/);
-
-  // 加入日历 is one row with no row title; 分享名片 is the share icon in the card's top right corner.
-  await expect(card.locator(".calendar .calendar-link")).toHaveText(["iPhone / Outlook", "Google 日历"]);
-  await expect(card.locator(".ev-head .hero-top .share-icon")).toHaveAccessibleName("分享名片");
-  await expect(card.getByText("加入日历", { exact: true })).toHaveCount(0);
+  await expect(card.getByRole("menu")).toHaveCount(0); // the menu closes once a calendar is picked
+  await expect(card.locator(".ev-head .hero-top .share-icon").last()).toHaveAccessibleName("分享名片");
   // The same 活动名片 as on the public page, from inside their own event card.
   await card.getByRole("button", { name: "分享名片", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "分享名片" }).locator("img.sharecard")).toHaveAttribute(
@@ -250,10 +255,11 @@ test("public pages show the headcount and a link preview, never names", async ({
   expect(html).toContain('/og-image.jpg"');
   expect(html).not.toContain("小明");
 
-  // The public event page has the same 加入日历 button; tapping it downloads the .ics too.
+  // The public event page has one 加入日历 button in its action row, with the same menu; the .ics downloads too.
   await page.goto(`/e/${eventCode}`);
   const download = page.waitForEvent("download");
-  await page.getByRole("link", { name: "iPhone / Outlook" }).click();
+  await page.locator(".card").getByRole("button", { name: "加入日历" }).click();
+  await page.getByRole("menuitem", { name: "Apple 日历 / Outlook" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.ics$/);
 
   // 分享名片 in the event card's action row, next to the calendar buttons: an image with the logo, QR code and link, to long-press or download.
@@ -279,9 +285,10 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   );
   await context.addCookies([{ name: "jb_member", value: ming, url: baseURL! }]);
   await page.goto(`/e/${eventCode}`);
-  await expect(page.getByText("✓ 已报名，带 1 个朋友")).toBeVisible();
+  await expect(page.locator(".hero-top .status-mine")).toHaveText("我已报名");
   await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
   await page.goto("/");
+  await expect(page.locator(".next-card .status")).toHaveText("我已报名"); // the home card too
   await expect(page.getByRole("link", { name: "报名", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(0);
 
@@ -312,7 +319,7 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   // Sign-up closed: the public card keeps 加入日历 but no longer offers 分享名片.
   const pub = await page.context().newPage();
   await pub.goto(`/e/${eventCode}`);
-  await expect(pub.getByRole("link", { name: "Google 日历" })).toBeVisible();
+  await expect(pub.getByRole("button", { name: "加入日历" })).toBeVisible();
   await expect(pub.getByRole("button", { name: "分享名片", exact: true })).toHaveCount(0);
   await pub.close();
 
