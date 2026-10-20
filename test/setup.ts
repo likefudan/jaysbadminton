@@ -21,6 +21,8 @@ const TABLES = [
   "payments",
   "settlements",
   "registrations",
+  "queue_courts",
+  "queue_accounts",
   "events",
   "locations",
   "admin_sessions",

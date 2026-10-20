@@ -14,17 +14,21 @@ CREATE TABLE queue_accounts (
   UNIQUE (event_id, username)
 );
 
--- Courts we hold or queue for, entered by hand from the hall's screen. position 0 = playing now,
--- 1..3 = that group in the court's queue. minutes_left is the screen's Minutes Left for the group
--- on the court when entered_at was taken; the pages count down and estimate from there.
+-- Courts we hold or queue for, entered by hand from the hall's screen. position 0 = playing,
+-- 1..3 = that group in the court's queue (as entered; for the label only). starts_at is when a
+-- queued group is expected on court (NULL when entered as playing), ends_at when its round ends;
+-- the pages count down to them, and a queued group shows as playing once starts_at has passed.
 CREATE TABLE queue_courts (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  event_id     INTEGER NOT NULL REFERENCES events (id),
-  court        INTEGER NOT NULL,
-  position     INTEGER NOT NULL,
-  minutes_left INTEGER NOT NULL,
-  accounts     TEXT NOT NULL,                          -- JSON array of the hall usernames in our group
-  entered_at   TEXT NOT NULL,
-  entered_by   TEXT NOT NULL REFERENCES members (id)
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id   INTEGER NOT NULL REFERENCES events (id),
+  court      INTEGER NOT NULL,
+  position   INTEGER NOT NULL,
+  starts_at  TEXT,
+  ends_at    TEXT NOT NULL,
+  accounts   TEXT NOT NULL,                            -- JSON array of the hall usernames in our group
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES members (id),
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL REFERENCES members (id)
 );
 CREATE INDEX queue_courts_event ON queue_courts (event_id);

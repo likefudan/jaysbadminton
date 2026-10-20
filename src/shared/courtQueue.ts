@@ -11,8 +11,8 @@ export const QUEUE_ROUND_MAX = 120;
 export const QUEUE_MAX_POSITION = 3;
 /** A group on the hall's form is one to four players. */
 export const QUEUE_GROUP_MAX = 4;
-/** Minutes Left on the screen never runs past a round; this only stops typos. */
-export const QUEUE_MINUTES_MAX = 180;
+/** Minutes left or minutes to wait: three full rounds at most; this only stops typos. */
+export const QUEUE_MINUTES_MAX = 400;
 export const QUEUE_COURT_MAX = 50;
 /** At or under this, a court on the screen turns yellow (time almost up). */
 export const QUEUE_SOON_MIN = 5;
@@ -30,14 +30,18 @@ export interface QueueAccount {
 export interface QueueCourt {
   id: number;
   court: number;
-  /** 0 = playing now, 1..3 = that group in the court's queue, as entered. */
+  /** 0 = entered as playing, 1..3 = that group in the court's queue, as entered. */
   position: number;
-  /** Minutes Left for the group on the court, as on the screen when it was entered. */
-  minutesLeft: number;
+  /** When a queued group is expected on court; null when entered as playing. UTC ISO. */
+  startsAt: string | null;
+  /** When the group's round ends. UTC ISO. */
+  endsAt: string;
   /** The hall usernames in our group. */
   accounts: string[];
-  enteredAt: string; // UTC ISO
-  enteredBy: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string;
+  updatedAt: string;
 }
 
 /** The 球场排队 part of an event card; only for players on the event, while it is on. */
@@ -48,26 +52,26 @@ export interface QueueInfo {
 }
 
 export type CourtPhase =
-  | { phase: "playing"; endsAt: number; minutes: number }
-  | { phase: "queued"; startsAt: number; minutes: number }
+  | { phase: "playing"; minutes: number }
+  | { phase: "queued"; minutes: number }
   | { phase: "done" };
 
 /**
- * Where a court entry stands at `now` (ms). Playing: the group ends minutesLeft after it was
- * entered. Queued k-th: it gets on when the group on the court finishes and the k-1 groups ahead
- * each play a full round, then plays a round itself; past that it is done. Minutes are rounded up,
- * so "1 minute" shows until the very end.
+ * Where a court entry stands at `now` (ms): queued until it is expected on court, then playing
+ * until its round ends, then done. Minutes are rounded up, so "1 分钟" shows until the very end.
  */
-export function courtPhase(c: QueueCourt, roundMin: number, now: number): CourtPhase {
-  const entered = Date.parse(c.enteredAt);
-  const min = 60_000;
-  const up = (ms: number) => Math.max(0, Math.ceil(ms / min));
-  if (c.position === 0) {
-    const endsAt = entered + c.minutesLeft * min;
-    return now < endsAt ? { phase: "playing", endsAt, minutes: up(endsAt - now) } : { phase: "done" };
-  }
-  const startsAt = entered + (c.minutesLeft + (c.position - 1) * roundMin) * min;
-  if (now < startsAt) return { phase: "queued", startsAt, minutes: up(startsAt - now) };
-  const endsAt = startsAt + roundMin * min;
-  return now < endsAt ? { phase: "playing", endsAt, minutes: up(endsAt - now) } : { phase: "done" };
+export function courtPhase(c: Pick<QueueCourt, "startsAt" | "endsAt">, now: number): CourtPhase {
+  const up = (ms: number) => Math.max(1, Math.ceil(ms / 60_000));
+  const starts = c.startsAt ? Date.parse(c.startsAt) : null;
+  const ends = Date.parse(c.endsAt);
+  if (starts !== null && now < starts) return { phase: "queued", minutes: up(starts - now) };
+  if (now < ends) return { phase: "playing", minutes: up(ends - now) };
+  return { phase: "done" };
 }
+
+/**
+ * The wait for the k-th group in a court's queue, from the screen: the group on court finishes
+ * its Minutes Left, then each of the k-1 groups ahead plays a full round.
+ */
+export const queueWait = (minutesLeft: number, position: number, roundMin: number): number =>
+  minutesLeft + Math.max(0, position - 1) * roundMin;

@@ -44,8 +44,9 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string): Promise<
       .bind(e.id)
       .all<{ id: number; username: string; password: string; member_id: string; by_name: string }>(),
     env.DB.prepare(
-      `SELECT c.id, c.court, c.position, c.minutes_left, c.accounts, c.entered_at, m.username AS by_name
-       FROM queue_courts c JOIN members m ON m.id = c.entered_by
+      `SELECT c.id, c.court, c.position, c.starts_at, c.ends_at, c.accounts, c.created_at, c.updated_at,
+              cm.username AS created_name, um.username AS updated_name
+       FROM queue_courts c JOIN members cm ON cm.id = c.created_by JOIN members um ON um.id = c.updated_by
        WHERE c.event_id = ? ORDER BY c.court, c.position`,
     )
       .bind(e.id)
@@ -53,10 +54,13 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string): Promise<
         id: number;
         court: number;
         position: number;
-        minutes_left: number;
+        starts_at: string | null;
+        ends_at: string;
         accounts: string;
-        entered_at: string;
-        by_name: string;
+        created_at: string;
+        updated_at: string;
+        created_name: string;
+        updated_name: string;
       }>(),
   ]);
   return {
@@ -72,10 +76,13 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string): Promise<
       id: c.id,
       court: c.court,
       position: c.position,
-      minutesLeft: c.minutes_left,
+      startsAt: c.starts_at,
+      endsAt: c.ends_at,
       accounts: JSON.parse(c.accounts) as string[],
-      enteredAt: c.entered_at,
-      enteredBy: c.by_name,
+      createdBy: c.created_name,
+      createdAt: c.created_at,
+      updatedBy: c.updated_name,
+      updatedAt: c.updated_at,
     })),
   };
 }
@@ -120,13 +127,15 @@ function int(v: unknown, min: number, max: number, message: string): number {
 }
 
 /**
- * 登记球场: a new court entry, or (with id) a correction of one, which counts again from now. The
- * group must be accounts shared on the event, so the card can say whose they are.
+ * 登记球场 / 修改: a new court entry, or (with id) a change to one. `minutes` counts from now: the
+ * time left while playing, or the wait until a queued group gets on (the form works that out from
+ * the screen when a court is first entered). A queued group's round then runs roundMin minutes.
+ * The group must be accounts shared on the event.
  */
 export async function saveCourt(env: Env, e: EventRow, memberId: string, body: Record<string, unknown>) {
   const court = int(body.court, 1, QUEUE_COURT_MAX, "请选择场号");
   const position = int(body.position, 0, QUEUE_MAX_POSITION, "请选择在打还是排第几组");
-  const minutes = int(body.minutesLeft, 0, QUEUE_MINUTES_MAX, `剩余时间请填 0–${QUEUE_MINUTES_MAX} 分钟`);
+  const minutes = int(body.minutes, position === 0 ? 1 : 0, QUEUE_MINUTES_MAX, `时间请填 ${position === 0 ? 1 : 0}–${QUEUE_MINUTES_MAX} 分钟`);
   const picked = Array.isArray(body.accounts) ? body.accounts.filter((a): a is string => typeof a === "string") : [];
   const { results } = await env.DB.prepare("SELECT username FROM queue_accounts WHERE event_id = ?")
     .bind(e.id)
@@ -137,13 +146,16 @@ export async function saveCourt(env: Env, e: EventRow, memberId: string, body: R
   if (group.length < 1 || group.length > QUEUE_GROUP_MAX) throw badRequest(`请选 1–${QUEUE_GROUP_MAX} 个账号`);
   const accounts = JSON.stringify(group);
   const ts = now();
+  const at = (min: number) => new Date(Date.parse(ts) + min * 60_000).toISOString();
+  const startsAt = position === 0 ? null : at(minutes);
+  const endsAt = position === 0 ? at(minutes) : at(minutes + e.queue_round_min!);
   if (body.id !== undefined && body.id !== null) {
     const id = int(body.id, 1, Number.MAX_SAFE_INTEGER, "找不到这条记录");
     const res = await env.DB.prepare(
-      `UPDATE queue_courts SET court = ?, position = ?, minutes_left = ?, accounts = ?, entered_at = ?, entered_by = ?
+      `UPDATE queue_courts SET court = ?, position = ?, starts_at = ?, ends_at = ?, accounts = ?, updated_at = ?, updated_by = ?
        WHERE id = ? AND event_id = ?`,
     )
-      .bind(court, position, minutes, accounts, ts, memberId, id, e.id)
+      .bind(court, position, startsAt, endsAt, accounts, ts, memberId, id, e.id)
       .run();
     if (!res.meta.changes) throw new HttpError(404, "not_found", "这条记录已经被删掉了");
     return;
@@ -153,10 +165,10 @@ export async function saveCourt(env: Env, e: EventRow, memberId: string, body: R
     .first<{ n: number }>();
   if ((n?.n ?? 0) >= COURTS_MAX) throw badRequest("登记的球场太多了，请先删掉打完的");
   await env.DB.prepare(
-    `INSERT INTO queue_courts (event_id, court, position, minutes_left, accounts, entered_at, entered_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO queue_courts (event_id, court, position, starts_at, ends_at, accounts, created_at, created_by, updated_at, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(e.id, court, position, minutes, accounts, ts, memberId)
+    .bind(e.id, court, position, startsAt, endsAt, accounts, ts, memberId, ts, memberId)
     .run();
 }
 
