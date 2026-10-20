@@ -164,7 +164,16 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   const posts = await setUp(page);
   await page.getByRole("button", { name: "＋ 登记球场" }).click();
   const sheet = page.getByRole("dialog");
-  await sheet.getByLabel("场号").fill("52");
+  // 场号 drops down a list, narrowed by what is typed; courts we hold are marked.
+  await sheet.getByRole("button", { name: "选择场号" }).click();
+  const list = sheet.getByRole("listbox");
+  await expect(list.getByRole("option", { name: "16", exact: true })).toHaveClass(/held/);
+  await sheet.getByRole("spinbutton", { name: "场号" }).fill("5");
+  await expect(list.getByRole("option")).toHaveText(["5", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59"]);
+  await page.screenshot({ path: test.info().outputPath("court-queue-number.png") });
+  await list.getByRole("option", { name: "52" }).click();
+  await expect(list).toBeHidden();
+  await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("52");
   await sheet.getByRole("button", { name: "排第 3 组" }).click();
   await sheet.getByLabel("这片场正在打的那组还剩几分钟").fill("10");
   await expect(sheet).toContainText("大约 100 分钟后上场");
@@ -175,8 +184,13 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   await sheet.getByLabel("搜索账号").fill("chr");
   await expect(chips).toHaveText(["Chris6号"]);
   await sheet.getByRole("button", { name: "Chris" }).click();
+  // Picked ones move up into their own highlighted row.
+  // …with each password in small type under the name.
+  await expect(sheet.locator(".cq-picked .chip .cq-pick-name")).toHaveText(["✓ Chris ✕"]);
+  await expect(sheet.locator(".cq-picked .chip small")).toHaveText(["1010"]);
+  await expect(chips).toHaveCount(0);
   await sheet.getByLabel("搜索账号").fill("");
-  await expect(chips.first()).toHaveText("Chris6号");
+  await expect(chips.first()).toHaveText("Lily");
   await page.screenshot({ path: test.info().outputPath("court-queue-new.png") });
   await sheet.getByRole("button", { name: "保存" }).click();
   expect(posts.at(-1)?.body).toEqual({ court: 52, position: 3, minutes: 100, accounts: ["Chris"] });

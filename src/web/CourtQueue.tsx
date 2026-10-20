@@ -274,18 +274,7 @@ function CourtSheet(props: {
               })}
         </p>
       )}
-      <label class="cq-court-no">
-        <span class="sheet-label">{t("场号")}</span>
-        <input
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={QUEUE_COURT_MAX}
-          placeholder={t("例如 23")}
-          value={court}
-          onInput={(ev) => setCourt((ev.target as HTMLInputElement).value)}
-        />
-      </label>
+      <CourtNumber value={court} onChange={setCourt} q={props.q} now={props.now} except={c?.id ?? null} />
       <p class="sheet-label">{t("状态")}</p>
       <div class="seg">
         {Array.from({ length: QUEUE_MAX_POSITION + 1 }, (_, k) => (
@@ -321,10 +310,7 @@ function CourtSheet(props: {
             ? t("前面有人提前下场或退出，就把时间改短。到点会自动变成「在打」。")
             : t("屏幕上的 Minutes Left。保存后从现在开始倒计时。")}
       </p>
-      <p class="sheet-label">
-        {t("用了哪几个账号（1-{n} 个）", { n: QUEUE_GROUP_MAX })}
-        {picked.length > 0 && <span class="cq-count">{t("已选 {n}", { n: picked.length })}</span>}
-      </p>
+      <p class="sheet-label">{t("用了哪几个账号（1-{n} 个）", { n: QUEUE_GROUP_MAX })}</p>
       {props.q.accounts.length === 0 && (
         <p class="muted small">{t("还没有人添加球馆账号，请先在「球馆账号」里添加。")}</p>
       )}
@@ -343,6 +329,87 @@ function CourtSheet(props: {
 }
 
 /** Which courts each account is on right now (playing or queued), leaving out the entry being edited. */
+/** Courts the dropdown lists; a higher number can still be typed, up to QUEUE_COURT_MAX. */
+const COURT_LIST = 60;
+
+/**
+ * 场号: type it, or pick it from a dropdown of court numbers. Typing narrows the list; courts we
+ * already hold are marked.
+ */
+function CourtNumber(props: {
+  value: string;
+  onChange: (v: string) => void;
+  q: QueueInfo;
+  now: number;
+  except: number | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const held = new Set(
+    props.q.courts
+      .filter((c) => c.id !== props.except && courtPhase(c, props.now).phase !== "done")
+      .map((c) => c.court),
+  );
+  const all = Array.from({ length: COURT_LIST }, (_, i) => i + 1);
+  const typed = props.value.trim();
+  // Typing narrows the list to numbers that start with it; a finished number shows them all again.
+  const narrowed = all.filter((n) => String(n).startsWith(typed));
+  const shown = typed && narrowed.some((n) => String(n) !== typed) ? narrowed : all;
+  return (
+    <div class="cq-court-no">
+      <label for="cq-court-no" class="sheet-label">
+        {t("场号")}
+      </label>
+      <div class="cq-combo">
+        <input
+          id="cq-court-no"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={QUEUE_COURT_MAX}
+          placeholder={t("选择或输入")}
+          value={props.value}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onInput={(ev) => {
+            props.onChange((ev.target as HTMLInputElement).value);
+            setOpen(true);
+          }}
+        />
+        <button
+          type="button"
+          class="cq-combo-toggle"
+          aria-label={t("选择场号")}
+          aria-expanded={open}
+          onMouseDown={(ev) => ev.preventDefault()}
+          onClick={() => setOpen(!open)}
+        >
+          ▾
+        </button>
+      </div>
+      {open && shown.length > 0 && (
+        <div class="cq-court-list" role="listbox" aria-label={t("场号")}>
+          {shown.map((n) => (
+            <button
+              type="button"
+              role="option"
+              key={n}
+              aria-selected={String(n) === typed}
+              class={`${String(n) === typed ? "on" : ""}${held.has(n) ? " held" : ""}`}
+              onMouseDown={(ev) => ev.preventDefault()}
+              onClick={() => {
+                props.onChange(String(n));
+                setOpen(false);
+              }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function busyAccounts(q: QueueInfo, now: number, except: number | null): Map<string, number[]> {
   const busy = new Map<string, number[]>();
   for (const c of q.courts) {
@@ -369,8 +436,9 @@ function Search(props: { value: string; onInput: (v: string) => void }) {
 const matches = (name: string, query: string) => name.toLowerCase().includes(query.trim().toLowerCase());
 
 /**
- * The group's accounts: the picked ones first, then the free ones, then those already on another
- * court (marked with it), so with thirty or more accounts the likely ones are near the top.
+ * The group's accounts: the picked ones in their own highlighted row on top, then the free ones,
+ * then those already on another court (marked with it), so with thirty or more accounts the likely
+ * ones are near the top.
  */
 function AccountPicker(props: {
   q: QueueInfo;
@@ -381,12 +449,34 @@ function AccountPicker(props: {
 }) {
   const [query, setQuery] = useState("");
   const busy = busyAccounts(props.q, props.now, props.except);
-  const rank = (name: string) => (props.picked.includes(name) ? 0 : busy.has(name.toLowerCase()) ? 2 : 1);
+  const rank = (name: string) => (busy.has(name.toLowerCase()) ? 1 : 0);
   const list = props.q.accounts
-    .filter((a) => props.picked.includes(a.username) || matches(a.username, query))
+    .filter((a) => !props.picked.includes(a.username) && matches(a.username, query))
     .sort((a, b) => rank(a.username) - rank(b.username));
+  if (props.q.accounts.length === 0) return null;
   return (
     <>
+      <div class="cq-picked">
+        <span class="cq-picked-label">{t("已选 {n}/{max}", { n: props.picked.length, max: QUEUE_GROUP_MAX })}</span>
+        {props.picked.length === 0 && <span class="muted small">{t("点下面的账号选上")}</span>}
+        {props.picked.map((name) => {
+          const password = props.q.accounts.find((a) => a.username === name)?.password;
+          return (
+            <button
+              type="button"
+              key={name}
+              class="chip on cq-pick"
+              aria-label={t("取消选择 {name}", { name })}
+              onClick={() => props.onToggle(name)}
+            >
+              <span class="cq-pick-name">
+                ✓ {name} <span aria-hidden="true">✕</span>
+              </span>
+              {password && <small>{password}</small>}
+            </button>
+          );
+        })}
+      </div>
       {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
       <div class="chips cq-chips">
         {list.map((a) => {
@@ -395,7 +485,7 @@ function AccountPicker(props: {
             <button
               type="button"
               key={a.id}
-              class={props.picked.includes(a.username) ? "chip on" : on ? "chip cq-busy" : "chip"}
+              class={on ? "chip cq-busy" : "chip"}
               onClick={() => props.onToggle(a.username)}
             >
               {a.username}
@@ -403,7 +493,7 @@ function AccountPicker(props: {
             </button>
           );
         })}
-        {list.length === 0 && <p class="muted small">{t("没有找到这个账号")}</p>}
+        {list.length === 0 && query && <p class="muted small">{t("没有找到这个账号")}</p>}
       </div>
     </>
   );
