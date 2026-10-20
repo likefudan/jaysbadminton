@@ -125,9 +125,14 @@ test("draws our courts, playing then queued, with the names on the two halves", 
   await page.evaluate(() =>
     window.scrollTo(0, document.querySelector(".cq-grid")!.getBoundingClientRect().top + scrollY - 40),
   );
-  const bar = await cq.locator(".cq-bar").boundingBox();
-  const top = await page.locator(".topbar").boundingBox();
-  expect(Math.abs(bar!.y - (top!.y + top!.height))).toBeLessThan(2);
+  // The top bar's height is measured after load (fonts can change it), so wait for the bar to settle.
+  await expect
+    .poll(async () => {
+      const bar = await cq.locator(".cq-bar").boundingBox();
+      const top = await page.locator(".topbar").boundingBox();
+      return Math.abs(bar!.y - (top!.y + top!.height));
+    })
+    .toBeLessThan(2);
   const key = await cq.locator(".cq-legend").boundingBox();
   expect(key!.y + key!.height).toBeLessThanOrEqual(844 + 1);
   await page.screenshot({ path: test.info().outputPath("court-queue-scrolled.png") });

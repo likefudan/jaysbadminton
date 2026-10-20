@@ -107,7 +107,7 @@ test("a newcomer registers with email and the Owner approves them", async ({ pag
 test("the Owner creates an event and is signed up for it", async ({ page }) => {
   await openAdmin(page);
   await page.getByRole("button", { name: "＋ 新建活动" }).click();
-  await expect(page.locator('input[role="switch"]')).toBeChecked(); // 我自己也报名
+  await expect(page.getByRole("switch", { name: /我自己也报名/ })).toBeChecked();
   await field(page, "日期").fill(inAWeek());
   await field(page, "场馆").fill(VENUE);
   await page.getByLabel("备注（选填）").fill("请自带球拍\n提前十分钟到场");
