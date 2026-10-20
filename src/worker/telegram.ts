@@ -15,6 +15,8 @@ import { BOT_LANGS, type BotLang, type BotText, bt, chatLang, initChatLang, setC
  */
 
 const BIND_MINUTES = 10;
+/** Bumped when the bot's menu changes, so the cron sets it again (telegram_commands). */
+const COMMANDS_VERSION = "2";
 
 interface TgResult<T> {
   ok: boolean;
@@ -315,7 +317,7 @@ export async function startBinding(env: Env, who: ChatOwner): Promise<string> {
   if (!me.ok || !me.result) throw new HttpError(502, "telegram", `连接 Telegram 失败：${me.description ?? "未知错误"}`);
   const hook = await setWebhook(env);
   if (!hook.ok) throw new HttpError(502, "telegram", `设置 Telegram 回调失败：${hook.description ?? "未知错误"}`);
-  await setCommands(env);
+  if (await setCommands(env)) await setSetting(env.DB, "telegram_commands", COMMANDS_VERSION).run();
   const code = randomToken();
   const hash = await sha256(code);
   const expires = new Date(Date.now() + BIND_MINUTES * 60_000).toISOString();
@@ -350,10 +352,14 @@ async function setCommands(env: Env): Promise<boolean> {
 export async function upgradeCommands(env: Env): Promise<void> {
   if (!env.TELEGRAM_BOT_TOKEN) return;
   const s = await getSettings(env.DB, ["telegram_chat_id", "telegram_commands"]);
-  if (!s.telegram_chat_id || s.telegram_commands === COMMANDS_VERSION) return;
+  if (s.telegram_commands === COMMANDS_VERSION) return;
+  // Only a bot someone has connected: the Owner, or an organizer or admin.
+  const used =
+    s.telegram_chat_id ||
+    (await env.DB.prepare("SELECT 1 FROM telegram_bindings WHERE chat_id IS NOT NULL LIMIT 1").first());
+  if (!used) return;
   if (await setCommands(env)) await setSetting(env.DB, "telegram_commands", COMMANDS_VERSION).run();
 }
-const COMMANDS_VERSION = "2";
 
 export async function disconnect(env: Env, who: ChatOwner): Promise<void> {
   if (who === null)

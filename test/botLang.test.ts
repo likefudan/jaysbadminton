@@ -187,3 +187,15 @@ describe("notices in the chat's language", () => {
     expect(await digestText(env, new Date("2026-10-19T17:00:00Z"))).toContain("📊 每周简报（10月12日 周一 起的 7 天）");
   });
 });
+
+describe("the bot's menu", () => {
+  it("adds /language once to a bot connected before it was in the menu", async () => {
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('telegram_chat_id', '42')").run();
+    const { upgradeCommands } = await import("../src/worker/telegram");
+    await upgradeCommands(env);
+    expect(calls.filter((c) => c.method === "setMyCommands")).toHaveLength(2);
+    calls = [];
+    await upgradeCommands(env);
+    expect(calls).toEqual([]);
+  });
+});

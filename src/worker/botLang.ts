@@ -26,7 +26,7 @@ export const isBotLang = (s: unknown): s is BotLang => s === "zh-CN" || s === "z
 export function bt(l: BotLang, zh: string, vars?: Record<string, string | number>): string {
   const m = l === "zh-CN" ? undefined : BOT_MESSAGES[zh];
   const s = m ? (l === "en" ? m.en : m.tw) : zh;
-  return vars ? s.replace(/\{(\w+)\}/g, (k0: string, k: string) => (k in vars ? String(vars[k]) : k0)) : s;
+  return vars ? s.replace(/\{(\w+)\}/g, (k0: string, k: string) => (Object.hasOwn(vars, k) ? String(vars[k]) : k0)) : s;
 }
 
 const WEEK_TW = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
@@ -54,11 +54,17 @@ export const usd = (cents: number) => `$${dollars(cents)}`;
 /** Items joined the way the language lists them: 「，」 in Chinese, ", " in English. */
 export const botList = (l: BotLang, items: string[]) => items.join(l === "en" ? ", " : "，");
 
+/** The chat's language; 简体 when it never picked, or when looking it up fails (a notice still goes out). */
 export async function chatLang(env: Env, chatId: string): Promise<BotLang> {
-  const r = await env.DB.prepare("SELECT lang FROM telegram_langs WHERE chat_id = ?")
-    .bind(chatId)
-    .first<{ lang: string }>();
-  return isBotLang(r?.lang) ? r.lang : "zh-CN";
+  try {
+    const r = await env.DB.prepare("SELECT lang FROM telegram_langs WHERE chat_id = ?")
+      .bind(chatId)
+      .first<{ lang: string }>();
+    return isBotLang(r?.lang) ? r.lang : "zh-CN";
+  } catch (err) {
+    console.error("telegram language lookup failed:", err);
+    return "zh-CN";
+  }
 }
 
 export async function setChatLang(env: Env, chatId: string, lang: BotLang): Promise<void> {
