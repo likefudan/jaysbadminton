@@ -256,13 +256,22 @@ export function checkVenue(venue: string, address: string): void {
   if ([...address.trim()].length > 200) throw badRequest("地址最多 200 个字");
 }
 
-/** Remembers a venue and its address for the 最近的场馆 list. */
-export function saveVenue(env: Env, venue: string, address: string, ts: string): D1PreparedStatement {
+/**
+ * Remembers a venue for the 最近的场馆 list: its address, and whether its last event used the
+ * 排队系统 (queuing goes with the hall).
+ */
+export function saveVenue(
+  env: Env,
+  venue: string,
+  address: string,
+  queueRoundMin: number | null,
+  ts: string,
+): D1PreparedStatement {
   return env.DB.prepare(
-    `INSERT INTO locations (name, address, last_used_at, use_count) VALUES (?, ?, ?, 1)
+    `INSERT INTO locations (name, address, queue_round_min, last_used_at, use_count) VALUES (?, ?, ?, ?, 1)
      ON CONFLICT (name) DO UPDATE SET address = CASE WHEN excluded.address != '' THEN excluded.address ELSE address END,
-       last_used_at = excluded.last_used_at, use_count = use_count + 1`,
-  ).bind(venue, address, ts);
+       queue_round_min = excluded.queue_round_min, last_used_at = excluded.last_used_at, use_count = use_count + 1`,
+  ).bind(venue, address, queueRoundMin, ts);
 }
 
 export async function createEvent(env: Env, input: CreateEventInput): Promise<EventRow> {
@@ -329,7 +338,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   }
   const key = (k: string) => lastKey(k, manager, owner);
   await env.DB.batch([
-    saveVenue(env, location, address, ts),
+    saveVenue(env, location, address, input.queueRoundMin ?? null, ts),
     setSetting(env.DB, key("last_start_time"), input.startTime),
     setSetting(env.DB, key("last_end_time"), input.endTime),
     setSetting(env.DB, key("last_location"), location),

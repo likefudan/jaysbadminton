@@ -56,8 +56,8 @@ describe("creating events", () => {
       deadlineHours: 6,
     });
     expect(data.locations).toEqual([
-      { name: "Wellness Gym", address },
-      { name: "Bay Center", address: "2 Bay St, Fremont, CA 94538" },
+      { name: "Wellness Gym", address, queueRoundMin: null },
+      { name: "Bay Center", address: "2 Bay St, Fremont, CA 94538", queueRoundMin: null },
     ]);
   });
 
@@ -68,7 +68,11 @@ describe("creating events", () => {
     expect((await ctx.admin.call(`${ctx.base}/locations/remove`, { name: "Test Gym" })).status).toBe(200);
     const { data } = await ctx.admin.call(`${ctx.base}/events/defaults`);
     expect(data.locations.map((l: { name: string }) => l.name)).not.toContain("Test Gym");
-    expect(data.locations).toContainEqual({ name: "Old Gym", address: "1 Old St, San Jose, CA 95131" });
+    expect(data.locations).toContainEqual({
+      name: "Old Gym",
+      address: "1 Old St, San Jose, CA 95131",
+      queueRoundMin: null,
+    });
     expect(data.location).toBe(""); // it was the last one used, so it no longer pre-fills either
   });
 

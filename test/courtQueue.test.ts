@@ -51,6 +51,25 @@ describe("球场排队", () => {
     expect((await anon.call(`${alice.base}/events/${off.id}`)).data.event.queue).toMatchObject({ roundMin: 40 });
   });
 
+  it("goes with the venue: 最近的场馆 remembers it from the venue's latest event", async () => {
+    const ctx = await setUpAdmin();
+    const venue = async (name: string) =>
+      ((await ctx.admin.call(`${ctx.base}/events/defaults`)).data.locations as any[]).find((v) => v.name === name);
+    const e = await createTestEvent(ctx, { location: "Queue Hall", queueRoundMin: 40 });
+    await createTestEvent(ctx, { location: "Quiet Gym" });
+    expect((await venue("Queue Hall")).queueRoundMin).toBe(40);
+    expect((await venue("Quiet Gym")).queueRoundMin).toBeNull();
+    // Turned off later from 修改活动: the venue forgets it too.
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+      date: e.date,
+      startTime: e.startTime,
+      endTime: e.endTime,
+      location: e.location,
+      queueRoundMin: null,
+    });
+    expect((await venue("Queue Hall")).queueRoundMin).toBeNull();
+  });
+
   it("shares accounts with everyone on the event, and only the adder or the runner removes one", async () => {
     const { alice, bob, q, card, e } = await scenario();
     expect((await anon.call(`${alice.base}${q}/accounts`, { username: " Mark ", password: "1357" })).status).toBe(200);

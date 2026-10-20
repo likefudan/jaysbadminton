@@ -182,7 +182,10 @@ export function Field(props: {
   type?: HTMLInputTypeAttribute;
   hint?: string;
   autocomplete?: string;
+  /** Typed exactly as is (usernames, passwords): no capital first letter or autocorrect on phones. */
+  verbatim?: boolean;
 }) {
+  const verbatim = props.verbatim ? ({ autocapitalize: "none", autocorrect: "off", spellcheck: false } as const) : {};
   return (
     <label class="field">
       <span>{props.label}</span>
@@ -191,6 +194,7 @@ export function Field(props: {
         {...({ type: props.type ?? "text" } as AccessibleInputHTMLAttributes)}
         value={props.value}
         autocomplete={props.autocomplete}
+        {...verbatim}
         onInput={(e) => props.onInput((e.target as HTMLInputElement).value)}
       />
       {props.hint && <small class="muted">{props.hint}</small>}

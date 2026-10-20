@@ -140,6 +140,14 @@ test("the Owner forgets a venue from 最近的场馆 with its ✕", async ({ pag
   await openAdmin(page);
   await page.getByRole("button", { name: "＋ 新建活动" }).click();
   await expect(page.getByRole("button", { name: VENUE, exact: true })).toBeVisible();
+  // 排队系统 goes with the venue: picking it sets the switch the way its last event had it (off).
+  const queue = page.getByRole("switch", { name: "排队系统" });
+  await expect(queue).not.toBeChecked();
+  await queue.check();
+  await expect(page.getByLabel("每轮多少分钟")).toHaveValue("45");
+  await page.screenshot({ path: test.info().outputPath("create-queue.png"), fullPage: true });
+  await page.getByRole("button", { name: VENUE, exact: true }).click();
+  await expect(queue).not.toBeChecked();
   await page.getByRole("button", { name: `从最近的场馆中删除「${VENUE}」` }).click(); // no confirmation dialog
   await expect(page.getByText("最近的场馆")).toHaveCount(0);
   await page.reload();

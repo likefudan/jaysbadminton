@@ -260,6 +260,13 @@ export interface MyRosterEntry {
   absent: boolean;
 }
 
+/** A 最近的场馆 entry: its address, and the 排队系统 round length its last event used (null: off). */
+export interface Venue {
+  name: string;
+  address: string;
+  queueRoundMin: number | null;
+}
+
 export interface EventDefaults {
   startTime: string;
   endTime: string;
@@ -267,7 +274,7 @@ export interface EventDefaults {
   deadlineDays: number;
   deadlineHours: number;
   address: string; // of the last venue
-  locations: { name: string; address: string }[]; // recent venues, newest first
+  locations: Venue[]; // recent venues, newest first
   friendCap: number;
 }
 
