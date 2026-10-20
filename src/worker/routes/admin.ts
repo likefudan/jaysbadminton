@@ -36,6 +36,7 @@ import { memberProfile, setAdminNote } from "../profile";
 import { googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
 import { isStaging } from "../site";
 import { escapeHtml, sendToOwner } from "../telegram";
+import { bt } from "../botLang";
 
 export const adminRoutes = new Hono<AdminEnv>();
 
@@ -341,11 +342,16 @@ adminRoutes.post("/:token/settings/backup-key", async (c) => {
   const body = await readJson(c.req.raw);
   if (!(await checkPassword(c.env, str(body.password)))) throw new HttpError(401, "wrong_password", "密码不正确");
   const site = isStaging(c.env) ? "测试站" : "正式网站";
+  const secret = isStaging(c.env) ? "LINK_ENCRYPTION_KEY_STAGING" : "LINK_ENCRYPTION_KEY";
   const sent = await sendToOwner(
     c.env,
-    `🔑 ${site}的 TOKEN_KEY（${escapeHtml(c.env.SITE_ORIGIN)}）：\n<pre>${escapeHtml(c.env.TOKEN_KEY)}</pre>\n` +
-      `请存进密码管理器，并存为 GitHub secret <code>${isStaging(c.env) ? "LINK_ENCRYPTION_KEY_STAGING" : "LINK_ENCRYPTION_KEY"}</code>，然后删除这条消息。` +
-      "每次部署都会核对它；万一 Worker 的 secret 丢了，部署时会自动用它填回去。",
+    (l) =>
+      `🔑 ${bt(l, "{site}的 TOKEN_KEY（{origin}）：", { site: bt(l, site), origin: escapeHtml(c.env.SITE_ORIGIN) })}\n<pre>${escapeHtml(c.env.TOKEN_KEY)}</pre>\n` +
+      bt(
+        l,
+        "请存进密码管理器，并存为 GitHub secret {secret}，然后删除这条消息。每次部署都会核对它；万一 Worker 的 secret 丢了，部署时会自动用它填回去。",
+        { secret: `<code>${secret}</code>` },
+      ),
   );
   if (!sent) throw badRequest("发送失败：请先在设置里连接 Telegram");
   return c.json({ ok: true });

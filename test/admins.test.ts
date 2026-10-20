@@ -275,7 +275,7 @@ describe("an admin", () => {
       return Response.json({ ok: true, result: { message_id: 1 } });
     }) as typeof fetch;
     try {
-      expect(await sendToMember(on, carol.id, "hi")).toBe(true);
+      expect(await sendToMember(on, carol.id, () => "hi")).toBe(true);
     } finally {
       globalThis.fetch = real;
     }

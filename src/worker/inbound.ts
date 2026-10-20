@@ -8,6 +8,7 @@ import { parseEmail, type VenmoReceipt } from "./email/parse";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
 import { message, notifyPayment } from "./notify";
+import { type BotLang, bt } from "./botLang";
 import { eventPayee, isStaff, memberRole, ownerId } from "./organizers";
 import { sendToMember, sendToOwner } from "./telegram";
 import { codeName, noteName, parsePaymentCode } from "./paymentCode";
@@ -45,19 +46,18 @@ async function gmailConfirmation(
     await env.DB.prepare("UPDATE payment_profiles SET gmail_confirm = ?, gmail_confirm_at = ? WHERE member_id = ?")
       .bind(content, now(), organizer)
       .run();
-    await sendToMember(
-      env,
-      organizer,
-      message(`📮 Gmail 转发确认邮件\n${content}\n\n把上面的确认码填到 Gmail 设置里，或打开里面的确认链接。`),
-    );
+    await sendToMember(env, organizer, (l) => gmailConfirmText(l, content));
     return { outcome: "gmail_confirm_organizer", organizer };
   }
-  await sendToOwner(
-    env,
-    message(`📮 Gmail 转发确认邮件\n${content}\n\n把上面的确认码填到 Gmail 设置里，或打开里面的确认链接。`),
-  );
+  await sendToOwner(env, (l) => gmailConfirmText(l, content));
   return { outcome: "gmail_confirm", organizer: null };
 }
+
+const gmailConfirmText = (l: BotLang, content: string) =>
+  message(
+    l,
+    bt(l, "📮 Gmail 转发确认邮件\n{content}\n\n把上面的确认码填到 Gmail 设置里，或打开里面的确认链接。", { content }),
+  );
 
 /** How long a Gmail confirmation stays on the organizer's 收款设置 page. */
 export const GMAIL_CONFIRM_HOURS = 24;

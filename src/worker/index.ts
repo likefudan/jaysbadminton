@@ -21,7 +21,7 @@ import { eventMeta, homeMeta, sharePage } from "./share";
 import { isStaging } from "./site";
 import { SECURITY_HEADERS } from "../shared/security";
 import { checkExportKey } from "./sheets";
-import { handleUpdate, upgradeWebhookSecret, webhookSecret } from "./telegram";
+import { handleUpdate, upgradeCommands, upgradeWebhookSecret, webhookSecret } from "./telegram";
 import { adminRoutes } from "./routes/admin";
 import { memberRoutes } from "./routes/member";
 import { publicRoutes } from "./routes/public";
@@ -142,6 +142,7 @@ export default {
       await remindExpiredPayees(env); // former organizers whose account no longer takes payments
       await pruneEmailLog(env);
       await upgradeWebhookSecret(env);
+      await upgradeCommands(env); // /language in the bot menu of a bot set up before it
     } catch (err) {
       console.error("scheduled run failed:", err);
       await recordCronError(env, err);

@@ -82,6 +82,7 @@ import {
   refundRows,
 } from "../inbound";
 import { message, notifyCreated, notifySettings } from "../notify";
+import { type BotLang, bt } from "../botLang";
 import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
@@ -346,10 +347,11 @@ adminEventRoutes.post("/events/:id/transfer", async (c) => {
   }
   if (paidBefore && paidAfter && paidBefore !== paidAfter && paidBefore !== actor.memberId) {
     const [by, toName] = await Promise.all([payeeName(c.env.DB, actor.memberId), payeeName(c.env.DB, paidAfter)]);
-    await sendToMember(
-      c.env,
-      paidBefore,
-      message(`🔁 ${by} 把活动 ${label} 转交给了 ${toName}。\n成员的钱以后付给 ${toName}，不再付给你。`),
+    await sendToMember(c.env, paidBefore, (l) =>
+      message(
+        l,
+        bt(l, "🔁 {by} 把活动 {label} 转交给了 {to}。\n成员的钱以后付给 {to}，不再付给你。", { by, label, to: toName }),
+      ),
     );
   }
   return c.json(await detail(c.env, after, c.get("actor").memberId));
@@ -385,10 +387,14 @@ adminEventRoutes.post("/events/:id/delete", async (c) => {
   await deleteEvent(c.env, e);
   await clearDeadline(c.env, e.id);
   const label = `${e.date} ${e.code}${e.title ? ` ${e.title}` : ""}`;
-  await sendToOwner(
-    c.env,
+  await sendToOwner(c.env, (l) =>
     message(
-      `🗑 活动 ${label} 已从数据库永久删除（报名、账单和付款记录一并删除）。\n\n如果不是你本人操作，请立刻修改群主密码。`,
+      l,
+      bt(
+        l,
+        "🗑 活动 {label} 已从数据库永久删除（报名、账单和付款记录一并删除）。\n\n如果不是你本人操作，请立刻修改群主密码。",
+        { label },
+      ),
     ),
   );
   return c.json({ ok: true });
@@ -713,6 +719,13 @@ adminEventRoutes.post("/settings", async (c) => {
   return c.json({ ok: true });
 });
 
+/** 收款设置已修改's lines: 「Venmo 通知邮箱：old → new」, in the chat's language. */
+const changeLines = (l: BotLang, changes: string[][]) =>
+  changes
+    .map(([k, a, z]) => `${bt(l, k!)}：${a || bt(l, "（空）")} → ${z || bt(l, "（空）")}`)
+    .map((line) => (l === "en" ? line.replace("：", ": ") : line))
+    .join("\n");
+
 /**
  * 收款设置: where members' money goes. Changed rarely, so it needs the admin password, and every
  * change is reported to the Owner's Telegram in case it was not them.
@@ -737,8 +750,14 @@ adminEventRoutes.post("/settings/payment", async (c) => {
     ["Zelle", before.zelle_account ?? "", zelle],
   ].filter(([, a, z]) => a !== z);
   if (changes.length) {
-    const lines = changes.map(([k, a, z]) => `${k}：${a || "（空）"} → ${z || "（空）"}`).join("\n");
-    await sendToOwner(c.env, message(`🔐 收款设置已修改\n${lines}\n\n如果不是你本人操作，请立刻修改群主密码。`));
+    await sendToOwner(c.env, (l) =>
+      message(
+        l,
+        bt(l, "🔐 收款设置已修改\n{lines}\n\n如果不是你本人操作，请立刻修改群主密码。", {
+          lines: changeLines(l, changes),
+        }),
+      ),
+    );
     await groupAudit(
       c.env,
       c.get("actor"),
@@ -801,15 +820,24 @@ adminEventRoutes.post("/payment-profile", async (c) => {
   const { changes } = await savePaymentProfile(c.env, actor.memberId, readPaymentInput(await readJson(c.req.raw)));
   if (changes.length) {
     // The Owner hears of it, as of their own, and so does the organizer or admin, in case it wasn't them.
-    const lines = changes.map(([k, a, z]) => `${k}：${a || "（空）"} → ${z || "（空）"}`).join("\n");
-    await sendToOwner(
-      c.env,
-      message(`🔐 ${ROLE_TITLE[actor.role]} ${await payeeName(c.env.DB, actor.memberId)} 的收款设置已修改\n${lines}`),
+    const name = await payeeName(c.env.DB, actor.memberId);
+    await sendToOwner(c.env, (l) =>
+      message(
+        l,
+        bt(l, "🔐 {title} {name} 的收款设置已修改\n{lines}", {
+          title: bt(l, ROLE_TITLE[actor.role]),
+          name,
+          lines: changeLines(l, changes),
+        }),
+      ),
     );
-    await sendToMember(
-      c.env,
-      actor.memberId,
-      message(`🔐 你的收款设置已修改\n${lines}\n\n如果不是你本人操作，请马上告诉群主。`),
+    await sendToMember(c.env, actor.memberId, (l) =>
+      message(
+        l,
+        bt(l, "🔐 你的收款设置已修改\n{lines}\n\n如果不是你本人操作，请马上告诉群主。", {
+          lines: changeLines(l, changes),
+        }),
+      ),
     );
   }
   return c.json({ ok: true });
@@ -1295,7 +1323,7 @@ adminEventRoutes.post("/telegram/connect", async (c) =>
 
 adminEventRoutes.post("/telegram/test", async (c) => {
   const who = chatOwner(c.get("actor"));
-  const text = message("🏸 测试消息：通知工作正常。", "这一段是可以复制到微信的文字。");
+  const text = (l: BotLang) => message(l, bt(l, "🏸 测试消息：通知工作正常。"), "这一段是可以复制到微信的文字。");
   const ok = who === null ? await sendToOwner(c.env, text) : await sendToMember(c.env, who, text);
   if (!ok) throw badRequest("发送失败：请先连接 Telegram，或检查机器人是否被停用");
   return c.json({ ok: true });

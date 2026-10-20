@@ -1,30 +1,32 @@
 import { dollars } from "../shared/settle";
-import { formatDateZh, toPacific } from "../shared/time";
+import { toPacific } from "../shared/time";
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import { type EventRow, closeExpired, roster } from "./events";
+import { type BotLang, type BotText, bt, botDate, btm, usd } from "./botLang";
 import { day, venue, when } from "./eventText";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { ROLE_TITLE, eventManager, isStaff, memberRole, organizersEnabled } from "./organizers";
 import { START_PUSH_MS, drainPushes, pushStarting, sendRest } from "./push";
 import {
-  WECHAT_BLOCK,
   escapeHtml,
   sendLikewise,
   sendToManager,
   sendToManagerAndOwner,
   sendToOwner,
   sendToPayee,
+  wechatBlock,
 } from "./telegram";
 
 /**
  * Every notification goes to Telegram: an event's to whoever runs it (sendToManager), the rest to
  * the Owner. First what they need to know, then, when there is one, a block of text ready to paste
- * into WeChat (a <pre> block copies in one tap).
+ * into WeChat (a <pre> block copies in one tap). `head` is in the chat's language `l`; the WeChat
+ * text is for the group and stays Simplified Chinese.
  */
-export function message(head: string, wechat?: string): string {
+export function message(l: BotLang, head: string, wechat?: string): string {
   const text = escapeHtml(head);
-  return wechat ? `${text}${WECHAT_BLOCK}<pre>${escapeHtml(wechat)}</pre>` : text;
+  return wechat ? `${text}${wechatBlock(l)}<pre>${escapeHtml(wechat)}</pre>` : text;
 }
 
 export interface NotifySettings {
@@ -104,8 +106,8 @@ async function runBy(env: Env, e: EventRow): Promise<string> {
 }
 
 /** `adminPage`: the notice sends them to the admin page, so an organizer gets their link to it. */
-const toManager = async (env: Env, e: { manager_id: string | null }, html: string, adminPage = false) =>
-  (await sendToManager(env, e, html, adminPage)).ok;
+const toManager = async (env: Env, e: { manager_id: string | null }, text: BotText, adminPage = false) =>
+  (await sendToManager(env, e, text, adminPage)).ok;
 
 async function headcount(env: Env, eventId: number): Promise<number> {
   const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ?")
@@ -165,12 +167,12 @@ async function deadlineReminder(env: Env, e: EventRow, at: Date, cfg: NotifySett
   await once(env, e.id, "deadline_reminder", e.deadline_at, async () => {
     const n = await headcount(env, e.id);
     const left = Math.max(1, Math.round((deadline - at.getTime()) / 3600_000));
-    return toManager(
-      env,
-      e,
+    const wechat = `${when(e)} 羽毛球${await runBy(env, e)}报名还剩 ${left} 小时截止，目前 ${n} 人，还没报名的抓紧啦！\n${eventLink(env, e)}`;
+    return toManager(env, e, (l) =>
       message(
-        `⏰ ${day(e)} 的活动报名还剩约 ${left} 小时截止，目前 ${n} 人。`,
-        `${when(e)} 羽毛球${await runBy(env, e)}报名还剩 ${left} 小时截止，目前 ${n} 人，还没报名的抓紧啦！\n${eventLink(env, e)}`,
+        l,
+        bt(l, "⏰ {day} 的活动报名还剩约 {left} 小时截止，目前 {n} 人。", { day: day(e, l), left, n }),
+        wechat,
       ),
     );
   });
@@ -185,13 +187,9 @@ async function closedNotice(env: Env, e: EventRow, at: Date): Promise<void> {
   await once(env, e.id, "closed", e.deadline_at, async () => {
     const list = await roster(env, e.id);
     const names = list.map((r, i) => `${i + 1}. ${r.name}`).join("\n");
-    return toManager(
-      env,
-      e,
-      message(
-        `🔒 ${day(e)} 的活动报名已截止，共 ${list.length} 人。`,
-        `${when(e)} 羽毛球${await runBy(env, e)}报名已截止，共 ${list.length} 人。\n地点：${venue(e)}\n${names}`,
-      ),
+    const wechat = `${when(e)} 羽毛球${await runBy(env, e)}报名已截止，共 ${list.length} 人。\n地点：${venue(e)}\n${names}`;
+    return toManager(env, e, (l) =>
+      message(l, bt(l, "🔒 {day} 的活动报名已截止，共 {n} 人。", { day: day(e, l), n: list.length }), wechat),
     );
   });
 }
@@ -279,7 +277,11 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
       toManager(
         env,
         e,
-        message(`💰 ${day(e)} 的活动已经结束，没有人报名，不用结算。\n可以在管理页取消这个活动。`),
+        (l) =>
+          message(
+            l,
+            bt(l, "💰 {day} 的活动已经结束，没有人报名，不用结算。\n可以在管理页取消这个活动。", { day: day(e, l) }),
+          ),
         true,
       ),
     );
@@ -289,9 +291,15 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
     toManager(
       env,
       e,
-      message(
-        `💰 ${day(e)} 的活动已经结束，还没有结算（报名 ${n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。`,
-      ),
+      (l) =>
+        message(
+          l,
+          bt(
+            l,
+            "💰 {day} 的活动已经结束，还没有结算（报名 {n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。",
+            { day: day(e, l), n },
+          ),
+        ),
       true,
     ),
   );
@@ -326,14 +334,27 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
     if (owing.length === 0) return true;
     const due = pays.reduce((t, x) => t + x.amount_due_cents, 0);
     const paid = pays.reduce((t, x) => t + x.amount_paid_cents, 0);
-    const lines = owing
-      .map((x) => `${x.username} 还差 $${dollars(x.amount_due_cents - x.amount_paid_cents)}`)
-      .join("\n");
-    const d = await sendToManager(
-      env,
-      e,
+    const lines = (l: BotLang) =>
+      owing
+        .map((x) =>
+          bt(l, "{name} 还差 {amount}", { name: x.username, amount: usd(x.amount_due_cents - x.amount_paid_cents) }),
+        )
+        .join("\n");
+    const d = await sendToManager(env, e, (l) =>
       message(
-        `📋 ${day(e)} 收款汇总：应收 $${dollars(due)}，已收 $${dollars(paid)}；已付清 ${pays.length - owing.length} 人，未付清 ${owing.length} 人：\n${lines}\n\n下面是每个人的账单提醒，可以分别复制到微信私聊。`,
+        l,
+        bt(
+          l,
+          "📋 {day} 收款汇总：应收 {due}，已收 {paid}；已付清 {done} 人，未付清 {owing} 人：\n{lines}\n\n下面是每个人的账单提醒，可以分别复制到微信私聊。",
+          {
+            day: day(e, l),
+            due: usd(due),
+            paid: usd(paid),
+            done: pays.length - owing.length,
+            owing: owing.length,
+            lines: lines(l),
+          },
+        ),
       ),
     );
     if (!d.ok) return false;
@@ -347,7 +368,9 @@ async function dailyDunning(env: Env, e: EventRow, at: Date, cfg: NotifySettings
           ? `${x.username}，${day(e)}羽毛球的费用还差 $${owed} 没付哦，麻烦${via}补一下，谢谢！`
           : `${x.username}，${day(e)}羽毛球的费用 $${owed} 还没付哦，麻烦${via}付一下，谢谢！`;
       // Each bill reminder follows the summary, so one person gets the whole set.
-      await sendLikewise(env, d, message(`账单提醒：${x.username}（微信：${x.wechat_nickname}）`, text));
+      await sendLikewise(env, d, (l) =>
+        message(l, bt(l, "账单提醒：{name}（微信：{wechat}）", { name: x.username, wechat: x.wechat_nickname }), text),
+      );
     }
     return true;
   });
@@ -366,12 +389,12 @@ export async function notifyFinalized(env: Env, e: EventRow): Promise<void> {
       .all<{ amount_due_cents: number; username: string }>();
     const total = results.reduce((t, x) => t + x.amount_due_cents, 0);
     const lines = results.map((x) => `${x.username} $${dollars(x.amount_due_cents)}`).join("\n");
-    return sendToManagerAndOwner(
-      env,
-      e,
+    const wechat = `${day(e)}羽毛球${await runBy(env, e)}的费用已经出来了，请打开自己的专属链接（或用 Google 登录网站）查看金额并付款，谢谢！`;
+    return sendToManagerAndOwner(env, e, (l) =>
       message(
-        `✅ ${day(e)} 已结算，应收合计 $${dollars(total)}：\n${lines}`,
-        `${day(e)}羽毛球${await runBy(env, e)}的费用已经出来了，请打开自己的专属链接（或用 Google 登录网站）查看金额并付款，谢谢！`,
+        l,
+        bt(l, "✅ {day} 已结算，应收合计 {total}：\n{lines}", { day: day(e, l), total: usd(total), lines }),
+        wechat,
       ),
     );
   });
@@ -400,29 +423,45 @@ export async function notifyCollected(env: Env, eventId: number): Promise<void> 
     )
       .bind(e.id)
       .first<{ n: number; due: number; paid: number; refund: number }>();
-    const lines = [
-      "🎉 费用已全部收齐，活动已归档",
-      "",
-      ...(e.title ? [`活动：${e.title}`] : []),
-      `日期：${formatDateZh(e.date)} ${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`,
-      `活动编号：${e.number}`,
-      `场馆：${e.location}`,
-      ...(e.address ? [`地址：${e.address}`] : []),
-    ];
-    if (st) {
-      const shuttle = st.shuttle_count * st.shuttle_price_cents;
-      lines.push(
-        `人数：报名 ${st.registered_count} 人，到场 ${st.attended_count} 人（${pay?.n ?? 0} 人付款）`,
-        `费用：$${dollars(st.court_total_cents + shuttle)}`,
-        `　场地费 $${dollars(st.court_total_cents)}`,
-        `　球费 $${dollars(shuttle)}（${st.shuttle_count} 个 × $${dollars(st.shuttle_price_cents)}）`,
-      );
-    }
-    if (pay) {
-      lines.push(`应收 $${dollars(pay.due ?? 0)}，实收 $${dollars(pay.paid ?? 0)}`);
-      if (pay.refund) lines.push(`还有多付的 $${dollars(pay.refund)} 需要退，见管理页「收款」。`);
-    }
-    return sendToManagerAndOwner(env, e, message(lines.join("\n")), !!pay?.refund);
+    const text = (l: BotLang) => {
+      const t = (zh: string, vars?: Record<string, string | number>) => bt(l, zh, vars);
+      const lines = [
+        t("🎉 费用已全部收齐，活动已归档"),
+        "",
+        ...(e.title ? [t("活动：{title}", { title: e.title })] : []),
+        t("日期：{date} {start}–{end}", {
+          date: botDate(l, e.date),
+          start: toPacific(e.start_at).time,
+          end: toPacific(e.end_at).time,
+        }),
+        t("活动编号：{number}", { number: e.number }),
+        t("场馆：{location}", { location: e.location }),
+        ...(e.address ? [t("地址：{address}", { address: e.address })] : []),
+      ];
+      if (st) {
+        const shuttle = st.shuttle_count * st.shuttle_price_cents;
+        lines.push(
+          t("人数：报名 {registered} 人，到场 {attended} 人（{paying} 人付款）", {
+            registered: st.registered_count,
+            attended: st.attended_count,
+            paying: pay?.n ?? 0,
+          }),
+          t("费用：{amount}", { amount: usd(st.court_total_cents + shuttle) }),
+          `　${t("场地费 {amount}", { amount: usd(st.court_total_cents) })}`,
+          `　${t("球费 {amount}（{count} 个 × {price}）", {
+            amount: usd(shuttle),
+            count: st.shuttle_count,
+            price: usd(st.shuttle_price_cents),
+          })}`,
+        );
+      }
+      if (pay) {
+        lines.push(t("应收 {due}，实收 {paid}", { due: usd(pay.due ?? 0), paid: usd(pay.paid ?? 0) }));
+        if (pay.refund) lines.push(t("还有多付的 {amount} 需要退，见管理页「收款」。", { amount: usd(pay.refund) }));
+      }
+      return message(l, lines.join("\n"));
+    };
+    return sendToManagerAndOwner(env, e, text, !!pay?.refund);
   });
 }
 
@@ -443,11 +482,14 @@ export async function notifyPayment(
   },
 ): Promise<void> {
   if (kind === "review") {
-    await sendToPayee(
-      env,
-      info.payee ?? null,
+    await sendToPayee(env, info.payee ?? null, (l) =>
       message(
-        `❓ 有一笔 Venmo 付款需要确认：${info.payer} $${dollars(info.amountCents)}，备注「${info.note}」。\n原因：${info.reason}\n请到管理页「收款」把它关联到某人名下，或者忽略。`,
+        l,
+        bt(
+          l,
+          "❓ 有一笔 Venmo 付款需要确认：{payer} {amount}，备注「{note}」。\n原因：{reason}\n请到管理页「收款」把它关联到某人名下，或者忽略。",
+          { payer: info.payer, amount: usd(info.amountCents), note: info.note, reason: btm(l, info.reason ?? "") },
+        ),
       ),
     );
     return;
@@ -466,12 +508,22 @@ export async function notifyPayment(
       manager_id: string | null;
     }>();
   if (!p) return;
-  const d = formatDateZh(p.date);
-  const text =
+  const text = (l: BotLang) =>
     kind === "partial"
-      ? `💵 ${p.username} 付了 $${dollars(info.amountCents)}（${d}），还差 $${dollars(p.amount_due_cents - p.amount_paid_cents)}。`
-      : `↩️ ${p.username} 多付了 $${dollars(p.amount_paid_cents - p.amount_due_cents)}（${d}，应付 $${dollars(p.amount_due_cents)}，共收到 $${dollars(p.amount_paid_cents + p.refunded_cents)}），需要退款，见管理页「收款」。`;
-  await sendToManager(env, p, message(text), kind === "overpaid");
+      ? bt(l, "💵 {name} 付了 {amount}（{date}），还差 {owed}。", {
+          name: p.username,
+          amount: usd(info.amountCents),
+          date: botDate(l, p.date),
+          owed: usd(p.amount_due_cents - p.amount_paid_cents),
+        })
+      : bt(l, "↩️ {name} 多付了 {over}（{date}，应付 {due}，共收到 {received}），需要退款，见管理页「收款」。", {
+          name: p.username,
+          over: usd(p.amount_paid_cents - p.amount_due_cents),
+          date: botDate(l, p.date),
+          due: usd(p.amount_due_cents),
+          received: usd(p.amount_paid_cents + p.refunded_cents),
+        });
+  await sendToManager(env, p, (l) => message(l, text(l)), kind === "overpaid");
 }
 
 /**
@@ -481,8 +533,16 @@ export async function notifyPayment(
 export async function notifyCreated(env: Env, e: EventRow): Promise<void> {
   const by = await managerOf(env, e);
   if (!by) return;
-  await sendToOwner(
-    env,
-    message(`🆕 ${by.title} ${by.name} 发起了新活动：\n${when(e)}\n地点：${venue(e)}\n${eventLink(env, e)}`),
+  await sendToOwner(env, (l) =>
+    message(
+      l,
+      bt(l, "🆕 {title} {name} 发起了新活动：\n{when}\n地点：{venue}\n{link}", {
+        title: bt(l, by.title),
+        name: by.name,
+        when: when(e, l),
+        venue: venue(e, l),
+        link: eventLink(env, e),
+      }),
+    ),
   );
 }

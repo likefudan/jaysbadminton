@@ -4,12 +4,14 @@ import { HttpError } from "./http";
 import { hmac, randomToken, sha256 } from "./lib/crypto";
 import { currentAdminToken } from "./auth";
 import { ROLE_TITLE, currentStaffSql, eventManager, isStaff, memberRole, organizersEnabled } from "./organizers";
+import { BOT_LANGS, type BotLang, type BotText, bt, chatLang, initChatLang, setChatLang } from "./botLang";
 
 /**
  * One bot (created by whoever hosts the site) talks to one chat per person: the Owner's, kept in
  * `settings` as before, and each organizer's, in their telegram_bindings row. A chat is bound from
  * the admin page with a one-time code carried by a t.me start link, so nobody who merely finds the
- * bot can receive anything. Binding again replaces that person's previous chat.
+ * bot can receive anything. Binding again replaces that person's previous chat. Every message is a
+ * BotText, written in the language that chat picked (botLang.ts).
  */
 
 const BIND_MINUTES = 10;
@@ -37,22 +39,23 @@ async function call<T>(env: Env, method: string, body: unknown): Promise<TgResul
 
 export const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-async function sendTo(env: Env, chatId: string, html: string): Promise<boolean> {
+async function sendTo(env: Env, chatId: string, text: BotText, replyMarkup?: unknown): Promise<boolean> {
   const r = await call(env, "sendMessage", {
     chat_id: chatId,
-    text: html,
+    text: await text(await chatLang(env, chatId)),
     parse_mode: "HTML",
     link_preview_options: { is_disabled: true },
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
   if (!r.ok) console.error("telegram send failed:", r.description);
   return r.ok;
 }
 
 /** Sends an HTML message to the bound Owner chat. False when not set up or Telegram refused it. */
-export async function sendToOwner(env: Env, html: string): Promise<boolean> {
+export async function sendToOwner(env: Env, text: BotText): Promise<boolean> {
   const { telegram_chat_id: chatId } = await getSettings(env.DB, ["telegram_chat_id"]);
   if (!chatId) return false;
-  return sendTo(env, chatId, html);
+  return sendTo(env, chatId, text);
 }
 
 interface Recipient {
@@ -76,7 +79,7 @@ async function recipient(db: D1Database, memberId: string): Promise<Recipient | 
 }
 
 /** Where notify.ts's message() starts the text to paste into WeChat. */
-export const WECHAT_BLOCK = "\n\n—— 可复制到微信 ——\n";
+export const wechatBlock = (l: BotLang) => `\n\n${bt(l, "—— 可复制到微信 ——")}\n`;
 
 /** Where an organizer opens the admin pages: through Google, never the Owner's admin link. */
 export const organizerAdminLink = (env: Env) => `${env.SITE_ORIGIN}/admin/google`;
@@ -85,10 +88,10 @@ export const organizerAdminLink = (env: Env) => `${env.SITE_ORIGIN}/admin/google
  * Puts the organizer's way into the admin pages under a notice that sends them there (`adminPage`),
  * before the WeChat block.
  */
-function withAdminLink(env: Env, html: string, adminPage: boolean): string {
+function withAdminLink(env: Env, l: BotLang, html: string, adminPage: boolean): string {
   if (!adminPage) return html;
-  const link = `管理页（用 Google 登录）：${escapeHtml(organizerAdminLink(env))}`;
-  const cut = html.indexOf(WECHAT_BLOCK);
+  const link = bt(l, "管理页（用 Google 登录）：{link}", { link: escapeHtml(organizerAdminLink(env)) });
+  const cut = html.indexOf(wechatBlock(l));
   return cut < 0 ? `${html}\n\n${link}` : `${html.slice(0, cut)}\n\n${link}${html.slice(cut)}`;
 }
 
@@ -96,26 +99,28 @@ function withAdminLink(env: Env, html: string, adminPage: boolean): string {
  * Sends to one person's own chat: the Owner's, or a current organizer's or admin's (only while the
  * feature is on). False when they have none, are no longer one, or Telegram refused it.
  */
-export async function sendToMember(env: Env, memberId: string, html: string): Promise<boolean> {
+export async function sendToMember(env: Env, memberId: string, text: BotText): Promise<boolean> {
   const m = await recipient(env.DB, memberId);
   if (!m) return false;
   const role = memberRole(env, m);
-  if (role === "owner") return sendToOwner(env, html);
+  if (role === "owner") return sendToOwner(env, text);
   if (!isStaff(role) || !m.chat_id) return false;
-  return sendTo(env, m.chat_id, html);
+  return sendTo(env, m.chat_id, text);
 }
 
 /**
  * Sends to every current admin's own chat (新成员申请, admin-role.zh.md §6), only while the feature
  * is on. True when at least one of them got it.
  */
-export async function sendToAdmins(env: Env, html: string): Promise<boolean> {
+export async function sendToAdmins(env: Env, text: BotText): Promise<boolean> {
   if (!organizersEnabled(env)) return false;
   const { results } = await env.DB.prepare(
     `SELECT t.chat_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
      WHERE t.chat_id IS NOT NULL AND m.role = 'admin' AND ${currentStaffSql("m")}`,
   ).all<{ chat_id: string }>();
-  const sent = await Promise.all(results.map((r) => sendTo(env, r.chat_id, withAdminLink(env, html, true))));
+  const sent = await Promise.all(
+    results.map((r) => sendTo(env, r.chat_id, async (l) => withAdminLink(env, l, await text(l), true))),
+  );
   return sent.some(Boolean);
 }
 
@@ -125,15 +130,15 @@ export interface ManagerDelivery {
   owner: boolean;
   /** The organizer or admin who runs the event, when that is not the Owner. */
   organizer: string | null;
-  /** 组织者 or 管理员, when it went to them: the Owner's copy names them so. */
+  /** 组织者 or 管理员 (a botMessages key), when it went to them: the Owner's copy names them so. */
   title: string | null;
   /** The organizer's chat when it went there. */
   chatId: string | null;
 }
 
 /** Sends a follow-up to wherever an earlier sendToManager went, so a run of messages stays together. */
-export async function sendLikewise(env: Env, d: ManagerDelivery, html: string): Promise<boolean> {
-  return d.owner || !d.chatId ? sendToOwner(env, html) : sendTo(env, d.chatId, html);
+export async function sendLikewise(env: Env, d: ManagerDelivery, text: BotText): Promise<boolean> {
+  return d.owner || !d.chatId ? sendToOwner(env, text) : sendTo(env, d.chatId, text);
 }
 
 /**
@@ -144,12 +149,12 @@ export async function sendLikewise(env: Env, d: ManagerDelivery, html: string): 
 export async function sendToManager(
   env: Env,
   e: { manager_id: string | null },
-  html: string,
+  text: BotText,
   adminPage = false,
 ): Promise<ManagerDelivery> {
-  return sendToResponsible(env, await eventManager(env.DB, e), html, adminPage, {
-    off: (name) => `这场由 ${name} 负责，但组织者功能已关闭`,
-    former: (name) => `这场的负责人 ${name} 已经不是组织者或管理员`,
+  return sendToResponsible(env, await eventManager(env.DB, e), text, adminPage, {
+    off: "这场由 {name} 负责，但组织者功能已关闭，这条发给群主。",
+    former: "这场的负责人 {name} 已经不是组织者或管理员，这条发给群主。",
   });
 }
 
@@ -158,40 +163,47 @@ export async function sendToManager(
  * account's owner (design §7): a current organizer, else the Owner, opening with why when it
  * falls back. A 历史收款人's go to the Owner, who handles them now.
  */
-export async function sendToPayee(env: Env, payeeId: string | null, html: string): Promise<ManagerDelivery> {
-  return sendToResponsible(env, payeeId, html, true, {
-    off: (name) => `这条是关于 ${name} 的收款账户的，但组织者功能已关闭`,
-    former: (name) => `这条是关于历史收款人 ${name} 的收款账户的（已经不是组织者或管理员）`,
+export async function sendToPayee(env: Env, payeeId: string | null, text: BotText): Promise<ManagerDelivery> {
+  return sendToResponsible(env, payeeId, text, true, {
+    off: "这条是关于 {name} 的收款账户的，但组织者功能已关闭，这条发给群主。",
+    former: "这条是关于历史收款人 {name} 的收款账户的（已经不是组织者或管理员），这条发给群主。",
   });
 }
 
 async function sendToResponsible(
   env: Env,
   id: string | null,
-  html: string,
+  text: BotText,
   adminPage: boolean,
-  why_: { off: (name: string) => string; former: (name: string) => string },
+  why_: { off: string; former: string },
 ): Promise<ManagerDelivery> {
   const m = id ? await recipient(env.DB, id) : null;
   if (!m || m.is_owner === 1)
-    return { ok: await sendToOwner(env, html), owner: true, organizer: null, title: null, chatId: null };
+    return { ok: await sendToOwner(env, text), owner: true, organizer: null, title: null, chatId: null };
   const name = escapeHtml(m.username);
+  // Why it went to the Owner instead: a botMessages key, with the role title translated too.
   let why: string;
   const role = memberRole(env, m);
-  if (!organizersEnabled(env)) why = why_.off(name);
-  else if (!isStaff(role)) why = why_.former(name);
-  else if (!m.chat_id) why = `${ROLE_TITLE[role]} ${name} 还没连接 Telegram`;
-  else if (await sendTo(env, m.chat_id, withAdminLink(env, html, adminPage)))
+  if (!organizersEnabled(env)) why = why_.off;
+  else if (!isStaff(role)) why = why_.former;
+  else if (!m.chat_id) why = "{title} {name} 还没连接 Telegram，这条发给群主。";
+  else if (await sendTo(env, m.chat_id, async (l) => withAdminLink(env, l, await text(l), adminPage)))
     return { ok: true, owner: false, organizer: m.username, title: ROLE_TITLE[role], chatId: m.chat_id };
-  else why = `发给${ROLE_TITLE[role]} ${name} 的 Telegram 没有成功`;
-  const ok = await sendToOwner(env, `ℹ️ ${why}，这条发给群主。\n${html}`);
+  else why = "发给{title} {name} 的 Telegram 没有成功，这条发给群主。";
+  const title = isStaff(role) ? ROLE_TITLE[role] : "";
+  const ok = await sendToOwner(env, async (l) => `ℹ️ ${bt(l, why, { name, title: bt(l, title) })}\n${await text(l)}`);
   return { ok, owner: true, organizer: m.username, title: null, chatId: null };
 }
 
 /** sendToPayee, plus a copy for the Owner when the organizer or admin got it (转发可能中断). */
-export async function sendToPayeeAndOwner(env: Env, payeeId: string, html: string): Promise<boolean> {
-  const d = await sendToPayee(env, payeeId, html);
-  if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：${d.title} ${escapeHtml(d.organizer!)} 的收款账户\n${html}`);
+export async function sendToPayeeAndOwner(env: Env, payeeId: string, text: BotText): Promise<boolean> {
+  const d = await sendToPayee(env, payeeId, text);
+  if (d.ok && !d.owner)
+    await sendToOwner(
+      env,
+      async (l) =>
+        `📋 ${bt(l, "抄送：{title} {name} 的收款账户", { title: bt(l, d.title!), name: escapeHtml(d.organizer!) })}\n${await text(l)}`,
+    );
   return d.ok;
 }
 
@@ -202,11 +214,16 @@ export async function sendToPayeeAndOwner(env: Env, payeeId: string, html: strin
 export async function sendToManagerAndOwner(
   env: Env,
   e: { manager_id: string | null },
-  html: string,
+  text: BotText,
   adminPage = false,
 ): Promise<boolean> {
-  const d = await sendToManager(env, e, html, adminPage);
-  if (d.ok && !d.owner) await sendToOwner(env, `📋 抄送：${d.title} ${escapeHtml(d.organizer!)} 负责的活动\n${html}`);
+  const d = await sendToManager(env, e, text, adminPage);
+  if (d.ok && !d.owner)
+    await sendToOwner(
+      env,
+      async (l) =>
+        `📋 ${bt(l, "抄送：{title} {name} 负责的活动", { title: bt(l, d.title!), name: escapeHtml(d.organizer!) })}\n${await text(l)}`,
+    );
   return d.ok;
 }
 
@@ -298,8 +315,7 @@ export async function startBinding(env: Env, who: ChatOwner): Promise<string> {
   if (!me.ok || !me.result) throw new HttpError(502, "telegram", `连接 Telegram 失败：${me.description ?? "未知错误"}`);
   const hook = await setWebhook(env);
   if (!hook.ok) throw new HttpError(502, "telegram", `设置 Telegram 回调失败：${hook.description ?? "未知错误"}`);
-  // Shows /admin in the bot's menu; best effort.
-  await call(env, "setMyCommands", { commands: [{ command: "admin", description: "获取管理页面链接" }] });
+  await setCommands(env);
   const code = randomToken();
   const hash = await sha256(code);
   const expires = new Date(Date.now() + BIND_MINUTES * 60_000).toISOString();
@@ -317,6 +333,28 @@ export async function startBinding(env: Env, who: ChatOwner): Promise<string> {
   return `https://t.me/${me.result.username}?start=${code}`;
 }
 
+/** The bot's menu (/admin, /language), in English for Telegram set to English; best effort. */
+async function setCommands(env: Env): Promise<boolean> {
+  const menu = (l: BotLang) => [
+    { command: "admin", description: bt(l, "获取管理页面链接") },
+    { command: "language", description: bt(l, "切换语言 / Language") },
+  ];
+  const [zh, en] = await Promise.all([
+    call(env, "setMyCommands", { commands: menu("zh-CN") }),
+    call(env, "setMyCommands", { commands: menu("en"), language_code: "en" }),
+  ]);
+  return zh.ok && en.ok;
+}
+
+/** From the cron: a bot set up before /language was in its menu gets it, once. */
+export async function upgradeCommands(env: Env): Promise<void> {
+  if (!env.TELEGRAM_BOT_TOKEN) return;
+  const s = await getSettings(env.DB, ["telegram_chat_id", "telegram_commands"]);
+  if (!s.telegram_chat_id || s.telegram_commands === COMMANDS_VERSION) return;
+  if (await setCommands(env)) await setSetting(env.DB, "telegram_commands", COMMANDS_VERSION).run();
+}
+const COMMANDS_VERSION = "2";
+
 export async function disconnect(env: Env, who: ChatOwner): Promise<void> {
   if (who === null)
     await env.DB.prepare("DELETE FROM settings WHERE key IN ('telegram_chat_id', 'telegram_chat_name')").run();
@@ -327,21 +365,39 @@ interface Update {
   message?: {
     text?: string;
     chat?: { id: number; type: string; first_name?: string; last_name?: string; username?: string };
+    from?: { language_code?: string };
   };
 }
 
-const ADMIN_LINK_WORDS = new Set(["管理页面", "管理页", "管理链接", "/admin", "/start admin"]);
+const ADMIN_LINK_WORDS = new Set([
+  "管理页面",
+  "管理页",
+  "管理链接",
+  "管理頁面",
+  "管理頁",
+  "管理連結",
+  "admin",
+  "admin page",
+  "/admin",
+  "/start admin",
+]);
+const LANG_WORDS = new Set(["语言", "語言", "language", "lang", "/language", "/lang", "/start language"]);
 
 /**
- * Handles a webhook update. Two things do anything: "/start <valid code>" binds a private chat to
- * whoever the code was made for, and 「管理页面」 gets the Owner's chat the current admin link (and a
- * current organizer's chat their Google way in). Everything else is ignored.
+ * Handles a webhook update. Three things do anything: "/start <valid code>" binds a private chat to
+ * whoever the code was made for; 「管理页面」 gets the Owner's chat the current admin link (and a
+ * current organizer's chat their Google way in); 「语言」 lets a connected chat pick the language
+ * the bot writes to it in. Everything else is ignored.
  */
 export async function handleUpdate(env: Env, update: Update): Promise<void> {
   const msg = update.message;
   const text = msg?.text?.trim() ?? "";
   if (msg?.chat?.type !== "private") return;
-  if (ADMIN_LINK_WORDS.has(text)) return sendAdminLink(env, String(msg.chat.id));
+  const word = text.toLowerCase();
+  if (ADMIN_LINK_WORDS.has(word)) return sendAdminLink(env, String(msg.chat.id));
+  if (LANG_WORDS.has(word)) return askLanguage(env, String(msg.chat.id));
+  const picked = BOT_LANGS.find((x) => x.name.toLowerCase() === word);
+  if (picked) return pickLanguage(env, String(msg.chat.id), picked.id);
   const m = /^\/start\s+([A-Za-z0-9_-]{20,64})$/.exec(text);
   if (!m) return;
   const hash = await sha256(m[1]!);
@@ -358,9 +414,11 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
       setSetting(env.DB, "telegram_chat_name", name),
       env.DB.prepare("DELETE FROM settings WHERE key IN ('telegram_bind_hash', 'telegram_bind_expires')"),
     ]);
+    await initChatLang(env, chatId, msg.from?.language_code);
     await sendToOwner(
       env,
-      "✅ 已连接。羽毛球群的提醒、结算和账单提醒都会发到这里。\n忘记管理页面地址时，在这里发送「管理页面」即可找回。",
+      (l) =>
+        `${bt(l, "✅ 已连接。羽毛球群的提醒、结算和账单提醒都会发到这里。\n忘记管理页面地址时，在这里发送「管理页面」即可找回。")}\n${langTip(l)}`,
     );
     return;
   }
@@ -385,11 +443,50 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
     ).bind(hash, ts, chatId, name),
   ]);
   if (!bound?.meta.changes) return;
+  await initChatLang(env, chatId, msg.from?.language_code);
   await sendTo(
     env,
     chatId,
-    `✅ 已连接。你负责的活动的提醒、结算和账单提醒（管理员还有入群申请）都会发到这里。\n管理页（用 Google 登录）：${escapeHtml(organizerAdminLink(env))}`,
+    (l) =>
+      `${bt(l, "✅ 已连接。你负责的活动的提醒、结算和账单提醒（管理员还有入群申请）都会发到这里。\n管理页（用 Google 登录）：{link}", { link: escapeHtml(organizerAdminLink(env)) })}\n${langTip(l)}`,
   );
+}
+
+/** Under 已连接: how to change the language, readable whichever one it is in. */
+const langTip = (l: BotLang) => bt(l, "发送「语言」可以切换语言（简体 / 繁體 / English）。");
+
+/**
+ * Whether this is someone's connected chat: the Owner's, or a current organizer's or admin's.
+ * Strangers and revoked organizers hear nothing.
+ */
+async function connected(env: Env, chatId: string): Promise<boolean> {
+  const { telegram_chat_id: owner } = await getSettings(env.DB, ["telegram_chat_id"]);
+  if (owner === chatId) return true;
+  if (!organizersEnabled(env)) return false;
+  const o = await env.DB.prepare(
+    `SELECT 1 FROM telegram_bindings t JOIN members m ON m.id = t.member_id
+     WHERE t.chat_id = ? AND ${currentStaffSql("m")}`,
+  )
+    .bind(chatId)
+    .first();
+  return !!o;
+}
+
+/** 「语言」: the three languages as buttons under the message box; tapping one sends its name. */
+async function askLanguage(env: Env, chatId: string): Promise<void> {
+  if (!(await connected(env, chatId))) return;
+  await sendTo(env, chatId, (l) => bt(l, "请选择 Telegram 通知的语言（只影响这个聊天，不影响网页）："), {
+    keyboard: [BOT_LANGS.map((x) => ({ text: x.name }))],
+    one_time_keyboard: true,
+    resize_keyboard: true,
+  });
+}
+
+async function pickLanguage(env: Env, chatId: string, lang: BotLang): Promise<void> {
+  if (!(await connected(env, chatId))) return;
+  await setChatLang(env, chatId, lang);
+  const name = BOT_LANGS.find((x) => x.id === lang)!.name;
+  await sendTo(env, chatId, (l) => bt(l, "✅ 以后的通知都会用{name}。", { name }), { remove_keyboard: true });
 }
 
 /**
@@ -397,14 +494,12 @@ export async function handleUpdate(env: Env, update: Update): Promise<void> {
  * current organizer's connected chat; strangers and revoked organizers hear nothing.
  */
 async function organizerAdminEntry(env: Env, chatId: string): Promise<void> {
-  if (!organizersEnabled(env)) return;
-  const o = await env.DB.prepare(
-    `SELECT 1 FROM telegram_bindings t JOIN members m ON m.id = t.member_id
-     WHERE t.chat_id = ? AND ${currentStaffSql("m")}`,
-  )
-    .bind(chatId)
-    .first();
-  if (o) await sendTo(env, chatId, `🔑 管理页（用 Google 登录）：\n${escapeHtml(organizerAdminLink(env))}`);
+  if (await connected(env, chatId))
+    await sendTo(
+      env,
+      chatId,
+      (l) => `🔑 ${bt(l, "管理页（用 Google 登录）：")}\n${escapeHtml(organizerAdminLink(env))}`,
+    );
 }
 
 async function sendAdminLink(env: Env, chatId: string): Promise<void> {
@@ -412,6 +507,10 @@ async function sendAdminLink(env: Env, chatId: string): Promise<void> {
   if (!bound || bound !== chatId) return organizerAdminEntry(env, chatId); // the admin link: only the Owner's own chat
   const { token, renewed } = await currentAdminToken(env);
   const link = `${env.SITE_ORIGIN}/admin/${token}`;
-  const note = renewed ? "\n（之前的管理链接无法找回，已为你生成新的，旧链接已失效。）" : "";
-  await sendToOwner(env, `🔑 管理页面：\n${escapeHtml(link)}\n打开后还需要输入群主密码。请不要转发这个链接。${note}`);
+  await sendToOwner(
+    env,
+    (l) =>
+      `🔑 ${bt(l, "管理页面：")}\n${escapeHtml(link)}\n${bt(l, "打开后还需要输入群主密码。请不要转发这个链接。")}` +
+      (renewed ? `\n${bt(l, "（之前的管理链接无法找回，已为你生成新的，旧链接已失效。）")}` : ""),
+  );
 }
