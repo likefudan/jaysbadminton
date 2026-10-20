@@ -139,6 +139,19 @@ test("draws our courts, playing then queued, with the names on the two halves", 
   const key = await cq.locator(".cq-legend").boundingBox();
   expect(key!.y + key!.height).toBeLessThanOrEqual(844 + 1);
   await page.screenshot({ path: test.info().outputPath("court-queue-scrolled.png") });
+
+  // Dark mode: the queued courts' net line still shows (it used to vanish into the block).
+  await page.emulateMedia({ colorScheme: "dark" });
+  const net = tiles.nth(6).locator(".cq-net");
+  const colors = await net.evaluate((el) => [
+    getComputedStyle(el).borderTopColor,
+    getComputedStyle(el.parentElement!).backgroundColor,
+  ]);
+  expect(colors[0]).not.toEqual(colors[1]);
+  await cq
+    .locator(".cq-grid")
+    .nth(1)
+    .screenshot({ path: test.info().outputPath("court-queue-dark.png") });
 });
 
 test("a court opens to change its time, accounts or status, or to remove it", async ({ page }) => {
