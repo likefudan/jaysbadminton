@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import { QUEUE_DEFAULT_ROUND_MIN, QUEUE_ROUND_MAX, QUEUE_ROUND_MIN } from "../../shared/courtQueue";
 import { AddressInput } from "../AddressInput";
 import type {
   AdminEventSummary,
@@ -163,6 +164,8 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
   const [hours, setHours] = useState(d.deadlineHours);
   const [joinSelf, setJoinSelf] = useState(true);
   const [title, setTitle] = useState("");
+  const [queueOn, setQueueOn] = useState(false);
+  const [roundMin, setRoundMin] = useState(String(QUEUE_DEFAULT_ROUND_MIN));
   const { busy, error, run } = useAction();
 
   async function submit(ev: Event) {
@@ -175,6 +178,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
       location,
       address,
       notes,
+      queueRoundMin: queueOn ? Number(roundMin) : null,
       deadlineDays: days,
       deadlineHours: hours,
       joinSelf,
@@ -220,6 +224,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
           onAddress={setAddress}
         />
         <NotesField value={notes} onInput={setNotes} />
+        <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
         <div class="field">
           <span>报名截止：活动开始前</span>
         </div>
@@ -256,6 +261,41 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
 }
 
 /** 场馆 + 地址, with one-tap 最近的场馆 that fill both (the Owner can also forget one with ✕). */
+/** 球场排队: on for halls where courts are taken by queuing on the hall's computer, with the round length. */
+function QueueField(props: {
+  on: boolean;
+  minutes: string;
+  onOn: (on: boolean) => void;
+  onMinutes: (v: string) => void;
+}) {
+  return (
+    <>
+      <label class={`switch-card ${props.on ? "on" : ""}`}>
+        <span>
+          <strong>需要在球馆排队</strong>
+          <small>打开后活动卡片上会有球场和球馆账号，报名的人可以登记在打和排队的球场</small>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          aria-checked={props.on}
+          checked={props.on}
+          onChange={(e) => props.onOn((e.target as HTMLInputElement).checked)}
+        />
+      </label>
+      {props.on && (
+        <Field
+          label="每轮多少分钟"
+          type="number"
+          value={props.minutes}
+          onInput={props.onMinutes}
+          hint={`用来估算排队的组大约多久上场，${QUEUE_ROUND_MIN}–${QUEUE_ROUND_MAX} 分钟`}
+        />
+      )}
+    </>
+  );
+}
+
 function NotesField(props: { value: string; onInput: (value: string) => void }) {
   return (
     <label class="field">
@@ -872,12 +912,14 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const [address, setAddress] = useState(props.e.address);
   const [notes, setNotes] = useState(props.e.notes ?? "");
   const [title, setTitle] = useState(props.e.title);
+  const [queueOn, setQueueOn] = useState(props.e.queueRoundMin !== null);
+  const [roundMin, setRoundMin] = useState(String(props.e.queueRoundMin ?? QUEUE_DEFAULT_ROUND_MIN));
   const { busy, error, run } = useAction();
 
   if (!open) {
     return (
       <button type="button" class="link-button" onClick={() => setOpen(true)}>
-        修改活动标题、时间、地点或备注（仅限紧急情况）
+        修改活动标题、时间、地点、备注或球场排队
       </button>
     );
   }
@@ -885,7 +927,20 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
     const msg =
       "修改会立即显示在活动页和成员页，但不会自动通知任何人，请自己在群里说明。活动代号和已发出的链接不变。确定修改吗？";
     if (!confirm(msg)) return;
-    if (await run(() => api(`${props.eb}/edit`, { title, date, startTime, endTime, location, address, notes }))) {
+    if (
+      await run(() =>
+        api(`${props.eb}/edit`, {
+          title,
+          date,
+          startTime,
+          endTime,
+          location,
+          address,
+          notes,
+          queueRoundMin: queueOn ? Number(roundMin) : null,
+        }),
+      )
+    ) {
       setOpen(false);
       props.onDone();
     }
@@ -908,6 +963,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
         onAddress={setAddress}
       />
       <NotesField value={notes} onInput={setNotes} />
+      <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
       {props.e.status === "open" && (
         <p class="muted small">
           报名截止时间会跟着开始时间一起移动（间隔不变），但不晚于活动结束；如果已经过了，报名会立即截止。只改标题或地点不影响截止时间。

@@ -14,6 +14,7 @@ const event: EventSummary = {
   deadlineAt: "2026-10-06T19:00:00.000Z",
   status: "open",
   headcount: 8,
+  queueRoundMin: null,
 };
 
 describe("分享名片 text", () => {

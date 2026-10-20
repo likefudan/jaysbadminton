@@ -7,6 +7,7 @@ import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 import { eventManager, eventPayee, lastKey, ownerId } from "./organizers";
 import { payeeName } from "./payees";
+import { deleteQueue } from "./courtQueue";
 
 export interface EventRow {
   id: number;
@@ -30,6 +31,8 @@ export interface EventRow {
   /** 负责人 and 收款人; NULL means the Owner. Read them through eventManager / eventPayee. */
   manager_id: string | null;
   payee_id: string | null;
+  /** 球场排队: minutes per round on the hall's courts; null when the event doesn't use it. */
+  queue_round_min: number | null;
 }
 
 interface RosterRow {
@@ -65,6 +68,7 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
     address: e.address,
     title: e.title,
     notes: e.notes,
+    queueRoundMin: e.queue_round_min,
     deadlineAt: e.deadline_at,
     status: liveStatus(e),
     headcount,
@@ -159,6 +163,7 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     env.DB.prepare("DELETE FROM payments WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM settlements WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
+    ...deleteQueue(env, e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM event_audit WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM events WHERE id = ?").bind(e.id),
@@ -201,6 +206,8 @@ export interface CreateEventInput {
   address: string;
   title?: string;
   notes?: string;
+  /** 球场排队 on, with this many minutes per round; null or left out keeps it off. */
+  queueRoundMin?: number | null;
   deadlineDays: number;
   deadlineHours: number;
 }
@@ -293,8 +300,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     if (!number) throw badRequest("同一天的活动太多了");
     try {
       const res = await env.DB.prepare(
-        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?) RETURNING id`,
+        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, queue_round_min, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?) RETURNING id`,
       )
         .bind(
           number,
@@ -306,6 +313,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
           address,
           title,
           notes,
+          input.queueRoundMin ?? null,
           v.deadlineAt,
           v.offsetMin,
           ts,

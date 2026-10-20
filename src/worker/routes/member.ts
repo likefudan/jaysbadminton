@@ -33,6 +33,7 @@ import { type MemberRow, memberByToken, renameMember } from "../members";
 import { developerMember } from "../developer";
 import { pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
 import { googleMember, requireSameOrigin } from "../googleAuth";
+import { addAccount, queueInfo, queueLive, removeAccount, removeCourt, saveCourt } from "../courtQueue";
 
 type Vars = { member: MemberRow };
 export const memberRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -271,6 +272,8 @@ async function myEvents(
       ownerName: ownerLabel,
       payment,
       roster: names,
+      // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
+      queue: (rows.length > 0 || runs) && queueLive(row) ? await queueInfo(env, row, m.id) : null,
     });
   }
   return events;
@@ -312,6 +315,44 @@ memberRoutes.post("/:token/events/:id/signup", async (c) => {
 memberRoutes.post("/:token/events/:id/cancel", async (c) => {
   const { e } = await openEventFor(c, c.req.param("id"));
   await removeSignup(c.env, e.id, c.get("member").id);
+  return c.json({ ok: true });
+});
+
+/** 球场排队 changes: players on the event (or whoever runs it), while the feature is on for it. */
+async function queueEventFor(c: { env: Env; get: (k: "member") => MemberRow }, id: string) {
+  const m = c.get("member");
+  if (m.status !== "active") throw badRequest(`你的账号已停用。有疑问请联系 ${await ownerName(c.env.DB)}。`);
+  const e = await getEvent(c.env, Number(id));
+  if (!queueLive(e)) throw badRequest("这个活动没有开球场排队，或者已经结束了");
+  const runs = await runsEvent(c.env, m, e);
+  const on = await c.env.DB.prepare("SELECT 1 FROM registrations WHERE event_id = ? AND member_id = ? LIMIT 1")
+    .bind(e.id, m.id)
+    .first();
+  if (!on && !runs) throw badRequest("报名了这个活动才能登记球场");
+  return { e, m, runs };
+}
+
+memberRoutes.post("/:token/events/:id/queue/accounts", async (c) => {
+  const { e, m } = await queueEventFor(c, c.req.param("id"));
+  await addAccount(c.env, e, m.id, await readJson(c.req.raw));
+  return c.json({ ok: true });
+});
+
+memberRoutes.post("/:token/events/:id/queue/accounts/:aid/remove", async (c) => {
+  const { e, m, runs } = await queueEventFor(c, c.req.param("id"));
+  await removeAccount(c.env, e, m.id, runs, Number(c.req.param("aid")));
+  return c.json({ ok: true });
+});
+
+memberRoutes.post("/:token/events/:id/queue/courts", async (c) => {
+  const { e, m } = await queueEventFor(c, c.req.param("id"));
+  await saveCourt(c.env, e, m.id, await readJson(c.req.raw));
+  return c.json({ ok: true });
+});
+
+memberRoutes.post("/:token/events/:id/queue/courts/:cid/remove", async (c) => {
+  const { e } = await queueEventFor(c, c.req.param("id"));
+  await removeCourt(c.env, e, Number(c.req.param("cid")));
   return c.json({ ok: true });
 });
 

@@ -56,6 +56,7 @@ describe("加入日历", () => {
     deadlineAt: "2026-10-06T02:00:00.000Z",
     status: "open",
     headcount: 8,
+    queueRoundMin: null,
   };
   const entry = calendarEntry(e, "https://jaysbadminton.llmat.dev");
 
