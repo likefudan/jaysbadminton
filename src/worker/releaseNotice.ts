@@ -17,7 +17,7 @@ const MODEL = "claude-sonnet-5-5";
 const STALE_MS = 2 * 24 * 3600_000;
 /** More than this many lines is a changelog, not a notice. */
 const MAX_LINES = 10;
-/** Tries when no chat accepts it (Telegram down); a chat that blocked the bot can't hold it forever. */
+/** Runs that try to send it (Telegram down); a chat that blocked the bot can't hold it forever. */
 const MAX_ATTEMPTS = 3;
 
 /** Lines per language, and how many changes were left out (only when they are the bare titles). */
@@ -99,47 +99,79 @@ export function releaseText(env: Env, tag: string, lines: Lines | null) {
   };
 }
 
+/** How long one run may take to send a notice before another may pick it up. */
+const LEASE_MS = 5 * 60_000;
+
+interface Row {
+  tag: string;
+  changes: string;
+  created_at: string;
+  lines: string | null;
+  delivered: string;
+}
+
+const parseList = (json: string | null): string[] => {
+  try {
+    const v = JSON.parse(json ?? "[]") as unknown;
+    return Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+  } catch {
+    return []; // Unreadable: still say the version is out.
+  }
+};
+
 /**
- * Sends every release notice CI recorded and nobody has sent yet. The text is written first (the
- * slow part), then the notice is claimed and sent, so CI's call and the cron never both send it and
- * a dropped request rarely leaves it claimed but unsent. When nobody's chat took it, it is let go
- * for the cron to try again, up to MAX_ATTEMPTS times. How many notices went out.
+ * Sends every release notice CI recorded that hasn't reached everyone yet. A run takes a notice for
+ * LEASE_MS, so CI's call and the cron never both send it; the lines are written once and kept, so
+ * Claude is asked once per release. Chats that got it are remembered, so a retry only goes to the
+ * ones Telegram refused; after MAX_ATTEMPTS runs it is given up. How many notices reached someone.
  */
 export async function sendReleaseNotices(env: Env, at = new Date()): Promise<number> {
+  const ts = at.toISOString();
   const { results } = await env.DB.prepare(
-    "SELECT tag, changes, created_at FROM release_notices WHERE sent_at IS NULL ORDER BY created_at",
-  ).all<{ tag: string; changes: string; created_at: string }>();
+    `SELECT tag FROM release_notices WHERE sent_at IS NULL AND (claimed_until IS NULL OR claimed_until < ?)
+     ORDER BY created_at`,
+  )
+    .bind(ts)
+    .all<{ tag: string }>();
   let n = 0;
-  for (const r of results) {
-    if (at.getTime() - Date.parse(r.created_at) > STALE_MS) {
-      await env.DB.prepare("UPDATE release_notices SET sent_at = ? WHERE tag = ? AND sent_at IS NULL")
-        .bind(now(), r.tag)
-        .run();
-      console.warn(`release notice for ${r.tag} dropped: recorded ${r.created_at}, never sent`);
-      continue;
-    }
-    let changes: string[] = [];
-    try {
-      const parsed = JSON.parse(r.changes) as unknown;
-      if (Array.isArray(parsed)) changes = parsed.filter((s): s is string => typeof s === "string");
-    } catch {
-      // Unreadable list: still say the version is out.
-    }
-    const text = releaseText(env, r.tag, await describeChanges(env, changes));
-    const claimed = await env.DB.prepare(
-      "UPDATE release_notices SET sent_at = ?, attempts = attempts + 1 WHERE tag = ? AND sent_at IS NULL RETURNING attempts",
+  for (const { tag } of results) {
+    const r = await env.DB.prepare(
+      `UPDATE release_notices SET claimed_until = ?, attempts = attempts + 1
+       WHERE tag = ? AND sent_at IS NULL AND (claimed_until IS NULL OR claimed_until < ?)
+       RETURNING tag, changes, created_at, lines, delivered, attempts`,
     )
-      .bind(now(), r.tag)
-      .first<{ attempts: number }>();
-    if (!claimed) continue;
-    const { chats, sent } = await sendToOwnerAndAdmins(env, text);
-    if (chats > 0 && sent === 0) {
-      console.error(`release notice for ${r.tag}: no chat took it (attempt ${claimed.attempts})`);
-      if (claimed.attempts < MAX_ATTEMPTS)
-        await env.DB.prepare("UPDATE release_notices SET sent_at = NULL WHERE tag = ?").bind(r.tag).run();
+      .bind(new Date(at.getTime() + LEASE_MS).toISOString(), tag, ts)
+      .first<Row & { attempts: number }>();
+    if (!r) continue;
+    const finish = (done: boolean, delivered: string[]) =>
+      env.DB.prepare("UPDATE release_notices SET delivered = ?, claimed_until = NULL, sent_at = ? WHERE tag = ?")
+        .bind(JSON.stringify(delivered), done ? now() : null, tag)
+        .run();
+    const before = parseList(r.delivered);
+    if (at.getTime() - Date.parse(r.created_at) > STALE_MS) {
+      console.warn(`release notice for ${tag} dropped: recorded ${r.created_at}, never sent`);
+      await finish(true, before);
       continue;
     }
-    n++;
+    try {
+      let lines = r.lines ? (JSON.parse(r.lines) as Lines | null) : undefined;
+      if (lines === undefined) {
+        lines = await describeChanges(env, parseList(r.changes));
+        await env.DB.prepare("UPDATE release_notices SET lines = ? WHERE tag = ?")
+          .bind(JSON.stringify(lines), tag)
+          .run();
+      }
+      const { chats, delivered } = await sendToOwnerAndAdmins(env, releaseText(env, tag, lines), new Set(before));
+      const all = [...before, ...delivered];
+      const missing = chats.filter((c) => !all.includes(c));
+      if (missing.length)
+        console.error(`release notice for ${tag}: ${missing.length} chat(s) refused (run ${r.attempts})`);
+      await finish(missing.length === 0 || r.attempts >= MAX_ATTEMPTS, all);
+      if (delivered.length) n++;
+    } catch (err) {
+      console.error(`release notice for ${tag} failed:`, err);
+      await finish(r.attempts >= MAX_ATTEMPTS, before);
+    }
   }
   return n;
 }

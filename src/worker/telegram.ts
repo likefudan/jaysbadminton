@@ -134,13 +134,19 @@ export async function sendToAdmins(env: Env, text: BotText): Promise<boolean> {
 
 /**
  * Sends to the Owner and every current admin (admins only while the feature is on), each in their
- * own bot language; a chat shared by two of them gets it once. How many chats there were and took it.
+ * own bot language, leaving out the chats in `skip`; a chat shared by two of them gets it once.
+ * Which chats there were, and which of them took it.
  */
-export async function sendToOwnerAndAdmins(env: Env, text: BotText): Promise<{ chats: number; sent: number }> {
+export async function sendToOwnerAndAdmins(
+  env: Env,
+  text: BotText,
+  skip: ReadonlySet<string> = new Set(),
+): Promise<{ chats: string[]; delivered: string[] }> {
   const { telegram_chat_id: owner } = await getSettings(env.DB, ["telegram_chat_id"]);
-  const chats = new Set<string>([...(owner ? [owner] : []), ...(await adminChats(env))]);
-  const sent = await Promise.all([...chats].map((chat) => sendTo(env, chat, text)));
-  return { chats: chats.size, sent: sent.filter(Boolean).length };
+  const chats = [...new Set([...(owner ? [owner] : []), ...(await adminChats(env))])];
+  const todo = chats.filter((c) => !skip.has(c));
+  const ok = await Promise.all(todo.map((chat) => sendTo(env, chat, text)));
+  return { chats, delivered: todo.filter((_, i) => ok[i]) };
 }
 
 export interface ManagerDelivery {

@@ -24,19 +24,15 @@ if (newest !== tag) {
 const wrangler = (...args) =>
   execFileSync("npx", ["wrangler", "d1", "execute", "DB", "--remote", ...args], { encoding: "utf8" });
 
-// Since the last release that was announced, so a release skipped for not being the newest (the
-// next one was tagged before it finished deploying) still has its changes told; otherwise since
-// the previous tag.
+// Since the last release that reached someone, so a release skipped for not being the newest (the
+// next one was tagged before it finished deploying) or never delivered still has its changes told;
+// otherwise since the previous tag. A tag already recorded is left as it is (INSERT OR IGNORE).
 let previous = "";
 try {
   const [{ results }] = JSON.parse(
-    wrangler("--json", "--command", "SELECT tag FROM release_notices ORDER BY created_at DESC LIMIT 1"),
+    wrangler("--json", "--command", "SELECT tag FROM release_notices WHERE delivered != '[]' ORDER BY created_at DESC LIMIT 1"),
   );
   const last = results[0]?.tag;
-  if (last === tag) {
-    console.log(`${tag} was already announced`);
-    process.exit(0);
-  }
   if (last) {
     git("merge-base", "--is-ancestor", last, tag);
     previous = last;

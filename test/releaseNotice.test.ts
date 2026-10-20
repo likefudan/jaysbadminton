@@ -11,11 +11,11 @@ const KEYED = { ...env, SITE_ORIGIN: ORIGIN, ORGANIZERS: "1", ANTHROPIC_API_KEY:
 let sent: { chat: string; text: string }[] = [];
 let asked: any[] = [];
 let answer: object | null = null;
-let refuse = false;
+let refuse = new Set<string>();
 beforeEach(() => {
   sent = [];
   asked = [];
-  refuse = false;
+  refuse = new Set();
   answer = {
     simplified: ["活动卡片上能看到预定的场地号"],
     traditional: ["活動卡片上能看到預定的場地號"],
@@ -39,7 +39,7 @@ beforeEach(() => {
     }
     if (!url.startsWith("https://api.telegram.org/bottest-bot-token/")) throw new Error(`unexpected fetch ${url}`);
     const body = JSON.parse(String(init?.body ?? "{}"));
-    if (refuse) return Response.json({ ok: false, description: "Too Many Requests" });
+    if (refuse.has(String(body.chat_id))) return Response.json({ ok: false, description: "Too Many Requests" });
     if (url.endsWith("/sendMessage")) sent.push({ chat: String(body.chat_id), text: body.text });
     return Response.json({ ok: true, result: { message_id: 1 } });
   });
@@ -152,9 +152,9 @@ describe("正式版发布通知", () => {
     expect(to("42")).toEqual([`🚀 新版本 v2026.10.22 已发布到正式网站\n\n${ORIGIN}`]);
   });
 
-  it("lets the cron try again when no chat took it, three times at most", async () => {
+  it("lets the cron try again for the chats Telegram refused, three runs at most", async () => {
     await scenario();
-    refuse = true;
+    refuse = new Set(["42", "77"]);
     await record("v2026.10.21", ["改动"]);
     for (let i = 0; i < 4; i++) expect(await sendReleaseNotices(KEYED)).toBe(0);
     const row = await env.DB.prepare("SELECT sent_at, attempts FROM release_notices").first<{
@@ -165,8 +165,15 @@ describe("正式版发布通知", () => {
     expect(row?.sent_at).not.toBeNull();
 
     await env.DB.prepare("UPDATE release_notices SET sent_at = NULL, attempts = 0").run();
-    refuse = false;
+    refuse = new Set(["77"]);
     expect(await sendReleaseNotices(KEYED)).toBe(1);
     expect(to("42")).toHaveLength(1);
+    expect(asked).toHaveLength(1); // written once, kept for the retries
+
+    refuse = new Set();
+    expect(await sendReleaseNotices(KEYED)).toBe(1);
+    expect(to("42")).toHaveLength(1); // the Owner isn't told twice
+    expect(to("77")).toHaveLength(1);
+    expect(await sendReleaseNotices(KEYED)).toBe(0);
   });
 });
