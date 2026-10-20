@@ -12,6 +12,7 @@ import { ProfileCard } from "../Profile";
 import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
 import { EventActions, ShareIconButton } from "../ShareCard";
+import { SwipeSection } from "../Swipe";
 import { MyStatsCard } from "../Stats";
 import { InstallCard, InstallPrompt } from "../Install";
 import { PushCard, PushPrompt } from "../Push";
@@ -188,22 +189,19 @@ function MyEvents(props: { base: string }) {
               </>
             )}
             {settled.length > 0 && (
-              <>
-                <SectionTitle>{t("已结清")}</SectionTitle>
-                <div class="swipe">
-                  {settled.map((h) => (
-                    <MiniEventCard
-                      key={h.id}
-                      e={h}
-                      line={
-                        h.amountCents
-                          ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
-                          : t("没有费用")
-                      }
-                    />
-                  ))}
-                </div>
-              </>
+              <SwipeSection title={t("已结清")}>
+                {settled.map((h) => (
+                  <MiniEventCard
+                    key={h.id}
+                    e={h}
+                    line={
+                      h.amountCents
+                        ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
+                        : t("没有费用")
+                    }
+                  />
+                ))}
+              </SwipeSection>
             )}
           </>
         );

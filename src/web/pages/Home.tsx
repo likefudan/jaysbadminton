@@ -7,6 +7,7 @@ import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
 import { ShareCardButton } from "../ShareCard";
 import { BOARDS } from "../Stats";
+import { SwipeSection } from "../Swipe";
 import { t, tx } from "../i18n";
 
 /** The next event as one big card; 报名 (or 登录 / 注册) sits in its corner. */
@@ -37,32 +38,32 @@ function Leaders(props: { board: Leaderboard }) {
   const list = props.board[tab];
   return (
     <>
-      <h2 class="section-title with-seg">
-        <span>{t("{year} 年排行榜", { year: props.board.year })}</span>
-        <span class="seg mini">
-          {BOARDS.map((x) => (
-            <button type="button" key={x.key} class={x.key === tab ? "on" : ""} onClick={() => setTab(x.key)}>
-              {t(x.label)}
-            </button>
-          ))}
-        </span>
-      </h2>
-      {list.length === 0 ? (
-        <Empty>{t("还没有出勤记录")}</Empty>
-      ) : (
-        <ol class="swipe ranks-swipe">
-          {list.map((r) => (
-            <li key={r.name} class={`rank-card p${r.rank}`}>
-              <span class="rank-no">{r.rank}</span>
-              <span class="who">{r.name}</span>
-              <span class="value">
-                {r.value}
-                <small>{t(b.unit)}</small>
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
+      <SwipeSection
+        title={t("{year} 年排行榜", { year: props.board.year })}
+        extra={
+          <span class="seg mini">
+            {BOARDS.map((x) => (
+              <button type="button" key={x.key} class={x.key === tab ? "on" : ""} onClick={() => setTab(x.key)}>
+                {t(x.label)}
+              </button>
+            ))}
+          </span>
+        }
+        empty={list.length === 0 ? <Empty>{t("还没有出勤记录")}</Empty> : undefined}
+        ordered
+        class="ranks-swipe"
+      >
+        {list.map((r) => (
+          <li key={r.name} class={`rank-card p${r.rank}`}>
+            <span class="rank-no">{r.rank}</span>
+            <span class="who">{r.name}</span>
+            <span class="value">
+              {r.value}
+              <small>{t(b.unit)}</small>
+            </span>
+          </li>
+        ))}
+      </SwipeSection>
       {tab === "streak" && <p class="muted small swipe-note">{t("连续参加的活动场数，取消的活动不算。")}</p>}
     </>
   );
@@ -101,21 +102,19 @@ export function Home() {
                 </>
               )}
               {data.leaderboard && <Leaders board={data.leaderboard} />}
-              <SectionTitle>{t("历史活动")}</SectionTitle>
-              {data.pastEvents.length === 0 ? (
-                <Empty>{t("还没有历史活动")}</Empty>
-              ) : (
-                <div class="swipe">
-                  {data.pastEvents.map((e) => (
-                    <MiniEventCard
-                      key={e.id}
-                      e={e}
-                      muted={e.status === "cancelled"}
-                      line={e.status === "cancelled" ? t("已取消") : t("{n} 人参加", { n: e.headcount })}
-                    />
-                  ))}
-                </div>
-              )}
+              <SwipeSection
+                title={t("历史活动")}
+                empty={data.pastEvents.length === 0 ? <Empty>{t("还没有历史活动")}</Empty> : undefined}
+              >
+                {data.pastEvents.map((e) => (
+                  <MiniEventCard
+                    key={e.id}
+                    e={e}
+                    muted={e.status === "cancelled"}
+                    line={e.status === "cancelled" ? t("已取消") : t("{n} 人参加", { n: e.headcount })}
+                  />
+                ))}
+              </SwipeSection>
               <ShareCardButton text={siteCardText(location.origin, t)} filename="share-card.png" />
             </>
           );
