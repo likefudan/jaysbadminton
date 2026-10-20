@@ -1,5 +1,5 @@
-import { dollars } from "../shared/settle";
-import { formatInstantZh, toPacific } from "../shared/time";
+import { toPacific } from "../shared/time";
+import { type BotLang, bt, botInstant, botList, usd } from "./botLang";
 import { getSettings, now, setSetting } from "./db";
 import type { Env } from "./env";
 import type { EmailOutcome } from "./inbound";
@@ -30,9 +30,9 @@ const PROBLEMS: Partial<Record<EmailOutcome, string>> = {
 };
 
 /** The same, for an email addressed to an organizer's notification email (`emailProblemAlert`). */
-const ORGANIZER_PROBLEMS: Partial<Record<EmailOutcome, (name: string) => string>> = {
-  wrong_recipient: (name) =>
-    `⚠️ 收到一封转发到 ${name} 的 Venmo 收款邮件，但收款账号和 ${name} 的收款设置里的 Venmo 用户名不一致，已忽略。\n请检查管理页「设置 › 我的收款设置」里的 Venmo 用户名和通知邮箱是否填对。`,
+const ORGANIZER_PROBLEMS: Partial<Record<EmailOutcome, string>> = {
+  wrong_recipient:
+    "⚠️ 收到一封转发到 {name} 的 Venmo 收款邮件，但收款账号和 {name} 的收款设置里的 Venmo 用户名不一致，已忽略。\n请检查管理页「设置 › 我的收款设置」里的 Venmo 用户名和通知邮箱是否填对。",
 };
 
 /**
@@ -53,16 +53,16 @@ export async function emailProblemAlert(
     const m = await env.DB.prepare("SELECT username FROM members WHERE id = ?")
       .bind(organizer)
       .first<{ username: string }>();
-    const text = message(theirs(m?.username ?? organizer));
+    const name = m?.username ?? organizer;
     await once(env, SITE, `email_${outcome}:${organizer}`, toPacific(at).date, async () => {
-      const d = await sendToPayee(env, organizer, text);
+      const d = await sendToPayee(env, organizer, (l) => message(l, bt(l, theirs, { name })));
       return d.ok;
     });
     return;
   }
   const text = PROBLEMS[outcome];
   if (!text) return;
-  await once(env, SITE, `email_${outcome}`, toPacific(at).date, () => sendToOwner(env, message(text)));
+  await once(env, SITE, `email_${outcome}`, toPacific(at).date, () => sendToOwner(env, (l) => message(l, bt(l, text))));
 }
 
 /**
@@ -83,10 +83,14 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
     const owing = await owingInto(env, owner, since, s.email_last_at);
     if (owing)
       await once(env, SITE, "forward_silent", s.email_last_at ?? "never", () =>
-        sendToOwner(
-          env,
+        sendToOwner(env, (l) =>
           message(
-            `📭 ${quietFor(at, s.email_last_at, "任何 Venmo 邮件")}，但还有 ${owing} 笔账单没付清。\n如果最近确实有人用 Venmo 付过款，说明 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（管理页「设置 → 使用指南」第二部分）。`,
+            l,
+            bt(
+              l,
+              "📭 {quiet}，但还有 {owing} 笔账单没付清。\n如果最近确实有人用 Venmo 付过款，说明 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（管理页「设置 → 使用指南」第二部分）。",
+              { quiet: quietFor(l, at, s.email_last_at), owing },
+            ),
           ),
         ),
       );
@@ -105,9 +109,15 @@ export async function forwardingWatch(env: Env, at: Date, cfg: NotifySettings): 
     const owing = await owingInto(env, p.member_id, since, p.email_last_at);
     if (!owing) continue;
     const account = `@${p.venmo_username}（${p.username}）`;
-    const text = message(
-      `📭 ${quietFor(at, p.email_last_at, ` ${account}的 Venmo 邮件`)}，但付到这个账户的账单还有 ${owing} 笔没付清。\n如果最近确实有人用 Venmo 付过款，说明这个账户的 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（组织者或管理员的管理页「设置 › Venmo 邮件转发」）。`,
-    );
+    const text = (l: BotLang) =>
+      message(
+        l,
+        bt(
+          l,
+          "📭 {quiet}，但付到这个账户的账单还有 {owing} 笔没付清。\n如果最近确实有人用 Venmo 付过款，说明这个账户的 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（组织者或管理员的管理页「设置 › Venmo 邮件转发」）。",
+          { quiet: quietFor(l, at, p.email_last_at, account), owing },
+        ),
+      );
     // Changing account starts a new quiet spell (email_last_at goes back to empty), so "never" is per account.
     const key = p.email_last_at ?? `never:${p.venmo_username}:${p.venmo_email ?? ""}`;
     await once(env, SITE, `forward_silent:${p.member_id}`, key, () => sendToPayeeAndOwner(env, p.member_id, text));
@@ -138,10 +148,14 @@ async function owingInto(env: Env, payee: string | null, since: string, lastAt: 
   return r?.n ?? 0;
 }
 
-/** "已经 N 天没收到<what>了", or "系统还没收到过<what>". */
-function quietFor(at: Date, lastAt: string | undefined | null, what: string): string {
-  if (!lastAt) return `系统还没收到过${what}`;
-  return `已经 ${Math.floor((at.getTime() - Date.parse(lastAt)) / DAY)} 天没收到${what}了`;
+/** "已经 N 天没收到任何 Venmo 邮件了", or "系统还没收到过 <account>的 Venmo 邮件". */
+function quietFor(l: BotLang, at: Date, lastAt: string | undefined | null, account?: string): string {
+  const days = lastAt ? Math.floor((at.getTime() - Date.parse(lastAt)) / DAY) : 0;
+  if (account)
+    return lastAt
+      ? bt(l, "已经 {days} 天没收到 {account}的 Venmo 邮件了", { days, account })
+      : bt(l, "系统还没收到过 {account}的 Venmo 邮件", { account });
+  return lastAt ? bt(l, "已经 {days} 天没收到任何 Venmo 邮件了", { days }) : bt(l, "系统还没收到过任何 Venmo 邮件");
 }
 
 /** From every cron run, whether or not the weekly digest is on: email_log keeps 120 days. */
@@ -177,7 +191,9 @@ const OUTCOME_GROUPS: [string, EmailOutcome[]][] = [
 export async function weeklyDigest(env: Env, at: Date, cfg: NotifySettings): Promise<void> {
   const p = toPacific(at);
   if (!cfg.weeklyDigest || p.weekday !== 1 || Number(p.time.slice(0, 2)) !== cfg.dunningHour) return;
-  await once(env, SITE, "weekly_digest", p.date, async () => sendToOwner(env, message(await digestText(env, at))));
+  await once(env, SITE, "weekly_digest", p.date, async () =>
+    sendToOwner(env, async (l) => message(l, await digestText(env, at, l))),
+  );
 }
 
 /** One account's week: its Venmo emails by outcome, open 待确认, unpaid bills and refunds owed. */
@@ -193,7 +209,8 @@ interface AccountWeek {
  * Owner collecting, which is every site with the organizers flag off, it reads exactly as before:
  * the Owner's numbers, then the checks.
  */
-export async function digestText(env: Env, at: Date): Promise<string> {
+export async function digestText(env: Env, at: Date, l: BotLang = "zh-CN"): Promise<string> {
+  const t = (zh: string, vars?: Record<string, string | number>) => bt(l, zh, vars);
   const since = new Date(at.getTime() - 7 * DAY).toISOString();
   const db = env.DB;
   const owner = await ownerId(db);
@@ -267,30 +284,34 @@ export async function digestText(env: Env, at: Date): Promise<string> {
   const s = await getSettings(db, ["email_last_at", "cron_last_error_at", "cron_last_error", "venmo_username"]);
   const sheets = await sheetsStatus(env);
 
-  const lines = [`📊 每周简报（${formatInstantZh(since).split(" ").slice(0, 2).join(" ")} 起的 7 天）`, ""];
-  lines.push(`活动：举办了 ${played?.n ?? 0} 场`);
+  const lines = [
+    `📊 ${t("每周简报（{date} 起的 7 天）", { date: botInstant(l, since).replace(/ \d\d:\d\d$/, "") })}`,
+    "",
+  ];
+  lines.push(t("活动：举办了 {n} 场", { n: played?.n ?? 0 }));
   const ownerBlock = [
-    ...weekLines(week(owner), "要你处理"),
-    await forwardingCheck(db, at, owner, s.venmo_username, s.email_last_at, "请检查 Gmail 转发"),
+    ...weekLines(l, week(owner), t("要你处理")),
+    await forwardingCheck(l, db, at, owner, s.venmo_username, s.email_last_at, t("请检查 Gmail 转发")),
   ];
   if (others.length === 0) {
     lines.push(...ownerBlock.slice(0, -1), "", ownerBlock.at(-1)!);
   } else {
-    lines.push("", "【群主（你）的账户】", ...ownerBlock);
+    lines.push("", t("【群主（你）的账户】"), ...ownerBlock);
     for (const m of others) {
       const role = memberRole(env, m);
       const current = isStaff(role);
       lines.push(
         "",
-        `【${current ? ROLE_TITLE[role] : "历史收款人"} ${m.username} 的账户】`,
-        ...weekLines(week(m.id), current ? `由 ${m.username} 处理` : "要你处理"),
+        t("【{title} {name} 的账户】", { title: t(current ? ROLE_TITLE[role] : "历史收款人"), name: m.username }),
+        ...weekLines(l, week(m.id), current ? t("由 {name} 处理", { name: m.username }) : t("要你处理")),
         await forwardingCheck(
+          l,
           db,
           at,
           m.id,
           m.venmo_username,
           m.email_last_at,
-          current ? `请提醒 ${m.username} 检查 Gmail 转发` : "请检查这个账户的 Gmail 转发",
+          current ? t("请提醒 {name} 检查 Gmail 转发", { name: m.username }) : t("请检查这个账户的 Gmail 转发"),
         ),
       );
     }
@@ -299,32 +320,48 @@ export async function digestText(env: Env, at: Date): Promise<string> {
 
   const checks: string[] = [];
   if (s.cron_last_error_at && s.cron_last_error_at >= since)
-    checks.push(`⚠️ 定时任务出过错（${formatInstantZh(s.cron_last_error_at)}）：${s.cron_last_error}`);
-  else checks.push("✓ 定时任务：正常");
-  if (!sheets.enabled) checks.push("· Google 表格同步：没有开启");
+    checks.push(
+      t("⚠️ 定时任务出过错（{at}）：{error}", {
+        at: botInstant(l, s.cron_last_error_at),
+        error: s.cron_last_error ?? "",
+      }),
+    );
+  else checks.push(t("✓ 定时任务：正常"));
+  if (!sheets.enabled) checks.push(t("· Google 表格同步：没有开启"));
   else if (!sheets.lastSyncAt || Date.parse(sheets.lastSyncAt) < at.getTime() - 2 * DAY)
     checks.push(
-      `⚠️ Google 表格同步：${sheets.lastSyncAt ? `最近一次在 ${formatInstantZh(sheets.lastSyncAt)}，已超过 2 天` : "还没同步过"}`,
+      sheets.lastSyncAt
+        ? t("⚠️ Google 表格同步：最近一次在 {at}，已超过 2 天", { at: botInstant(l, sheets.lastSyncAt) })
+        : t("⚠️ Google 表格同步：还没同步过"),
     );
-  else checks.push(`✓ Google 表格同步：最近一次在 ${formatInstantZh(sheets.lastSyncAt)}`);
+  else checks.push(t("✓ Google 表格同步：最近一次在 {at}", { at: botInstant(l, sheets.lastSyncAt) }));
   lines.push(...checks);
   return lines.join("\n");
 }
 
 /** An account's numbers. `reviewBy` says who handles its 待确认 (要你处理, or 由 某某 处理). */
-function weekLines(w: AccountWeek, reviewBy: string): string[] {
+function weekLines(l: BotLang, w: AccountWeek, reviewBy: string): string[] {
+  const t = (zh: string, vars?: Record<string, string | number>) => bt(l, zh, vars);
   const count = (os: EmailOutcome[]) => os.reduce((t, o) => t + (w.mail.get(o) ?? 0), 0);
   const mailTotal = count(OUTCOME_GROUPS.flatMap(([, os]) => os)); // Gmail confirmations are not Venmo mail
   const lines: string[] = [];
   if (mailTotal === 0) {
-    lines.push("Venmo 邮件：这周一封也没收到");
+    lines.push(t("Venmo 邮件：这周一封也没收到"));
   } else {
     const parts = OUTCOME_GROUPS.map(([label, os]) => [label, count(os)] as const).filter(([, n]) => n > 0);
-    lines.push(`Venmo 邮件：收到 ${mailTotal} 封（${parts.map(([l, n]) => `${l} ${n}`).join("，")}）`);
+    const kinds = botList(
+      l,
+      parts.map(([label, n]) => `${t(label)} ${n}`),
+    );
+    lines.push(t("Venmo 邮件：收到 {n} 封（{kinds}）", { n: mailTotal, kinds }));
   }
-  lines.push(`待确认：${w.review ? `还有 ${w.review} 笔${reviewBy}` : "没有"}`);
-  lines.push(`未付清账单：${w.owing.n ? `${w.owing.n} 笔，共 $${dollars(w.owing.cents)}` : "没有"}`);
-  if (w.refund.n) lines.push(`待退款：${w.refund.n} 笔，共 $${dollars(w.refund.cents)}`);
+  lines.push(w.review ? t("待确认：还有 {n} 笔{by}", { n: w.review, by: reviewBy }) : t("待确认：没有"));
+  lines.push(
+    w.owing.n
+      ? t("未付清账单：{n} 笔，共 {amount}", { n: w.owing.n, amount: usd(w.owing.cents) })
+      : t("未付清账单：没有"),
+  );
+  if (w.refund.n) lines.push(t("待退款：{n} 笔，共 {amount}", { n: w.refund.n, amount: usd(w.refund.cents) }));
   return lines;
 }
 
@@ -334,6 +371,7 @@ function weekLines(w: AccountWeek, reviewBy: string): string[] {
  * bills to be a few days old). `fix` is what to do about it.
  */
 async function forwardingCheck(
+  l: BotLang,
   db: D1Database,
   at: Date,
   payee: string | null,
@@ -341,8 +379,8 @@ async function forwardingCheck(
   lastAt: string | null | undefined,
   fix: string,
 ): Promise<string> {
-  if (!venmo) return "⚠️ 收款设置还没填 Venmo 用户名";
-  if (!lastAt) return "⚠️ 邮件转发：还没收到过任何 Venmo 邮件，自动对账可能还没设置好";
+  if (!venmo) return bt(l, "⚠️ 收款设置还没填 Venmo 用户名");
+  if (!lastAt) return bt(l, "⚠️ 邮件转发：还没收到过任何 Venmo 邮件，自动对账可能还没设置好");
   if (
     Date.parse(lastAt) < at.getTime() - QUIET_DAYS * DAY &&
     (await db
@@ -353,6 +391,6 @@ async function forwardingCheck(
       .bind(payee)
       .first())
   )
-    return `⚠️ 邮件转发：最近一封在 ${formatInstantZh(lastAt)}，有欠款却很久没收到，${fix}`;
-  return `✓ 邮件转发：最近一封在 ${formatInstantZh(lastAt)}`;
+    return bt(l, "⚠️ 邮件转发：最近一封在 {at}，有欠款却很久没收到，{fix}", { at: botInstant(l, lastAt), fix });
+  return bt(l, "✓ 邮件转发：最近一封在 {at}", { at: botInstant(l, lastAt) });
 }

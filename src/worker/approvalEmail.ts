@@ -2,19 +2,26 @@ import type { ApprovalEmailStatus } from "../shared/types";
 import type { Env } from "./env";
 import { now } from "./db";
 import { memberLink, requireMember, revealMemberToken, type MemberRow } from "./members";
+import { type BotLang, bt } from "./botLang";
 import { escapeHtml, sendToAdmins, sendToOwner } from "./telegram";
 
 /** 新成员申请: to the Owner and every admin (Ke Li 2026-10-15); sent once anyone got it. */
 export async function sendApplicationNotice(env: Env, m: MemberRow): Promise<boolean> {
-  const lines = [
-    "新成员申请待审核",
-    `用户名：${m.username}`,
-    `微信名：${m.wechat_nickname}`,
-    m.google_email ? `Google 邮箱：${m.google_email}` : m.email ? `邮箱：${m.email}` : "",
-    m.application_message ? `留言：${m.application_message}` : "",
-    "请在管理页「待审核」处理。",
-  ];
-  const text = escapeHtml(lines.filter(Boolean).join("\n"));
+  const text = (l: BotLang) => {
+    const lines = [
+      bt(l, "新成员申请待审核"),
+      bt(l, "用户名：{name}", { name: m.username }),
+      bt(l, "微信名：{name}", { name: m.wechat_nickname }),
+      m.google_email
+        ? bt(l, "Google 邮箱：{email}", { email: m.google_email })
+        : m.email
+          ? bt(l, "邮箱：{email}", { email: m.email })
+          : "",
+      m.application_message ? bt(l, "留言：{message}", { message: m.application_message }) : "",
+      bt(l, "请在管理页「待审核」处理。"),
+    ];
+    return escapeHtml(lines.filter(Boolean).join("\n"));
+  };
   const [owner, admins] = await Promise.all([sendToOwner(env, text), sendToAdmins(env, text)]);
   return owner || admins;
 }
