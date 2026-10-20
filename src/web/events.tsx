@@ -38,8 +38,27 @@ export function DateTile(props: { date: string }) {
   );
 }
 
-/** The status of an open event the member signed up for: 我已报名, with a tick for the dot. */
-export const MINE_STATUS = () => ({ cls: "mine", label: t("我已报名") });
+/**
+ * The status of an event the member is on, with a tick for the dot (Ke Li): 我已报名 while open,
+ * （已截止） once closed, （请付款） while their bill is unpaid, then 已付清. 朋友已报名 the same way
+ * when only friends hung under them are on it. Null when they're not on it, or it was cancelled.
+ */
+export function mineStatus(e: {
+  status: EventStatus;
+  selfSignedUp: boolean;
+  myFriends?: string[] | null;
+  payment?: { status: string } | null;
+}): { cls: string; label: string } | null {
+  const who = e.selfSignedUp ? "me" : (e.myFriends?.length ?? 0) > 0 ? "friends" : null;
+  if (!who || e.status === "cancelled") return null;
+  const mine = (me: string, friends: string) => ({ cls: "mine", label: who === "me" ? me : friends });
+  if (e.payment?.status === "paid") return { cls: "mine", label: t("已付清") };
+  if (e.payment) return mine(t("我已报名（请付款）"), t("朋友已报名（请付款）"));
+  if (e.status === "open") return mine(t("我已报名"), t("朋友已报名"));
+  if (e.status === "closed" || e.status === "finalized")
+    return mine(t("我已报名（已截止）"), t("朋友已报名（已截止）"));
+  return null;
+}
 
 export function StatusPill(props: { cls: string; label: string }) {
   return (

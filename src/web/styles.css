@@ -2118,6 +2118,10 @@ a.ev-meta {
   font-size: 12.5px;
   color: var(--muted);
 }
+/* The status in a card's top left, a touch bigger than elsewhere (Ke Li) */
+.hero-top .status {
+  font-size: 13.5px;
+}
 .tone-hero .hero-top {
   color: rgba(255, 255, 255, 0.92);
 }

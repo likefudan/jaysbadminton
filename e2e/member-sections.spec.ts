@@ -98,4 +98,12 @@ test("我的活动 groups events into 报名中, 待结清 and 已结清, each i
   await expect(page.locator(".ev-card", { hasText: "已报名 ·" })).toHaveClass(/tone-hero/);
   await expect(page.locator(".ev-card", { hasText: "还能报名" })).toHaveClass(/tone-soft/);
   await expect(page.locator(".ev-card", { hasText: "待付款 ·" })).toHaveClass(/tone-plain/);
+  // Their own ones say so with a tick: 我已报名, then （已截止） once closed, （请付款） while the bill is open.
+  await expect(page.locator(".ev-card .hero-top .status")).toHaveText([
+    "我已报名",
+    "报名中",
+    "我已报名（请付款）",
+    "我已报名（已截止）",
+  ]);
+  await expect(page.locator(".ev-card .status-mine")).toHaveCount(3);
 });

@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { EventSummary, HomeResponse, Leaderboard, MyEventsResponse } from "../../shared/types";
 import { Empty, Load, Page, SectionTitle } from "../components";
-import { EventHero, EventLink, MINE_STATUS, MiniEventCard } from "../events";
+import { EventHero, EventLink, MiniEventCard, mineStatus } from "../events";
 import { useApi, useMemberSession } from "../hooks";
 import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
@@ -10,15 +10,11 @@ import { BOARDS } from "../Stats";
 import { SwipeSection } from "../Swipe";
 import { t, tx } from "../i18n";
 
-/** The next event as one big card; 报名 (or 登录 / 注册) sits in its corner. */
-function NextEvent(props: { e: EventSummary; cta: string; mine?: boolean }) {
+/** The next event as one big card; 报名 (or 登录 / 注册, or 查看 once they're on it) sits in its corner. */
+function NextEvent(props: { e: EventSummary; cta: string; mine?: { cls: string; label: string } | null }) {
   const e = props.e;
   const status =
-    e.status !== "open"
-      ? { cls: "closed", label: t("已截止") }
-      : props.mine
-        ? MINE_STATUS()
-        : { cls: "open", label: t("报名中") };
+    props.mine ?? (e.status === "open" ? { cls: "open", label: t("报名中") } : { cls: "closed", label: t("已截止") });
   return (
     <section class="next-card tone-hero">
       <a class="next-event" href={`/e/${e.code}`}>
@@ -36,11 +32,14 @@ function NextEvent(props: { e: EventSummary; cta: string; mine?: boolean }) {
   );
 }
 
-/** The next event for a signed-in member: 我已报名 in its corner once they're on it, as on 我的活动. */
+/** The next event for a signed-in member: 我已报名 in its corner once they're on it, as on 我的活动, and 查看. */
 function MyNextEvent(props: { e: EventSummary; cta: string }) {
-  const [mine] = useApi<MyEventsResponse>("/api/m/session/events");
-  const signedUp = mine.state === "ok" && mine.data.events.some((x) => x.id === props.e.id && x.selfSignedUp);
-  return <NextEvent {...props} mine={signedUp} />;
+  const [res] = useApi<MyEventsResponse>("/api/m/session/events");
+  const own = res.state === "ok" ? res.data.events.find((x) => x.id === props.e.id) : undefined;
+  const mine = own ? mineStatus(own) : null;
+  // 报名 only while they could still sign up; 查看 once they're on it or sign-up has closed.
+  const cta = own?.selfSignedUp || props.e.status !== "open" ? t("查看") : props.cta;
+  return <NextEvent e={props.e} cta={cta} mine={mine} />;
 }
 
 /** 排行榜 as a row of small cards that scrolls sideways, first place in the accent colour. */

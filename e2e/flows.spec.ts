@@ -289,7 +289,7 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
   await page.goto("/");
   await expect(page.locator(".next-card .status")).toHaveText("我已报名"); // the home card too
-  await expect(page.getByRole("link", { name: "报名", exact: true })).toBeVisible();
+  await expect(page.locator(".next-cta")).toHaveText("查看 →"); // already on it: nothing left to sign up for
   await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(0);
 
   // The Owner binds their Google account in 设置, then gets in with it alone.
@@ -334,7 +334,7 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   await page.goto(memberPath);
   const bill = page.locator(".card", { hasText: "本次应付" });
   await expect(bill.locator(".amount")).toHaveText("$48.00"); // 小明 + 阿强
-  await expect(bill.locator(".status")).toHaveText("待付款");
+  await expect(bill.locator(".status")).toHaveText("我已报名（请付款）");
   await expect(bill.getByRole("button", { name: "分享名片", exact: true })).toHaveCount(0); // only 报名中 events are shared
   const code = await bill.locator(".memo code").innerText();
   expect(code).toMatch(/^xiaoming-jbm\d{8}-m002$/);
