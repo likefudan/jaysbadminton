@@ -22,6 +22,7 @@ const OWNER = "owner";
 export type AuditAction =
   | "create"
   | "edit"
+  | "courts"
   | "close_now"
   | "reopen"
   | "cancel"

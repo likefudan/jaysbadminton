@@ -4,7 +4,7 @@ import { dollars } from "../shared/settle";
 import { formatDateZh, toPacific } from "../shared/time";
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
-import type { EventRow } from "./events";
+import { type EventRow, bookedCourts } from "./events";
 import { badRequest } from "./http";
 import { fromBase64Url as fromB64url, toBase64Url as b64url } from "./lib/crypto";
 import { eventManager, eventPayee } from "./organizers";
@@ -13,8 +13,9 @@ import { payeeName } from "./payees";
 
 /**
  * 推送通知 to members' browsers (Web Push, RFC 8030/8291/8292). Members turn it on from their own
- * page; what is pushed: a new event open for sign-up, their bill once an event is finalized, and
- * changes someone else made to their sign-up (added or taken off the list, the event cancelled). The request queues them in push_outbox and sends them after its response
+ * page; what is pushed: a new event open for sign-up, a reminder 10 minutes before an event
+ * they're on starts (with its 预定场地), their bill once an event is finalized, and changes someone
+ * else made to their sign-up (added or taken off the list, the event cancelled). The request queues them in push_outbox and sends them after its response
  * (sendSoon), so they never slow it down, fail it or use up what it needs for its own notices; the
  * cron sends anything left over and retries what failed.
  */
@@ -334,6 +335,8 @@ async function sendBatch(env: Env, keys: VapidKeys, endpoint?: string): Promise<
        CASE o.kind
          WHEN 'event' THEN NOT COALESCE((SELECT status = 'open' AND deadline_at > ?2 FROM events WHERE id = o.event_id), 0)
          WHEN 'roster' THEN NOT COALESCE((SELECT status != 'cancelled' FROM events WHERE id = o.event_id), 0)
+         WHEN 'start' THEN NOT COALESCE((SELECT status IN ('open', 'closed') AND start_at > ?2 FROM events WHERE id = o.event_id), 0)
+           OR NOT EXISTS (SELECT 1 FROM registrations r WHERE r.event_id = o.event_id AND r.member_id = o.member_id)
          WHEN 'bill' THEN NOT EXISTS (SELECT 1 FROM payments p WHERE p.event_id = o.event_id
            AND p.member_id = o.member_id AND p.status != 'paid')
          ELSE 0 END AS stale
@@ -354,7 +357,8 @@ async function sendBatch(env: Env, keys: VapidKeys, endpoint?: string): Promise<
     rows.map(async (r) => ({
       r,
       // Turned off (or moved to another member) since it was queued, or no longer true (the event
-      // was cancelled or closed, the bill paid): nothing to send.
+      // was cancelled or closed, the bill paid, the event already started or they dropped out):
+      // nothing to send.
       outcome:
         r.endpoint && !r.stale
           ? await deliver(authFor, { ...r, endpoint: r.endpoint }, r.payload)
@@ -533,4 +537,36 @@ export async function pushCancelled(env: Env, e: EventRow, actor: string | null)
     console.error("push failed:", err);
     return false;
   }
+}
+
+/** How long before the start 快开始了 goes out. */
+export const START_PUSH_MS = 10 * 60_000;
+
+/**
+ * 快开始了: everyone on the event (friends' hosts too) 10 minutes before the start, with the courts
+ * booked for it when set. Whether anything was queued; called once per start time (notify.ts).
+ */
+export async function pushStarting(env: Env, e: EventRow): Promise<boolean> {
+  const courts = bookedCourts(e);
+  const msg: PushMessage = {
+    title: "羽毛球 10 分钟后开始",
+    body: [
+      `${toPacific(e.start_at).time}–${toPacific(e.end_at).time} ${e.title || e.location}`,
+      ...(e.title ? [e.location] : []),
+      courts.length ? `场地：${courts.join("、")} 号` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    url: `/e/${e.code}`,
+    tag: `start-${e.id}`,
+  };
+  const res = await env.DB.prepare(
+    `INSERT INTO push_outbox (endpoint, member_id, kind, event_id, payload, created_at)
+     SELECT s.endpoint, s.member_id, 'start', ?1, ?2, ?3 FROM push_subscriptions s JOIN members m ON m.id = s.member_id
+     WHERE m.status = 'active' AND m.deleted_at IS NULL
+       AND m.id IN (SELECT member_id FROM registrations WHERE event_id = ?1)`,
+  )
+    .bind(e.id, JSON.stringify(msg), now())
+    .run();
+  return res.meta.changes > 0;
 }

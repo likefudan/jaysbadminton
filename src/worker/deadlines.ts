@@ -4,8 +4,9 @@ import { recordCronError } from "./health";
 import { deadlineNotices, nextDeadlineAlarm } from "./notify";
 
 /**
- * One per event: an alarm set for its 截止前提醒 and then its deadline, so 报名截止 goes out the
- * moment sign-up closes instead of at the next cron run. The cron still runs every 15 minutes and
+ * One per event: an alarm set for its 截止前提醒, then its deadline, then 10 minutes before the
+ * start, so 报名截止 goes out the moment sign-up closes and 快开始了 on time, instead of at the next
+ * cron run. The cron still runs every 15 minutes and
  * sends anything an alarm missed; notification_log keeps the two from sending the same notice twice.
  */
 export class DeadlineAlarm extends DurableObject<Env> {
@@ -32,9 +33,9 @@ export class DeadlineAlarm extends DurableObject<Env> {
       await recordCronError(this.env, err); // shows up in the weekly digest's health check
       throw err; // Cloudflare retries a failed alarm
     }
-    // After the reminder, the deadline is next; after the deadline there is nothing left.
-    const next = await nextDeadlineAlarm(this.env, eventId);
-    if (next !== null && next > Date.now()) await this.ctx.storage.setAlarm(next);
+    // After the reminder, the deadline is next; then 快开始了; after that there is nothing left.
+    const next = await nextDeadlineAlarm(this.env, eventId, new Date(), true);
+    if (next !== null) await this.ctx.storage.setAlarm(next);
   }
 }
 
@@ -56,8 +57,15 @@ export async function clearDeadline(env: Env, eventId: number): Promise<void> {
   }
 }
 
-/** From the cron, and after the reminder settings change (every open event's reminder may have moved). */
+/**
+ * From the cron, and after the reminder settings change (every open event's reminder may have
+ * moved): open events, and closed ones still to start (for 快开始了).
+ */
 export async function syncAllDeadlines(env: Env): Promise<void> {
-  const { results } = await env.DB.prepare("SELECT id FROM events WHERE status = 'open'").all<{ id: number }>();
+  const { results } = await env.DB.prepare(
+    "SELECT id FROM events WHERE status = 'open' OR (status = 'closed' AND start_at > ?)",
+  )
+    .bind(new Date().toISOString())
+    .all<{ id: number }>();
   for (const r of results) await syncDeadline(env, r.id);
 }

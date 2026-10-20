@@ -436,6 +436,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   管理页: { tw: "管理頁", en: "Admin" },
   "组织：{name}": { tw: "組織：{name}", en: "Organizer: {name}" },
+  "场地：{courts} 号": { tw: "場地：{courts} 號", en: "Courts: {courts}" },
   "绑定 Google 账号": { tw: "綁定 Google 帳號", en: "Link Google account" },
   "绑定后可直接进入我的活动，原有报名和账单都会保留。": {
     tw: "綁定後可直接進入我的活動，原有報名和帳單都會保留。",

@@ -180,7 +180,13 @@ export interface RosterEntry {
   addedByOwner: boolean;
 }
 
+/** 预定场地: court numbers at the hall run 1–99 (Ke Li); a dozen is more than any event books. */
+export const BOOKED_COURT_MAX = 99;
+export const BOOKED_COURTS_MAX = 12;
+
 export interface EventDetail extends EventSummary {
+  /** 预定场地: the hall's court numbers booked for it, in order; empty until someone sets them. */
+  courts: number[];
   roster: RosterEntry[];
   dunningStopped: boolean;
   /** 从数据库永久删除 is offered: the event is archived (all paid) or cancelled. */
@@ -223,6 +229,8 @@ export interface MyEvent extends EventSummary {
   roster: MyRosterEntry[] | null;
   /** 球场排队: shared hall accounts and courts; only for players on the event while it is on. */
   queue: QueueInfo | null;
+  /** 预定场地: the courts booked for it, for players on it and whoever runs it; empty otherwise or until set. */
+  courts: number[];
 }
 
 /** 我的活动: current and open events in full, newest first, and the paid-up past ones in brief. */

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { QUEUE_DEFAULT_ROUND_MIN, QUEUE_ROUND_MAX, QUEUE_ROUND_MIN } from "../../shared/courtQueue";
 import { AddressInput } from "../AddressInput";
+import { CourtCombo } from "../CourtCombo";
 import type {
   AdminEventSummary,
   AuditEntry,
@@ -12,6 +13,7 @@ import type {
   RosterEntry,
   Venue,
 } from "../../shared/types";
+import { BOOKED_COURTS_MAX, BOOKED_COURT_MAX } from "../../shared/types";
 import { formatDateZh, formatInstantZh } from "../../shared/time";
 import { api } from "../api";
 import { Card, CopyButton, Empty, Field, Load, useAction } from "../components";
@@ -479,6 +481,8 @@ function EventAdminBody(props: {
         onDone={props.onChange}
       />
 
+      {(e.status === "open" || e.status === "closed") && <BookedCourts eb={eb} e={e} onDone={props.onChange} />}
+
       {e.status === "open" && <CloseNow eb={eb} onDone={props.onChange} />}
       {e.status === "closed" && <Reopen eb={eb} e={e} onDone={props.onChange} />}
 
@@ -800,6 +804,95 @@ function MySignup(props: {
           )}
         </>
       )}
+    </Card>
+  );
+}
+
+/**
+ * 预定场地: the hall's court numbers, any time before Finalize. Pick several from the dropdown, or
+ * type one and press 添加 (or Enter).
+ */
+function BookedCourts(props: { eb: string; e: EventDetail; onDone: () => void }) {
+  const saved = props.e.courts;
+  const [courts, setCourts] = useState<number[]>(saved);
+  const [typed, setTyped] = useState("");
+  const [note, setNote] = useState("");
+  const { busy, error, run } = useAction();
+  // Back in step after a save (or someone else's) reloads the event.
+  useEffect(() => setCourts(saved), [saved.join()]);
+  const put = (list: number[]) => setCourts([...new Set(list)].sort((a, b) => a - b));
+  const toggle = (n: number) => {
+    setNote("");
+    put(courts.includes(n) ? courts.filter((x) => x !== n) : [...courts, n]);
+  };
+  function addTyped() {
+    const n = Number(typed.trim());
+    if (!typed.trim()) return;
+    if (!Number.isInteger(n) || n < 1 || n > BOOKED_COURT_MAX) {
+      setNote(`场地编号请填 1–${BOOKED_COURT_MAX}`);
+      return;
+    }
+    setNote("");
+    setTyped("");
+    if (!courts.includes(n)) put([...courts, n]);
+  }
+  const changed = courts.join() !== saved.join();
+  const tooMany = courts.length > BOOKED_COURTS_MAX;
+  return (
+    <Card title="预定场地">
+      <p class="muted small">填上订到的场地编号。报名的人会在活动卡片上看到，活动开始前 10 分钟的推送里也会写上。</p>
+      {/* One element either way: swapping it would move the box below and close its list. */}
+      <div class="chips booked-courts">
+        {courts.length ? (
+          courts.map((n) => (
+            <span class="chip-wrap" key={n}>
+              <span class="chip on">{n} 号</span>
+              <button type="button" class="chip-remove" aria-label={`去掉 ${n} 号`} onClick={() => toggle(n)}>
+                ✕
+              </button>
+            </span>
+          ))
+        ) : (
+          <span class="muted">还没有填场地</span>
+        )}
+      </div>
+      <div class="booked-add">
+        <CourtCombo
+          id="booked-court-no"
+          label="添加场地"
+          placeholder={`选择或输入 1–${BOOKED_COURT_MAX}`}
+          toggleLabel="选择场地"
+          value={typed}
+          onInput={setTyped}
+          list={BOOKED_COURT_MAX}
+          max={BOOKED_COURT_MAX}
+          isOn={(n) => courts.includes(n)}
+          onPick={(n) => {
+            setTyped("");
+            toggle(n);
+          }}
+          multi
+          onEnter={addTyped}
+        />
+        {typed.trim() && (
+          <button type="button" class="button secondary block" onClick={addTyped}>
+            添加 {typed.trim()} 号
+          </button>
+        )}
+      </div>
+      {note && <p class="error">{note}</p>}
+      {tooMany && <p class="error">最多 {BOOKED_COURTS_MAX} 块场地</p>}
+      {error && <p class="error">{error}</p>}
+      <button
+        type="button"
+        class="button block"
+        disabled={busy || !changed || tooMany}
+        onClick={async () => {
+          if (await run(() => api(`${props.eb}/courts`, { courts }))) props.onDone();
+        }}
+      >
+        保存场地
+      </button>
     </Card>
   );
 }

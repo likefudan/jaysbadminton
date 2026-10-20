@@ -16,6 +16,7 @@ import { myStats } from "../stats";
 import { eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payeeProfile } from "../organizers";
 import { ownerName, payeeName } from "../payees";
 import {
+  bookedCourts,
   closeExpired,
   friendCap,
   friendCount,
@@ -275,6 +276,7 @@ async function myEvents(
       roster: names,
       // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
       queue: (rows.length > 0 || runs) && queueLive(row) ? await queueInfo(env, row, m.id) : null,
+      courts: rows.length > 0 || runs ? bookedCourts(row) : [],
     });
   }
   return events;

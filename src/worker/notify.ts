@@ -6,7 +6,7 @@ import { type EventRow, closeExpired, roster } from "./events";
 import { day, venue, when } from "./eventText";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { ROLE_TITLE, eventManager, isStaff, memberRole, organizersEnabled } from "./organizers";
-import { drainPushes, sendRest } from "./push";
+import { START_PUSH_MS, drainPushes, pushStarting, sendRest } from "./push";
 import {
   WECHAT_BLOCK,
   escapeHtml,
@@ -125,6 +125,7 @@ export async function runScheduled(env: Env, at: Date = new Date()): Promise<voi
     try {
       await deadlineReminder(env, e, at, cfg);
       await closedNotice(env, e, at);
+      await startPush(env, e, at);
       await settleReminder(env, e, at);
       await dailyDunning(env, e, at, cfg);
     } catch (err) {
@@ -195,30 +196,72 @@ async function closedNotice(env: Env, e: EventRow, at: Date): Promise<void> {
   });
 }
 
-// ---- Deadline alarms (see deadlines.ts): 截止前提醒 and 报名截止 on time, without waiting for the cron ----
+// ---- Deadline alarms (see deadlines.ts): 截止前提醒, 报名截止 and 快开始了 on time, without waiting for the cron ----
 
-/** Closes sign-up if the deadline has passed, then sends whichever of the two notices is due. */
+/** When 快开始了 is due (ms): START_PUSH_MS before the start. */
+const startPushAt = (e: EventRow) => new Date(e.start_at).getTime() - START_PUSH_MS;
+
+/**
+ * 快开始了: a push to everyone on the event, once per start time, from START_PUSH_MS before the start
+ * until it. An event made (or moved) closer to its start than that gets it straight away. Whether
+ * anyone is subscribed or not, it counts as done.
+ */
+async function startPush(env: Env, e: EventRow, at: Date): Promise<boolean> {
+  if (e.status !== "open" && e.status !== "closed") return false;
+  if (at.getTime() < startPushAt(e) || at.getTime() >= new Date(e.start_at).getTime()) return false;
+  let queued = false;
+  await once(env, e.id, "start_push", e.start_at, async () => {
+    queued = await pushStarting(env, e);
+    return true;
+  });
+  return queued;
+}
+
+const logged = async (env: Env, eventId: number, type: string, key: string) =>
+  (await env.DB.prepare("SELECT 1 FROM notification_log WHERE event_id = ? AND type = ? AND sent_on = ?")
+    .bind(eventId, type, key)
+    .first()) !== null;
+
+/** Closes sign-up if the deadline has passed, then sends whichever of the notices is due. */
 export async function deadlineNotices(env: Env, eventId: number, at: Date = new Date()): Promise<void> {
   await closeExpired(env);
   const e = await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(eventId).first<EventRow>();
   if (!e) return;
   await deadlineReminder(env, e, at, await notifySettings(env));
   await closedNotice(env, e, at);
+  // The pushes go out from the PushSender, each run with its own CPU.
+  if (await startPush(env, e, at)) await sendRest(env);
 }
 
 /**
- * When the event's alarm should next fire (ms): the reminder or the deadline of an open event,
- * now for a freshly closed one (closed early, or edited past its deadline), otherwise null.
+ * When the event's alarm should next fire (ms), or null: the reminder or the deadline of an open
+ * event, now for a freshly closed one whose 报名截止 hasn't gone out (closed early, or edited past
+ * its deadline), and 快开始了 START_PUSH_MS before the start (now, if that has passed and it hasn't
+ * gone out), whichever comes first. `laterOnly` (right after the alarm ran): only what is still
+ * ahead, so a notice that just failed (Telegram not connected, say) is left to the cron instead of
+ * holding up the ones after it.
  */
-export async function nextDeadlineAlarm(env: Env, eventId: number, at: Date = new Date()): Promise<number | null> {
+export async function nextDeadlineAlarm(
+  env: Env,
+  eventId: number,
+  at: Date = new Date(),
+  laterOnly = false,
+): Promise<number | null> {
   const e = await env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(eventId).first<EventRow>();
-  if (!e) return null;
+  if (!e || (e.status !== "open" && e.status !== "closed")) return null;
+  const t = at.getTime();
+  const due: number[] = [];
   const deadline = new Date(e.deadline_at).getTime();
-  if (e.status === "closed")
-    return deadline <= at.getTime() && at.getTime() - deadline <= 24 * 3600_000 ? at.getTime() : null;
-  if (e.status !== "open") return null;
-  const reminder = reminderStart(e, await notifySettings(env));
-  return reminder !== null && reminder > at.getTime() ? reminder : deadline;
+  if (e.status === "open") {
+    const reminder = reminderStart(e, await notifySettings(env));
+    due.push(reminder !== null && reminder > t ? reminder : deadline);
+  } else if (deadline <= t && t - deadline <= 24 * 3600_000 && !(await logged(env, e.id, "closed", e.deadline_at))) {
+    due.push(t);
+  }
+  if (t < new Date(e.start_at).getTime() && !(await logged(env, e.id, "start_push", e.start_at)))
+    due.push(Math.max(startPushAt(e), t));
+  const ahead = laterOnly ? due.filter((x) => x > t) : due;
+  return ahead.length ? Math.min(...ahead) : null;
 }
 
 /**

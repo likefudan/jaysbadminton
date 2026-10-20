@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { EventSummary, HomeResponse, Leaderboard, MyEventsResponse } from "../../shared/types";
 import { Empty, Load, Page, SectionTitle } from "../components";
-import { EventHero, EventLink, MiniEventCard, mineStatus } from "../events";
+import { CourtsLine, EventHero, EventLink, MiniEventCard, mineStatus } from "../events";
 import { useApi, useMemberSession } from "../hooks";
 import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
@@ -11,7 +11,13 @@ import { SwipeSection } from "../Swipe";
 import { t, tx } from "../i18n";
 
 /** The next event as one big card; 报名 (or 登录 / 注册, or 查看 once they're on it) sits in its corner. */
-function NextEvent(props: { e: EventSummary; cta: string; mine?: { cls: string; label: string } | null }) {
+function NextEvent(props: {
+  e: EventSummary;
+  cta: string;
+  mine?: { cls: string; label: string } | null;
+  /** 预定场地, for a member on it. */
+  courts?: number[];
+}) {
   const e = props.e;
   const status =
     props.mine ?? (e.status === "open" ? { cls: "open", label: t("报名中") } : { cls: "closed", label: t("已截止") });
@@ -22,6 +28,7 @@ function NextEvent(props: { e: EventSummary; cta: string; mine?: { cls: string; 
           <span class="next-count">
             <span>{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</span>
           </span>
+          {props.courts && props.courts.length > 0 && <CourtsLine courts={props.courts} />}
         </EventHero>
       </a>
       <a class="next-cta" href="/me">
@@ -39,7 +46,7 @@ function MyNextEvent(props: { e: EventSummary; cta: string }) {
   const mine = own ? mineStatus(own) : null;
   // 报名 only while they could still sign up; 查看 once they're on it or sign-up has closed.
   const cta = own?.selfSignedUp || props.e.status !== "open" ? t("查看") : props.cta;
-  return <NextEvent e={props.e} cta={cta} mine={mine} />;
+  return <NextEvent e={props.e} cta={cta} mine={mine} courts={own?.courts} />;
 }
 
 /** 排行榜 as a row of small cards that scrolls sideways, first place in the accent colour. */

@@ -66,7 +66,11 @@ describe("deadline alarms", () => {
     await vi.waitFor(() => expect(texts).toHaveLength(1));
     expect(await status(e.id)).toBe("closed");
     expect(texts).toEqual([expect.stringContaining("报名已截止，共 1 人")]);
-    expect(await alarmOf(e.id)).toBeNull(); // nothing left to do
+    // Next and last: 快开始了, 10 minutes before the start.
+    const { start_at } = (await env.DB.prepare("SELECT start_at FROM events WHERE id = ?")
+      .bind(e.id)
+      .first<{ start_at: string }>())!;
+    expect(await alarmOf(e.id)).toBe(Date.parse(start_at) - 10 * 60_000);
   });
 
   it("posts the roster right away when sign-up is closed early, and only once", async () => {

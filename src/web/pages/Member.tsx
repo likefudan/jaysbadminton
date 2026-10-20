@@ -4,7 +4,7 @@ import type { MeResponse, MemberProfile, MyEvent, MyEventsResponse, PaymentStatu
 import { STATUS_ZH } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Load, Page, SectionTitle, useAction } from "../components";
-import { EventHero, MiniEventCard, mapLink, mineStatus } from "../events";
+import { CourtsLine, EventHero, MiniEventCard, mapLink, mineStatus } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { Heatmap, ProfileHero, ProfileSettings } from "../Profile";
@@ -258,6 +258,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
             {e.address} ↗
           </a>
         )}
+        {e.courts?.length > 0 && <CourtsLine courts={e.courts} />}
         {e.organizer && <div class="ev-meta">{t("组织：{name}", { name: e.organizer })}</div>}
         {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
         {!e.roster?.length && <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>}

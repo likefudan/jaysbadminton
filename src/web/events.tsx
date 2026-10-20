@@ -2,7 +2,7 @@ import type { EventStatus, EventSummary } from "../shared/types";
 import { STATUS_ZH } from "../shared/types";
 import type { ComponentChildren } from "preact";
 import { toPacific } from "../shared/time";
-import { fmtDate, fmtInstant, t, tx, weekdayOf } from "./i18n";
+import { currentLang, fmtDate, fmtInstant, t, tx, weekdayOf } from "./i18n";
 
 /** Apple Maps on iPhone, Google Maps elsewhere. */
 export function mapLink(address: string): string {
@@ -58,6 +58,12 @@ export function mineStatus(e: {
   if (e.status === "closed" || e.status === "finalized")
     return mine(t("我已报名（已截止）"), t("朋友已报名（已截止）"));
   return null;
+}
+
+/** 预定场地 on a player's card: 场地：3、5 号. */
+export function CourtsLine(props: { courts: number[] }) {
+  const list = props.courts.join(currentLang() === "en" ? ", " : "、");
+  return <div class="ev-meta ev-courts">{tx("场地：{courts} 号", { courts: <b>{list}</b> })}</div>;
 }
 
 export function StatusPill(props: { cls: string; label: string }) {
