@@ -9,6 +9,7 @@ import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { Heatmap, ProfileHero, ProfileSettings } from "../Profile";
 import { RosterList } from "../Roster";
+import { CourtQueue } from "../CourtQueue";
 import { useApi } from "../hooks";
 import { CardCornerIcons } from "../ShareCard";
 import { SwipeSection } from "../Swipe";
@@ -254,6 +255,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {e.roster && e.roster.length > 0 && (
           <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
         )}
+        {e.queue && <CourtQueue base={props.base} e={e} onChange={props.onChange} />}
         {friendsOnly && !editing && e.runByMe && (
           <p class="muted">
             {t("你本人没有报名；名单上有挂在你名下的 {n} 个朋友，费用算在你的账单上。", { n: e.myFriends!.length })}

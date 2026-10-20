@@ -14,8 +14,7 @@ async function scenario(round = 45) {
   const bob = await approveMember(ctx, "Bob");
   await anon.call(`${alice.base}/events/${e.id}/signup`, { friends: [] });
   const q = `/events/${e.id}/queue`;
-  const card = async (base: string) =>
-    (await anon.call(`${base}/events/${e.id}`)).data.event as { queue: any } | null;
+  const card = async (base: string) => (await anon.call(`${base}/events/${e.id}`)).data.event as { queue: any } | null;
   return { ctx, e, alice, bob, q, card };
 }
 
@@ -120,7 +119,8 @@ describe("球场排队", () => {
     expect(minutesFrom(courts[0].startsAt)).toBe(10);
 
     // Groups must be 1-4 accounts shared on the event.
-    const bad = (body: object) => anon.call(`${alice.base}${q}/courts`, { court: 3, position: 0, minutes: 10, ...body });
+    const bad = (body: object) =>
+      anon.call(`${alice.base}${q}/courts`, { court: 3, position: 0, minutes: 10, ...body });
     expect((await bad({ accounts: [] })).status).toBe(400);
     expect((await bad({ accounts: ["Nobody"] })).status).toBe(400);
     expect((await bad({ accounts: ["Mark", "Ben", "Coco", "Yixing", "Zhichun"] })).status).toBe(400);

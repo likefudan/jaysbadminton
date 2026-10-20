@@ -29,9 +29,7 @@ export function cleanRoundMin(v: unknown): number | null {
 
 /** On for this event and not long over: players can see and change its courts and accounts. */
 export const queueLive = (e: EventRow, at = now()): boolean =>
-  e.queue_round_min !== null &&
-  e.status !== "cancelled" &&
-  Date.parse(at) <= Date.parse(e.end_at) + AFTER_END_MS;
+  e.queue_round_min !== null && e.status !== "cancelled" && Date.parse(at) <= Date.parse(e.end_at) + AFTER_END_MS;
 
 /** Everything the card shows: shared accounts (with who added them) and the courts entered. */
 export async function queueInfo(env: Env, e: EventRow, viewer: string): Promise<QueueInfo> {
@@ -112,9 +110,7 @@ export async function addAccount(env: Env, e: EventRow, memberId: string, body: 
 
 /** Taken off by whoever added it, or by whoever runs the event. */
 export async function removeAccount(env: Env, e: EventRow, memberId: string, runs: boolean, id: number) {
-  const res = await env.DB.prepare(
-    "DELETE FROM queue_accounts WHERE id = ? AND event_id = ? AND (member_id = ? OR ?)",
-  )
+  const res = await env.DB.prepare("DELETE FROM queue_accounts WHERE id = ? AND event_id = ? AND (member_id = ? OR ?)")
     .bind(id, e.id, memberId, runs ? 1 : 0)
     .run();
   if (!res.meta.changes) throw badRequest("只能删除自己填的账号");
@@ -135,7 +131,12 @@ function int(v: unknown, min: number, max: number, message: string): number {
 export async function saveCourt(env: Env, e: EventRow, memberId: string, body: Record<string, unknown>) {
   const court = int(body.court, 1, QUEUE_COURT_MAX, "请选择场号");
   const position = int(body.position, 0, QUEUE_MAX_POSITION, "请选择在打还是排第几组");
-  const minutes = int(body.minutes, position === 0 ? 1 : 0, QUEUE_MINUTES_MAX, `时间请填 ${position === 0 ? 1 : 0}–${QUEUE_MINUTES_MAX} 分钟`);
+  const minutes = int(
+    body.minutes,
+    position === 0 ? 1 : 0,
+    QUEUE_MINUTES_MAX,
+    `时间请填 ${position === 0 ? 1 : 0}–${QUEUE_MINUTES_MAX} 分钟`,
+  );
   const picked = Array.isArray(body.accounts) ? body.accounts.filter((a): a is string => typeof a === "string") : [];
   const { results } = await env.DB.prepare("SELECT username FROM queue_accounts WHERE event_id = ?")
     .bind(e.id)
