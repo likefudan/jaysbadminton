@@ -10,6 +10,7 @@ import type {
   MemberSummary,
   OrganizersBlock,
   RosterEntry,
+  Venue,
 } from "../../shared/types";
 import { formatDateZh, formatInstantZh } from "../../shared/time";
 import { api } from "../api";
@@ -164,9 +165,15 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
   const [hours, setHours] = useState(d.deadlineHours);
   const [joinSelf, setJoinSelf] = useState(true);
   const [title, setTitle] = useState("");
-  const [queueOn, setQueueOn] = useState(false);
-  const [roundMin, setRoundMin] = useState(String(QUEUE_DEFAULT_ROUND_MIN));
+  // 排队系统 goes with the hall: the remembered venue brings its setting along.
+  const lastQueue = d.locations.find((v) => v.name === d.location)?.queueRoundMin ?? null;
+  const [queueOn, setQueueOn] = useState(lastQueue !== null);
+  const [roundMin, setRoundMin] = useState(String(lastQueue ?? QUEUE_DEFAULT_ROUND_MIN));
   const { busy, error, run } = useAction();
+  const venueQueue = (min: number | null) => {
+    setQueueOn(min !== null);
+    setRoundMin(String(min ?? QUEUE_DEFAULT_ROUND_MIN));
+  };
 
   async function submit(ev: Event) {
     ev.preventDefault();
@@ -222,6 +229,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
           address={address}
           onVenue={setLocation}
           onAddress={setAddress}
+          onQueue={venueQueue}
         />
         <NotesField value={notes} onInput={setNotes} />
         <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
@@ -260,8 +268,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
   );
 }
 
-/** 场馆 + 地址, with one-tap 最近的场馆 that fill both (the Owner can also forget one with ✕). */
-/** 球场排队: on for halls where courts are taken by queuing on the hall's computer, with the round length. */
+/** 排队系统: on for halls where courts are taken by queuing on the hall's computer, with the round length. */
 function QueueField(props: {
   on: boolean;
   minutes: string;
@@ -272,8 +279,7 @@ function QueueField(props: {
     <>
       <label class={`switch-card ${props.on ? "on" : ""}`}>
         <span>
-          <strong>需要在球馆排队</strong>
-          <small>打开后活动卡片上会有球场和球馆账号，报名的人可以登记在打和排队的球场</small>
+          <strong>排队系统</strong>
         </span>
         <input
           type="checkbox"
@@ -310,19 +316,26 @@ function NotesField(props: { value: string; onInput: (value: string) => void }) 
   );
 }
 
+/**
+ * 场馆 + 地址, with one-tap 最近的场馆 that fill both and the venue's 排队系统 setting (the Owner
+ * can also forget one with ✕).
+ */
 function VenueFields(props: {
   base: string;
   canForget?: boolean;
-  venues: { name: string; address: string }[];
+  venues: Venue[];
   venue: string;
   address: string;
   onVenue: (v: string) => void;
   onAddress: (v: string) => void;
+  /** A recent venue was picked: set 排队系统 the way its last event had it. */
+  onQueue?: (roundMin: number | null) => void;
 }) {
   const [venues, setVenues] = useState(props.venues);
-  const pick = (v: { name: string; address: string }) => {
+  const pick = (v: Venue) => {
     props.onVenue(v.name);
     props.onAddress(v.address);
+    props.onQueue?.(v.queueRoundMin);
   };
   // No confirmation: it only forgets a shortcut, and typing the venue again brings it back.
   async function forget(name: string) {
@@ -365,7 +378,10 @@ function VenueFields(props: {
         onInput={(v) => {
           props.onVenue(v);
           const known = props.venues.find((x) => x.name === v.trim());
-          if (known) props.onAddress(known.address);
+          if (known) {
+            props.onAddress(known.address);
+            props.onQueue?.(known.queueRoundMin);
+          }
         }}
       />
       <AddressInput
@@ -919,7 +935,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   if (!open) {
     return (
       <button type="button" class="link-button" onClick={() => setOpen(true)}>
-        修改活动标题、时间、地点、备注或球场排队
+        修改活动标题、时间、地点、备注或排队系统
       </button>
     );
   }

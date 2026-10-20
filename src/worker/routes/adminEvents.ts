@@ -162,10 +162,11 @@ adminEventRoutes.get("/events/defaults", async (c) => {
   ]);
   const offset = Number(s.last_deadline_offset_min ?? 1440);
   const { results } = await c.env.DB.prepare(
-    "SELECT name, address FROM locations ORDER BY last_used_at DESC LIMIT 10",
+    "SELECT name, address, queue_round_min AS queueRoundMin FROM locations ORDER BY last_used_at DESC LIMIT 10",
   ).all<{
     name: string;
     address: string;
+    queueRoundMin: number | null;
   }>();
   return c.json<EventDefaults>({
     startTime: s.last_start_time ?? "19:00",
@@ -437,6 +438,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
     if (deadline > endAt) deadline = endAt;
     if (deadline <= now()) status = "closed";
   }
+  const queueRoundMin = b.queueRoundMin === undefined ? e.queue_round_min : cleanRoundMin(b.queueRoundMin);
   const ts = now();
   // Only over what was read: a close, Finalize or archive landing in between is never undone.
   const [res] = await c.env.DB.batch([
@@ -451,14 +453,14 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
       address,
       b.title === undefined ? e.title : cleanTitle(str(b.title)),
       b.notes === undefined ? e.notes : cleanNotes(str(b.notes)),
-      b.queueRoundMin === undefined ? e.queue_round_min : cleanRoundMin(b.queueRoundMin),
+      queueRoundMin,
       deadline,
       status,
       e.id,
       e.status,
       e.deadline_at,
     ),
-    saveVenue(c.env, location, address, ts),
+    saveVenue(c.env, location, address, queueRoundMin, ts),
   ]);
   if (!res?.meta.changes) throw badRequest("这个活动刚刚有了变化，请刷新后再改");
   const after = await getEvent(c.env, e.id);
@@ -480,7 +482,7 @@ function editChanges(a: EventRow, b: EventRow): string[] {
     ["地址", a.address, b.address],
     ["备注", a.notes || "（无）", b.notes || "（无）"],
     ["标题", a.title || "（无）", b.title || "（无）"],
-    ["球场排队", queueLabel(a), queueLabel(b)],
+    ["排队系统", queueLabel(a), queueLabel(b)],
   ];
   const out = fields.filter(([, x, y]) => x !== y).map(([k, x, y]) => `${k} ${x} → ${y}`);
   // An open event's deadline moves with the start.

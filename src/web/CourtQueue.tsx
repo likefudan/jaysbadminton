@@ -427,6 +427,9 @@ function Search(props: { value: string; onInput: (v: string) => void }) {
       type="search"
       placeholder={t("搜索账号")}
       aria-label={t("搜索账号")}
+      autocapitalize="none"
+      autocorrect="off"
+      spellcheck={false}
       value={props.value}
       onInput={(ev) => props.onInput((ev.target as HTMLInputElement).value)}
     />
@@ -529,8 +532,8 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
       <p class="muted small">{t("报名这场的人都能看到这些账号和密码。")}</p>
       <p class="sheet-label">{t("添加账号（可以加好几个）")}</p>
       <div class="cq-add">
-        <Field label={t("用户名")} value={username} onInput={setUsername} autocomplete="off" />
-        <Field label={t("密码")} value={password} onInput={setPassword} autocomplete="off" />
+        <Field label={t("用户名")} value={username} onInput={setUsername} autocomplete="off" verbatim />
+        <Field label={t("密码")} value={password} onInput={setPassword} autocomplete="off" verbatim />
       </div>
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy || !username.trim()} onClick={add}>
