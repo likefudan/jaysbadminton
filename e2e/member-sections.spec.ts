@@ -94,9 +94,10 @@ test("我的活动 groups events into 报名中, 待结清 and 已结清, each i
   ]);
   await expect(page.locator(".mini-card .mini-title")).toHaveText(["提前结清", "以前"]);
   await expect(page.locator(".mini-card").first()).toContainText("已付清 $12.00");
-  // Their own open event in the accent colour, one they could join in the light one, closed ones plain.
+  // Their own events in the accent colour until billed (closed ones too), one they could join in the light one, billed ones plain.
   await expect(page.locator(".ev-card", { hasText: "已报名 ·" })).toHaveClass(/tone-hero/);
   await expect(page.locator(".ev-card", { hasText: "还能报名" })).toHaveClass(/tone-soft/);
+  await expect(page.locator(".ev-card", { hasText: "已截止 ·" })).toHaveClass(/tone-hero/); // closed, but they're on it
   await expect(page.locator(".ev-card", { hasText: "待付款 ·" })).toHaveClass(/tone-plain/);
   // Their own ones say so with a tick: 我已报名, then （已截止） once closed, （请付款） while the bill is open.
   await expect(page.locator(".ev-card .hero-top .status")).toHaveText([
