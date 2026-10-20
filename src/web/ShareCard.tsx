@@ -221,16 +221,16 @@ export function ShareCardButton(props: { text: CardText; filename: string }) {
 }
 
 /**
- * The action row inside every event card, public or the member's own: 加入日历 (iPhone / Outlook,
- * Google 日历) and 分享名片, side by side with no row title. Calendar buttons only where `calendar`
- * allows and the event is still ahead; 分享名片 only while sign-up is open (报名中): a closed,
- * cancelled or billed event has nobody left to invite.
+ * The action row inside an event card: 加入日历 (iPhone / Outlook, Google 日历) and 分享名片, side by
+ * side with no row title. Calendar buttons only where `calendar` allows and the event is still
+ * ahead; 分享名片 only while sign-up is open (报名中): a closed, cancelled or billed event has nobody
+ * left to invite. Cards with a coloured top pass `share={false}` and put {@link ShareIconButton} there.
  */
-export function EventActions(props: { e: EventSummary; calendar?: boolean }) {
+export function EventActions(props: { e: EventSummary; calendar?: boolean; share?: boolean }) {
   const e = props.e;
   const [open, setOpen] = useState(false);
   const calendar = (props.calendar ?? true) && canAddToCalendar(e);
-  const share = e.status === "open";
+  const share = (props.share ?? true) && e.status === "open";
   if (!calendar && !share) return null;
   return (
     <div class="calendar">
@@ -240,14 +240,43 @@ export function EventActions(props: { e: EventSummary; calendar?: boolean }) {
           {t("分享名片")}
         </button>
       )}
-      {open && (
-        <ShareCardSheet
-          text={eventCardText(location.origin, e, t, (d) => fmtDate(d, false))}
-          filename={`event-${e.code}.png`}
-          onClose={() => setOpen(false)}
-        />
-      )}
+      {open && <EventShareSheet e={e} onClose={() => setOpen(false)} />}
     </div>
+  );
+}
+
+/** 分享名片 as the iOS share icon (a box with an arrow up), in the top corner of an open event's card. */
+export function ShareIconButton(props: { e: EventSummary }) {
+  const [open, setOpen] = useState(false);
+  if (props.e.status !== "open") return null;
+  return (
+    <>
+      <button
+        class="share-icon"
+        type="button"
+        aria-label={t("分享名片")}
+        title={t("分享名片")}
+        onClick={() => setOpen(true)}
+      >
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <path d="M8.5 9.5H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1.5" />
+          <path d="M12 15V3" />
+          <path d="M8.5 6.5 12 3l3.5 3.5" />
+        </svg>
+      </button>
+      {open && <EventShareSheet e={props.e} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function EventShareSheet(props: { e: EventSummary; onClose: () => void }) {
+  const e = props.e;
+  return (
+    <ShareCardSheet
+      text={eventCardText(location.origin, e, t, (d) => fmtDate(d, false))}
+      filename={`event-${e.code}.png`}
+      onClose={props.onClose}
+    />
   );
 }
 
