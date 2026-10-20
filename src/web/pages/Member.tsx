@@ -11,7 +11,7 @@ import { PaymentBox } from "../PaymentBox";
 import { ProfileCard } from "../Profile";
 import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
-import { EventActions } from "../ShareCard";
+import { EventActions, ShareIconButton } from "../ShareCard";
 import { MyStatsCard } from "../Stats";
 import { InstallCard, InstallPrompt } from "../Install";
 import { PushCard, PushPrompt } from "../Push";
@@ -251,7 +251,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   return (
     <section class={`card ev-card tone-${tone}`}>
       <div class="ev-head">
-        <EventHero e={e} status={badge} />
+        <EventHero e={e} status={badge} action={<ShareIconButton e={e} />} />
       </div>
       <div class="ev-main">
         {e.address && (
@@ -285,7 +285,11 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         )}
         {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">{t("你没有报名这次活动。")}</p>}
         {!editing && (
-          <EventActions e={e} calendar={signedUp && !e.payment && (e.status === "open" || e.status === "closed")} />
+          <EventActions
+            e={e}
+            calendar={signedUp && !e.payment && (e.status === "open" || e.status === "closed")}
+            share={false}
+          />
         )}
         {e.canEdit && editing && (
           <>

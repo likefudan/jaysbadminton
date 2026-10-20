@@ -2114,7 +2114,6 @@ a.ev-meta {
 .hero-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   font-size: 12.5px;
   color: var(--muted);
@@ -2129,6 +2128,35 @@ a.ev-meta {
   padding: 3px 10px;
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
+}
+/* 分享名片 as the iOS share icon, alone in the card's top right corner */
+.share-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px -4px auto;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--acc);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+.share-icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tone-hero .share-icon {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  box-shadow: none;
 }
 .tone-hero .status i {
   background: #b5f2c8;

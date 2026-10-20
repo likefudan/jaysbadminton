@@ -113,12 +113,13 @@ export function deadlineText(iso: string): string {
 }
 
 /**
- * The top of an event card, as on the home page: status, deadline, a big date, then name · venue.
- * `tone` colours it: hero (accent), soft (light accent) or plain.
+ * The top of an event card, as on the home page: status and deadline, a big date, then name · venue.
+ * `action` (the share icon) sits alone in the top right corner.
  */
 export function EventHero(props: {
   e: EventSummary;
   status: { cls: string; label: string } | null;
+  action?: ComponentChildren;
   children?: ComponentChildren;
 }) {
   const e = props.e;
@@ -127,6 +128,7 @@ export function EventHero(props: {
       <span class="hero-top">
         {props.status ? <StatusPill cls={props.status.cls} label={props.status.label} /> : <span />}
         {e.status === "open" && <span>{t("截止 {time}", { time: deadlineText(e.deadlineAt) })}</span>}
+        {props.action}
       </span>
       <span class="hero-date">
         {monthDay(e.date)}

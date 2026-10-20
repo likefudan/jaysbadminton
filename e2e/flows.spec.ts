@@ -180,8 +180,9 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   const google = new URL((await card.getByRole("link", { name: "Google 日历" }).getAttribute("href"))!);
   expect(google.searchParams.get("dates")).toMatch(/^\d{8}T\d{6}Z\/\d{8}T\d{6}Z$/);
 
-  // 加入日历 and 分享名片 share one row, with no row titles.
-  await expect(card.locator(".calendar .calendar-link")).toHaveText(["iPhone / Outlook", "Google 日历", "分享名片"]);
+  // 加入日历 is one row with no row title; 分享名片 is the share icon in the card's top right corner.
+  await expect(card.locator(".calendar .calendar-link")).toHaveText(["iPhone / Outlook", "Google 日历"]);
+  await expect(card.locator(".ev-head .hero-top .share-icon")).toHaveAccessibleName("分享名片");
   await expect(card.getByText("加入日历", { exact: true })).toHaveCount(0);
   // The same 活动名片 as on the public page, from inside their own event card.
   await card.getByRole("button", { name: "分享名片", exact: true }).click();
