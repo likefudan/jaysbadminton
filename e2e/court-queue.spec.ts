@@ -122,6 +122,8 @@ test("draws our courts, playing then queued, with the names on the two halves", 
   await page.screenshot({ path: test.info().outputPath("court-queue-card.png") });
 
   // The buttons stay under the top bar, and the key at the bottom, while the courts scroll by.
+  // Room below, so the page can scroll that far whatever fonts the machine has.
+  await page.addStyleTag({ content: "body { padding-bottom: 1500px }" });
   await page.evaluate(() =>
     window.scrollTo(0, document.querySelector(".cq-grid")!.getBoundingClientRect().top + scrollY - 40),
   );
