@@ -126,6 +126,24 @@ export async function sendToAdmins(env: Env, text: BotText): Promise<boolean> {
   return sent.some(Boolean);
 }
 
+/**
+ * Sends to the Owner and every current admin (admins only while the feature is on), each in their
+ * own bot language; a chat shared by two of them gets it once. How many chats got it.
+ */
+export async function sendToOwnerAndAdmins(env: Env, text: BotText): Promise<number> {
+  const { telegram_chat_id: owner } = await getSettings(env.DB, ["telegram_chat_id"]);
+  const chats = new Set<string>(owner ? [owner] : []);
+  if (organizersEnabled(env)) {
+    const { results } = await env.DB.prepare(
+      `SELECT t.chat_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
+       WHERE t.chat_id IS NOT NULL AND m.role = 'admin' AND ${currentStaffSql("m")}`,
+    ).all<{ chat_id: string }>();
+    for (const r of results) chats.add(r.chat_id);
+  }
+  const sent = await Promise.all([...chats].map((chat) => sendTo(env, chat, text)));
+  return sent.filter(Boolean).length;
+}
+
 export interface ManagerDelivery {
   ok: boolean;
   /** Whether it went to the Owner: the event is theirs, or it fell back to them. */

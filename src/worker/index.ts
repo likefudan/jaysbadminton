@@ -28,6 +28,7 @@ import { publicRoutes } from "./routes/public";
 import { googleRoutes } from "./googleAuth";
 import { diagnoseOversizedEmail, purgePaymentDiagnostics } from "./paymentDiagnostics";
 import { purgeCourtPhotos } from "./courtPhoto";
+import { sendReleaseNotices } from "./releaseNotice";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -82,6 +83,10 @@ app.post("/api/telegram/webhook", async (c) => {
   return c.json({ ok: true });
 });
 
+// CI calls this after a production release has deployed (scripts/release-notice.mjs). It takes
+// nothing: it only sends the notices CI recorded in the database, each once, so anyone may call it.
+app.post("/api/release-notice", async (c) => c.json({ sent: await sendReleaseNotices(c.env) }));
+
 // Pulled once a day by the Apps Script in the Owner's Google Sheet; the key is the only credential.
 app.get("/export/:key/all.json", async (c) => {
   if (!(await checkExportKey(c.env, c.req.param("key"))))
@@ -130,6 +135,11 @@ export default {
       await purgeCourtPhotos(env); // 拍照登记 photos after 7 days
     } catch (err) {
       console.error("court photo cleanup failed:", err);
+    }
+    try {
+      await sendReleaseNotices(env); // in case CI's call after a release didn't get through
+    } catch (err) {
+      console.error("release notice failed:", err);
     }
     try {
       await closeExpired(env);

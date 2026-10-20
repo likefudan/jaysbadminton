@@ -6,6 +6,8 @@ await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 
 const TABLES = [
   "payment_diagnostics",
+  "release_notices",
+  "telegram_langs",
   "push_outbox",
   "push_subscriptions",
   "event_audit",
