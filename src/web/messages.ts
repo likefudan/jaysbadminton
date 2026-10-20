@@ -738,5 +738,59 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   选择或输入: { tw: "選擇或輸入", en: "Pick or type" },
   选择场号: { tw: "選擇場號", en: "Pick a court" },
   搜索账号: { tw: "搜尋帳號", en: "Search accounts" },
+  "📷 拍照登记": { tw: "📷 拍照登記", en: "📷 Read from photo" },
+  "识别中…": { tw: "辨識中…", en: "Reading…" },
+  "拍一张球馆电脑的排队屏幕，自动填好下面的场号、时间和账号。": {
+    tw: "拍一張球館電腦的排隊螢幕，自動填好下面的場號、時間和帳號。",
+    en: "Take a photo of the hall's queue screen to fill in the court, time and accounts below.",
+  },
+  "这张照片打不开，请重新拍一张": {
+    tw: "這張照片打不開，請重新拍一張",
+    en: "Couldn't open this photo. Please take another",
+  },
+  排队屏幕照片: { tw: "排隊螢幕照片", en: "Photo of the queue screen" },
+  "照片上没有找到我们的账号。可以重拍一张，或者手动填写。": {
+    tw: "照片上沒有找到我們的帳號。可以重拍一張，或者手動填寫。",
+    en: "None of our accounts were found in the photo. Take another, or fill it in by hand.",
+  },
+  "找到 {n} 片场，逐个核对后保存": {
+    tw: "找到 {n} 片場，逐個核對後儲存",
+    en: "Found {n} courts. Check and save each one",
+  },
+  "找到 1 片场，核对后保存": { tw: "找到 1 片場，核對後儲存", en: "Found 1 court. Check it and save" },
+  "{n}号场在照片上看不清，有我们的人的话请手动登记。": {
+    tw: "{n}號場在照片上看不清，有我們的人的話請手動登記。",
+    en: "Court {n} wasn't readable in the photo. If we're on it, add it by hand.",
+  },
+  "黄色的账号照片上看不太清，请对照球馆屏幕核对。": {
+    tw: "黃色的帳號照片上看不太清，請對照球館螢幕核對。",
+    en: "Accounts in yellow weren't clear in the photo. Please check them against the hall's screen.",
+  },
+  "照片上没读出剩余时间，请看屏幕填写。": {
+    tw: "照片上沒讀出剩餘時間，請看螢幕填寫。",
+    en: "The time left couldn't be read from the photo. Please fill it in from the screen.",
+  },
+  "拍照登记还没有开通，请手动填写": {
+    tw: "拍照登記還沒有開通，請手動填寫",
+    en: "Reading from photos isn't set up yet. Please fill it in by hand",
+  },
+  请选择一张照片: { tw: "請選擇一張照片", en: "Please choose a photo" },
+  "照片格式不对，请重新拍一张": {
+    tw: "照片格式不對，請重新拍一張",
+    en: "That photo's format isn't supported. Please take another",
+  },
+  "照片太大了，请重新拍一张": { tw: "照片太大了，請重新拍一張", en: "That photo is too large. Please take another" },
+  "还没有人添加球馆账号，请先在「球馆账号」里添加": {
+    tw: "還沒有人新增球館帳號，請先在「球館帳號」裡新增",
+    en: 'No hall accounts yet. Add some under "Hall accounts" first',
+  },
+  "拍照登记用得太频繁了，请稍后再试或手动填写": {
+    tw: "拍照登記用得太頻繁了，請稍後再試或手動填寫",
+    en: "Too many photos in a short time. Try again later, or fill it in by hand",
+  },
+  "照片没有识别出来，请重拍一张或手动填写": {
+    tw: "照片沒有辨識出來，請重拍一張或手動填寫",
+    en: "The photo couldn't be read. Take another, or fill it in by hand",
+  },
   没有找到这个账号: { tw: "沒有找到這個帳號", en: "No matching account" },
 };

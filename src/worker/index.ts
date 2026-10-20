@@ -27,6 +27,7 @@ import { memberRoutes } from "./routes/member";
 import { publicRoutes } from "./routes/public";
 import { googleRoutes } from "./googleAuth";
 import { diagnoseOversizedEmail, purgePaymentDiagnostics } from "./paymentDiagnostics";
+import { purgeCourtPhotos } from "./courtPhoto";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -124,6 +125,11 @@ export default {
       await purgePaymentDiagnostics(env);
     } catch (err) {
       console.error("payment diagnostic cleanup failed:", err);
+    }
+    try {
+      await purgeCourtPhotos(env); // 拍照登记 photos after 7 days
+    } catch (err) {
+      console.error("court photo cleanup failed:", err);
     }
     try {
       await closeExpired(env);

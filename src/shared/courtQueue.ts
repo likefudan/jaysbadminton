@@ -48,6 +48,8 @@ export interface QueueCourt {
 /** The 球场排队 part of an event card; only for players on the event, while it is on. */
 export interface QueueInfo {
   roundMin: number;
+  /** 拍照登记 is available (the site has a key for the model that reads the photo). */
+  photo: boolean;
   accounts: QueueAccount[];
   courts: QueueCourt[];
 }
@@ -76,3 +78,28 @@ export function courtPhase(c: Pick<QueueCourt, "startsAt" | "endsAt">, now: numb
  */
 export const queueWait = (minutesLeft: number, position: number, roundMin: number): number =>
   minutesLeft + Math.max(0, position - 1) * roundMin;
+
+/** 拍照登记: the photo is shrunk on the phone to this many pixels on its long side (Ke Li). */
+export const PHOTO_MAX_SIDE = 1600;
+
+/** One of our accounts read off the screen; uncertain when the model wasn't sure of the name. */
+export interface PhotoAccount {
+  username: string;
+  uncertain: boolean;
+}
+
+/** A court where the photo shows our accounts, in the shape of the 登记球场 form. */
+export interface PhotoCourt {
+  court: number;
+  /** 0 = playing, 1..3 = that group in the court's queue. */
+  position: number;
+  /** The court's Minutes Left on the screen; null when it couldn't be read. */
+  minutesLeft: number | null;
+  accounts: PhotoAccount[];
+}
+
+export interface PhotoResult {
+  courts: PhotoCourt[];
+  /** Courts cut off or too blurry to read. */
+  unreadable: number[];
+}

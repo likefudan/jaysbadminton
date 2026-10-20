@@ -7,6 +7,7 @@ import {
   QUEUE_ROUND_MIN,
   type QueueInfo,
 } from "../shared/courtQueue";
+import { photoEnabled } from "./courtPhoto";
 import { now } from "./db";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
@@ -63,6 +64,7 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string): Promise<
   ]);
   return {
     roundMin: e.queue_round_min!,
+    photo: photoEnabled(env),
     accounts: accounts.results.map((a) => ({
       id: a.id,
       username: a.username,
@@ -178,8 +180,9 @@ export async function removeCourt(env: Env, e: EventRow, id: number) {
   await env.DB.prepare("DELETE FROM queue_courts WHERE id = ? AND event_id = ?").bind(id, e.id).run();
 }
 
-/** For deleteEvent: the event's courts and accounts go with it. */
+/** For deleteEvent: the event's courts, accounts and photos go with it. */
 export const deleteQueue = (env: Env, eventId: number): D1PreparedStatement[] => [
+  env.DB.prepare("DELETE FROM queue_photos WHERE event_id = ?").bind(eventId),
   env.DB.prepare("DELETE FROM queue_courts WHERE event_id = ?").bind(eventId),
   env.DB.prepare("DELETE FROM queue_accounts WHERE event_id = ?").bind(eventId),
 ];

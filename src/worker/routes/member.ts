@@ -33,6 +33,7 @@ import { type MemberRow, memberByToken, renameMember } from "../members";
 import { developerMember } from "../developer";
 import { pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
 import { googleMember, requireSameOrigin } from "../googleAuth";
+import { readCourtPhoto } from "../courtPhoto";
 import { addAccount, queueInfo, queueLive, removeAccount, removeCourt, saveCourt } from "../courtQueue";
 
 type Vars = { member: MemberRow };
@@ -348,6 +349,12 @@ memberRoutes.post("/:token/events/:id/queue/courts", async (c) => {
   const { e, m } = await queueEventFor(c, c.req.param("id"));
   await saveCourt(c.env, e, m.id, await readJson(c.req.raw));
   return c.json({ ok: true });
+});
+
+// 拍照登记: read a photo of the hall's screen; the answer fills the form, nothing is saved as a court.
+memberRoutes.post("/:token/events/:id/queue/photo", async (c) => {
+  const { e, m } = await queueEventFor(c, c.req.param("id"));
+  return c.json(await readCourtPhoto(c.env, e, m.id, await readJson(c.req.raw)));
 });
 
 memberRoutes.post("/:token/events/:id/queue/courts/:cid/remove", async (c) => {
