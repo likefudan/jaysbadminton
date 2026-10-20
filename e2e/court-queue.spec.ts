@@ -34,6 +34,9 @@ const queue = {
     "Weicheng",
     "Zhichun",
     "Keoung",
+    "Lily",
+    "Tom",
+    "Dafei",
   ].map((username, i) => ({
     id: i + 1,
     username,
@@ -161,21 +164,29 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   const posts = await setUp(page);
   await page.getByRole("button", { name: "＋ 登记球场" }).click();
   const sheet = page.getByRole("dialog");
-  await sheet.getByRole("button", { name: "12", exact: true }).click();
+  await sheet.getByLabel("场号").fill("52");
   await sheet.getByRole("button", { name: "排第 3 组" }).click();
   await sheet.getByLabel("这片场正在打的那组还剩几分钟").fill("10");
   await expect(sheet).toContainText("大约 100 分钟后上场");
+  // Free accounts come before those already on a court, which say where; a search narrows them.
+  const chips = sheet.locator(".cq-chips .chip");
+  await expect(chips.first()).toHaveText("Lily");
+  await expect(sheet.getByRole("button", { name: "Mark7号" })).toHaveClass(/cq-busy/);
+  await sheet.getByLabel("搜索账号").fill("chr");
+  await expect(chips).toHaveText(["Chris6号"]);
   await sheet.getByRole("button", { name: "Chris" }).click();
+  await sheet.getByLabel("搜索账号").fill("");
+  await expect(chips.first()).toHaveText("Chris6号");
   await page.screenshot({ path: test.info().outputPath("court-queue-new.png") });
   await sheet.getByRole("button", { name: "保存" }).click();
-  expect(posts.at(-1)?.body).toEqual({ court: 12, position: 3, minutes: 100, accounts: ["Chris"] });
+  expect(posts.at(-1)?.body).toEqual({ court: 52, position: 3, minutes: 100, accounts: ["Chris"] });
 });
 
 test("hall accounts: everyone's are listed, yours can be removed, and more added", async ({ page }) => {
   const posts = await setUp(page);
-  await page.getByRole("button", { name: "球馆账号（14）" }).click();
+  await page.getByRole("button", { name: "球馆账号（17）" }).click();
   const sheet = page.getByRole("dialog");
-  await expect(sheet.locator(".cq-account").first()).toHaveText("Xiayw · 1000");
+  await expect(sheet.locator(".cq-account").first()).toHaveText("Xiayw · 10001号");
   await expect(sheet.locator("li", { hasText: "Xiayw" })).toContainText("Ke 提供");
   await expect(sheet.locator("li", { hasText: "Chris" }).getByRole("button", { name: "删除" })).toHaveCount(0);
   await sheet.getByLabel("用户名").fill("Lily");

@@ -732,4 +732,8 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "登記的球場太多了，請先刪掉打完的",
     en: "Too many courts entered. Please remove finished ones first",
   },
+  "例如 23": { tw: "例如 23", en: "e.g. 23" },
+  "已选 {n}": { tw: "已選 {n}", en: "{n} picked" },
+  搜索账号: { tw: "搜尋帳號", en: "Search accounts" },
+  没有找到这个账号: { tw: "沒有找到這個帳號", en: "No matching account" },
 };

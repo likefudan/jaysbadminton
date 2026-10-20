@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import {
   courtPhase,
+  QUEUE_COURT_MAX,
   QUEUE_GROUP_MAX,
   QUEUE_MAX_POSITION,
   QUEUE_SOON_MIN,
@@ -16,8 +17,8 @@ import { api } from "./api";
 import { Field, useAction } from "./components";
 import { t } from "./i18n";
 
-/** The hall's courts are numbered 1-18 at the hall this was made for; others are typed in. */
-const COURT_BUTTONS = 18;
+/** Over this many accounts, the lists get a search box. */
+const SEARCH_FROM = 8;
 /** How often the card fetches what others entered, while it is on screen. */
 const REFRESH_MS = 60_000;
 
@@ -273,14 +274,18 @@ function CourtSheet(props: {
               })}
         </p>
       )}
-      <p class="sheet-label">{t("场号")}</p>
-      <div class="cq-numbers">
-        {Array.from({ length: COURT_BUTTONS }, (_, i) => String(i + 1)).map((k) => (
-          <button type="button" key={k} class={court === k ? "on" : ""} onClick={() => setCourt(k)}>
-            {k}
-          </button>
-        ))}
-      </div>
+      <label class="cq-court-no">
+        <span class="sheet-label">{t("场号")}</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={QUEUE_COURT_MAX}
+          placeholder={t("例如 23")}
+          value={court}
+          onInput={(ev) => setCourt((ev.target as HTMLInputElement).value)}
+        />
+      </label>
       <p class="sheet-label">{t("状态")}</p>
       <div class="seg">
         {Array.from({ length: QUEUE_MAX_POSITION + 1 }, (_, k) => (
@@ -316,22 +321,14 @@ function CourtSheet(props: {
             ? t("前面有人提前下场或退出，就把时间改短。到点会自动变成「在打」。")
             : t("屏幕上的 Minutes Left。保存后从现在开始倒计时。")}
       </p>
-      <p class="sheet-label">{t("用了哪几个账号（1-{n} 个）", { n: QUEUE_GROUP_MAX })}</p>
+      <p class="sheet-label">
+        {t("用了哪几个账号（1-{n} 个）", { n: QUEUE_GROUP_MAX })}
+        {picked.length > 0 && <span class="cq-count">{t("已选 {n}", { n: picked.length })}</span>}
+      </p>
       {props.q.accounts.length === 0 && (
         <p class="muted small">{t("还没有人添加球馆账号，请先在「球馆账号」里添加。")}</p>
       )}
-      <div class="chips cq-chips">
-        {props.q.accounts.map((a) => (
-          <button
-            type="button"
-            key={a.id}
-            class={picked.includes(a.username) ? "chip on" : "chip"}
-            onClick={() => toggle(a.username)}
-          >
-            {a.username}
-          </button>
-        ))}
-      </div>
+      <AccountPicker q={props.q} now={props.now} except={c?.id ?? null} picked={picked} onToggle={toggle} />
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy} onClick={save}>
         {t("保存")}
@@ -345,12 +342,82 @@ function CourtSheet(props: {
   );
 }
 
+/** Which courts each account is on right now (playing or queued), leaving out the entry being edited. */
+function busyAccounts(q: QueueInfo, now: number, except: number | null): Map<string, number[]> {
+  const busy = new Map<string, number[]>();
+  for (const c of q.courts) {
+    if (c.id === except || courtPhase(c, now).phase === "done") continue;
+    for (const a of c.accounts) busy.set(a.toLowerCase(), [...(busy.get(a.toLowerCase()) ?? []), c.court]);
+  }
+  return busy;
+}
+
+/** A search box over many accounts (Ke Li: thirty to fifty a night). */
+function Search(props: { value: string; onInput: (v: string) => void }) {
+  return (
+    <input
+      class="cq-search"
+      type="search"
+      placeholder={t("搜索账号")}
+      aria-label={t("搜索账号")}
+      value={props.value}
+      onInput={(ev) => props.onInput((ev.target as HTMLInputElement).value)}
+    />
+  );
+}
+
+const matches = (name: string, query: string) => name.toLowerCase().includes(query.trim().toLowerCase());
+
+/**
+ * The group's accounts: the picked ones first, then the free ones, then those already on another
+ * court (marked with it), so with thirty or more accounts the likely ones are near the top.
+ */
+function AccountPicker(props: {
+  q: QueueInfo;
+  now: number;
+  except: number | null;
+  picked: string[];
+  onToggle: (name: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const busy = busyAccounts(props.q, props.now, props.except);
+  const rank = (name: string) => (props.picked.includes(name) ? 0 : busy.has(name.toLowerCase()) ? 2 : 1);
+  const list = props.q.accounts
+    .filter((a) => props.picked.includes(a.username) || matches(a.username, query))
+    .sort((a, b) => rank(a.username) - rank(b.username));
+  return (
+    <>
+      {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
+      <div class="chips cq-chips">
+        {list.map((a) => {
+          const on = busy.get(a.username.toLowerCase());
+          return (
+            <button
+              type="button"
+              key={a.id}
+              class={props.picked.includes(a.username) ? "chip on" : on ? "chip cq-busy" : "chip"}
+              onClick={() => props.onToggle(a.username)}
+            >
+              {a.username}
+              {on && <small>{t("{n}号", { n: on.join("、") })}</small>}
+            </button>
+          );
+        })}
+        {list.length === 0 && <p class="muted small">{t("没有找到这个账号")}</p>}
+      </div>
+    </>
+  );
+}
+
 /** 球馆账号: everyone's hall accounts for this event; add your own, take off the ones you added. */
 function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose: () => void; onChange: () => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [query, setQuery] = useState("");
   const { busy, error, run } = useAction();
   const path = `${props.base}/events/${props.e.id}/queue/accounts`;
+  const inUse = busyAccounts(props.q, Date.now(), null);
+  const shown = props.q.accounts.filter((a) => matches(a.username, query));
   // The list on screen follows what the card last fetched, so it updates as accounts come and go.
   async function add() {
     if (await run(() => api(path, { username, password }))) {
@@ -370,25 +437,6 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
       onClose={props.onClose}
     >
       <p class="muted small">{t("报名这场的人都能看到这些账号和密码。")}</p>
-      {props.q.accounts.length > 0 && (
-        <ul class="cq-accounts">
-          {props.q.accounts.map((a) => (
-            <li key={a.id}>
-              <span class="cq-account">
-                {a.username} · {a.password}
-              </span>
-              <span class="muted small">
-                {t("{name} 提供", { name: a.addedBy })}
-                {(a.mine || props.e.runByMe) && (
-                  <button type="button" class="text-button" disabled={busy} onClick={() => remove(a.id, a.username)}>
-                    {t("删除")}
-                  </button>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
       <p class="sheet-label">{t("添加账号（可以加好几个）")}</p>
       <div class="cq-add">
         <Field label={t("用户名")} value={username} onInput={setUsername} autocomplete="off" />
@@ -398,6 +446,30 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
       <button type="button" class="button block" disabled={busy || !username.trim()} onClick={add}>
         {t("添加")}
       </button>
+      {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
+      {shown.length > 0 && (
+        <ul class="cq-accounts">
+          {shown.map((a) => {
+            const on = inUse.get(a.username.toLowerCase());
+            return (
+              <li key={a.id}>
+                <span class="cq-account">
+                  {a.username} · {a.password}
+                  {on && <small class="cq-on">{t("{n}号", { n: on.join("、") })}</small>}
+                </span>
+                <span class="muted small">
+                  {t("{name} 提供", { name: a.addedBy })}
+                  {(a.mine || props.e.runByMe) && (
+                    <button type="button" class="text-button" disabled={busy} onClick={() => remove(a.id, a.username)}>
+                      {t("删除")}
+                    </button>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </SheetFrame>
   );
 }

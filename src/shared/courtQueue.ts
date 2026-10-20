@@ -13,7 +13,8 @@ export const QUEUE_MAX_POSITION = 3;
 export const QUEUE_GROUP_MAX = 4;
 /** Minutes left or minutes to wait: three full rounds at most; this only stops typos. */
 export const QUEUE_MINUTES_MAX = 400;
-export const QUEUE_COURT_MAX = 50;
+/** Some halls have more than fifty courts (Ke Li). */
+export const QUEUE_COURT_MAX = 99;
 /** At or under this, a court on the screen turns yellow (time almost up). */
 export const QUEUE_SOON_MIN = 5;
 

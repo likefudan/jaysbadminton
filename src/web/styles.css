@@ -3822,27 +3822,44 @@ ul.audit li:first-child {
   max-height: 92vh;
   overflow-y: auto;
 }
-.cq-numbers {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
-  margin-bottom: 6px;
+.cq-court-no {
+  display: block;
 }
-.cq-numbers button {
-  min-height: 38px;
+.cq-court-no input,
+.cq-search {
+  display: block;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--field);
   color: var(--text);
   font: inherit;
-  font-size: 14px;
-  cursor: pointer;
 }
-.cq-numbers button.on {
-  background: var(--acc-ink);
-  border-color: var(--acc-ink);
-  color: var(--on-acc);
+.cq-court-no input {
+  font-size: 20px;
   font-weight: 600;
+}
+.cq-search {
+  min-height: 40px;
+  margin: 4px 0 10px;
+}
+.cq-count {
+  margin-left: 8px;
+  color: var(--acc-ink);
+}
+.chip.cq-busy {
+  color: var(--muted);
+}
+.chip small,
+.cq-on {
+  margin-left: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.chip.on small {
+  color: inherit;
 }
 .cq-minutes {
   display: flex;
