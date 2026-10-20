@@ -38,6 +38,9 @@ export function DateTile(props: { date: string }) {
   );
 }
 
+/** The status of an open event the member signed up for: 我已报名, with a tick for the dot. */
+export const MINE_STATUS = () => ({ cls: "mine", label: t("我已报名") });
+
 export function StatusPill(props: { cls: string; label: string }) {
   return (
     <span class={`status status-${props.cls}`}>

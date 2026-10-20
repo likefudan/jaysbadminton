@@ -3,6 +3,7 @@
 // en: an empty string means nothing is shown (units such as 人 / 次 that English leaves out).
 
 export const MESSAGES: Record<string, { tw: string; en: string }> = {
+  "Apple 日历 / Outlook": { tw: "Apple 日曆 / Outlook", en: "Apple Calendar / Outlook" },
   "Google 日历": { tw: "Google 日曆", en: "Google Calendar" },
   "Google 登录未完成，请重试。若持续失败，请联系群主。": {
     tw: "Google 登入未完成，請重試。若持續失敗，請聯絡群主。",
@@ -234,6 +235,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   已取消: { tw: "已取消", en: "Cancelled" },
   已复制: { tw: "已複製", en: "Copied" },
   已截止: { tw: "已截止", en: "Closed" },
+  我已报名: { tw: "我已報名", en: "I'm in" },
   已报名: { tw: "已報名", en: "Signed up" },
   "已报名，带 {n} 个朋友": { tw: "已報名，帶 {n} 個朋友", en: "Signed up, bringing {n} friend(s)" },
   "已收到 {paid}，还差 {owed}。补付时备注用同一个编号即可。": {
@@ -371,6 +373,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "加入以後，從主畫面的「羽毛球」圖示開啟，就直接到你的頁面。",
     en: 'Once added, the "羽毛球" icon on your Home Screen opens straight to your page.',
   },
+  加入日历: { tw: "加入日曆", en: "Add to Calendar" },
   添加到主屏幕: { tw: "加入主畫面", en: "Add to Home Screen" },
   "点 Safari 的「分享」按钮（新版 Safari 先点右下角的「⋯」）": {
     tw: "點 Safari 的「分享」按鈕（新版 Safari 先點右下角的「⋯」）",

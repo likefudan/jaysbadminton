@@ -257,7 +257,7 @@ test("a signed-in member sees the roster and can sign up on the shared event pag
   await expect(page.getByText("登录后即可报名；新朋友请先注册入群。")).toHaveCount(0);
   await page.getByRole("button", { name: "报名", exact: true }).click();
   await page.getByRole("button", { name: "确认报名" }).click();
-  await expect(page.getByText("✓ 已报名")).toBeVisible();
+  await expect(page.locator(".status-mine")).toHaveText("我已报名");
   await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
   await expect(page.getByRole("link", { name: "我的活动" })).toBeVisible();
 });

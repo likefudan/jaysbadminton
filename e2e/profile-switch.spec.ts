@@ -70,7 +70,7 @@ for (const role of ["owner", "organizer"] as const) {
     await expect(page.getByRole("heading", { name: "你好，Manager" })).toBeVisible();
     await page.getByRole("button", { name: "报名", exact: true }).click();
     await page.getByRole("button", { name: "确认报名" }).click();
-    await expect(page.getByText("✓ 已报名")).toBeVisible();
+    await expect(page.locator(".status-mine")).toHaveText("我已报名");
     await page.screenshot({ path: testInfo.outputPath(`member-view-${role}.png`) });
     await page.getByRole("link", { name: "切换为管理员", exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/google$/);
