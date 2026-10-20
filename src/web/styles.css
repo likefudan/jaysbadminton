@@ -4105,3 +4105,25 @@ ul.audit li:first-child {
   background: #fff3bf;
   color: #5c4700;
 }
+
+/* 预定场地: the courts on a player's card, and the editor on the admin page. */
+.ev-courts b {
+  color: var(--text);
+  font-weight: 700;
+}
+.booked-courts {
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.booked-add .button {
+  margin-top: 8px;
+}
+/* On the coral 下一场活动 card, in the card's own white like the headcount above it. */
+.next-card .ev-courts,
+.next-card .ev-courts b {
+  color: inherit;
+}
+.next-card .ev-courts {
+  margin-top: 2px;
+  font-size: 15px;
+}

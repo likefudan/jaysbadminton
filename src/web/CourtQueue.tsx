@@ -17,6 +17,7 @@ import {
 import { toPacific } from "../shared/time";
 import type { MyEvent } from "../shared/types";
 import { api } from "./api";
+import { CourtCombo } from "./CourtCombo";
 import { Field, useAction } from "./components";
 import { t } from "./i18n";
 
@@ -501,10 +502,7 @@ function PhotoFound(props: {
 /** Courts the dropdown lists; a higher number can still be typed, up to QUEUE_COURT_MAX. */
 const COURT_LIST = 60;
 
-/**
- * 场号: type it, or pick it from a dropdown of court numbers. Typing narrows the list; courts we
- * already hold are marked.
- */
+/** 场号, marking the courts we already hold. */
 function CourtNumber(props: {
   value: string;
   onChange: (v: string) => void;
@@ -512,70 +510,26 @@ function CourtNumber(props: {
   now: number;
   except: number | null;
 }) {
-  const [open, setOpen] = useState(false);
   const held = new Set(
     props.q.courts
       .filter((c) => c.id !== props.except && courtPhase(c, props.now).phase !== "done")
       .map((c) => c.court),
   );
-  const all = Array.from({ length: COURT_LIST }, (_, i) => i + 1);
   const typed = props.value.trim();
-  // Typing narrows the list to numbers that start with it; a finished number shows them all again.
-  const narrowed = all.filter((n) => String(n).startsWith(typed));
-  const shown = typed && narrowed.some((n) => String(n) !== typed) ? narrowed : all;
   return (
-    <div class="cq-court-no">
-      <label for="cq-court-no" class="sheet-label">
-        {t("场号")}
-      </label>
-      <div class="cq-combo">
-        <input
-          id="cq-court-no"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={QUEUE_COURT_MAX}
-          placeholder={t("选择或输入")}
-          value={props.value}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setOpen(false)}
-          onInput={(ev) => {
-            props.onChange((ev.target as HTMLInputElement).value);
-            setOpen(true);
-          }}
-        />
-        <button
-          type="button"
-          class="cq-combo-toggle"
-          aria-label={t("选择场号")}
-          aria-expanded={open}
-          onMouseDown={(ev) => ev.preventDefault()}
-          onClick={() => setOpen(!open)}
-        >
-          ▾
-        </button>
-      </div>
-      {open && shown.length > 0 && (
-        <div class="cq-court-list" role="listbox" aria-label={t("场号")}>
-          {shown.map((n) => (
-            <button
-              type="button"
-              role="option"
-              key={n}
-              aria-selected={String(n) === typed}
-              class={`${String(n) === typed ? "on" : ""}${held.has(n) ? " held" : ""}`}
-              onMouseDown={(ev) => ev.preventDefault()}
-              onClick={() => {
-                props.onChange(String(n));
-                setOpen(false);
-              }}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <CourtCombo
+      id="cq-court-no"
+      label={t("场号")}
+      placeholder={t("选择或输入")}
+      toggleLabel={t("选择场号")}
+      value={props.value}
+      onInput={props.onChange}
+      list={COURT_LIST}
+      max={QUEUE_COURT_MAX}
+      isOn={(n) => String(n) === typed}
+      isMarked={(n) => held.has(n)}
+      onPick={(n) => props.onChange(String(n))}
+    />
   );
 }
 

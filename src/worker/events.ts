@@ -1,4 +1,11 @@
-import type { EventDetail, EventStatus, EventSummary, RosterEntry } from "../shared/types";
+import {
+  BOOKED_COURTS_MAX,
+  BOOKED_COURT_MAX,
+  type EventDetail,
+  type EventStatus,
+  type EventSummary,
+  type RosterEntry,
+} from "../shared/types";
 import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
 import { getSettings, now, setSetting } from "./db";
 import { syncDeadline } from "./deadlines";
@@ -33,6 +40,8 @@ export interface EventRow {
   payee_id: string | null;
   /** 球场排队: minutes per round on the hall's courts; null when the event doesn't use it. */
   queue_round_min: number | null;
+  /** 预定场地: JSON array of the hall's court numbers booked for it; read through bookedCourts. */
+  booked_courts: string;
 }
 
 interface RosterRow {
@@ -137,6 +146,7 @@ export async function detail(env: Env, e: EventRow, viewer: string | null): Prom
   const managerLabel = manager === payee ? payeeLabel : await payeeName(env.DB, manager);
   return {
     ...toSummary(e, list.length),
+    courts: bookedCourts(e),
     roster: list,
     dunningStopped: e.dunning_stopped === 1,
     deletable: isDeletable(e),
@@ -248,6 +258,27 @@ export function cleanNotes(notes: string | undefined): string {
   const value = (notes ?? "").trim();
   if ([...value].length > 1000) throw badRequest("备注最多 1000 个字");
   return value;
+}
+
+/** 预定场地 as stored; anything unreadable counts as none. */
+export function bookedCourts(e: { booked_courts?: string | null }): number[] {
+  try {
+    const list = JSON.parse(e.booked_courts ?? "[]");
+    return Array.isArray(list) ? list.filter((n): n is number => Number.isInteger(n)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 预定场地 from the admin page: whole numbers 1–99, each once, in order. */
+export function cleanBookedCourts(v: unknown): number[] {
+  if (!Array.isArray(v)) throw badRequest("场地编号不对");
+  const list = v.map(Number);
+  if (list.some((n) => !Number.isInteger(n) || n < 1 || n > BOOKED_COURT_MAX))
+    throw badRequest(`场地编号请填 1–${BOOKED_COURT_MAX}`);
+  const out = [...new Set(list)].sort((a, b) => a - b);
+  if (out.length > BOOKED_COURTS_MAX) throw badRequest(`最多 ${BOOKED_COURTS_MAX} 块场地`);
+  return out;
 }
 
 export function checkVenue(venue: string, address: string): void {

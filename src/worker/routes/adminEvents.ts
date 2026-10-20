@@ -19,6 +19,8 @@ import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
 import type { Env } from "../env";
 import {
   assertRosterEditable,
+  bookedCourts,
+  cleanBookedCourts,
   closeExpired,
   createEvent,
   deleteEvent,
@@ -470,6 +472,35 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   await syncDeadline(c.env, e.id);
   return c.json(await detail(c.env, after, c.get("actor").memberId));
 });
+
+/**
+ * 预定场地: the hall's court numbers booked for the event, set or changed any time before Finalize.
+ * Players see them on the event card and in the push 10 minutes before the start.
+ */
+adminEventRoutes.post("/events/:id/courts", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  if (e.status !== "open" && e.status !== "closed") throw badRequest("活动已经 Finalize，不能再改场地");
+  const courts = cleanBookedCourts((await readJson(c.req.raw)).courts);
+  const before = bookedCourts(e);
+  // Only while it is still before Finalize: one landing in between is never written over.
+  const res = await c.env.DB.prepare(
+    "UPDATE events SET booked_courts = ? WHERE id = ? AND status IN ('open', 'closed')",
+  )
+    .bind(JSON.stringify(courts), e.id)
+    .run();
+  if (!res.meta.changes) throw badRequest("活动已经 Finalize，不能再改场地");
+  if (before.join() !== courts.join())
+    await audit(
+      c.env,
+      e.id,
+      actorId(c.get("actor")),
+      "courts",
+      `预定场地 ${courtsLabel(before)} → ${courtsLabel(courts)}`,
+    );
+  return c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
+});
+
+const courtsLabel = (list: number[]) => (list.length ? `${list.join("、")} 号` : "（无）");
 
 const queueLabel = (e: EventRow) => (e.queue_round_min === null ? "关" : `开，每轮 ${e.queue_round_min} 分钟`);
 
