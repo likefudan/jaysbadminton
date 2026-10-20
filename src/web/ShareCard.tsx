@@ -207,8 +207,8 @@ function drawQr(
   ctx.restore();
 }
 
-/** A button that opens the 分享名片: an image to long-press and save, or download. */
-export function ShareCardButton(props: { text: CardText; filename: string }) {
+/** A button that opens the 分享名片: an image to long-press and save or forward. */
+export function ShareCardButton(props: { text: CardText }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -287,15 +287,11 @@ export function ShareIconButton(props: { e: EventSummary }) {
 function EventShareSheet(props: { e: EventSummary; onClose: () => void }) {
   const e = props.e;
   return (
-    <ShareCardSheet
-      text={eventCardText(location.origin, e, t, (d) => fmtDate(d, false))}
-      filename={`event-${e.code}.png`}
-      onClose={props.onClose}
-    />
+    <ShareCardSheet text={eventCardText(location.origin, e, t, (d) => fmtDate(d, false))} onClose={props.onClose} />
   );
 }
 
-function ShareCardSheet(props: { text: CardText; filename: string; onClose: () => void }) {
+function ShareCardSheet(props: { text: CardText; onClose: () => void }) {
   const site = useSiteTitle();
   const [png, setPng] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -317,8 +313,7 @@ function ShareCardSheet(props: { text: CardText; filename: string; onClose: () =
     // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
     <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
       <div class="sheet" role="dialog" aria-label={t("分享名片")}>
-        <div class="sheet-head">
-          <strong>{t("分享名片")}</strong>
+        <div class="sheet-head sheet-head-close">
           <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
             ✕
           </button>
@@ -329,9 +324,6 @@ function ShareCardSheet(props: { text: CardText; filename: string; onClose: () =
           <>
             <img class="sharecard" src={png} alt={t("分享名片")} />
             <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>
-            <a class="button block" href={png} download={props.filename}>
-              {t("下载图片")}
-            </a>
           </>
         )}
       </div>

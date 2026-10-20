@@ -72,7 +72,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   下拉刷新: { tw: "下拉重新整理", en: "Pull to refresh" },
   下次活动: { tw: "下次活動", en: "Next event" },
   "下次直接用 Google 登录": { tw: "下次直接用 Google 登入", en: "Sign in with Google next time" },
-  下载图片: { tw: "下載圖片", en: "Download image" },
   不用了: { tw: "不用了", en: "No thanks" },
   专属链接会发到这个邮箱: { tw: "專屬連結會發到這個電子郵件", en: "Your personal link will be sent to this email" },
   请先完成人机验证: { tw: "請先完成人機驗證", en: "Please complete the human check first" },

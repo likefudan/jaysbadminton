@@ -2622,6 +2622,10 @@ a.ev-meta {
   margin-bottom: 6px;
   font-size: 16px;
 }
+/* A sheet with no title, only the ✕ (分享名片: the image says what it is). */
+.sheet-head-close {
+  justify-content: flex-end;
+}
 .sheet-close {
   width: 32px;
   height: 32px;
