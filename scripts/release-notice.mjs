@@ -30,7 +30,11 @@ const wrangler = (...args) =>
 let previous = "";
 try {
   const [{ results }] = JSON.parse(
-    wrangler("--json", "--command", "SELECT tag FROM release_notices WHERE delivered != '[]' ORDER BY created_at DESC LIMIT 1"),
+    wrangler(
+      "--json",
+      "--command",
+      "SELECT tag FROM release_notices WHERE delivered != '[]' ORDER BY created_at DESC LIMIT 1",
+    ),
   );
   const last = results[0]?.tag;
   if (last) {
