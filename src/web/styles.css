@@ -2120,7 +2120,14 @@ a.ev-meta {
 }
 /* The status in a card's top left, a touch bigger than elsewhere (Ke Li) */
 .hero-top .status {
-  font-size: 13.5px;
+  font-size: 14.5px;
+}
+/* 截止 … stays on one line next to it; a long date gives way at the end rather than wrapping */
+.hero-top > span:not([class]) {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .tone-hero .hero-top {
   color: rgba(255, 255, 255, 0.92);
