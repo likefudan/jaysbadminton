@@ -274,6 +274,7 @@ export interface HomeResponse {
 }
 
 export interface RankEntry {
+  rank: number; // ties share a rank, the next one skips (1, 1, 1, 4)
   name: string;
   value: number;
 }

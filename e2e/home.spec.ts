@@ -30,7 +30,7 @@ test("the home page leads with the next event and scrolls the small cards sidewa
         ),
         leaderboard: {
           year: 2026,
-          attendance: names.map((name, i) => ({ name, value: 9 - i })),
+          attendance: names.map((name, i) => ({ rank: i + 1, name, value: 9 - i })),
           streak: [],
           friends: [],
         },
@@ -54,4 +54,25 @@ test("the home page leads with the next event and scrolls the small cards sidewa
 
   await page.getByRole("button", { name: "最长连续" }).click();
   await expect(page.locator("main")).toContainText("还没有出勤记录");
+});
+
+/** 并列: people with the same count share a rank and its colour; the next rank skips. */
+test("ties on the leaderboard share a rank", async ({ page }) => {
+  const attendance = [
+    { rank: 1, name: "Lily", value: 3 },
+    { rank: 2, name: "arthur", value: 2 },
+    { rank: 2, name: "Dafei", value: 2 },
+    { rank: 2, name: "Jayx", value: 2 },
+    { rank: 5, name: "Tom", value: 1 },
+  ];
+  await page.route("**/api/public/home", (route) =>
+    route.fulfill({
+      json: { currentEvents: [], pastEvents: [], leaderboard: { year: 2026, attendance, streak: [], friends: [] } },
+    }),
+  );
+  await page.goto("/");
+  const cards = page.locator(".ranks-swipe .rank-card");
+  await expect(cards.locator(".rank-no")).toHaveText(["1", "2", "2", "2", "5"]);
+  await expect(cards.nth(3)).toHaveClass(/\bp2\b/);
+  await expect(cards.nth(4)).toHaveClass(/\bp5\b/);
 });

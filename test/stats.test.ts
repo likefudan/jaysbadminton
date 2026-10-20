@@ -2,6 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { toPacific } from "../src/shared/time";
 import { toCsv } from "../src/worker/export";
+import { top } from "../src/worker/stats";
 import { Client, ORIGIN, approveMember, createTestEvent, futureDate, joinBody, setUpAdmin } from "./helpers";
 
 const anon = new Client();
@@ -48,14 +49,42 @@ describe("leaderboard", () => {
     const { leaderboard } = (await anon.call("/api/public/home")).data;
     expect(leaderboard.year).toBe(Number(today.slice(0, 4)));
     expect(leaderboard.attendance).toEqual([
-      { name: "Alice", value: 3 },
-      { name: "Bob", value: 1 },
+      { rank: 1, name: "Alice", value: 3 },
+      { rank: 2, name: "Bob", value: 1 },
     ]);
     expect(leaderboard.streak).toEqual([
-      { name: "Alice", value: 3 },
-      { name: "Bob", value: 1 },
+      { rank: 1, name: "Alice", value: 3 },
+      { rank: 2, name: "Bob", value: 1 },
     ]);
-    expect(leaderboard.friends).toEqual([{ name: "Alice", value: 1 }]);
+    expect(leaderboard.friends).toEqual([{ rank: 1, name: "Alice", value: 1 }]);
+  });
+
+  it("gives ties the same rank, skips the next one, and orders tied people by name", () => {
+    const counts = (xs: [string, number][]) => new Map(xs.map(([name, value]) => [name, { name, value }]));
+    expect(
+      top(
+        counts([
+          ["joseff", 2],
+          ["Jayx", 2],
+          ["Tom", 5],
+          ["arthur", 2],
+          ["Zed", 1],
+          ["Nobody", 0],
+        ]),
+      ),
+    ).toEqual([
+      { rank: 1, name: "Tom", value: 5 },
+      { rank: 2, name: "arthur", value: 2 },
+      { rank: 2, name: "Jayx", value: 2 },
+      { rank: 2, name: "joseff", value: 2 },
+      { rank: 5, name: "Zed", value: 1 },
+    ]);
+  });
+
+  it("keeps everyone tied with the last place shown", () => {
+    const counts = new Map(["A", "B", "C", "D"].map((name, i) => [name, { name, value: i === 0 ? 3 : 1 }]));
+    expect(top(counts, 2).map((r) => `${r.rank}${r.name}`)).toEqual(["1A", "2B", "2C", "2D"]);
+    expect(top(counts, 1).map((r) => `${r.rank}${r.name}`)).toEqual(["1A"]);
   });
 });
 
