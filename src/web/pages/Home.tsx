@@ -130,7 +130,7 @@ export function Home() {
                   />
                 ))}
               </SwipeSection>
-              <ShareCardButton text={siteCardText(location.origin, t)} filename="share-card.png" />
+              <ShareCardButton text={siteCardText(location.origin, t)} />
             </>
           );
         }}

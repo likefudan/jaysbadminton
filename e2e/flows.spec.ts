@@ -273,14 +273,14 @@ test("public pages show the headcount and a link preview, never names", async ({
   await page.getByRole("menuitem", { name: "Apple 日历 / Outlook" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.ics$/);
 
-  // 分享名片 in the event card's action row, next to the calendar buttons: an image with the logo, QR code and link, to long-press or download.
+  // 分享名片 in the event card's action row, next to the calendar buttons: an image with the logo, QR code and link, to long-press.
   await expect(page.getByRole("button", { name: "生成分享名片" })).toHaveCount(0); // the old button under the card is gone
   await page.locator(".card").getByRole("button", { name: "分享名片", exact: true }).click();
   const card = page.getByRole("dialog", { name: "分享名片" });
   await expect(card.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
-  const png = page.waitForEvent("download");
-  await card.getByRole("link", { name: "下载图片" }).click();
-  expect((await png).suggestedFilename()).toBe(`event-${eventCode}.png`);
+  // No title and no 下载图片 button: only the image, the long-press hint and ✕.
+  await expect(card.locator(".sheet-head strong")).toHaveCount(0);
+  await expect(card.getByRole("link")).toHaveCount(0);
 });
 
 test("signed in with Google: the member sees the roster on shared pages; the Owner binds Google for the admin page", async ({
