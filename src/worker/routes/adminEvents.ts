@@ -39,6 +39,7 @@ import {
 } from "../events";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
+import { cleanRoundMin } from "../courtQueue";
 import type { Actor, AdminEnv } from "../access";
 import {
   can,
@@ -203,6 +204,7 @@ adminEventRoutes.post("/events", async (c) => {
     address: str(b.address),
     title: str(b.title),
     notes: str(b.notes),
+    queueRoundMin: cleanRoundMin(b.queueRoundMin),
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
   });
@@ -439,7 +441,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   // Only over what was read: a close, Finalize or archive landing in between is never undone.
   const [res] = await c.env.DB.batch([
     c.env.DB.prepare(
-      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, notes = ?, deadline_at = ?, status = ?
+      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, notes = ?, queue_round_min = ?, deadline_at = ?, status = ?
        WHERE id = ? AND status = ? AND deadline_at = ?`,
     ).bind(
       date,
@@ -449,6 +451,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
       address,
       b.title === undefined ? e.title : cleanTitle(str(b.title)),
       b.notes === undefined ? e.notes : cleanNotes(str(b.notes)),
+      b.queueRoundMin === undefined ? e.queue_round_min : cleanRoundMin(b.queueRoundMin),
       deadline,
       status,
       e.id,
@@ -465,6 +468,8 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   return c.json(await detail(c.env, after, c.get("actor").memberId));
 });
 
+const queueLabel = (e: EventRow) => (e.queue_round_min === null ? "关" : `开，每轮 ${e.queue_round_min} 分钟`);
+
 /** What 修改活动 changed, for the log: each field as 原来 → 现在. */
 function editChanges(a: EventRow, b: EventRow): string[] {
   const time = (e: EventRow) => `${toPacific(e.start_at).time}–${toPacific(e.end_at).time}`;
@@ -475,6 +480,7 @@ function editChanges(a: EventRow, b: EventRow): string[] {
     ["地址", a.address, b.address],
     ["备注", a.notes || "（无）", b.notes || "（无）"],
     ["标题", a.title || "（无）", b.title || "（无）"],
+    ["球场排队", queueLabel(a), queueLabel(b)],
   ];
   const out = fields.filter(([, x, y]) => x !== y).map(([k, x, y]) => `${k} ${x} → ${y}`);
   // An open event's deadline moves with the start.

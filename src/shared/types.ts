@@ -1,3 +1,4 @@
+import type { QueueInfo } from "./courtQueue";
 export type MemberStatus = "pending" | "active" | "inactive";
 
 export interface MemberSummary {
@@ -157,6 +158,7 @@ export interface EventSummary {
   location: string; // venue name
   address: string; // street address, may be empty for older events
   notes?: string; // optional multiline activity notes
+  queueRoundMin: number | null; // 球场排队: minutes per round, null when off
   title: string; // optional, e.g. "HappyTuesday 比赛"; "" when not set
   deadlineAt: string; // UTC ISO
   status: EventStatus;
@@ -219,6 +221,8 @@ export interface MyEvent extends EventSummary {
   payment: MyPayment | null;
   /** Everyone signed up, friends right after the member who brought them; only for members who signed up themselves. */
   roster: MyRosterEntry[] | null;
+  /** 球场排队: shared hall accounts and courts; only for players on the event while it is on. */
+  queue: QueueInfo | null;
 }
 
 /** 我的活动: current and open events in full, newest first, and the paid-up past ones in brief. */
