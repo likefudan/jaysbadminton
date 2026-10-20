@@ -110,38 +110,37 @@ export async function sendToMember(env: Env, memberId: string, text: BotText): P
   return sendTo(env, m.chat_id, text);
 }
 
+/** Every current admin's own chat, only while the feature is on. */
+async function adminChats(env: Env): Promise<string[]> {
+  if (!organizersEnabled(env)) return [];
+  const { results } = await env.DB.prepare(
+    `SELECT t.chat_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
+     WHERE t.chat_id IS NOT NULL AND m.role = 'admin' AND ${currentStaffSql("m")}`,
+  ).all<{ chat_id: string }>();
+  return results.map((r) => r.chat_id);
+}
+
 /**
  * Sends to every current admin's own chat (新成员申请, admin-role.zh.md §6), only while the feature
  * is on. True when at least one of them got it.
  */
 export async function sendToAdmins(env: Env, text: BotText): Promise<boolean> {
-  if (!organizersEnabled(env)) return false;
-  const { results } = await env.DB.prepare(
-    `SELECT t.chat_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
-     WHERE t.chat_id IS NOT NULL AND m.role = 'admin' AND ${currentStaffSql("m")}`,
-  ).all<{ chat_id: string }>();
+  const chats = await adminChats(env);
   const sent = await Promise.all(
-    results.map((r) => sendTo(env, r.chat_id, async (l) => withAdminLink(env, l, await text(l), true))),
+    chats.map((chat) => sendTo(env, chat, async (l) => withAdminLink(env, l, await text(l), true))),
   );
   return sent.some(Boolean);
 }
 
 /**
  * Sends to the Owner and every current admin (admins only while the feature is on), each in their
- * own bot language; a chat shared by two of them gets it once. How many chats got it.
+ * own bot language; a chat shared by two of them gets it once. How many chats there were and took it.
  */
-export async function sendToOwnerAndAdmins(env: Env, text: BotText): Promise<number> {
+export async function sendToOwnerAndAdmins(env: Env, text: BotText): Promise<{ chats: number; sent: number }> {
   const { telegram_chat_id: owner } = await getSettings(env.DB, ["telegram_chat_id"]);
-  const chats = new Set<string>(owner ? [owner] : []);
-  if (organizersEnabled(env)) {
-    const { results } = await env.DB.prepare(
-      `SELECT t.chat_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
-       WHERE t.chat_id IS NOT NULL AND m.role = 'admin' AND ${currentStaffSql("m")}`,
-    ).all<{ chat_id: string }>();
-    for (const r of results) chats.add(r.chat_id);
-  }
+  const chats = new Set<string>([...(owner ? [owner] : []), ...(await adminChats(env))]);
   const sent = await Promise.all([...chats].map((chat) => sendTo(env, chat, text)));
-  return sent.filter(Boolean).length;
+  return { chats: chats.size, sent: sent.filter(Boolean).length };
 }
 
 export interface ManagerDelivery {

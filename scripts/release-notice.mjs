@@ -21,9 +21,31 @@ if (newest !== tag) {
   process.exit(0);
 }
 
+const wrangler = (...args) =>
+  execFileSync("npx", ["wrangler", "d1", "execute", "DB", "--remote", ...args], { encoding: "utf8" });
+
+// Since the last release that was announced, so a release skipped for not being the newest (the
+// next one was tagged before it finished deploying) still has its changes told; otherwise since
+// the previous tag.
 let previous = "";
 try {
-  previous = git("describe", "--tags", "--abbrev=0", "--match", "v*", `${tag}^`);
+  const [{ results }] = JSON.parse(
+    wrangler("--json", "--command", "SELECT tag FROM release_notices ORDER BY created_at DESC LIMIT 1"),
+  );
+  const last = results[0]?.tag;
+  if (last === tag) {
+    console.log(`${tag} was already announced`);
+    process.exit(0);
+  }
+  if (last) {
+    git("merge-base", "--is-ancestor", last, tag);
+    previous = last;
+  }
+} catch {
+  // Never announced before, or that tag is not behind this one: fall back to the previous tag.
+}
+try {
+  previous ||= git("describe", "--tags", "--abbrev=0", "--match", "v*", `${tag}^`);
 } catch {
   // The first release: nothing to compare with.
 }
@@ -46,7 +68,7 @@ try {
       JSON.stringify(changes),
     )}, ${quote(new Date().toISOString())});\n`,
   );
-  execFileSync("npx", ["wrangler", "d1", "execute", "DB", "--remote", "--yes", "--file", file], { stdio: "inherit" });
+  console.log(wrangler("--yes", "--file", file));
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
@@ -55,7 +77,7 @@ try {
 for (let attempt = 0; attempt < 3; attempt++) {
   if (attempt) await new Promise((r) => setTimeout(r, 10_000));
   try {
-    const res = await fetch(`${site}/api/release-notice`, { method: "POST", signal: AbortSignal.timeout(90_000) });
+    const res = await fetch(`${site}/api/release-notice`, { method: "POST", signal: AbortSignal.timeout(150_000) });
     console.log(`release notice: ${res.status} ${await res.text()}`);
     if (res.ok) break;
   } catch (err) {

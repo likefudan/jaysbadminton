@@ -5,5 +5,6 @@ CREATE TABLE release_notices (
   tag        TEXT NOT NULL PRIMARY KEY,
   changes    TEXT NOT NULL, -- JSON array of strings, Simplified Chinese as written in the PR titles
   created_at TEXT NOT NULL,
-  sent_at    TEXT
+  sent_at    TEXT,
+  attempts   INTEGER NOT NULL DEFAULT 0 -- sends tried; let go for the cron to retry while no chat took it
 );

@@ -17,8 +17,11 @@ const MODEL = "claude-sonnet-5-5";
 const STALE_MS = 2 * 24 * 3600_000;
 /** More than this many lines is a changelog, not a notice. */
 const MAX_LINES = 10;
+/** Tries when no chat accepts it (Telegram down); a chat that blocked the bot can't hold it forever. */
+const MAX_ATTEMPTS = 3;
 
-type Lines = Record<BotLang, string[]>;
+/** Lines per language, and how many changes were left out (only when they are the bare titles). */
+type Lines = Record<BotLang, string[]> & { more: number };
 
 const SCHEMA = {
   type: "object",
@@ -45,13 +48,17 @@ const prompt = (
 改动：
 ${changes.map((c) => `- ${c}`).join("\n")}`;
 
-/** The changes as plain lines in each language; the titles themselves when Claude can't. */
-export async function describeChanges(env: Env, changes: string[]): Promise<Lines> {
+/**
+ * The changes as plain lines in each language, or the titles themselves when Claude can't (with
+ * how many more there are). Null when CI found no list, so the notice says nothing about changes.
+ */
+export async function describeChanges(env: Env, changes: string[]): Promise<Lines | null> {
+  if (changes.length === 0) return null;
   const titles = changes.slice(0, MAX_LINES);
-  const fallback: Lines = { "zh-CN": titles, "zh-TW": titles, en: titles };
-  if (!env.ANTHROPIC_API_KEY || changes.length === 0) return fallback;
+  const fallback: Lines = { "zh-CN": titles, "zh-TW": titles, en: titles, more: changes.length - titles.length };
+  if (!env.ANTHROPIC_API_KEY) return fallback;
   try {
-    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: 60_000, maxRetries: 1 });
+    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: 45_000, maxRetries: 1 });
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 4000,
@@ -72,26 +79,31 @@ export async function describeChanges(env: Env, changes: string[]): Promise<Line
     const tw = pick("traditional");
     const en = pick("english");
     if (!zh || !tw || !en || tw.length !== zh.length || en.length !== zh.length) throw new Error("bad answer");
-    return { "zh-CN": zh, "zh-TW": tw, en };
+    return { "zh-CN": zh, "zh-TW": tw, en, more: 0 };
   } catch (err) {
     console.error("release notes:", err instanceof Anthropic.APIError ? `${err.status} ${err.message}` : err);
     return fallback;
   }
 }
 
-export function releaseText(env: Env, tag: string, lines: Lines) {
+export function releaseText(env: Env, tag: string, lines: Lines | null) {
   return (l: BotLang) => {
-    const items = lines[l];
-    const body = items.length
-      ? `${bt(l, "这次的更新：")}\n${items.map((s) => `• ${escapeHtml(s)}`).join("\n")}`
-      : bt(l, "这次没有大家能看到的变化，只是内部改进。");
-    return `${bt(l, "🚀 新版本 {tag} 已发布到正式网站", { tag: escapeHtml(tag) })}\n\n${body}\n\n${escapeHtml(env.SITE_ORIGIN)}`;
+    const items = lines?.[l] ?? [];
+    let body = "";
+    if (lines && items.length) {
+      body = `${bt(l, "这次的更新：")}\n${items.map((s) => `• ${escapeHtml(s)}`).join("\n")}`;
+      if (lines.more) body += `\n${bt(l, "……还有 {n} 项改动", { n: lines.more })}`;
+    } else if (lines) body = bt(l, "这次没有大家能看到的变化，只是内部改进。");
+    const head = bt(l, "🚀 新版本 {tag} 已发布到正式网站", { tag: escapeHtml(tag) });
+    return `${head}\n\n${body ? `${body}\n\n` : ""}${escapeHtml(env.SITE_ORIGIN)}`;
   };
 }
 
 /**
- * Sends every release notice CI recorded and nobody has sent yet. Each is claimed before it is
- * sent, so CI's call and the cron never both send it. How many notices went out.
+ * Sends every release notice CI recorded and nobody has sent yet. The text is written first (the
+ * slow part), then the notice is claimed and sent, so CI's call and the cron never both send it and
+ * a dropped request rarely leaves it claimed but unsent. When nobody's chat took it, it is let go
+ * for the cron to try again, up to MAX_ATTEMPTS times. How many notices went out.
  */
 export async function sendReleaseNotices(env: Env, at = new Date()): Promise<number> {
   const { results } = await env.DB.prepare(
@@ -99,11 +111,13 @@ export async function sendReleaseNotices(env: Env, at = new Date()): Promise<num
   ).all<{ tag: string; changes: string; created_at: string }>();
   let n = 0;
   for (const r of results) {
-    const claimed = await env.DB.prepare("UPDATE release_notices SET sent_at = ? WHERE tag = ? AND sent_at IS NULL")
-      .bind(now(), r.tag)
-      .run();
-    if (claimed.meta.changes !== 1) continue;
-    if (at.getTime() - Date.parse(r.created_at) > STALE_MS) continue;
+    if (at.getTime() - Date.parse(r.created_at) > STALE_MS) {
+      await env.DB.prepare("UPDATE release_notices SET sent_at = ? WHERE tag = ? AND sent_at IS NULL")
+        .bind(now(), r.tag)
+        .run();
+      console.warn(`release notice for ${r.tag} dropped: recorded ${r.created_at}, never sent`);
+      continue;
+    }
     let changes: string[] = [];
     try {
       const parsed = JSON.parse(r.changes) as unknown;
@@ -111,7 +125,20 @@ export async function sendReleaseNotices(env: Env, at = new Date()): Promise<num
     } catch {
       // Unreadable list: still say the version is out.
     }
-    await sendToOwnerAndAdmins(env, releaseText(env, r.tag, await describeChanges(env, changes)));
+    const text = releaseText(env, r.tag, await describeChanges(env, changes));
+    const claimed = await env.DB.prepare(
+      "UPDATE release_notices SET sent_at = ?, attempts = attempts + 1 WHERE tag = ? AND sent_at IS NULL RETURNING attempts",
+    )
+      .bind(now(), r.tag)
+      .first<{ attempts: number }>();
+    if (!claimed) continue;
+    const { chats, sent } = await sendToOwnerAndAdmins(env, text);
+    if (chats > 0 && sent === 0) {
+      console.error(`release notice for ${r.tag}: no chat took it (attempt ${claimed.attempts})`);
+      if (claimed.attempts < MAX_ATTEMPTS)
+        await env.DB.prepare("UPDATE release_notices SET sent_at = NULL WHERE tag = ?").bind(r.tag).run();
+      continue;
+    }
     n++;
   }
   return n;

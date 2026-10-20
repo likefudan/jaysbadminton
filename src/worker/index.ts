@@ -137,11 +137,6 @@ export default {
       console.error("court photo cleanup failed:", err);
     }
     try {
-      await sendReleaseNotices(env); // in case CI's call after a release didn't get through
-    } catch (err) {
-      console.error("release notice failed:", err);
-    }
-    try {
       await closeExpired(env);
       // Re-aims every open event's alarm, so events created before alarms existed (or whose
       // sync failed) still get theirs.
@@ -156,6 +151,12 @@ export default {
     } catch (err) {
       console.error("scheduled run failed:", err);
       await recordCronError(env, err);
+    }
+    // Last: it may wait on Claude, and the jobs above are on the clock.
+    try {
+      await sendReleaseNotices(env); // in case CI's call after a release didn't get through
+    } catch (err) {
+      console.error("release notice failed:", err);
     }
   },
   async email(message, env, _ctx) {

@@ -329,6 +329,7 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "🚀 新版本 {tag} 已發布到正式網站",
     en: "🚀 Version {tag} is now live",
   },
+  "……还有 {n} 项改动": { tw: "……還有 {n} 項改動", en: "…and {n} more changes" },
   "这次的更新：": { tw: "這次的更新：", en: "What's new:" },
   "这次没有大家能看到的变化，只是内部改进。": {
     tw: "這次沒有大家看得到的變化，只是內部改進。",

@@ -11,9 +11,11 @@ const KEYED = { ...env, SITE_ORIGIN: ORIGIN, ORGANIZERS: "1", ANTHROPIC_API_KEY:
 let sent: { chat: string; text: string }[] = [];
 let asked: any[] = [];
 let answer: object | null = null;
+let refuse = false;
 beforeEach(() => {
   sent = [];
   asked = [];
+  refuse = false;
   answer = {
     simplified: ["活动卡片上能看到预定的场地号"],
     traditional: ["活動卡片上能看到預定的場地號"],
@@ -37,6 +39,7 @@ beforeEach(() => {
     }
     if (!url.startsWith("https://api.telegram.org/bottest-bot-token/")) throw new Error(`unexpected fetch ${url}`);
     const body = JSON.parse(String(init?.body ?? "{}"));
+    if (refuse) return Response.json({ ok: false, description: "Too Many Requests" });
     if (url.endsWith("/sendMessage")) sent.push({ chat: String(body.chat_id), text: body.text });
     return Response.json({ ok: true, result: { message_id: 1 } });
   });
@@ -130,6 +133,40 @@ describe("正式版发布通知", () => {
     await record("v2026.10.21", ["改动"]);
     res = await exports.default.fetch(`${ORIGIN}/api/release-notice`, { method: "POST" });
     expect(await res.json()).toEqual({ sent: 1 });
+    expect(to("42")).toHaveLength(1);
+  });
+  it("says how many more there are when the bare titles are cut, and nothing about changes when CI had none", async () => {
+    await scenario();
+    await record(
+      "v2026.10.21",
+      Array.from({ length: 13 }, (_, i) => `改动 ${i + 1}`),
+    );
+    await sendReleaseNotices({ ...KEYED, ANTHROPIC_API_KEY: undefined });
+    expect(to("42")[0]).toContain("• 改动 10\n……还有 3 项改动");
+    expect(to("77")[0]).toContain("…and 3 more changes");
+    expect(asked).toEqual([]);
+
+    sent = [];
+    await record("v2026.10.22", []);
+    await sendReleaseNotices(KEYED);
+    expect(to("42")).toEqual([`🚀 新版本 v2026.10.22 已发布到正式网站\n\n${ORIGIN}`]);
+  });
+
+  it("lets the cron try again when no chat took it, three times at most", async () => {
+    await scenario();
+    refuse = true;
+    await record("v2026.10.21", ["改动"]);
+    for (let i = 0; i < 4; i++) expect(await sendReleaseNotices(KEYED)).toBe(0);
+    const row = await env.DB.prepare("SELECT sent_at, attempts FROM release_notices").first<{
+      sent_at: string | null;
+      attempts: number;
+    }>();
+    expect(row).toMatchObject({ attempts: 3 });
+    expect(row?.sent_at).not.toBeNull();
+
+    await env.DB.prepare("UPDATE release_notices SET sent_at = NULL, attempts = 0").run();
+    refuse = false;
+    expect(await sendReleaseNotices(KEYED)).toBe(1);
     expect(to("42")).toHaveLength(1);
   });
 });
