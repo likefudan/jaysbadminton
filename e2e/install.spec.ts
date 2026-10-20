@@ -63,8 +63,7 @@ test("不用了 keeps the offer off 我的活动, 个人信息 still has it", as
   await expect(offer(page)).toBeHidden();
 
   await page.getByRole("link", { name: "个人信息" }).click();
-  const card = page.locator(".card", { has: page.getByRole("heading", { name: "添加到主屏幕" }) });
-  await card.getByRole("button", { name: "添加到主屏幕" }).click();
+  await page.locator(".set-list").getByRole("button", { name: "添加到主屏幕" }).click();
   expect(await page.evaluate(() => (window as any).prompted)).toBe(true);
 });
 
@@ -98,8 +97,8 @@ test.describe("iPhone", () => {
     await expect(page.getByRole("heading", { name: "你好，Dafei" })).toBeVisible();
     await expect(offer(page)).toBeHidden();
     await page.goto("/m/tok/profile");
-    await expect(page.getByRole("heading", { name: "推送通知" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "添加到主屏幕" })).toBeHidden();
+    await expect(page.getByRole("button", { name: /推送通知/ })).toBeVisible();
+    await expect(page.getByText("添加到主屏幕")).toBeHidden();
   });
 });
 

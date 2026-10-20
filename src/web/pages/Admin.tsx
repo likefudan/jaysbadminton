@@ -219,7 +219,6 @@ function MemberDetail(props: {
           <ProfileCard
             profile={p}
             base={base}
-            mode="admin"
             noteReadOnly={props.readOnly}
             organizers={props.organizers}
             onChange={() => {

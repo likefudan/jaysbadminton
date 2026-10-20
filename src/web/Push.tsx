@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { api } from "./api";
-import { Card, useAction } from "./components";
+import { Card, SettingRow, useAction } from "./components";
 import { isIos, standalone } from "./Install";
 import { t } from "./i18n";
 
@@ -178,46 +178,71 @@ export function usePush(base: string, home: string, memberId: string) {
   return { state, enable, disable, busy: action.busy, error: action.error };
 }
 
-/** 个人信息 → 推送通知. */
-export function PushCard(props: { base: string; home: string; memberId: string }) {
+/** 个人信息 → 推送通知: a row saying whether it's on here, opening the switch and what it does. */
+export function PushRow(props: { base: string; home: string; memberId: string }) {
   const push = usePush(props.base, props.home, props.memberId);
   if (push.state === "loading") return null;
+  const value =
+    push.state === "on"
+      ? t("已开启")
+      : push.state === "denied"
+        ? t("已拒绝")
+        : push.state === "unsupported"
+          ? t("不支持")
+          : t("未开启");
   return (
-    <Card title={t("推送通知")}>
-      <p>{t("有新活动开始报名、或者你的账单出来时，在这台设备上通知你。")}</p>
-      {push.state === "ios-install" && (
-        <p class="hint">
-          {t(
-            "iPhone / iPad 需要先把网站添加到主屏幕（见上面的「添加到主屏幕」），然后从主屏幕的图标打开，再回到这里开启。",
-          )}
-        </p>
-      )}
-      {push.state === "unsupported" && (
-        <p class="hint">{t("这个浏览器不支持推送通知（比如微信里打开的网页）。请用 Chrome、Safari 或 Edge 打开。")}</p>
-      )}
-      {push.state === "denied" && (
-        <p class="hint">{t("你之前拒绝了这个网站的通知。请在浏览器的网站设置里允许通知，然后刷新页面。")}</p>
-      )}
-      {push.state === "other" && (
-        <p class="hint">{t("这台设备的推送可能是别的成员开启的。改成推送给你以后，对方在这台设备上就收不到了。")}</p>
-      )}
-      {(push.state === "off" || push.state === "other") && (
-        <button type="button" class="button block" disabled={push.busy} onClick={push.enable}>
-          {push.busy ? t("开启中…") : push.state === "other" ? t("改为推送给我") : t("开启推送")}
-        </button>
-      )}
-      {push.state === "on" && (
+    <SettingRow
+      icon={<BellIcon />}
+      label={t("推送通知")}
+      value={value}
+      panel={() => (
         <>
-          <p class="muted small">{t("这台设备已开启推送。其他设备需要分别开启。")}</p>
-          <button type="button" class="button secondary block" disabled={push.busy} onClick={push.disable}>
-            {t("关闭推送")}
-          </button>
+          <p>{t("有新活动开始报名、或者你的账单出来时，在这台设备上通知你。")}</p>
+          {push.state === "ios-install" && (
+            <p class="hint">
+              {t(
+                "iPhone / iPad 需要先把网站添加到主屏幕（见上面的「添加到主屏幕」），然后从主屏幕的图标打开，再回到这里开启。",
+              )}
+            </p>
+          )}
+          {push.state === "unsupported" && (
+            <p class="hint">
+              {t("这个浏览器不支持推送通知（比如微信里打开的网页）。请用 Chrome、Safari 或 Edge 打开。")}
+            </p>
+          )}
+          {push.state === "denied" && (
+            <p class="hint">{t("你之前拒绝了这个网站的通知。请在浏览器的网站设置里允许通知，然后刷新页面。")}</p>
+          )}
+          {push.state === "other" && (
+            <p class="hint">
+              {t("这台设备的推送可能是别的成员开启的。改成推送给你以后，对方在这台设备上就收不到了。")}
+            </p>
+          )}
+          {(push.state === "off" || push.state === "other") && (
+            <button type="button" class="button block" disabled={push.busy} onClick={push.enable}>
+              {push.busy ? t("开启中…") : push.state === "other" ? t("改为推送给我") : t("开启推送")}
+            </button>
+          )}
+          {push.state === "on" && (
+            <>
+              <p class="muted small">{t("这台设备已开启推送。其他设备需要分别开启。")}</p>
+              <button type="button" class="button secondary block" disabled={push.busy} onClick={push.disable}>
+                {t("关闭推送")}
+              </button>
+            </>
+          )}
+          {push.error && <p class="error">{push.error}</p>}
         </>
       )}
-      {push.error && <p class="error">{push.error}</p>}
-    </Card>
+    />
   );
 }
+
+const BellIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" />
+  </svg>
+);
 
 const DISMISSED = "push-prompt-dismissed";
 

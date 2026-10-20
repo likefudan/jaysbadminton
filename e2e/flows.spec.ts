@@ -207,20 +207,22 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await expect(page.getByRole("heading", { name: "个人信息", level: 1 })).toBeVisible();
   await expect(nav.getByRole("link", { name: "个人信息" })).toHaveAttribute("aria-current", "page");
   await expect(page.locator("main")).not.toContainText(/M\d{3}/);
-  await expect(page.getByRole("button", { name: "修改用户名" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /名字/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /退出/ })).toHaveCount(0);
-  const profile = page.locator(".card.profile");
-  await expect(profile.locator(".profile-info")).toContainText("xiaoming");
-  await expect(profile.locator(".profile-info")).toContainText(/入群时间\d{4}年\d{1,2}月\d{1,2}日 \d{2}:\d{2}/);
-  await expect(profile.locator(".heatmap-summary")).toHaveText("过去一年参加 0 次 · 缺席 0 次 · 即将参加 1 次");
-  await profile.locator(".heatmap-grid .upcoming").click();
-  await expect(profile.locator(".heatmap-detail")).toContainText(VENUE);
+  const hero = page.locator(".me-card");
+  await expect(hero).toContainText("微信名 xiaoming");
+  await expect(hero).toContainText(/\d{4}年\d{1,2}月\d{1,2}日入群/);
+  await expect(hero.locator(".me-nums")).toHaveText("过去一年打球0缺席0即将参加1");
+  await page.locator(".heatmap-grid .upcoming").click();
+  await expect(page.locator(".heatmap-detail")).toContainText(VENUE);
 
-  await expect(profile.locator(".profile-info")).toContainText("ming.reg@example.com");
-  await profile.getByRole("button", { name: "修改" }).click();
+  const settings = page.locator(".set-list");
+  const email = settings.getByRole("button", { name: /邮箱/ });
+  await expect(email).toContainText("ming.reg@example.com");
+  await email.click();
   await field(page, "邮箱").fill("xm@example.com");
-  await profile.getByRole("button", { name: "保存" }).click();
-  await expect(profile.locator(".profile-info")).toContainText("xm@example.com");
+  await settings.getByRole("button", { name: "保存" }).click();
+  await expect(email).toContainText("xm@example.com");
 
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
@@ -236,7 +238,8 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await expect(page.locator(".who", { hasText: "小明" })).toContainText("备注：周六队长");
 
   await page.goto(`${memberPath}/profile`);
-  await expect(page.locator(".card.profile")).not.toContainText("周六队长");
+  await expect(page.locator(".me-card")).toBeVisible();
+  await expect(page.locator("main")).not.toContainText("周六队长");
 });
 
 test("public pages show the headcount and a link preview, never names", async ({ page }) => {

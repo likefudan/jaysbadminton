@@ -117,6 +117,53 @@ export function SectionTitle(props: { children: ComponentChildren; more?: Compon
   );
 }
 
+/**
+ * One line of a settings list (个人信息): icon, label, its value on the right and a chevron. A link
+ * with href; otherwise a button that runs onClick, or opens its panel underneath (which gets a
+ * close() for after saving).
+ */
+export function SettingRow(props: {
+  icon: ComponentChildren;
+  label: string;
+  value?: ComponentChildren;
+  href?: string;
+  onClick?: () => void;
+  panel?: (close: () => void) => ComponentChildren;
+}) {
+  const [open, setOpen] = useState(false);
+  const inner = (
+    <>
+      <span class="set-icon" aria-hidden="true">
+        {props.icon}
+      </span>
+      <span class="set-label">{props.label}</span>
+      <span class="set-value">{props.value}</span>
+      <svg class={open ? "set-chev open" : "set-chev"} viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <path d="M9 6l6 6-6 6" />
+      </svg>
+    </>
+  );
+  return (
+    <div class="set-item">
+      {props.href ? (
+        <a class="set-row" href={props.href}>
+          {inner}
+        </a>
+      ) : (
+        <button
+          type="button"
+          class="set-row"
+          aria-expanded={props.panel ? open : undefined}
+          onClick={props.onClick ?? (() => setOpen(!open))}
+        >
+          {inner}
+        </button>
+      )}
+      {open && props.panel && <div class="set-panel">{props.panel(() => setOpen(false))}</div>}
+    </div>
+  );
+}
+
 export function Empty(props: { children: ComponentChildren }) {
   return <p class="empty">{props.children}</p>;
 }
