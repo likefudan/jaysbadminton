@@ -3,6 +3,9 @@ import { useEffect, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import {
   courtPhase,
+  PHOTO_MAX_SIDE,
+  type PhotoCourt,
+  type PhotoResult,
   QUEUE_COURT_MAX,
   QUEUE_GROUP_MAX,
   QUEUE_MAX_POSITION,
@@ -147,7 +150,16 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
         </div>
       )}
       {sheet?.kind === "court" && (
-        <CourtSheet base={props.base} e={props.e} q={q} court={sheet.court} now={now} onClose={close} onDone={done} />
+        <CourtSheet
+          base={props.base}
+          e={props.e}
+          q={q}
+          court={sheet.court}
+          now={now}
+          onClose={close}
+          onDone={done}
+          onSaved={props.onChange}
+        />
       )}
       {sheet?.kind === "accounts" && (
         <AccountsSheet base={props.base} e={props.e} q={q} onClose={close} onChange={props.onChange} />
@@ -224,6 +236,8 @@ function CourtSheet(props: {
   now: number;
   onClose: () => void;
   onDone: () => void;
+  /** After one of several courts from a photo is saved: refresh, keep the sheet open for the next. */
+  onSaved: () => void;
 }) {
   const c = props.court;
   const phase = c ? courtPhase(c, props.now) : null;
@@ -233,6 +247,14 @@ function CourtSheet(props: {
   const [position, setPosition] = useState(startPos);
   const [minutes, setMinutes] = useState(phase && phase.phase !== "done" ? String(phase.minutes) : "");
   const [picked, setPicked] = useState<string[]>(c?.accounts ?? []);
+  // 拍照登记: the courts read from the photo, which one the form shows, and which are saved.
+  const [photo, setPhoto] = useState<{ url: string; result: PhotoResult } | null>(null);
+  const [at, setAt] = useState(0);
+  const [saved, setSaved] = useState<number[]>([]);
+  const [unsure, setUnsure] = useState<string[]>([]);
+  const [noMinutes, setNoMinutes] = useState(false);
+  // A court read from the photo that is already on the card is saved as a change to that entry.
+  const [entryId, setEntryId] = useState<number | null>(null);
   const { busy, error, run } = useAction();
   const path = `${props.base}/events/${props.e.id}/queue/courts`;
   const n = Number(minutes);
@@ -243,15 +265,40 @@ function CourtSheet(props: {
     if (picked.includes(name)) setPicked(picked.filter((x) => x !== name));
     else if (picked.length < QUEUE_GROUP_MAX) setPicked([...picked, name]);
   }
+  function fill(p: PhotoCourt, k: number) {
+    setAt(k);
+    setCourt(String(p.court));
+    setPosition(p.position);
+    setMinutes(p.minutesLeft === null ? "" : String(p.minutesLeft));
+    setNoMinutes(p.minutesLeft === null);
+    setPicked(p.accounts.map((a) => a.username));
+    setUnsure(p.accounts.filter((a) => a.uncertain).map((a) => a.username));
+    const same = props.q.courts.find(
+      (x) => x.court === p.court && x.position === p.position && courtPhase(x, props.now).phase !== "done",
+    );
+    setEntryId(same?.id ?? null);
+  }
+  function read(url: string, result: PhotoResult) {
+    setPhoto({ url, result });
+    setSaved([]);
+    if (result.courts.length > 0) fill(result.courts[0]!, 0);
+  }
   async function save() {
     const body = {
-      id: c?.id,
+      id: c?.id ?? entryId ?? undefined,
       court: Number(court),
       position,
       minutes: wait ?? n,
       accounts: picked,
     };
-    if (await run(() => api(path, body))) props.onDone();
+    if (!(await run(() => api(path, body)))) return;
+    const found = photo?.result.courts ?? [];
+    const done = [...saved, at];
+    const next = found.findIndex((_, k) => !done.includes(k));
+    if (!photo || next < 0) return props.onDone();
+    setSaved(done);
+    fill(found[next]!, next);
+    props.onSaved();
   }
   async function remove() {
     if (!confirm(position === 0 ? t("删除这片场（提前结束，不打了）？") : t("删除这组排队（不排了）？"))) return;
@@ -274,6 +321,18 @@ function CourtSheet(props: {
               })}
         </p>
       )}
+      {!c && props.q.photo && (
+        <PhotoButton path={`${props.base}/events/${props.e.id}/queue/photo`} onRead={read} disabled={busy} />
+      )}
+      {photo && (
+        <PhotoFound
+          url={photo.url}
+          result={photo.result}
+          at={at}
+          saved={saved}
+          onPick={(k) => fill(photo.result.courts[k]!, k)}
+        />
+      )}
       <CourtNumber value={court} onChange={setCourt} q={props.q} now={props.now} except={c?.id ?? null} />
       <p class="sheet-label">{t("状态")}</p>
       <div class="seg">
@@ -284,7 +343,7 @@ function CourtSheet(props: {
         ))}
       </div>
       <p class="sheet-label">{label}</p>
-      <div class="cq-minutes">
+      <div class={noMinutes && minutes === "" ? "cq-minutes cq-unsure" : "cq-minutes"}>
         <button type="button" onClick={() => setMinutes(String(Math.max(0, (n || 0) - 5)))}>
           −5
         </button>
@@ -303,6 +362,7 @@ function CourtSheet(props: {
           +5
         </button>
       </div>
+      {noMinutes && minutes === "" && <p class="cq-unsure-note small">{t("照片上没读出剩余时间，请看屏幕填写。")}</p>}
       <p class="muted small">
         {wait !== null
           ? t("按每轮 {r} 分钟估算：大约 {n} 分钟后上场。", { r: props.q.roundMin, n: wait })
@@ -314,7 +374,17 @@ function CourtSheet(props: {
       {props.q.accounts.length === 0 && (
         <p class="muted small">{t("还没有人添加球馆账号，请先在「球馆账号」里添加。")}</p>
       )}
-      <AccountPicker q={props.q} now={props.now} except={c?.id ?? null} picked={picked} onToggle={toggle} />
+      {picked.some((name) => unsure.includes(name)) && (
+        <p class="cq-unsure-note small">{t("黄色的账号照片上看不太清，请对照球馆屏幕核对。")}</p>
+      )}
+      <AccountPicker
+        q={props.q}
+        now={props.now}
+        except={c?.id ?? null}
+        picked={picked}
+        unsure={unsure}
+        onToggle={toggle}
+      />
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy} onClick={save}>
         {t("保存")}
@@ -325,6 +395,105 @@ function CourtSheet(props: {
         </button>
       )}
     </SheetFrame>
+  );
+}
+
+/**
+ * The photo shrunk to PHOTO_MAX_SIDE on its long side and saved as JPEG (Ke Li: 照片分辨率请压缩), as
+ * base64 for the request; about 300 KB from a phone's 3-5 MB.
+ */
+async function shrinkPhoto(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.8));
+  if (!blob) throw new Error("toBlob");
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+/** 拍照登记: take or pick a photo of the hall's screen; what is read fills the form below. */
+function PhotoButton(props: { path: string; disabled: boolean; onRead: (url: string, r: PhotoResult) => void }) {
+  const { busy, error, run } = useAction();
+  async function pick(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ""; // the same photo can be picked again after a failure
+    if (!file) return;
+    await run(async () => {
+      let image: string;
+      try {
+        image = await shrinkPhoto(file);
+      } catch {
+        throw new Error(t("这张照片打不开，请重新拍一张"));
+      }
+      const result = await api<PhotoResult>(props.path, { image });
+      props.onRead(`data:image/jpeg;base64,${image}`, result);
+    });
+  }
+  return (
+    <div class="cq-photo">
+      <label class={`button secondary block cq-photo-button${busy || props.disabled ? " disabled" : ""}`}>
+        <input type="file" accept="image/*" disabled={busy || props.disabled} onChange={pick} />
+        {busy ? t("识别中…") : t("📷 拍照登记")}
+      </label>
+      {!busy && !error && <p class="muted small">{t("拍一张球馆电脑的排队屏幕，自动填好下面的场号、时间和账号。")}</p>}
+      {error && <p class="error">{error}</p>}
+    </div>
+  );
+}
+
+/** What the photo showed: the photo to check against, and the courts found, one form at a time. */
+function PhotoFound(props: {
+  url: string;
+  result: PhotoResult;
+  at: number;
+  saved: number[];
+  onPick: (k: number) => void;
+}) {
+  const [big, setBig] = useState(false);
+  const found = props.result.courts;
+  return (
+    <div class="cq-found">
+      <button type="button" class={big ? "cq-photo-view big" : "cq-photo-view"} onClick={() => setBig(!big)}>
+        <img src={props.url} alt={t("排队屏幕照片")} />
+      </button>
+      {found.length === 0 ? (
+        <p class="muted small">{t("照片上没有找到我们的账号。可以重拍一张，或者手动填写。")}</p>
+      ) : (
+        <>
+          <p class="sheet-label">
+            {found.length > 1 ? t("找到 {n} 片场，逐个核对后保存", { n: found.length }) : t("找到 1 片场，核对后保存")}
+          </p>
+          {found.length > 1 && (
+            <div class="chips cq-found-list">
+              {found.map((p, k) => (
+                <button
+                  type="button"
+                  key={`${p.court}:${p.position}`}
+                  class={`chip${k === props.at ? " on" : ""}${props.saved.includes(k) ? " cq-done" : ""}`}
+                  onClick={() => props.onPick(k)}
+                >
+                  {props.saved.includes(k) ? "✓ " : ""}
+                  {t("{n}号", { n: p.court })} · {p.position === 0 ? t("在打") : t("排第 {k} 组", { k: p.position })}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {props.result.unreadable.length > 0 && (
+        <p class="muted small">
+          {t("{n}号场在照片上看不清，有我们的人的话请手动登记。", { n: props.result.unreadable.join("、") })}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -448,6 +617,8 @@ function AccountPicker(props: {
   now: number;
   except: number | null;
   picked: string[];
+  /** Read off a photo without being sure of the name: marked yellow to check. */
+  unsure?: string[];
   onToggle: (name: string) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -468,7 +639,7 @@ function AccountPicker(props: {
             <button
               type="button"
               key={name}
-              class="chip on cq-pick"
+              class={props.unsure?.includes(name) ? "chip on cq-pick cq-unsure" : "chip on cq-pick"}
               aria-label={t("取消选择 {name}", { name })}
               onClick={() => props.onToggle(name)}
             >

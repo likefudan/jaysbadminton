@@ -1,7 +1,9 @@
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { courtPhase, queueWait } from "../src/shared/courtQueue";
-import { Client, approveMember, createTestEvent, setUpAdmin } from "./helpers";
+import { purgeCourtPhotos, toPhotoResult } from "../src/worker/courtPhoto";
+import worker from "../src/worker/index";
+import { Client, ORIGIN, approveMember, createTestEvent, setUpAdmin } from "./helpers";
 
 const anon = new Client();
 const minutesFrom = (iso: string) => Math.round((Date.parse(iso) - Date.now()) / 60_000);
@@ -188,5 +190,214 @@ describe("courtPhase / queueWait", () => {
     expect(queueWait(4, 1, 45)).toBe(4);
     expect(queueWait(4, 2, 45)).toBe(49);
     expect(queueWait(4, 3, 45)).toBe(94);
+  });
+});
+
+describe("拍照登记", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // A tiny JPEG header is all the check looks at; the model's answer is stubbed.
+  const image = btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xe0, 1, 2, 3));
+  const withKey = (path: string, body: unknown) =>
+    worker.fetch(
+      new Request(`${ORIGIN}${path}`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { ...env, ANTHROPIC_API_KEY: "test-key" },
+      {} as ExecutionContext,
+    );
+  /** The Claude API answering with `ours` (and checking what it was sent). */
+  function model(answer: object, seen: any[] = []) {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (!String(input instanceof Request ? input.url : input).startsWith("https://api.anthropic.com/"))
+        throw new Error(String(input));
+      seen.push(JSON.parse(String(init?.body ?? (input as Request).body)));
+      return Response.json({
+        id: "msg_1",
+        type: "message",
+        role: "assistant",
+        model: "claude-sonnet-5-5",
+        content: [{ type: "text", text: JSON.stringify(answer) }],
+        stop_reason: "end_turn",
+        stop_sequence: null,
+        usage: { input_tokens: 2800, output_tokens: 300 },
+      });
+    });
+    return seen;
+  }
+
+  it("is hidden and refused while the site has no key", async () => {
+    const { alice, q, card } = await scenario();
+    await anon.call(`${alice.base}${q}/accounts`, { username: "Peggy", password: "1" });
+    expect((await card(alice.base))!.queue.photo).toBe(false);
+    const res = await anon.call(`${alice.base}${q}/photo`, { image });
+    expect(res.status).toBe(400);
+    expect(res.data.error.message).toBe("拍照登记还没有开通，请手动填写");
+  });
+
+  it("reads our courts off the photo for the form, and keeps the photo", async () => {
+    const { alice, bob, e, q } = await scenario();
+    for (const username of ["Peggy", "Jayx", "Wenxi", "Orianne"])
+      await anon.call(`${alice.base}${q}/accounts`, { username, password: "1" });
+    const seen = model({
+      ours: [
+        {
+          court: 2,
+          minutes_left: 7,
+          status: "playing",
+          queue_position: null,
+          accounts: [
+            { name: "peggy", uncertain: false },
+            { name: "Jayx", uncertain: false },
+            { name: "Stranger", uncertain: false },
+          ],
+        },
+        {
+          court: 12,
+          minutes_left: 12,
+          status: "queue",
+          queue_position: 1,
+          accounts: [{ name: "Wenxi", uncertain: true }],
+        },
+        {
+          court: 99,
+          minutes_left: null,
+          status: "queue",
+          queue_position: 7,
+          accounts: [{ name: "Orianne", uncertain: false }],
+        },
+      ],
+      unreadable_courts: [15, 3, 3],
+    });
+    const res = await withKey(`${alice.base}${q}/photo`, { image });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      courts: [
+        {
+          court: 2,
+          position: 0,
+          minutesLeft: 7,
+          accounts: [
+            { username: "Peggy", uncertain: false },
+            { username: "Jayx", uncertain: false },
+          ],
+        },
+        { court: 12, position: 1, minutesLeft: 12, accounts: [{ username: "Wenxi", uncertain: true }] },
+      ],
+      unreadable: [3, 15],
+    });
+    // Sonnet at low effort, told our accounts, sent the photo as JPEG.
+    expect(seen[0].model).toBe("claude-sonnet-5-5");
+    expect(seen[0].output_config.effort).toBe("low");
+    expect(seen[0].messages[0].content[0].source).toMatchObject({ media_type: "image/jpeg", data: image });
+    expect(seen[0].messages[0].content[1].text).toContain("Peggy, Jayx, Wenxi, Orianne");
+    // Nothing is saved as a court; the photo and what was read are kept.
+    const kept = await env.DB.prepare("SELECT result FROM queue_photos WHERE event_id = ?")
+      .bind(e.id)
+      .all<{ result: string }>();
+    expect(kept.results).toHaveLength(1);
+    expect(JSON.parse(kept.results[0]!.result).courts).toHaveLength(2);
+    expect(
+      (
+        await env.DB.prepare("SELECT COUNT(*) AS n FROM queue_courts WHERE event_id = ?")
+          .bind(e.id)
+          .first<{ n: number }>()
+      )?.n,
+    ).toBe(0);
+
+    // Only players on the event; not a non-JPEG.
+    expect((await withKey(`${bob.base}${q}/photo`, { image })).status).toBe(400);
+    expect((await withKey(`${alice.base}${q}/photo`, { image: btoa("GIF89a") })).status).toBe(400);
+  });
+
+  it("says so when the model fails, and needs accounts first", async () => {
+    const { alice, q } = await scenario();
+    expect((await withKey(`${alice.base}${q}/photo`, { image })).status).toBe(400);
+    await anon.call(`${alice.base}${q}/accounts`, { username: "Peggy", password: "1" });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ type: "error", error: { type: "invalid_request_error", message: "bad" } }, { status: 400 }),
+    );
+    const res = await withKey(`${alice.base}${q}/photo`, { image });
+    expect(res.status).toBe(502);
+    expect(((await res.json()) as any).error.message).toBe("照片没有识别出来，请重拍一张或手动填写");
+  });
+
+  it("forgets photos after 7 days", async () => {
+    const { e, alice } = await scenario();
+    const member = alice.id;
+    const put = (iso: string) =>
+      env.DB.prepare("INSERT INTO queue_photos (event_id, member_id, image, created_at) VALUES (?, ?, ?, ?)")
+        .bind(e.id, member, new Uint8Array([0xff, 0xd8]), iso)
+        .run();
+    const now = new Date("2026-10-20T12:00:00Z");
+    await put("2026-10-13T11:00:00Z");
+    await put("2026-10-14T12:00:00Z");
+    await purgeCourtPhotos(env, now);
+    const left = await env.DB.prepare("SELECT created_at FROM queue_photos WHERE event_id = ?").bind(e.id).all();
+    expect(left.results.map((r: any) => r.created_at)).toEqual(["2026-10-14T12:00:00Z"]);
+  });
+
+  it("keeps only our accounts, a group at most, one entry per court and place", () => {
+    const r = toPhotoResult(
+      {
+        ours: [
+          {
+            court: 5,
+            minutes_left: 900,
+            status: "playing",
+            queue_position: null,
+            accounts: [
+              { name: "A", uncertain: false },
+              { name: "b", uncertain: true },
+              { name: "C", uncertain: false },
+              { name: "D", uncertain: false },
+              { name: "E", uncertain: false },
+            ],
+          },
+          {
+            court: 5,
+            minutes_left: 9,
+            status: "playing",
+            queue_position: null,
+            accounts: [{ name: "a", uncertain: false }],
+          },
+          {
+            court: 0,
+            minutes_left: 9,
+            status: "playing",
+            queue_position: null,
+            accounts: [{ name: "A", uncertain: false }],
+          },
+          {
+            court: 6,
+            minutes_left: 9,
+            status: "queue",
+            queue_position: null,
+            accounts: [{ name: "A", uncertain: false }],
+          },
+        ],
+        unreadable_courts: "nope",
+      },
+      ["A", "B", "C", "D", "E"],
+    );
+    expect(r).toEqual({
+      courts: [
+        {
+          court: 5,
+          position: 0,
+          minutesLeft: null,
+          accounts: [
+            { username: "A", uncertain: false },
+            { username: "B", uncertain: true },
+            { username: "C", uncertain: false },
+            { username: "D", uncertain: false },
+          ],
+        },
+      ],
+      unreadable: [],
+    });
+    expect(toPhotoResult(null, ["A"])).toEqual({ courts: [], unreadable: [] });
   });
 });

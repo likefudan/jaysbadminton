@@ -4027,3 +4027,70 @@ ul.audit li:first-child {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+
+/* 拍照登记: the photo button, the photo to check against, and yellow for what the photo left unsure. */
+.cq-photo {
+  margin: 4px 0 6px;
+}
+.cq-photo-button {
+  position: relative;
+  cursor: pointer;
+}
+.cq-photo-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.cq-photo-button.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.cq-found {
+  margin: 4px 0 8px;
+}
+.cq-photo-view {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  cursor: zoom-in;
+}
+.cq-photo-view img {
+  display: block;
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+}
+.cq-photo-view.big {
+  cursor: zoom-out;
+}
+.cq-photo-view.big img {
+  max-height: none;
+  object-fit: contain;
+}
+.cq-found-list .chip.cq-done:not(.on) {
+  color: var(--muted);
+}
+.cq-picked .chip.on.cq-unsure,
+.chip.cq-unsure {
+  background: #ffd84d;
+  border-color: #d9a800;
+  color: #3d3000;
+  box-shadow: 0 0 0 2px rgba(255, 200, 0, 0.35);
+}
+.cq-minutes.cq-unsure input {
+  background: #fff3bf;
+  border-color: #d9a800;
+  color: #3d3000;
+}
+.cq-unsure-note {
+  margin: 4px 0 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #fff3bf;
+  color: #5c4700;
+}

@@ -79,6 +79,8 @@ if (process.env.RESEND_API_KEY) secrets.RESEND_API_KEY = process.env.RESEND_API_
 if (process.env.EMAIL_FROM) secrets.EMAIL_FROM = process.env.EMAIL_FROM;
 // Cloudflare Turnstile on the public forms: off until the secret is set (src/worker/turnstile.ts).
 if (process.env.TURNSTILE_SECRET) secrets.TURNSTILE_SECRET = process.env.TURNSTILE_SECRET;
+// 拍照登记 reads photos with Claude: the button stays hidden until the key is set (src/worker/courtPhoto.ts).
+if (process.env.ANTHROPIC_API_KEY) secrets.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 if (!existing.has("TOKEN_KEY")) {
   if (backup) {

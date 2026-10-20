@@ -19,6 +19,7 @@ const court = (id: number, n: number, position: number, start: number | null, en
 
 const queue = {
   roundMin: 45,
+  photo: true,
   accounts: [
     "Xiayw",
     "Pengy",
@@ -223,4 +224,81 @@ test("hall accounts: everyone's are listed, yours can be removed, and more added
       url: "/api/m/tok/events/9/queue/accounts",
       body: { username: "Lily", password: "4321" },
     });
+});
+
+test("拍照登记 fills the form from the photo, one court at a time, with unsure parts in yellow", async ({ page }) => {
+  const posts = await setUp(page);
+  let sent: { image: string } | null = null;
+  await page.route("**/api/m/tok/events/9/queue/photo", (route) => {
+    sent = route.request().postDataJSON();
+    return route.fulfill({
+      json: {
+        courts: [
+          {
+            court: 16,
+            position: 0,
+            minutesLeft: 25,
+            accounts: [
+              { username: "Wenxi", uncertain: false },
+              { username: "Am", uncertain: true },
+            ],
+          },
+          {
+            court: 12,
+            position: 1,
+            minutesLeft: null,
+            accounts: [
+              { username: "Chris", uncertain: false },
+              { username: "Weicheng", uncertain: false },
+            ],
+          },
+        ],
+        unreadable: [17],
+      },
+    });
+  });
+  await page.getByRole("button", { name: "＋ 登记球场" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.locator(".cq-photo input[type=file]").setInputFiles("e2e/fixtures/queue-screen.jpg");
+
+  // The photo goes up shrunk to a JPEG of at most 1600 px.
+  await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("16");
+  const size = await page.evaluate(async (b64) => {
+    const img = await createImageBitmap(await (await fetch(`data:image/jpeg;base64,${b64}`)).blob());
+    return [img.width, img.height];
+  }, sent!.image);
+  expect(Math.max(...size)).toBeLessThanOrEqual(1600);
+
+  await expect(sheet).toContainText("找到 2 片场，逐个核对后保存");
+  await expect(sheet).toContainText("17号场在照片上看不清");
+  await expect(sheet.getByRole("button", { name: "在打", exact: true })).toHaveClass(/on/);
+  await expect(sheet.getByLabel("还剩几分钟")).toHaveValue("25");
+  // The unsure account is yellow, with a note to check it.
+  await expect(sheet.locator(".cq-picked .chip .cq-pick-name")).toHaveText(["✓ Wenxi ✕", "✓ Am ✕"]);
+  await expect(sheet.locator(".cq-picked .chip").nth(1)).toHaveClass(/cq-unsure/);
+  await expect(sheet.locator(".cq-picked .chip").first()).not.toHaveClass(/cq-unsure/);
+  await expect(sheet).toContainText("黄色的账号照片上看不太清");
+  await page.screenshot({ path: test.info().outputPath("court-queue-photo.png") });
+
+  // 16 is already on the card as playing: saved as a change to it. The sheet moves on to 12.
+  await sheet.getByRole("button", { name: "保存" }).click();
+  await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("12");
+  expect(posts.at(-1)).toEqual({
+    url: "/api/m/tok/events/9/queue/courts",
+    body: { id: 3, court: 16, position: 0, minutes: 25, accounts: ["Wenxi", "Am"] },
+  });
+  await expect(sheet.locator(".cq-found-list .chip").first()).toHaveText("✓ 16号 · 在打");
+  // The time wasn't read: the box is yellow until it is filled in.
+  await expect(sheet.locator(".cq-minutes")).toHaveClass(/cq-unsure/);
+  await expect(sheet).toContainText("照片上没读出剩余时间");
+  await expect(sheet.locator(".cq-picked .chip.cq-unsure")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("court-queue-photo-next.png") });
+  await sheet.getByLabel("这片场正在打的那组还剩几分钟").fill("10");
+  await expect(sheet.locator(".cq-minutes")).not.toHaveClass(/cq-unsure/);
+  await sheet.getByRole("button", { name: "保存" }).click();
+  await expect(sheet).toBeHidden();
+  expect(posts.at(-1)).toEqual({
+    url: "/api/m/tok/events/9/queue/courts",
+    body: { court: 12, position: 1, minutes: 10, accounts: ["Chris", "Weicheng"] },
+  });
 });
