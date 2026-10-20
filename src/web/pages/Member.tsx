@@ -5,7 +5,7 @@ import type { MeResponse, MemberProfile, MyEvent, MyEventsResponse, PaymentStatu
 import { STATUS_ZH } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, Load, Page, SectionTitle, useAction } from "../components";
-import { EventHero, MINE_STATUS, MiniEventCard, mapLink } from "../events";
+import { EventHero, MiniEventCard, mapLink, mineStatus } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { ProfileCard } from "../Profile";
@@ -222,13 +222,13 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   const adder = e.managerName === e.ownerName ? e.ownerName : t("{a} 或 {b}", { a: e.managerName, b: e.ownerName });
   // Whoever runs it may hang friends under a member who isn't coming: they are on the bill, not the list.
   const friendsOnly = !signedUp && (e.myFriends?.length ?? 0) > 0;
-  // 我已报名 with a tick in place of 报名中 once they're on it (Ke Li), so no 已报名 line underneath.
-  const mineOpen = signedUp && e.status === "open" && !e.payment;
-  const badge = e.payment
-    ? { ...BILL_STATUS[e.payment.status], label: t(BILL_STATUS[e.payment.status].label) }
-    : mineOpen
-      ? MINE_STATUS()
-      : { cls: e.status, label: t(STATUS_ZH[e.status]) };
+  // 我已报名 / 朋友已报名 / 已付清 with a tick once they're on it (Ke Li), so no 已报名 line underneath.
+  const mine = mineStatus(e);
+  const badge =
+    mine ??
+    (e.payment
+      ? { ...BILL_STATUS[e.payment.status], label: t(BILL_STATUS[e.payment.status].label) }
+      : { cls: e.status, label: t(STATUS_ZH[e.status]) });
   // Accent for the ones they're on that are still open, light accent for ones they could join, plain once closed.
   const tone = e.status !== "open" ? "plain" : signedUp || friendsOnly ? "hero" : "soft";
 
@@ -275,11 +275,6 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {!e.roster?.length && <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>}
         {e.roster && e.roster.length > 0 && (
           <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
-        )}
-        {signedUp && !editing && !e.payment && !mineOpen && (
-          <p class="ok">
-            ✓ {e.myFriends!.length > 0 ? t("已报名，带 {n} 个朋友", { n: e.myFriends!.length }) : t("已报名")}
-          </p>
         )}
         {friendsOnly && !editing && e.runByMe && (
           <p class="muted">

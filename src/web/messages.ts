@@ -235,7 +235,13 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   已取消: { tw: "已取消", en: "Cancelled" },
   已复制: { tw: "已複製", en: "Copied" },
   已截止: { tw: "已截止", en: "Closed" },
+  查看: { tw: "查看", en: "View" },
   我已报名: { tw: "我已報名", en: "I'm in" },
+  "我已报名（已截止）": { tw: "我已報名（已截止）", en: "I'm in (closed)" },
+  "我已报名（请付款）": { tw: "我已報名（請付款）", en: "I'm in (please pay)" },
+  朋友已报名: { tw: "朋友已報名", en: "Friends in" },
+  "朋友已报名（已截止）": { tw: "朋友已報名（已截止）", en: "Friends in (closed)" },
+  "朋友已报名（请付款）": { tw: "朋友已報名（請付款）", en: "Friends in (please pay)" },
   已报名: { tw: "已報名", en: "Signed up" },
   "已报名，带 {n} 个朋友": { tw: "已報名，帶 {n} 個朋友", en: "Signed up, bringing {n} friend(s)" },
   "已收到 {paid}，还差 {owed}。补付时备注用同一个编号即可。": {
