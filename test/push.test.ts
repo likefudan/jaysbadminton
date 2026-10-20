@@ -296,6 +296,73 @@ describe("what gets pushed", () => {
     expect(pushes.map((p) => p.endpoint)).toEqual([a.endpoint]);
   });
 
+  it("changes someone else made to a member's sign-up, but not their own", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    const a = await browser("alice");
+    const owner = await browser("owner");
+    await subscribe(alice.base, a);
+    await env.DB.prepare(
+      "INSERT INTO push_subscriptions (endpoint, member_id, p256dh, auth, created_at) SELECT ?, id, ?, ?, '2026-01-01' FROM members WHERE is_owner = 1",
+    )
+      .bind(owner.endpoint, owner.keys.p256dh, owner.keys.auth)
+      .run();
+    const ownerId = (await env.DB.prepare("SELECT id FROM members WHERE is_owner = 1").first<{ id: string }>())!.id;
+    const e = await createEvent(ctx);
+    const eb = `${ctx.base}/events/${e.id}`;
+    const roster = async () =>
+      (await call(eb, undefined, ctx.admin.cookie)).data.roster as { id: number; name: string }[];
+    pushes = [];
+
+    await call(`${eb}/roster/add`, { memberId: alice.id, includeSelf: true, friends: ["Tom", ""] }, ctx.admin.cookie);
+    let [msg] = await received(a);
+    expect(msg.title).toBe("Jay 帮你报了名");
+    expect(msg.body).toContain("你和朋友 Tom、朋友2 都在名单上了");
+    expect(msg.url).toBe(`/e/${e.code}`);
+    expect(msg.tag).toBe(`roster-${e.id}`);
+
+    pushes = [];
+    await call(`${eb}/roster/${(await roster()).find((r) => r.name === "Tom")!.id}/remove`, {}, ctx.admin.cookie);
+    [msg] = await received(a);
+    expect(msg.title).toBe("Jay 把你的朋友移出了名单");
+    expect(msg.body).toContain("你的朋友 Tom 不在名单上了");
+
+    pushes = [];
+    await call(`${eb}/roster/${(await roster()).find((r) => r.name === "Alice")!.id}/remove`, {}, ctx.admin.cookie);
+    [msg] = await received(a);
+    expect(msg.title).toBe("Jay 把你移出了名单");
+    expect(msg.body).toContain("你不在名单上了。你带的 1 个朋友还在名单上。");
+
+    // The Owner changing their own sign-up from the admin page hears nothing.
+    pushes = [];
+    await call(`${eb}/roster/add`, { memberId: ownerId, includeSelf: true, friends: [] }, ctx.admin.cookie);
+    expect(pushes).toEqual([]);
+
+    // Cancelling: everyone on the list (Alice still has a friend on it), not whoever cancelled.
+    await call(`${eb}/cancel`, {}, ctx.admin.cookie);
+    [msg] = await received(a);
+    expect(msg.title).toBe("Jay 取消了活动");
+    expect(msg.tag).toBe(`event-${e.id}`);
+    expect(await received(owner)).toEqual([]);
+  });
+
+  it("doesn't send a sign-up change once the event is cancelled", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    const a = await browser("alice");
+    await subscribe(alice.base, a);
+    const e = await createEvent(ctx);
+    status = 500;
+    await call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: alice.id, includeSelf: true }, ctx.admin.cookie);
+    await env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e.id).run();
+    await env.DB.prepare("DELETE FROM push_outbox WHERE kind != 'roster'").run();
+    await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
+    status = 201;
+    pushes = [];
+    await drainPushes(env);
+    expect(pushes).toEqual([]);
+  });
+
   it("drops gone browsers, retries the rest later and gives up after three tries", async () => {
     const ctx = await setUpAdmin();
     const alice = await approveMember(ctx, "Alice");

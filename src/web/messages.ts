@@ -356,9 +356,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "最近 6 个月": { tw: "最近 6 個月", en: "past 6 months" },
   "最近 7 天": { tw: "最近 7 天", en: "past 7 days" },
   最长连续: { tw: "最長連續", en: "Streak" },
-  "有新活动开始报名、或者你的账单出来时，在这台设备上通知你。": {
-    tw: "有新活動開始報名、或者你的帳單出來時，在這臺裝置上通知你。",
-    en: "Get a notification on this device when a new event opens for sign-up or your bill is ready.",
+  "有新活动开始报名、别人帮你改了报名、或者你的账单出来时，在这台设备上通知你。": {
+    tw: "有新活動開始報名、別人幫你改了報名、或者你的帳單出來時，在這臺裝置上通知你。",
+    en: "Get a notification on this device when a new event opens for sign-up, someone else changes your sign-up, or your bill is ready.",
   },
   "朋友 {n} 的名字（选填）": { tw: "朋友 {n} 的名字（選填）", en: "Friend {n}'s name (optional)" },
   未出席: { tw: "未出席", en: "Absent" },

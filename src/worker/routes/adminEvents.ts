@@ -84,7 +84,7 @@ import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
-import { pushBills, pushNewEvent, sendSoon } from "../push";
+import { pushBills, pushCancelled, pushNewEvent, pushRosterChange, sendSoon } from "../push";
 import { actorId, audit, auditRows, billOwner, friendName, groupAudit, money, record, rosterLabel } from "../audit";
 import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
 
@@ -366,6 +366,7 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
   await audit(c.env, e.id, actorId(c.get("actor")), "cancel", "取消活动");
   await syncDeadline(c.env, e.id);
   await remindIfExpired(c.env, e.payee_id);
+  if (await pushCancelled(c.env, e, c.get("actor").memberId)) sendSoon(c);
   return c.json({ ok: true });
 });
 
@@ -552,6 +553,13 @@ adminEventRoutes.post("/events/:id/roster/add", async (c) => {
   ];
   await audit(c.env, e.id, actorId(c.get("actor")), "roster_add", `添加 ${added.join("、")}`);
   await recomputeIfFinalized(c.env, e);
+  const pushed = await pushRosterChange(c.env, e, m.id, c.get("actor").memberId, {
+    added: true,
+    self: includeSelf,
+    friends: friends.map((f, i) => f.trim().slice(0, 20) || `朋友${first + i}`),
+    left: 0,
+  });
+  if (pushed) sendSoon(c);
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
@@ -578,9 +586,27 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
   const rid = Number(c.req.param("rid"));
   await assertCostsShared(c.env, e, (list) => list.filter((r) => r.id !== rid));
   const who = await rosterLabel(c.env, rid);
+  const row = await c.env.DB.prepare(
+    "SELECT member_id, friend_index, friend_name FROM registrations WHERE id = ? AND event_id = ?",
+  )
+    .bind(rid, e.id)
+    .first<{ member_id: string; friend_index: number; friend_name: string | null }>();
   const res = await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?").bind(rid, e.id).run();
   if (res.meta.changes) await audit(c.env, e.id, actorId(c.get("actor")), "roster_remove", `把 ${who} 移出名单`);
   await recomputeIfFinalized(c.env, e);
+  if (row && res.meta.changes) {
+    const left = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ? AND member_id = ?")
+      .bind(e.id, row.member_id)
+      .first<{ n: number }>();
+    const self = row.friend_index === 0;
+    const pushed = await pushRosterChange(c.env, e, row.member_id, c.get("actor").memberId, {
+      added: false,
+      self,
+      friends: self ? [] : [row.friend_name?.trim() || `朋友${row.friend_index}`],
+      left: left?.n ?? 0,
+    });
+    if (pushed) sendSoon(c);
+  }
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
