@@ -26,6 +26,8 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   待结清: { tw: "待結清", en: "To settle" },
   没有费用: { tw: "沒有費用", en: "No charge" },
   暂时没有可以报名的活动: { tw: "暫時沒有可以報名的活動", en: "Nothing open for sign-up right now" },
+  上一页: { tw: "上一頁", en: "Previous" },
+  下一页: { tw: "下一頁", en: "Next" },
   "{n} 人已报名": { tw: "{n} 人已報名", en: "{n} signed up" },
   "{range}每周的花费，点柱子看详情": {
     tw: "{range}每週的花費，點柱子看詳情",

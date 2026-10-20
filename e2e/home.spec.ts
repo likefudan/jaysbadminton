@@ -76,3 +76,58 @@ test("ties on the leaderboard share a rank", async ({ page }) => {
   await expect(cards.nth(3)).toHaveClass(/\bp2\b/);
   await expect(cards.nth(4)).toHaveClass(/\bp5\b/);
 });
+
+test.describe("with a mouse", () => {
+  test.use({ viewport: { width: 1200, height: 900 }, isMobile: false, hasTouch: false });
+
+  /** 电脑: ‹ › beside the heading turn a page, and the row can be dragged without opening a card. */
+  test("the sideways rows get arrows and can be dragged", async ({ page }) => {
+    await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false } }));
+    await page.route("**/api/public/home", (route) =>
+      route.fulfill({
+        json: {
+          currentEvents: [event({})],
+          pastEvents: Array.from({ length: 8 }, (_, i) =>
+            event({ id: 10 + i, code: `P${i}`, date: `2026-09-0${i + 1}`, status: "settled" }),
+          ),
+          leaderboard: { year: 2026, attendance: [{ name: "arthur", value: 2, rank: 1 }], streak: [], friends: [] },
+        },
+      }),
+    );
+    await page.goto("/");
+    const head = page.locator(".section-title", { hasText: "历史活动" });
+    const row = page.locator(".swipe:has(.mini-card)");
+    const left = () => row.evaluate((el) => el.scrollLeft);
+    await expect(head.getByRole("button", { name: "上一页" })).toBeDisabled();
+    await head.getByRole("button", { name: "下一页" }).click();
+    await expect.poll(left).toBeGreaterThan(100);
+    await expect(head.getByRole("button", { name: "上一页" })).toBeEnabled();
+    // One card on the leaderboard fits, so it gets no arrows.
+    await expect(page.locator(".section-title", { hasText: "排行榜" }).locator(".swipe-arrows")).toHaveCount(0);
+
+    // Drag back to the start; letting go on a card doesn't open it.
+    const box = (await row.boundingBox())!;
+    const before = await left();
+    await page.mouse.move(box.x + 60, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 360, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.up();
+    expect(await left()).toBeLessThan(before);
+    await expect(page).toHaveURL(/\/$/);
+  });
+});
+
+test("phones get no arrows, just the swipe", async ({ page }) => {
+  await page.route("**/api/public/home", (route) =>
+    route.fulfill({
+      json: {
+        currentEvents: [],
+        pastEvents: Array.from({ length: 8 }, (_, i) => event({ id: 10 + i, code: `P${i}`, status: "settled" })),
+        leaderboard: null,
+      },
+    }),
+  );
+  await page.goto("/");
+  await expect(page.locator(".mini-card")).toHaveCount(8);
+  await expect(page.locator(".swipe-arrows")).toBeHidden();
+});

@@ -2327,6 +2327,48 @@ a.ev-meta {
   color: inherit;
   text-decoration: none;
 }
+.swipe-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+/* ‹ › only where there's a mouse; fingers and trackpads scroll the row themselves. */
+.swipe-arrows {
+  display: none;
+  gap: 6px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .swipe-arrows {
+    display: inline-flex;
+  }
+  .swipe {
+    cursor: grab;
+  }
+}
+.swipe-arrows button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  font: 500 17px / 1 var(--font);
+  cursor: pointer;
+}
+.swipe-arrows button:hover:not(:disabled) {
+  border-color: var(--acc-line);
+  color: var(--acc-ink);
+}
+.swipe-arrows button:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+.swipe.dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  user-select: none;
+}
 .swipe-note {
   margin: 0 2px;
 }
