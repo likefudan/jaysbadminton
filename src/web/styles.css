@@ -3747,9 +3747,9 @@ ul.audit li:first-child {
 .cq-net {
   border-top: 2px dashed rgba(255, 255, 255, 0.95);
 }
+/* The muted text colour stays visible on the grey block in both light and dark mode. */
 .cq-court.queue .cq-net {
-  border-top-color: var(--line);
-  filter: brightness(0.85);
+  border-top-color: var(--muted);
 }
 .cq-half {
   flex: 1;
@@ -3812,7 +3812,7 @@ ul.audit li:first-child {
 }
 .cq-legend i.queue {
   background: var(--surface-2);
-  border: 1px solid var(--line);
+  border: 1px solid var(--muted);
 }
 .cq-tip {
   margin-left: auto;
