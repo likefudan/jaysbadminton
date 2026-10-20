@@ -208,8 +208,17 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
     (e.payment
       ? { ...BILL_STATUS[e.payment.status], label: t(BILL_STATUS[e.payment.status].label) }
       : { cls: e.status, label: t(STATUS_ZH[e.status]) });
-  // Accent for the ones they're on that are still open, light accent for ones they could join, plain once closed.
-  const tone = e.status !== "open" ? "plain" : signedUp || friendsOnly ? "hero" : "soft";
+  // Accent for the ones they're on until the bill comes (closed included, Ke Li), light accent for
+  // ones they could join, plain for the rest (billed, cancelled, closed without them).
+  const onIt = (signedUp || friendsOnly) && !e.payment;
+  const tone =
+    e.status === "open"
+      ? onIt
+        ? "hero"
+        : "soft"
+      : onIt && (e.status === "closed" || e.status === "finalized")
+        ? "hero"
+        : "plain";
 
   async function save() {
     if (await run(() => api(`${props.base}/events/${e.id}/signup`, { friends }))) {
