@@ -74,8 +74,12 @@ test("我的活动 offers push once; 不用了 keeps it away", async ({ page }) 
 test("个人信息 turns push on and off for this browser", async ({ page }) => {
   const sent = await member(page);
   await page.goto("/m/tok/profile");
-  const card = page.locator(".card", { has: page.getByRole("heading", { name: "推送通知" }) });
+  const row = page.getByRole("button", { name: /推送通知/ });
+  await expect(row).toContainText("未开启");
+  await row.click();
+  const card = page.locator(".set-list");
   await card.getByRole("button", { name: "开启推送" }).click();
+  await expect(row).toContainText("已开启");
   await expect(card.getByRole("button", { name: "关闭推送" })).toBeVisible();
   expect(sent).toEqual([
     {
@@ -92,9 +96,11 @@ test("个人信息 turns push on and off for this browser", async ({ page }) => 
   // Someone else's page in this browser (another member turned it on here) doesn't take it over.
   await page.evaluate(async () => (await caches.open("push")).put("/push-member", new Response("M999")));
   await page.reload();
+  await row.click();
   await expect(card.getByRole("button", { name: "改为推送给我" })).toBeVisible();
   await page.evaluate(async () => (await caches.open("push")).put("/push-member", new Response("M007")));
   await page.reload();
+  await row.click();
 
   await card.getByRole("button", { name: "关闭推送" }).click();
   await expect(card.getByRole("button", { name: "开启推送" })).toBeVisible();

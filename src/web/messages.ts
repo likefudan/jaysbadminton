@@ -24,6 +24,20 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "截止 {time}": { tw: "截止 {time}", en: "Closes {time}" },
   "已付清 {amount}": { tw: "已付清 {amount}", en: "Paid {amount}" },
   已结清: { tw: "已結清", en: "Settled" },
+  我的花费: { tw: "我的花費", en: "My spending" },
+  资料与设置: { tw: "資料與設定", en: "Details and settings" },
+  "微信名 {name}": { tw: "微信名 {name}", en: "WeChat {name}" },
+  "{date}入群": { tw: "{date}入群", en: "Joined {date}" },
+  过去一年打球: { tw: "過去一年打球", en: "Played this past year" },
+  即将参加: { tw: "即將參加", en: "Coming up" },
+  已开启: { tw: "已開啟", en: "On" },
+  未开启: { tw: "未開啟", en: "Off" },
+  已拒绝: { tw: "已拒絕", en: "Blocked" },
+  不支持: { tw: "不支援", en: "Not supported" },
+  "现在用的是 Google 账号的邮箱。": {
+    tw: "現在用的是 Google 帳號的電子郵件。",
+    en: "This is your Google account's email.",
+  },
   待结清: { tw: "待結清", en: "To settle" },
   没有费用: { tw: "沒有費用", en: "No charge" },
   暂时没有可以报名的活动: { tw: "暫時沒有可以報名的活動", en: "Nothing open for sign-up right now" },
@@ -115,7 +129,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Your request to join is waiting for approval. You can sign up once it's approved.",
   },
   "你的报名、活动和账单。": { tw: "你的報名、活動和帳單。", en: "Your sign-ups, events and bills." },
-  "你的统计、资料和账号设置。": { tw: "你的統計、資料和帳號設定。", en: "Your stats, details and account settings." },
   "你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。": {
     tw: "你的帳號已停用，不能再報名活動。如果還有沒付清的費用，可以在下面繼續付款。",
     en: "Your account is deactivated and can't sign up for events. If you still owe anything, you can pay it below.",
@@ -125,7 +138,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "保存中…": { tw: "儲存中…", en: "Saving…" },
   保存修改: { tw: "儲存修改", en: "Save changes" },
   修改: { tw: "修改", en: "Edit" },
-  修改用户名: { tw: "修改使用者名稱", en: "Change username" },
   "像 App 一样一点就打开你的页面。iPhone 添加以后才能收到推送通知。": {
     tw: "像 App 一樣一點就開啟你的頁面。iPhone 加入以後才能收到推播通知。",
     en: "Open your page in one tap, like an app. On iPhone, you need this to get notifications.",
@@ -293,7 +305,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   我报名的活动: { tw: "我報名的活動", en: "My sign-ups" },
   "我是新成员，创建账号": { tw: "我是新成員，建立帳號", en: "I'm new, create an account" },
   我的活动: { tw: "我的活動", en: "My events" },
-  我的统计: { tw: "我的統計", en: "My stats" },
   我的页面: { tw: "我的頁面", en: "My pages" },
   所有活动: { tw: "所有活動", en: "All events" },
   手机上长按图片即可保存或转发: {
@@ -461,10 +472,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   自动: { tw: "自動", en: "Auto" },
   花费: { tw: "花費", en: "Spent" },
   "花费 {amount} · 打球 {n} 次": { tw: "花費 {amount} · 打球 {n} 次", en: "spent {amount} · played {n}" },
-  "花费按你的账单计算，包含你带的朋友；缺席的场次仍要分摊场地费。": {
-    tw: "花費按你的帳單計算，包含你帶的朋友；缺席的場次仍要分攤場地費。",
-    en: "Spending comes from your bills, friends you brought included. Missed games still share the court fee.",
-  },
   "语言：{name}": { tw: "語言：{name}", en: "Language: {name}" },
   "请不要把这个链接转发给别人。": {
     tw: "請不要把這個連結轉發給別人。",

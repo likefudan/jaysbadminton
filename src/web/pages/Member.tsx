@@ -1,21 +1,20 @@
 import { useState } from "preact/hooks";
-import { checkUsername } from "../../shared/rules";
 import { dollars } from "../../shared/settle";
 import type { MeResponse, MemberProfile, MyEvent, MyEventsResponse, PaymentStatus } from "../../shared/types";
 import { STATUS_ZH } from "../../shared/types";
 import { api } from "../api";
-import { Card, Empty, Field, Load, Page, SectionTitle, useAction } from "../components";
+import { Card, Empty, Load, Page, SectionTitle, useAction } from "../components";
 import { EventHero, MiniEventCard, mapLink, mineStatus } from "../events";
 import { FriendsEditor } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
-import { ProfileCard } from "../Profile";
+import { Heatmap, ProfileHero, ProfileSettings } from "../Profile";
 import { RosterList } from "../Roster";
 import { useApi } from "../hooks";
 import { CardCornerIcons } from "../ShareCard";
 import { SwipeSection } from "../Swipe";
 import { MyStatsCard } from "../Stats";
-import { InstallCard, InstallPrompt } from "../Install";
-import { PushCard, PushPrompt } from "../Push";
+import { InstallPrompt } from "../Install";
+import { PushPrompt } from "../Push";
 import { GoogleLink } from "./Account";
 import { t, tk, tx } from "../i18n";
 
@@ -82,67 +81,46 @@ function MemberNav(props: { token?: string; admin: boolean; current: "events" | 
   );
 }
 
-/** 个人信息: statistics, profile and account settings, one tap from 我的活动 or the avatar menu. */
+/**
+ * 个人信息 (Ke Li's pick of three designs): who they are and the year at a glance on top, then
+ * spending, the activity map, and 资料与设置 as one list of rows.
+ */
 export function MemberProfilePage(props: { token?: string }) {
   const base = `/api/m/${props.token ?? "session"}`;
-  const [me, reload] = useApi<MeResponse>(`${base}/me`);
+  const home = props.token ? `/m/${props.token}` : "/me";
+  const [me, reloadMe] = useApi<MeResponse>(`${base}/me`);
+  const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
   return (
     <Load result={me}>
       {(m) => (
-        <Page title={t("个人信息")} subtitle={t("你的统计、资料和账号设置。")}>
+        <Page title={t("个人信息")}>
           <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
+          <Load result={profile}>{(p) => <ProfileHero profile={p} />}</Load>
           <MyStatsCard base={base} />
-          <MyProfile base={base} />
-          <InstallCard home={props.token ? `/m/${props.token}` : "/me"} />
-          <PushCard base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />
-          <Rename base={base} current={m.username} onDone={reload} />
+          {profile.state === "ok" && (
+            <>
+              <SectionTitle>{t("活动记录")}</SectionTitle>
+              <Card>
+                <Heatmap activity={profile.data.activity} summary={false} />
+              </Card>
+            </>
+          )}
+          <SectionTitle>{t("资料与设置")}</SectionTitle>
+          {/* Here even if the profile didn't load: push and the home screen don't need it. */}
+          <ProfileSettings
+            me={m}
+            profile={profile.state === "ok" ? profile.data : null}
+            base={base}
+            home={home}
+            onChange={() => {
+              reloadProfile();
+              reloadMe();
+            }}
+          />
           {props.token && <GoogleLink token={props.token} />}
         </Page>
       )}
     </Load>
-  );
-}
-
-function MyProfile(props: { base: string }) {
-  const [res, reload] = useApi<MemberProfile>(`${props.base}/profile`);
-  return (
-    <Load result={res}>{(p) => <ProfileCard profile={p} base={props.base} mode="member" onChange={reload} />}</Load>
-  );
-}
-
-function Rename(props: { base: string; current: string; onDone: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState(props.current);
-  const { busy, error, run, setError } = useAction();
-  if (!open) {
-    return (
-      <button type="button" class="button secondary block" onClick={() => setOpen(true)}>
-        {t("修改用户名")}
-      </button>
-    );
-  }
-  async function save(e: Event) {
-    e.preventDefault();
-    const err = checkUsername(name);
-    if (err) return setError(err);
-    if (await run(() => api(`${props.base}/rename`, { username: name }))) {
-      setOpen(false);
-      props.onDone();
-    }
-  }
-  return (
-    <Card title={t("修改用户名")}>
-      <form onSubmit={save}>
-        <Field label={t("新用户名")} value={name} onInput={setName} />
-        {error && <p class="error">{error}</p>}
-        <button type="submit" class="button block" disabled={busy}>
-          {t("保存")}
-        </button>
-        <button class="button secondary block" type="button" onClick={() => setOpen(false)}>
-          {t("取消")}
-        </button>
-      </form>
-    </Card>
   );
 }
 

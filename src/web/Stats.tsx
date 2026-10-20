@@ -63,7 +63,7 @@ function SpendingCard(props: { stats: MyStats }) {
 
   return (
     <>
-      <SectionTitle>{t("我的统计")}</SectionTitle>
+      <SectionTitle>{t("我的花费")}</SectionTitle>
       <Card class="spend">
         <div class="seg spend-ranges" role="group" aria-label={t("时间范围")}>
           {RANGES.map((r) => (
@@ -162,7 +162,6 @@ function SpendingCard(props: { stats: MyStats }) {
         ) : (
           <p class="muted small">{t("{range}没有打球记录。", { range: t(RANGE_NAMES[range]) })}</p>
         )}
-        <p class="muted small">{t("花费按你的账单计算，包含你带的朋友；缺席的场次仍要分摊场地费。")}</p>
       </Card>
     </>
   );

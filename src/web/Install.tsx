@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { createPortal } from "preact/compat";
-import { Card } from "./components";
+import { Card, SettingRow } from "./components";
 import { t } from "./i18n";
 
 /**
@@ -155,27 +155,24 @@ function blurb(k: InstallKind) {
   return t("像 App 一样一点就打开你的页面，不用再找链接。");
 }
 
-/** 个人信息: the same, kept here for good (also after 不用了 on 我的活动). */
-export function InstallCard(props: { home: string }) {
+/**
+ * 个人信息 → 添加到主屏幕, kept here for good (also after 不用了 on 我的活动). iPhone goes back to
+ * 我的活动 to add it (Safari adds the page it's on, and the icon should open there); Chrome's
+ * one-tap prompt can only run on the tap itself, so it stays here.
+ */
+export function InstallRow(props: { home: string }) {
   const install = useInstall();
   if (install.kind === "none") return null;
-  // A link member's icon should open 我的活动 (Safari adds the page it's on), so iPhone goes back
-  // there to add it; Chrome's one-tap prompt can only run on the tap itself, so it stays here.
-  const viaHome = install.kind === "ios";
   return (
-    <Card title={t("添加到主屏幕")}>
-      <p>{blurb(install.kind)}</p>
-      {viaHome ? (
-        <a class="button block" href={`${props.home}?${ADD_PARAM}=1`}>
-          {t("添加到主屏幕")}
-        </a>
-      ) : (
-        <button type="button" class="button block" onClick={install.add}>
-          {install.kind === "wechat" ? t("怎么打开") : t("添加到主屏幕")}
-        </button>
-      )}
+    <>
+      <SettingRow
+        icon={<AddIcon />}
+        label={t("添加到主屏幕")}
+        href={install.kind === "ios" ? `${props.home}?${ADD_PARAM}=1` : undefined}
+        onClick={install.kind === "ios" ? undefined : install.add}
+      />
       {install.guide && <InstallGuide kind={install.kind} onClose={install.closeGuide} />}
-    </Card>
+    </>
   );
 }
 
