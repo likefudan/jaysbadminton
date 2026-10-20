@@ -51,9 +51,9 @@ function Leaders(props: { board: Leaderboard }) {
         <Empty>{t("还没有出勤记录")}</Empty>
       ) : (
         <ol class="swipe ranks-swipe">
-          {list.map((r, i) => (
-            <li key={r.name} class={`rank-card p${i + 1}`}>
-              <span class="rank-no">{i + 1}</span>
+          {list.map((r) => (
+            <li key={r.name} class={`rank-card p${r.rank}`}>
+              <span class="rank-no">{r.rank}</span>
               <span class="who">{r.name}</span>
               <span class="value">
                 {r.value}

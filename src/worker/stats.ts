@@ -29,11 +29,22 @@ async function rows(env: Env): Promise<Row[]> {
 
 const thisYear = () => toPacific(new Date()).date.slice(0, 4);
 
-function top(counts: Map<string, { name: string; value: number }>, n = 10): RankEntry[] {
-  return [...counts.values()]
+/**
+ * Top n with ties sharing a rank and the next rank skipping (1, 1, 1, 4); tied people go by
+ * name. Everyone tied with the last place shown stays on the board.
+ */
+export function top(counts: Map<string, { name: string; value: number }>, n = 10): RankEntry[] {
+  const sorted = [...counts.values()]
     .filter((x) => x.value > 0)
-    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
-    .slice(0, n);
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+  const out: RankEntry[] = [];
+  for (const [i, x] of sorted.entries()) {
+    const prev = out[i - 1];
+    const rank = prev && prev.value === x.value ? prev.rank : i + 1;
+    if (rank > n) break;
+    out.push({ rank, name: x.name, value: x.value });
+  }
+  return out;
 }
 
 /** 公开排行榜: members only, never money. */
