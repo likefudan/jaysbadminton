@@ -13,8 +13,8 @@ import { payeeName } from "./payees";
 
 /**
  * 推送通知 to members' browsers (Web Push, RFC 8030/8291/8292). Members turn it on from their own
- * page; two things are pushed: a new event open for sign-up, and their bill once an event is
- * finalized. The request queues them in push_outbox and sends them after its response
+ * page; what is pushed: a new event open for sign-up, their bill once an event is finalized, and
+ * changes someone else made to their sign-up (added or taken off the list, the event cancelled). The request queues them in push_outbox and sends them after its response
  * (sendSoon), so they never slow it down, fail it or use up what it needs for its own notices; the
  * cron sends anything left over and retries what failed.
  */
@@ -263,7 +263,7 @@ export async function pushWelcome(env: Env, memberId: string, endpoint: string, 
       memberId,
       JSON.stringify({
         title: "推送已开启",
-        body: "有新活动开始报名、或者你的账单出来时，会在这里通知你。",
+        body: "有新活动开始报名、别人帮你改了报名、或者你的账单出来时，会在这里通知你。",
         url: home,
         tag: "welcome",
       } satisfies PushMessage),
@@ -333,6 +333,7 @@ async function sendBatch(env: Env, keys: VapidKeys, endpoint?: string): Promise<
     `SELECT o.id, o.payload, s.endpoint, s.p256dh, s.auth,
        CASE o.kind
          WHEN 'event' THEN NOT COALESCE((SELECT status = 'open' AND deadline_at > ?2 FROM events WHERE id = o.event_id), 0)
+         WHEN 'roster' THEN NOT COALESCE((SELECT status != 'cancelled' FROM events WHERE id = o.event_id), 0)
          WHEN 'bill' THEN NOT EXISTS (SELECT 1 FROM payments p WHERE p.event_id = o.event_id
            AND p.member_id = o.member_id AND p.status != 'paid')
          ELSE 0 END AS stale
@@ -441,6 +442,93 @@ export async function pushBills(env: Env, e: EventRow): Promise<boolean> {
       ),
     );
     return true;
+  } catch (err) {
+    console.error("push failed:", err);
+    return false;
+  }
+}
+
+/** Queues one message to each of a member's browsers. Whether there were any. */
+async function pushTo(env: Env, memberId: string, kind: string, e: EventRow, msg: PushMessage): Promise<boolean> {
+  const res = await env.DB.prepare(
+    `INSERT INTO push_outbox (endpoint, member_id, kind, event_id, payload, created_at)
+     SELECT s.endpoint, s.member_id, ?, ?, ?, ? FROM push_subscriptions s JOIN members m ON m.id = s.member_id
+     WHERE s.member_id = ? AND m.deleted_at IS NULL`,
+  )
+    .bind(kind, e.id, JSON.stringify(msg), now(), memberId)
+    .run();
+  return res.meta.changes > 0;
+}
+
+/** What someone else did to a member's rows on an event's list. */
+export interface RosterChange {
+  added: boolean;
+  /** The member themselves was added or taken off (not only friends). */
+  self: boolean;
+  /** Friends added or taken off, as the list names them. */
+  friends: string[];
+  /** Rows the member still has on the list afterwards. */
+  left: number;
+}
+
+/**
+ * 名单变动: the Owner, an admin or the organizer added a member (or friends under them) to an event
+ * or took them off it. Never when the member did it themselves. Whether anything was queued.
+ */
+export async function pushRosterChange(
+  env: Env,
+  e: EventRow,
+  memberId: string,
+  actor: string | null,
+  change: RosterChange,
+): Promise<boolean> {
+  if (memberId === actor) return false;
+  try {
+    const by = await payeeName(env.DB, actor);
+    const friends = change.friends.join("、");
+    const title = change.added
+      ? change.self
+        ? `${by} 帮你报了名`
+        : `${by} 帮你的朋友报了名`
+      : change.self
+        ? `${by} 把你移出了名单`
+        : `${by} 把你的朋友移出了名单`;
+    let body = change.added
+      ? change.self
+        ? friends
+          ? `${when(e)}：你和朋友 ${friends} 都在名单上了。`
+          : `${when(e)}：你在名单上了。`
+        : `${when(e)}：你的朋友 ${friends} 在名单上了。`
+      : change.self
+        ? `${when(e)}：你不在名单上了。${change.left ? `你带的 ${change.left} 个朋友还在名单上。` : ""}`
+        : `${when(e)}：你的朋友 ${friends} 不在名单上了。`;
+    if (e.status === "finalized") body += "账单已重新计算，点开查看。";
+    return await pushTo(env, memberId, "roster", e, { title, body, url: `/e/${e.code}`, tag: `roster-${e.id}` });
+  } catch (err) {
+    console.error("push failed:", err);
+    return false;
+  }
+}
+
+/** 活动取消: everyone on the list (themselves or friends), except whoever cancelled it. */
+export async function pushCancelled(env: Env, e: EventRow, actor: string | null): Promise<boolean> {
+  try {
+    const msg: PushMessage = {
+      title: `${await payeeName(env.DB, actor)} 取消了活动`,
+      body: `${when(e)}\n${venue(e)}\n活动取消了，你的报名也一并取消。`,
+      url: `/e/${e.code}`,
+      // Replaces the 新活动 one if it is still showing.
+      tag: `event-${e.id}`,
+    };
+    const res = await env.DB.prepare(
+      `INSERT INTO push_outbox (endpoint, member_id, kind, event_id, payload, created_at)
+       SELECT s.endpoint, s.member_id, 'cancel', ?1, ?2, ?3 FROM push_subscriptions s JOIN members m ON m.id = s.member_id
+       WHERE m.deleted_at IS NULL AND m.id IS NOT ?4
+         AND m.id IN (SELECT member_id FROM registrations WHERE event_id = ?1)`,
+    )
+      .bind(e.id, JSON.stringify(msg), now(), actor)
+      .run();
+    return res.meta.changes > 0;
   } catch (err) {
     console.error("push failed:", err);
     return false;

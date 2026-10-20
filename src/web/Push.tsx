@@ -197,7 +197,7 @@ export function PushRow(props: { base: string; home: string; memberId: string })
       value={value}
       panel={() => (
         <>
-          <p>{t("有新活动开始报名、或者你的账单出来时，在这台设备上通知你。")}</p>
+          <p>{t("有新活动开始报名、别人帮你改了报名、或者你的账单出来时，在这台设备上通知你。")}</p>
           {push.state === "ios-install" && (
             <p class="hint">
               {t(
