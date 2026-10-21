@@ -220,7 +220,7 @@ describe("capabilities", () => {
 });
 
 describe("the ORGANIZERS flag", () => {
-  it("is off in production and on on the test site", () => {
+  it("is on in production and on the test site", () => {
     expect(organizersEnabled({ ORGANIZERS: "0" })).toBe(false);
     expect(organizersEnabled({})).toBe(false);
     expect(organizersEnabled({ ORGANIZERS: "1" })).toBe(true);
@@ -232,7 +232,7 @@ describe("the ORGANIZERS flag", () => {
         .join("\n")
         .replace(/,(\s*[}\]])/g, "$1"),
     );
-    expect(config.vars.ORGANIZERS).toBe("0");
+    expect(config.vars.ORGANIZERS).toBe("1");
     expect(config.env.staging.vars.ORGANIZERS).toBe("1");
   });
 });
