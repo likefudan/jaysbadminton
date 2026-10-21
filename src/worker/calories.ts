@@ -52,10 +52,21 @@ export async function startUpload(env: Env, m: MemberRow, e: EventRow, origin: s
     ),
   ]);
   return {
-    start: e.start_at,
-    end: e.end_at,
+    ...timeWindow(e),
     upload: `${origin}/api/calories/${code}`,
   };
+}
+
+/**
+ * The event's time for the Shortcut: its day and HHmm numbers. Shortcuts only filters 「健康」 by
+ * day and can't reliably read a time out of text, so it takes that day's samples and keeps those
+ * whose start falls between the two numbers. Past midnight counts up to 23:59.
+ */
+export function timeWindow(e: Pick<EventRow, "start_at" | "end_at">): Pick<CalorieStart, "day" | "from" | "to"> {
+  const start = toPacific(e.start_at);
+  const end = toPacific(e.end_at);
+  const hhmm = (time: string) => Number(time.replace(":", ""));
+  return { day: start.date, from: hhmm(start.time), to: end.date === start.date ? hhmm(end.time) : 2359 };
 }
 
 /** The Shortcut posting the number: the code is used up whether or not the number is accepted. */

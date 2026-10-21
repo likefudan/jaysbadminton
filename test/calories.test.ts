@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { toPacific } from "../src/shared/time";
+import { timeWindow } from "../src/worker/calories";
 import { Client, ORIGIN, approveMember, createTestEvent, setUpAdmin } from "./helpers";
 
 const anon = new Client();
@@ -31,6 +32,19 @@ async function scene() {
 const card = async (base: string, id: number) => (await anon.call(`${base}/events/${id}`)).data.event;
 
 describe("卡路里", () => {
+  it("hands the Shortcut the Pacific day and HHmm numbers, up to 23:59 past midnight", () => {
+    expect(timeWindow({ start_at: "2026-05-27T03:30:00.000Z", end_at: "2026-05-27T06:00:00.000Z" })).toEqual({
+      day: "2026-05-26",
+      from: 2030,
+      to: 2300,
+    });
+    expect(timeWindow({ start_at: "2026-05-27T05:30:00.000Z", end_at: "2026-05-27T08:00:00.000Z" })).toEqual({
+      day: "2026-05-26",
+      from: 2230,
+      to: 2359,
+    });
+  });
+
   it("reads only once the event has started, with a one-time link the Shortcut posts to", async () => {
     const { alice, e } = await scene();
     expect((await anon.call(`${alice.base}/events/${e.id}/calories`, {})).status).toBe(400);
@@ -41,7 +55,9 @@ describe("卡路里", () => {
     const { status, data } = await anon.call(`${alice.base}/events/${e.id}/calories`, {});
     expect(status).toBe(200);
     const row = await env.DB.prepare("SELECT start_at, end_at FROM events WHERE id = ?").bind(e.id).first();
-    expect(data).toMatchObject({ start: row!.start_at, end: row!.end_at });
+    const at = (iso: unknown) => toPacific(String(iso));
+    const hhmm = (iso: unknown) => Number(at(iso).time.replace(":", ""));
+    expect(data).toMatchObject({ day: at(row!.start_at).date, from: hhmm(row!.start_at), to: expect.any(Number) });
     expect(data.upload).toMatch(new RegExp(`^${ORIGIN}/api/calories/[\\w-]{43}$`));
 
     // The Shortcut sends a number (a string too); the link works once.
