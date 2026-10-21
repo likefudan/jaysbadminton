@@ -53,7 +53,7 @@ jobs:
       - run: npm ci
       - run: npm test -- --maxWorkers=2 --shard=2/2
 
-  # The browser tests in two halves at the same time; the half with flows.spec.ts keeps the name e2e.
+  # The browser tests in two halves at the same time: e2e runs flows.spec.ts, e2e-2 all the others.
   e2e:
     name: ${{ matrix.shard == 1 && 'e2e' || 'e2e-2' }}
     strategy:
@@ -83,9 +83,10 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
       - name: Browser tests (main flows on a local Worker)
-        run: npx playwright test --shard=${{ matrix.shard }}/2
+        run: npx playwright test ${{ matrix.shard == 1 && 'flows' || '' }}
         env:
           WRANGLER_SEND_METRICS: "false"
+          E2E_SKIP_FLOWS: ${{ matrix.shard == 2 && '1' || '' }}
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

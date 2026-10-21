@@ -6,6 +6,8 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "e2e",
+  // CI runs flows.spec.ts on one machine (`playwright test flows`) and the rest on another.
+  testIgnore: process.env.E2E_SKIP_FLOWS ? "**/flows.spec.ts" : undefined,
   workers: 1,
   fullyParallel: false,
   retries: 0,
