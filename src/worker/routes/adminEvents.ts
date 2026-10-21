@@ -15,6 +15,7 @@ import {
 } from "../billing";
 import { formatInstantZh, isDate, isTime, pacificToUtc, toPacific } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
+import { calorieReadDays } from "../calories";
 import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
 import type { Env } from "../env";
 import {
@@ -26,6 +27,7 @@ import {
   deleteEvent,
   detail,
   friendCap,
+  pastEventDays,
   friendCount,
   checkVenue,
   cleanTitle,
@@ -211,7 +213,7 @@ adminEventRoutes.post("/events", async (c) => {
     queueRoundMin: cleanRoundMin(b.queueRoundMin),
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
-    allowPast: can(actor.role, "group"),
+    pastDays: can(actor.role, "group") ? await pastEventDays(c.env) : undefined,
   });
   await audit(c.env, e.id, actorId(actor), "create", `创建活动（${e.date} ${e.location}）`);
   // Revoked while this request was on its way: the event goes to the Owner like their others did.
@@ -657,6 +659,8 @@ adminEventRoutes.get("/settings", async (c) => {
     : {};
   return c.json({
     friendCap: await friendCap(c.env),
+    pastEventDays: await pastEventDays(c.env),
+    calorieReadDays: await calorieReadDays(c.env),
     ...payment,
     siteTitle: await siteTitle(c.env),
     theme: await siteTheme(c.env),
@@ -664,6 +668,9 @@ adminEventRoutes.get("/settings", async (c) => {
     ...(await notifySettings(c.env)),
   });
 });
+
+/** 补建 and 读取卡路里 in days: up to ten years, so a stray extra digit is still caught. */
+const DAYS_SETTING_MAX = 3650;
 
 adminEventRoutes.post("/settings", async (c) => {
   const b = await readJson(c.req.raw);
@@ -676,6 +683,19 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!Number.isInteger(cap) || cap < 0 || cap > 10) throw badRequest("带朋友上限请填 0–10");
     writes.push(setSetting(c.env.DB, "friend_cap", String(cap)));
     said.push(`带朋友上限 ${cap}`);
+  }
+  if (b.pastEventDays !== undefined) {
+    const n = num(b.pastEventDays);
+    if (!Number.isInteger(n) || n < 1 || n > DAYS_SETTING_MAX) throw badRequest(`补建天数请填 1–${DAYS_SETTING_MAX}`);
+    writes.push(setSetting(c.env.DB, "past_event_days", String(n)));
+    said.push(`补建已开始的活动 ${n} 天内`);
+  }
+  if (b.calorieReadDays !== undefined) {
+    const n = num(b.calorieReadDays);
+    if (!Number.isInteger(n) || n < 1 || n > DAYS_SETTING_MAX)
+      throw badRequest(`读取卡路里天数请填 1–${DAYS_SETTING_MAX}`);
+    writes.push(setSetting(c.env.DB, "calorie_read_days", String(n)));
+    said.push(`活动开始后 ${n} 天内可以读取卡路里`);
   }
   if (b.siteTitle !== undefined) {
     const t = str(b.siteTitle).trim();

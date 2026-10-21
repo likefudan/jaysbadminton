@@ -502,6 +502,8 @@ interface GeneralSettings {
   siteTitle: string;
   showLeaderboard: boolean;
   friendCap: number;
+  pastEventDays: number;
+  calorieReadDays: number;
   venmoUsername: string;
   venmoEmail: string;
   zelleAccount: string;
@@ -517,6 +519,7 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
     <>
       <PublicPageCard base={props.base} initial={props.initial} />
       <SignupCard base={props.base} initial={props.initial} />
+      <DaysCard base={props.base} initial={props.initial} />
     </>
   );
 }
@@ -597,6 +600,53 @@ function SignupCard(props: { base: string; initial: GeneralSettings }) {
         disabled={busy}
         onClick={async () => {
           if (await run(() => api(`${props.base}/settings`, { friendCap: Number(cap) }))) setSaved(true);
+        }}
+      >
+        {saved ? "已保存" : "保存"}
+      </button>
+    </Card>
+  );
+}
+
+/** 天数: how far back an already-started event may be created, and how long 读取卡路里 stays open (Ke Li). */
+function DaysCard(props: { base: string; initial: GeneralSettings }) {
+  const [past, setPast] = useState(String(props.initial.pastEventDays));
+  const [kcal, setKcal] = useState(String(props.initial.calorieReadDays));
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  return (
+    <Card title="补建活动和卡路里">
+      <Field
+        label="可以补建多少天前开始的活动"
+        type="number"
+        value={past}
+        onInput={(v) => {
+          setPast(v);
+          setSaved(false);
+        }}
+        hint="群主和管理员新建活动时可以选已经开始的时间，最早这么多天前"
+      />
+      <Field
+        label="活动开始后多少天内可以读取卡路里"
+        type="number"
+        value={kcal}
+        onInput={(v) => {
+          setKcal(v);
+          setSaved(false);
+        }}
+      />
+      {error && <p class="error">{error}</p>}
+      <button
+        type="button"
+        class="button secondary block"
+        disabled={busy}
+        onClick={async () => {
+          // Only what changed, so 群操作记录 names just that.
+          const body = {
+            ...(past !== String(props.initial.pastEventDays) && { pastEventDays: Number(past) }),
+            ...(kcal !== String(props.initial.calorieReadDays) && { calorieReadDays: Number(kcal) }),
+          };
+          if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
         }}
       >
         {saved ? "已保存" : "保存"}
