@@ -57,16 +57,19 @@ export async function startUpload(env: Env, m: MemberRow, e: EventRow, origin: s
   };
 }
 
+/** Warm-up counts too: the Shortcut reads from this long before the start (Ke Li). */
+export const WARMUP_MINUTES = 10;
+
 /**
- * The event's time for the Shortcut: its day and HHmm numbers. Shortcuts only filters 「健康」 by
- * day and can't reliably read a time out of text, so it takes that day's samples and keeps those
- * whose start falls between the two numbers. Past midnight counts up to 23:59.
+ * The event's time for the Shortcut, as Pacific "YYYY-MM-DD HH:mm". 「健康」 only filters by whole
+ * days, so the Shortcut fetches the days around them and keeps the samples that start in between.
  */
-export function timeWindow(e: Pick<EventRow, "start_at" | "end_at">): Pick<CalorieStart, "day" | "from" | "to"> {
-  const start = toPacific(e.start_at);
-  const end = toPacific(e.end_at);
-  const hhmm = (time: string) => Number(time.replace(":", ""));
-  return { day: start.date, from: hhmm(start.time), to: end.date === start.date ? hhmm(end.time) : 2359 };
+export function timeWindow(e: Pick<EventRow, "start_at" | "end_at">): Pick<CalorieStart, "start" | "end"> {
+  const at = (p: { date: string; time: string }) => `${p.date} ${p.time}`;
+  return {
+    start: at(toPacific(new Date(Date.parse(e.start_at) - WARMUP_MINUTES * 60_000))),
+    end: at(toPacific(e.end_at)),
+  };
 }
 
 /** The Shortcut posting the number: the code is used up whether or not the number is accepted. */

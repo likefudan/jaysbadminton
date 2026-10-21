@@ -582,9 +582,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   安装快捷指令: { tw: "安裝捷徑", en: "Add the shortcut" },
   "安装链接还在准备中。": { tw: "安裝連結還在準備中。", en: "The install link isn't ready yet." },
   "已安装，开始读取": { tw: "已安裝，開始讀取", en: "Added it. Start reading" },
-  "只读这场活动时间段（{time}）的活动能量，只存一个总数，只有你自己看得到。": {
-    tw: "只讀這場活動時間段（{time}）的活動能量，只存一個總數，只有你自己看得到。",
-    en: "Only the active energy during this event ({time}) is read, and only the total is kept. Only you can see it.",
+  "只读这场活动时间段（{time}，含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。": {
+    tw: "只讀這場活動時間段（{time}，含開始前 10 分鐘熱身）的活動能量，只存一個總數，只有你自己看得到。",
+    en: "Only the active energy during this event ({time}, plus 10 minutes of warm-up before it) is read, and only the total is kept. Only you can see it.",
   },
   我的卡路里: { tw: "我的卡路里", en: "My calories" },
   "{year} 年": { tw: "{year} 年", en: "{year}" },

@@ -65,7 +65,7 @@ export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => vo
       /* private mode: the guide just shows again next time */
     }
     setWaiting(true);
-    const input = JSON.stringify({ day: s.day, from: s.from, to: s.to, upload: s.upload });
+    const input = JSON.stringify({ start: s.start, end: s.end, upload: s.upload });
     location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(SHORTCUT_NAME)}&input=text&text=${encodeURIComponent(input)}`;
   }
 
@@ -159,7 +159,9 @@ function CalorieGuide(props: { window: string; onRead: () => void; onClose: () =
         <p class="kcal-privacy">
           <FlameIcon size={16} />
           <span>
-            {t("只读这场活动时间段（{time}）的活动能量，只存一个总数，只有你自己看得到。", { time: props.window })}
+            {t("只读这场活动时间段（{time}，含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。", {
+              time: props.window,
+            })}
           </span>
         </p>
       </div>
