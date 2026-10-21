@@ -266,14 +266,14 @@ test("public pages show the headcount and a link preview, never names", async ({
   expect(html).toContain('/og-image.jpg"');
   expect(html).not.toContain("小明");
 
-  // The public event page has one 加入日历 button in its action row, with the same menu; the .ics downloads too.
+  // The public event page has the new card: 加入日历 as the calendar icon in its corner, with the same menu; the .ics downloads too.
   await page.goto(`/e/${eventCode}`);
   const download = page.waitForEvent("download");
   await page.locator(".card").getByRole("button", { name: "加入日历" }).click();
   await page.getByRole("menuitem", { name: "Apple 日历 / Outlook" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.ics$/);
 
-  // 分享名片 in the event card's action row, next to the calendar buttons: an image with the logo, QR code and link, to long-press.
+  // 分享名片 as the share icon next to it: an image with the logo, QR code and link, to long-press.
   await expect(page.getByRole("button", { name: "生成分享名片" })).toHaveCount(0); // the old button under the card is gone
   await page.locator(".card").getByRole("button", { name: "分享名片", exact: true }).click();
   const card = page.getByRole("dialog", { name: "分享名片" });

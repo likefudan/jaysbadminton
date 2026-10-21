@@ -97,7 +97,7 @@ function Leaders(props: { board: Leaderboard }) {
 export function Home() {
   const [home] = useApi<HomeResponse>("/api/public/home");
   const member = useMemberSession();
-  const cta = member === "member" || member === "pending" ? t("报名") : t("登录 / 注册");
+  const cta = t("报名");
   return (
     <Page title={useSiteTitle()} bare>
       <Load result={home}>
@@ -113,18 +113,16 @@ export function Home() {
                   <>
                     {/* Signed out: nothing on the card, one 登录 / 注册 for the page under it (Ke Li). */}
                     <NextEvent e={next} cta={member === "pending" ? cta : null} />
-                    {member === "none" && (
-                      <a class="button block" href="/me">
-                        {cta}
-                      </a>
-                    )}
                   </>
                 )
               ) : (
                 <>
-                  <a class="button block" href="/me">
-                    {cta}
-                  </a>
+                  {/* Signed out, 登录 / 注册 is in the top bar already. */}
+                  {(member === "member" || member === "pending") && (
+                    <a class="button block" href="/me">
+                      {cta}
+                    </a>
+                  )}
                   <Empty>{t("暂时没有活动")}</Empty>
                 </>
               )}

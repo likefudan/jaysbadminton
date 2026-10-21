@@ -411,10 +411,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Saving it empty goes back to your Google email (if you have one).",
   },
   "登录 / 注册": { tw: "登入 / 註冊", en: "Sign in / Register" },
-  "登录后即可报名；新朋友请先注册入群。": {
-    tw: "登入後即可報名；新朋友請先註冊入群。",
-    en: "Sign in to sign up. New friends, please register to join the group first.",
-  },
   "登录后报名、查看活动和账单。": {
     tw: "登入後報名、查看活動和帳單。",
     en: "Sign in to sign up and see events and bills.",

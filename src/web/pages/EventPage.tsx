@@ -1,9 +1,9 @@
 import type { MyEventResponse, PublicEvent } from "../../shared/types";
-import { fmtDate, t } from "../i18n";
-import { Card, Load, Page } from "../components";
-import { EventInfo } from "../events";
+import { fmtDate, t, tx } from "../i18n";
+import { Load, Page } from "../components";
+import { EventHero, mapLink, publicStatus } from "../events";
 import { useApi, useMemberSession } from "../hooks";
-import { EventActions } from "../ShareCard";
+import { CardCornerIcons } from "../ShareCard";
 import { SignupCard } from "./Member";
 
 /**
@@ -21,19 +21,15 @@ export function EventPage(props: { code?: string }) {
             <MemberView e={e} />
           ) : (
             <>
-              <Card>
-                <EventInfo e={e} publicView />
-                <EventActions e={e} />
-              </Card>
-              {(member === "none" || member === "loading") && (
-                <p class="muted small">{t("登录后即可报名；新朋友请先注册入群。")}</p>
-              )}
+              <PublicCard e={e} />
               {member === "pending" && <p class="muted small">{t("你的入群申请正在等待审核，通过后就能报名。")}</p>}
             </>
           )}
-          <a class="button block" href="/me">
-            {member === "member" || member === "pending" ? t("我的活动") : t("登录 / 注册")}
-          </a>
+          {(member === "member" || member === "pending") && (
+            <a class="button block" href="/me">
+              {t("我的活动")}
+            </a>
+          )}
           <a class="button secondary block" href="/">
             {t("所有活动")}
           </a>
@@ -52,10 +48,26 @@ function MemberView(props: { e: PublicEvent }) {
   const mine = res.state === "ok" ? res.data.event : null;
   if (res.state === "loading") return null;
   if (res.state === "ok" && mine) return <SignupCard base="/api/m/session" e={mine} onChange={reload} />;
+  return <PublicCard e={props.e} />;
+}
+
+/** The event in the same card as 我的活动 (coloured top, date, place), with only what anyone may see. */
+function PublicCard(props: { e: PublicEvent }) {
+  const e = props.e;
   return (
-    <Card>
-      <EventInfo e={props.e} publicView />
-      <EventActions e={props.e} />
-    </Card>
+    <section class={`card ev-card tone-${e.status === "open" ? "soft" : "plain"}`}>
+      <div class="ev-head">
+        <EventHero e={e} status={publicStatus(e.status)} action={<CardCornerIcons e={e} calendar />} />
+      </div>
+      <div class="ev-main">
+        {e.address && (
+          <a class="ev-meta address" href={mapLink(e.address)} target="_blank" rel="noreferrer">
+            {e.address} ↗
+          </a>
+        )}
+        {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
+        <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>
+      </div>
+    </section>
   );
 }

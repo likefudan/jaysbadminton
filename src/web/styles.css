@@ -4127,3 +4127,10 @@ ul.audit li:first-child {
   margin-top: 2px;
   font-size: 15px;
 }
+
+/* Signed out: the one 登录 / 注册, in the top bar where the avatar goes once signed in (Ke Li). */
+.signin-pill {
+  background: var(--acc);
+  border-color: transparent;
+  color: #fff;
+}
