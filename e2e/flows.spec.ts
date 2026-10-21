@@ -301,6 +301,9 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await page.goto("/");
   await expect(page.locator(".next-card .status")).toHaveText("我已报名"); // the home card too
   await expect(page.locator(".next-cta")).toHaveText("查看 →"); // already on it: nothing left to sign up for
+  // The button and the card itself open the same page: the event's own card.
+  await expect(page.locator(".next-cta")).toHaveAttribute("href", `/e/${eventCode}`);
+  await expect(page.locator(".next-event")).toHaveAttribute("href", `/e/${eventCode}`);
   await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(0);
 
   // The Owner binds their Google account in 设置, then gets in with it alone.

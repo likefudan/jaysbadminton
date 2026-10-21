@@ -135,8 +135,9 @@ memberRoutes.get("/:token/events", async (c) => {
 
 /**
  * One event as it shows on 我的活动, for its own page (/e/:code): the same card, roster and bill,
- * history included (an event over and paid up still shows who came and what they paid). null when
- * it isn't theirs to see that way (not on it and not open, or cancelled): the page shows the public card.
+ * history included (an event over and paid up still shows who came and what they paid). One they
+ * are not on still gets the card (no roster, no bill, 你没有报名), so the page keeps the new look.
+ * null only when cancelled: the page shows the public card.
  */
 memberRoutes.get("/:token/events/:id", async (c) => {
   const m = c.get("member");
@@ -146,7 +147,7 @@ memberRoutes.get("/:token/events/:id", async (c) => {
   const list =
     row.status === "cancelled"
       ? []
-      : await myEvents(c.env, m, [row], await myRows(c.env, m, id), await friendCap(c.env));
+      : await myEvents(c.env, m, [row], await myRows(c.env, m, id), await friendCap(c.env), true);
   return c.json<MyEventResponse>({ event: list[0] ?? null });
 });
 
@@ -177,13 +178,17 @@ async function myRows(env: Env, m: MemberRow, eventId?: number) {
   };
 }
 
-/** The 我的活动 cards for these events, in order; events they are not on and can't join are left out. */
+/**
+ * The 我的活动 cards for these events, in order; events they are not on and can't join are left out,
+ * unless `all` (an event's own page, which shows its card either way).
+ */
 async function myEvents(
   env: Env,
   m: MemberRow,
   results: EventRow[],
   mine: MyRows,
   generalCap: number,
+  all = false,
 ): Promise<MyEvent[]> {
   // Where each event's money goes: its payee's accounts, looked up once per payee.
   const payees = new Map<string | null, Promise<{ name: string; venmo: string; zelle: string }>>();
@@ -231,7 +236,7 @@ async function myEvents(
     const pay = mine.payOf(e.id);
     const selfOn = rows.some((r) => r.friend_index === 0);
     // Events they are not on are only offered while open, and never to a disabled member.
-    if (rows.length === 0 && !pay && (e.status !== "open" || m.status !== "active")) continue;
+    if (!all && rows.length === 0 && !pay && (e.status !== "open" || m.status !== "active")) continue;
     const settled = e.status === "finalized" || e.status === "settled";
     // One roster read serves both the bill breakdown and the list of who is coming.
     const people = rows.length > 0 || (pay && settled) ? await roster(env, e.id) : [];
