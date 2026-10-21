@@ -1,33 +1,44 @@
-# 卡路里快捷指令「羽毛球卡路里」
+# Calories Shortcut: "ReadBadmintonCalories"
 
-网页读不到苹果「健康」，所以活动卡片上的「读取」会打开这个快捷指令。它是通用的，不含任何账号信息，谁都可以装。
-网站用 `shortcuts://run-shortcut?name=羽毛球卡路里&input=text&text=…` 运行它，传进来的文本是：
+Web pages can't read Apple Health, so the 读取 (Read) button on an event card runs this Shortcut.
+The Shortcut is generic: it holds no account or secret, so anyone can install it.
+The site runs it with `shortcuts://run-shortcut?name=ReadBadmintonCalories&input=text&text=…`, and the text it passes in is:
 
 ```json
-{ "start": "2026-10-21T03:30:00.000Z", "end": "2026-10-21T05:30:00.000Z", "upload": "https://…/api/calories/<一次性码>" }
+{ "start": "2026-10-21T03:30:00.000Z", "end": "2026-10-21T05:30:00.000Z", "upload": "https://…/api/calories/<one-time code>" }
 ```
 
-`upload` 只能用一次，15 分钟内有效，只能写这一位成员这一场活动的卡路里（`POST`，JSON `{"kcal": 432}`，0–3000）。
+`upload` works once, for 15 minutes, and only writes this member's calories for this one event
+(`POST` with JSON `{"kcal": 432}`, 0–3000).
 
-## 在 iPhone 上建一次（群主做，建好后分享 iCloud 链接）
+## Build it once on an iPhone (the Owner does this, then shares the iCloud link)
 
-打开「快捷指令」App，新建快捷指令，名字必须是 **羽毛球卡路里**（网站按名字运行它）。依次添加：
+Open the Shortcuts app and create a new shortcut. Its name must be exactly **ReadBadmintonCalories**:
+the site runs it by name. Add these actions in order:
 
-1. **获取词典**（「从输入获取词典」）：输入选「快捷指令输入」。
-2. **获取词典值**：键 `start`。再加一个 **获取日期**（「从输入获取日期」），输入选上一步的「词典值」，改名为「开始」。
-3. 同样对键 `end` 做一遍，得到「结束」。
-4. 再加一个 **获取词典值**：键 `upload`，改名为「上传地址」（输入选第 1 步的「词典」）。
-5. **查找健康样本**：类型「活动能量」，加筛选「开始日期 在 开始 和 结束 之间」，单位千卡。
-6. **计算统计数据**：「总和」，输入选「健康样本」。
-7. **四舍五入**：到个位。
-8. **获取 URL 内容**：URL 选「上传地址」，方法 `POST`，请求体「JSON」，加一个「数字」字段 `kcal`，值选「四舍五入后的数字」。
-9. **显示通知**：「已记录 〔四舍五入后的数字〕 千卡，回到网站刷新即可看到」。
+1. **Get Dictionary from Input**: input is "Shortcut Input".
+2. **Get Dictionary Value**: key `start`. Then **Get Dates from Input** on that "Dictionary Value";
+   rename the result to "Start".
+3. Do the same for key `end` to get "End".
+4. Another **Get Dictionary Value** for key `upload` (from the "Dictionary" of step 1); rename it to "Upload URL".
+5. **Find Health Samples**: type "Active Energy", add the filter "Start Date is between Start and End", unit kcal.
+6. **Calculate Statistics**: "Sum" of "Health Samples".
+7. **Round Number**: to Ones place.
+8. **Get Contents of URL**: URL is "Upload URL", method `POST`, request body "JSON",
+   add a "Number" field `kcal` with the value "Rounded Number".
+9. **Show Notification**: "Recorded 〔Rounded Number〕 kcal. Go back to the site to see it."
 
-在快捷指令的设置（ⓘ）里打开「在共享表单中显示」不需要；只要保证它能接收「文本」输入。
-建好后：长按快捷指令 → 共享 → 拷贝 iCloud 链接，把链接填进 `src/shared/calories.ts` 的 `SHORTCUT_INSTALL_URL`。
+In the shortcut's details (ⓘ), make sure it accepts "Text" as input; nothing else needs to be turned on.
 
-## 实测时核对
+When it's done: long-press the shortcut → Share → Copy iCloud Link, and put the link into
+`SHORTCUT_INSTALL_URL` in `src/shared/calories.ts`.
 
-- 第一次运行会问能否读取「活动能量」，选允许。
-- 用一场已经结束的活动试，跟「健康」App 里「活动能量」同一时间段的数比一比。iPhone 和 Apple Watch 都会记录活动能量，「查找健康样本」拿到的是原始样本，两个来源相加可能偏大。偏大的话，在第 5 步再加一个筛选「来源 是 〔你的 Apple Watch〕」；这样做出来的快捷指令只适合自己用，分享前要再想办法（比如按小时分组）。
-- 没戴手表的人只有 iPhone 的数据，会偏小很多。
+## What to check when testing
+
+- The first run asks for permission to read "Active Energy": tap Allow.
+- Try it on an event that has already ended, and compare the number with Active Energy for the same
+  time span in the Health app. Both iPhone and Apple Watch record active energy, and Find Health
+  Samples returns the raw samples, so adding both sources may count twice. If the number is too high,
+  add the filter "Source is 〔your Apple Watch〕" in step 5. A shortcut built that way only fits your
+  own devices, so it needs another approach (for example grouping by hour) before it's shared.
+- People without an Apple Watch only have the iPhone's data, which is much lower.
