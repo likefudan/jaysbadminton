@@ -38,6 +38,7 @@ const queue = {
     "Lily",
     "Tom",
     "Dafei",
+    "arthur",
   ].map((username, i) => ({
     id: i + 1,
     username,
@@ -161,11 +162,16 @@ test("a court opens to change its time, accounts or status, or to remove it", as
   await expect(sheet).toContainText("8 号场");
   await expect(sheet).toContainText("Ke");
   await expect(sheet.getByRole("button", { name: "排第 2 组" })).toHaveClass(/on/);
-  await expect(sheet.getByLabel("还要等几分钟上场")).toHaveValue(/^4[89]$/);
+  const wait = sheet.getByRole("spinbutton", { name: "还要等几分钟" });
+  await expect(wait).toHaveValue(/^4[89]$/);
   await page.screenshot({ path: test.info().outputPath("court-queue-edit.png") });
 
-  await sheet.getByLabel("还要等几分钟上场").fill("30");
-  await sheet.getByRole("button", { name: "−5" }).click();
+  // Typed, or dragged on the slider beside the box.
+  await wait.fill("30");
+  const slider = sheet.getByRole("slider", { name: "还要等几分钟" });
+  await expect(slider).toHaveAttribute("max", "90");
+  await slider.fill("25");
+  await expect(wait).toHaveValue("25");
   await sheet.getByRole("button", { name: "Mark" }).click();
   await sheet.getByRole("button", { name: "Keoung" }).click();
   await sheet.getByRole("button", { name: "保存" }).click();
@@ -196,11 +202,23 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   await expect(list).toBeHidden();
   await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("52");
   await sheet.getByRole("button", { name: "排第 3 组" }).click();
-  await sheet.getByLabel("这片场正在打的那组还剩几分钟").fill("10");
+  await sheet.getByRole("spinbutton", { name: "正在打的还剩几分钟" }).fill("10");
   await expect(sheet).toContainText("大约 100 分钟后上场");
-  // Free accounts come before those already on a court, which say where; a search narrows them.
+  // 场号 and the status share a row; the minutes box has its slider beside it.
+  const box = async (l: ReturnType<typeof sheet.getByRole>) => (await l.boundingBox())!;
+  const no = await box(sheet.getByRole("spinbutton", { name: "场号" }));
+  const status = await box(sheet.getByRole("button", { name: "排第 3 组" }));
+  expect(status.x).toBeGreaterThan(no.x + no.width);
+  expect(Math.abs(no.y + no.height / 2 - (status.y + status.height / 2))).toBeLessThan(6);
+  const min = await box(sheet.getByRole("spinbutton", { name: "正在打的还剩几分钟" }));
+  const drag = await box(sheet.getByRole("slider", { name: "正在打的还剩几分钟" }));
+  expect(drag.x).toBeGreaterThan(min.x + min.width);
+  expect(Math.abs(min.y + min.height / 2 - (drag.y + drag.height / 2))).toBeLessThan(6);
+  // Accounts in alphabetical order, whatever the case; those on a court say where; a search narrows them.
   const chips = sheet.locator(".cq-chips .chip");
-  await expect(chips.first()).toHaveText("Lily");
+  await expect(chips.nth(0)).toHaveText("Am16号");
+  await expect(chips.nth(1)).toHaveText("arthur");
+  await expect(chips.nth(2)).toHaveText("Ben7号");
   await expect(sheet.getByRole("button", { name: "Mark7号" })).toHaveClass(/cq-busy/);
   await sheet.getByLabel("搜索账号").fill("chr");
   await expect(chips).toHaveText(["Chris6号"]);
@@ -211,7 +229,7 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   await expect(sheet.locator(".cq-picked .chip small")).toHaveText(["1010"]);
   await expect(chips).toHaveCount(0);
   await sheet.getByLabel("搜索账号").fill("");
-  await expect(chips.first()).toHaveText("Lily");
+  await expect(chips.first()).toHaveText("Am16号");
   await page.screenshot({ path: test.info().outputPath("court-queue-new.png") });
   await sheet.getByRole("button", { name: "保存" }).click();
   expect(posts.at(-1)?.body).toEqual({ court: 52, position: 3, minutes: 100, accounts: ["Chris"] });
@@ -219,9 +237,9 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
 
 test("hall accounts: everyone's are listed, yours can be removed, and more added", async ({ page }) => {
   const posts = await setUp(page);
-  await page.getByRole("button", { name: "球馆账号（17）" }).click();
+  await page.getByRole("button", { name: "球馆账号（18）" }).click();
   const sheet = page.getByRole("dialog");
-  await expect(sheet.locator(".cq-account").first()).toHaveText("Xiayw · 10001号");
+  await expect(sheet.locator(".cq-account").first()).toHaveText("Am · 100916号"); // alphabetical, whatever the case
   await expect(sheet.locator("li", { hasText: "Xiayw" })).toContainText("Ke 提供");
   await expect(sheet.locator("li", { hasText: "Chris" }).getByRole("button", { name: "删除" })).toHaveCount(0);
   // Hall usernames and passwords are often lowercase: phones mustn't capitalise them.
@@ -282,10 +300,10 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
   }, sent!.image);
   expect(Math.max(...size)).toBeLessThanOrEqual(1600);
 
-  await expect(sheet).toContainText("找到 2 片场，逐个核对后保存");
+  await expect(sheet).toContainText("找到 2 片场，请注意逐个核对后保存");
   await expect(sheet).toContainText("17号场在照片上看不清");
   await expect(sheet.getByRole("button", { name: "在打", exact: true })).toHaveClass(/on/);
-  await expect(sheet.getByLabel("还剩几分钟")).toHaveValue("25");
+  await expect(sheet.getByRole("spinbutton", { name: "还剩几分钟", exact: true })).toHaveValue("25");
   // The unsure account is yellow, with a note to check it.
   await expect(sheet.locator(".cq-picked .chip .cq-pick-name")).toHaveText(["✓ Wenxi ✕", "✓ Am ✕"]);
   await expect(sheet.locator(".cq-picked .chip").nth(1)).toHaveClass(/cq-unsure/);
@@ -306,7 +324,7 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
   await expect(sheet).toContainText("照片上没读出剩余时间");
   await expect(sheet.locator(".cq-picked .chip.cq-unsure")).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("court-queue-photo-next.png") });
-  await sheet.getByLabel("这片场正在打的那组还剩几分钟").fill("10");
+  await sheet.getByRole("spinbutton", { name: "正在打的还剩几分钟" }).fill("10");
   await expect(sheet.locator(".cq-minutes")).not.toHaveClass(/cq-unsure/);
   await sheet.getByRole("button", { name: "保存" }).click();
   await expect(sheet).toBeHidden();

@@ -664,11 +664,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "删除这组排队（不排了）？": { tw: "刪除這組排隊（不排了）？", en: "Remove this queue spot (no longer waiting)?" },
   还剩几分钟: { tw: "還剩幾分鐘", en: "Minutes left" },
-  这片场正在打的那组还剩几分钟: {
-    tw: "這片場正在打的那組還剩幾分鐘",
-    en: "Minutes left for the group now on this court",
-  },
-  还要等几分钟上场: { tw: "還要等幾分鐘上場", en: "Minutes until we're on" },
+  "排{k}": { tw: "排{k}", en: "Q{k}" },
+  正在打的还剩几分钟: { tw: "正在打的還剩幾分鐘", en: "Current group: min left" },
+  还要等几分钟: { tw: "還要等幾分鐘", en: "Minutes to wait" },
   "{n} 号场": { tw: "{n} 號場", en: "Court {n}" },
   登记球场: { tw: "登記球場", en: "Add court" },
   "{name} {time} 登记": { tw: "{name} {time} 登記", en: "Added by {name} at {time}" },
@@ -736,9 +734,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   搜索账号: { tw: "搜尋帳號", en: "Search accounts" },
   "📷 拍照登记": { tw: "📷 拍照登記", en: "📷 Read from photo" },
   "识别中…": { tw: "辨識中…", en: "Reading…" },
-  "拍一张球馆电脑的排队屏幕，自动填好下面的场号、时间和账号。": {
-    tw: "拍一張球館電腦的排隊螢幕，自動填好下面的場號、時間和帳號。",
-    en: "Take a photo of the hall's queue screen to fill in the court, time and accounts below.",
+  "拍排队屏幕，自动填好场号、时间和账号": {
+    tw: "拍排隊螢幕，自動填好場號、時間和帳號",
+    en: "Snap the queue screen to fill this in",
   },
   "这张照片打不开，请重新拍一张": {
     tw: "這張照片打不開，請重新拍一張",
@@ -749,11 +747,14 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "照片上沒有找到我們的帳號。可以重拍一張，或者手動填寫。",
     en: "None of our accounts were found in the photo. Take another, or fill it in by hand.",
   },
-  "找到 {n} 片场，逐个核对后保存": {
-    tw: "找到 {n} 片場，逐個核對後儲存",
-    en: "Found {n} courts. Check and save each one",
+  "找到 {n} 片场，请注意逐个核对后保存": {
+    tw: "找到 {n} 片場，請注意逐個核對後儲存",
+    en: "Found {n} courts. Please check each one before saving",
   },
-  "找到 1 片场，核对后保存": { tw: "找到 1 片場，核對後儲存", en: "Found 1 court. Check it and save" },
+  "找到 1 片场，请注意核对后保存": {
+    tw: "找到 1 片場，請注意核對後儲存",
+    en: "Found 1 court. Please check it before saving",
+  },
   "{n}号场在照片上看不清，有我们的人的话请手动登记。": {
     tw: "{n}號場在照片上看不清，有我們的人的話請手動登記。",
     en: "Court {n} wasn't readable in the photo. If we're on it, add it by hand.",

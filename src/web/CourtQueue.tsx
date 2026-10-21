@@ -306,10 +306,11 @@ function CourtSheet(props: {
     if (await run(() => api(`${path}/${c!.id}/remove`, {}))) props.onDone();
   }
 
-  const label =
-    position === 0 ? t("还剩几分钟") : fromScreen ? t("这片场正在打的那组还剩几分钟") : t("还要等几分钟上场");
+  const label = position === 0 ? t("还剩几分钟") : fromScreen ? t("正在打的还剩几分钟") : t("还要等几分钟");
+  // The slider reaches one round for a court's time left, else the whole wait for that group.
+  const sliderMax = Math.max(position === 0 || fromScreen ? props.q.roundMin : position * props.q.roundMin, n || 0);
   return (
-    <SheetFrame title={c ? t("{n} 号场", { n: c.court }) : t("登记球场")} label={t("登记球场")} onClose={props.onClose}>
+    <SheetFrame title={c ? t("{n} 号场", { n: c.court }) : null} label={t("登记球场")} onClose={props.onClose}>
       {c && (
         <p class="muted small">
           {c.updatedAt === c.createdAt
@@ -334,21 +335,29 @@ function CourtSheet(props: {
           onPick={(k) => fill(photo.result.courts[k]!, k)}
         />
       )}
-      <CourtNumber value={court} onChange={setCourt} q={props.q} now={props.now} except={c?.id ?? null} />
-      <p class="sheet-label">{t("状态")}</p>
-      <div class="seg">
-        {Array.from({ length: QUEUE_MAX_POSITION + 1 }, (_, k) => (
-          <button type="button" key={k} class={position === k ? "on" : ""} onClick={() => setPosition(k)}>
-            {k === 0 ? t("在打") : t("排第 {k} 组", { k })}
-          </button>
-        ))}
+      <div class="cq-row">
+        <CourtNumber value={court} onChange={setCourt} q={props.q} now={props.now} except={c?.id ?? null} />
+        <div>
+          <p class="sheet-label">{t("状态")}</p>
+          <div class="seg cq-status">
+            {Array.from({ length: QUEUE_MAX_POSITION + 1 }, (_, k) => (
+              <button
+                type="button"
+                key={k}
+                class={position === k ? "on" : ""}
+                aria-label={k === 0 ? t("在打") : t("排第 {k} 组", { k })}
+                onClick={() => setPosition(k)}
+              >
+                {k === 0 ? t("在打") : t("排{k}", { k })}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       <p class="sheet-label">{label}</p>
+      {/* Typed in the box, or dragged on the slider right beside it. */}
       <div class={noMinutes && minutes === "" ? "cq-minutes cq-unsure" : "cq-minutes"}>
-        <button type="button" onClick={() => setMinutes(String(Math.max(0, (n || 0) - 5)))}>
-          −5
-        </button>
-        <label>
+        <label class="cq-minutes-box">
           <input
             type="number"
             inputMode="numeric"
@@ -359,9 +368,16 @@ function CourtSheet(props: {
           />
           <span>{t("分钟")}</span>
         </label>
-        <button type="button" onClick={() => setMinutes(String((n || 0) + 5))}>
-          +5
-        </button>
+        <input
+          class="cq-slider"
+          type="range"
+          min={0}
+          max={sliderMax}
+          step={1}
+          value={n || 0}
+          aria-label={label}
+          onInput={(ev) => setMinutes((ev.target as HTMLInputElement).value)}
+        />
       </div>
       {noMinutes && minutes === "" && <p class="cq-unsure-note small">{t("照片上没读出剩余时间，请看屏幕填写。")}</p>}
       <p class="muted small">
@@ -444,7 +460,7 @@ function PhotoButton(props: { path: string; disabled: boolean; onRead: (url: str
         <input type="file" accept="image/*" disabled={busy || props.disabled} onChange={pick} />
         {busy ? t("识别中…") : t("📷 拍照登记")}
       </label>
-      {!busy && !error && <p class="muted small">{t("拍一张球馆电脑的排队屏幕，自动填好下面的场号、时间和账号。")}</p>}
+      {!busy && !error && <p class="muted small">{t("拍排队屏幕，自动填好场号、时间和账号")}</p>}
       {error && <p class="error">{error}</p>}
     </div>
   );
@@ -470,7 +486,9 @@ function PhotoFound(props: {
       ) : (
         <>
           <p class="sheet-label">
-            {found.length > 1 ? t("找到 {n} 片场，逐个核对后保存", { n: found.length }) : t("找到 1 片场，核对后保存")}
+            {found.length > 1
+              ? t("找到 {n} 片场，请注意逐个核对后保存", { n: found.length })
+              : t("找到 1 片场，请注意核对后保存")}
           </p>
           {found.length > 1 && (
             <div class="chips cq-found-list">
@@ -561,10 +579,14 @@ function Search(props: { value: string; onInput: (v: string) => void }) {
 
 const matches = (name: string, query: string) => name.toLowerCase().includes(query.trim().toLowerCase());
 
+/** Accounts in alphabetical order, ignoring case (Ke Li). */
+const byName = (a: { username: string }, b: { username: string }) =>
+  a.username.localeCompare(b.username, "en", { sensitivity: "base" });
+
 /**
- * The group's accounts: the picked ones in their own highlighted row on top, then the free ones,
- * then those already on another court (marked with it), so with thirty or more accounts the likely
- * ones are near the top.
+ * The group's accounts: the picked ones in their own highlighted row on top, then all the others
+ * in alphabetical order (those already on another court dimmed and marked with it), in a box that
+ * scrolls when there are many.
  */
 function AccountPicker(props: {
   q: QueueInfo;
@@ -577,10 +599,9 @@ function AccountPicker(props: {
 }) {
   const [query, setQuery] = useState("");
   const busy = busyAccounts(props.q, props.now, props.except);
-  const rank = (name: string) => (busy.has(name.toLowerCase()) ? 1 : 0);
   const list = props.q.accounts
     .filter((a) => !props.picked.includes(a.username) && matches(a.username, query))
-    .sort((a, b) => rank(a.username) - rank(b.username));
+    .sort(byName);
   if (props.q.accounts.length === 0) return null;
   return (
     <>
@@ -635,7 +656,7 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
   const { busy, error, run } = useAction();
   const path = `${props.base}/events/${props.e.id}/queue/accounts`;
   const inUse = busyAccounts(props.q, Date.now(), null);
-  const shown = props.q.accounts.filter((a) => matches(a.username, query));
+  const shown = props.q.accounts.filter((a) => matches(a.username, query)).sort(byName);
   // The list on screen follows what the card last fetched, so it updates as accounts come and go.
   async function add() {
     if (await run(() => api(path, { username, password }))) {
