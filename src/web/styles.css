@@ -4179,3 +4179,22 @@ ul.audit li:first-child {
   border-color: transparent;
   color: #fff;
 }
+
+/* 批量添加: 添加 and 批量添加 side by side, then the paste box and what it will do. */
+.cq-add-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+.cq-batch {
+  margin: 10px 0 4px;
+}
+.cq-batch textarea {
+  font-family: var(--mono);
+  font-size: 14px;
+}
+.cq-batch-preview p {
+  margin: 4px 0;
+  word-break: break-word;
+}

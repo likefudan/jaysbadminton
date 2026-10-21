@@ -35,7 +35,7 @@ import { developerMember } from "../developer";
 import { pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
 import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
-import { addAccount, queueInfo, queueLive, removeAccount, removeCourt, saveCourt } from "../courtQueue";
+import { addAccount, addAccounts, queueInfo, queueLive, removeAccount, removeCourt, saveCourt } from "../courtQueue";
 
 type Vars = { member: MemberRow };
 export const memberRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -344,6 +344,11 @@ memberRoutes.post("/:token/events/:id/queue/accounts", async (c) => {
   const { e, m } = await queueEventFor(c, c.req.param("id"));
   await addAccount(c.env, e, m.id, await readJson(c.req.raw));
   return c.json({ ok: true });
+});
+
+memberRoutes.post("/:token/events/:id/queue/accounts/batch", async (c) => {
+  const { e, m } = await queueEventFor(c, c.req.param("id"));
+  return c.json(await addAccounts(c.env, e, m.id, await readJson(c.req.raw)));
 });
 
 memberRoutes.post("/:token/events/:id/queue/accounts/:aid/remove", async (c) => {

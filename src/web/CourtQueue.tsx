@@ -11,6 +11,7 @@ import {
   QUEUE_MAX_POSITION,
   QUEUE_SOON_MIN,
   type QueueCourt,
+  parseAccountList,
   type QueueInfo,
   queueWait,
 } from "../shared/courtQueue";
@@ -653,6 +654,7 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [query, setQuery] = useState("");
+  const [batch, setBatch] = useState(false);
   const { busy, error, run } = useAction();
   const path = `${props.base}/events/${props.e.id}/queue/accounts`;
   const inUse = busyAccounts(props.q, Date.now(), null);
@@ -682,9 +684,15 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
         <Field label={t("密码")} value={password} onInput={setPassword} autocomplete="off" verbatim />
       </div>
       {error && <p class="error">{error}</p>}
-      <button type="button" class="button block" disabled={busy || !username.trim()} onClick={add}>
-        {t("添加")}
-      </button>
+      <div class="cq-add-buttons">
+        <button type="button" class="button" disabled={busy || !username.trim()} onClick={add}>
+          {t("添加")}
+        </button>
+        <button type="button" class="button secondary" aria-expanded={batch} onClick={() => setBatch(!batch)}>
+          {t("批量添加")}
+        </button>
+      </div>
+      {batch && <BatchAdd path={`${path}/batch`} q={props.q} onDone={props.onChange} />}
       {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
       {shown.length > 0 && (
         <ul class="cq-accounts">
@@ -710,5 +718,73 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
         </ul>
       )}
     </SheetFrame>
+  );
+}
+
+/**
+ * 批量添加: paste a numbered list ("1. Cassie lion3", one account per line, a group note above
+ * is skipped). It is read here exactly as typed, and the preview says what will be added, what is
+ * already on the event and which lines couldn't be read, before anything is saved.
+ */
+function BatchAdd(props: { path: string; q: QueueInfo; onDone: () => void }) {
+  const [text, setText] = useState("");
+  const [result, setResult] = useState<{ added: number; skipped: string[] } | null>(null);
+  const { busy, error, run } = useAction();
+  const { accounts, bad } = parseAccountList(text);
+  const have = new Set(props.q.accounts.map((a) => a.username.toLowerCase()));
+  const fresh = accounts.filter((a) => !have.has(a.username.toLowerCase()));
+  const dup = accounts.filter((a) => have.has(a.username.toLowerCase()));
+  async function save() {
+    const r = await run(() => api<{ added: number; skipped: string[] }>(props.path, { accounts: fresh }));
+    if (r) {
+      setResult(r);
+      setText("");
+      props.onDone();
+    }
+  }
+  return (
+    <div class="cq-batch">
+      <label class="field">
+        <span>{t("粘贴账号列表，每行「编号. 用户名 密码」")}</span>
+        <textarea
+          rows={6}
+          value={text}
+          placeholder={"1. Alice cat12\n2. bob dog7"}
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck={false}
+          onInput={(ev) => {
+            setText((ev.target as HTMLTextAreaElement).value);
+            setResult(null);
+          }}
+        />
+      </label>
+      {text.trim() && (
+        <div class="cq-batch-preview">
+          <p>
+            <strong>{t("会添加 {n} 个", { n: fresh.length })}</strong>
+            {fresh.length > 0 && <span class="muted small"> {fresh.map((a) => a.username).join("、")}</span>}
+          </p>
+          {dup.length > 0 && (
+            <p class="muted small">
+              {t("已经有了，跳过 {n} 个：{names}", { n: dup.length, names: dup.map((a) => a.username).join("、") })}
+            </p>
+          )}
+          {bad.length > 0 && (
+            <div class="cq-unsure-note small">
+              {t("这些行看不懂，没有添加：")}
+              {bad.map((line) => (
+                <div key={line}>{line}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {result && <p class="muted small">{t("已添加 {n} 个账号", { n: result.added })}</p>}
+      {error && <p class="error">{error}</p>}
+      <button type="button" class="button block" disabled={busy || fresh.length === 0} onClick={save}>
+        {t("添加 {n} 个账号", { n: fresh.length })}
+      </button>
+    </div>
   );
 }

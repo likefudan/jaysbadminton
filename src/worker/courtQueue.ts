@@ -15,7 +15,7 @@ import { badRequest, HttpError } from "./http";
 
 /** Courts and accounts stay on the card this long after the event ends, then the part goes away. */
 const AFTER_END_MS = 3 * 3600_000;
-const ACCOUNTS_MAX = 60;
+const ACCOUNTS_MAX = 100;
 const COURTS_MAX = 40;
 const FIELD_MAX = 30;
 
@@ -108,6 +108,53 @@ export async function addAccount(env: Env, e: EventRow, memberId: string, body: 
     .bind(e.id, memberId, username, password, now())
     .run();
   if (!res.meta.changes) throw badRequest(`账号 ${username} 已经有人填过了`);
+}
+
+/**
+ * 批量添加: several accounts at once, as parsed on the phone from a pasted list. Usernames already
+ * on the event (any case) are skipped and named back, not overwritten.
+ */
+export async function addAccounts(
+  env: Env,
+  e: EventRow,
+  memberId: string,
+  body: Record<string, unknown>,
+): Promise<{ added: number; skipped: string[] }> {
+  const list = Array.isArray(body.accounts) ? body.accounts : [];
+  if (list.length === 0) throw badRequest("没有可以添加的账号");
+  if (list.length > ACCOUNTS_MAX) throw badRequest(`每场最多 ${ACCOUNTS_MAX} 个账号`);
+  const accounts = list.map((a) => {
+    const r = (a ?? {}) as Record<string, unknown>;
+    return { username: field(r.username, "用户名"), password: field(r.password, "密码") };
+  });
+  const { results } = await env.DB.prepare("SELECT username FROM queue_accounts WHERE event_id = ?")
+    .bind(e.id)
+    .all<{ username: string }>();
+  const taken = new Set(results.map((r) => r.username.toLowerCase()));
+  const skipped: string[] = [];
+  const fresh = accounts.filter((a) => {
+    const key = a.username.toLowerCase();
+    if (taken.has(key)) {
+      skipped.push(a.username);
+      return false;
+    }
+    taken.add(key);
+    return true;
+  });
+  if (results.length + fresh.length > ACCOUNTS_MAX)
+    throw badRequest(`每场最多 ${ACCOUNTS_MAX} 个账号，现在已有 ${results.length} 个`);
+  if (fresh.length) {
+    const ts = now();
+    await env.DB.batch(
+      fresh.map((a) =>
+        env.DB.prepare(
+          `INSERT INTO queue_accounts (event_id, member_id, username, password, created_at) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT (event_id, username) DO NOTHING`,
+        ).bind(e.id, memberId, a.username, a.password, ts),
+      ),
+    );
+  }
+  return { added: fresh.length, skipped };
 }
 
 /** Taken off by whoever added it, or by whoever runs the event. */
