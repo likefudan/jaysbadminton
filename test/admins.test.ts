@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { appointAdmin, handBackIfRevoked } from "../src/worker/appointments";
+import { nextDeadlineAlarm } from "../src/worker/notify";
 import { sendToMember } from "../src/worker/telegram";
 import { approveMember, appoint, createTestEvent, futureDate, GOOGLE, request, setUpAdmin } from "./helpers";
 
@@ -54,6 +55,61 @@ describe("an admin", () => {
     expect(caps).toContain("group");
     expect(caps).toContain("data");
     expect(caps).not.toContain("owner");
+  });
+
+  it("may create an event that has already started, closed and without any notice", async () => {
+    const { ctx, carol, bob, asAdmin, org } = await scenario();
+    await db
+      .prepare(
+        "INSERT INTO push_subscriptions (endpoint, member_id, p256dh, auth, created_at) VALUES (?, ?, 'k', 'a', ?)",
+      )
+      .bind("https://push.example/bob", bob.id, new Date().toISOString())
+      .run();
+    // Started two hours ago with the deadline at the start: fresh enough that 报名截止 would go out.
+    const pacific = (ms: number) =>
+      Object.fromEntries(
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Los_Angeles",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        })
+          .formatToParts(new Date(ms))
+          .map((p) => [p.type, p.value]),
+      );
+    const start = pacific(Date.now() - 2 * 3600_000);
+    const end = pacific(Date.now() - 3600_000);
+    const past = {
+      date: `${start.year}-${start.month}-${start.day}`,
+      startTime: `${start.hour}:${start.minute}`,
+      endTime: `${end.hour}:${end.minute}`,
+      location: "Old Gym",
+      deadlineDays: 0,
+      deadlineHours: 0,
+      joinSelf: true,
+    };
+    const res = await asAdmin("/events", past);
+    expect(res.status).toBe(200);
+    expect(res.data.status).toBe("closed");
+    expect(res.data.roster.map((r: { memberId: string }) => r.memberId)).toEqual([carol.id]);
+    // Nobody is told about it: no 新活动 push, and no 报名截止 or 快开始了 still to come.
+    expect((await db.prepare("SELECT COUNT(*) AS n FROM push_outbox").first<{ n: number }>())!.n).toBe(0);
+    expect(await nextDeadlineAlarm(env, res.data.id)).toBeNull();
+    // The next 新建活动 form doesn't pick up the test event's time or venue.
+    expect((await asAdmin("/events/defaults")).data.location).not.toBe("Old Gym");
+    // The Owner may too; an organizer still may not.
+    expect((await request(`${ctx.base}/events`, ctx.admin.cookie, past)).status).toBe(200);
+    const theirs = await request(`${GOOGLE}/events`, org, past);
+    expect(((await theirs.json()) as any).error.message).toBe("按这个提前量算出的截止时间已经过了，请调整");
+    // A mistyped year is caught: at most 30 days back.
+    const old = await asAdmin("/events", { ...past, date: `${Number(start.year) - 10}-${start.month}-${start.day}` });
+    expect(old.data.error.message).toBe("已经开始的活动最多补建 30 天内的");
+    // Still to start with its deadline already gone is refused, for everyone.
+    const late = await asAdmin("/events", { ...past, date: futureDate(1), deadlineDays: 3 });
+    expect(late.data.error.message).toBe("按这个提前量算出的截止时间已经过了，请调整");
   });
 
   it("creates events they run and are paid for", async () => {

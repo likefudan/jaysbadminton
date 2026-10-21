@@ -222,6 +222,11 @@ export interface CreateEventInput {
   queueRoundMin?: number | null;
   deadlineDays: number;
   deadlineHours: number;
+  /**
+   * 群主 and 管理员 may create an event that has already started (to record one after the fact, or
+   * to test something tied to its time, like 卡路里). It is created closed, quietly: see createEvent.
+   */
+  allowPast?: boolean;
 }
 
 export function validateEventInput(i: CreateEventInput): {
@@ -229,6 +234,8 @@ export function validateEventInput(i: CreateEventInput): {
   endAt: string;
   deadlineAt: string;
   offsetMin: number;
+  /** Already started (allowPast only): created closed. */
+  started: boolean;
 } {
   if (!isDate(i.date)) throw badRequest("请选择日期");
   if (!isTime(i.startTime) || !isTime(i.endTime)) throw badRequest("请填写开始和结束时间");
@@ -243,11 +250,17 @@ export function validateEventInput(i: CreateEventInput): {
   if (endAt <= startAt) endAt = new Date(Date.parse(endAt) + 86400_000).toISOString();
   const offsetMin = days * 1440 + hours * 60;
   const deadlineAt = new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
-  if (deadlineAt <= now()) throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
-  return { startAt, endAt, deadlineAt, offsetMin };
+  const ts = now();
+  const started = !!i.allowPast && startAt <= ts;
+  if (deadlineAt <= ts && !started) throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
+  if (started && Date.parse(ts) - Date.parse(startAt) > PAST_DAYS_MAX * 86400_000)
+    throw badRequest(`已经开始的活动最多补建 ${PAST_DAYS_MAX} 天内的`);
+  return { startAt, endAt, deadlineAt, offsetMin, started };
 }
 
 export const TITLE_MAX = 30;
+/** How far back allowPast reaches: enough for 卡路里 (30 days), and a mistyped year is caught. */
+export const PAST_DAYS_MAX = 30;
 
 /** The optional event title, trimmed; too long is refused rather than cut. */
 export function cleanTitle(title: string | undefined): string {
@@ -307,7 +320,8 @@ export function saveVenue(
   ).bind(venue, address, queueRoundMin, ts);
 }
 
-export async function createEvent(env: Env, input: CreateEventInput): Promise<EventRow> {
+/** started: it had already started (allowPast), so it was made closed and is to be kept quiet. */
+export async function createEvent(env: Env, input: CreateEventInput): Promise<{ event: EventRow; started: boolean }> {
   const v = validateEventInput(input);
   const location = input.location.trim();
   const address = input.address.trim();
@@ -343,7 +357,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     try {
       const res = await env.DB.prepare(
         `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, queue_round_min, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?) RETURNING id`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       )
         .bind(
           number,
@@ -358,6 +372,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
           input.queueRoundMin ?? null,
           v.deadlineAt,
           v.offsetMin,
+          // Already started: closed from the start, with no 报名截止 notice for a deadline long gone.
+          v.started ? "closed" : "open",
           ts,
           manager,
           manager,
@@ -370,15 +386,25 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     }
   }
   const key = (k: string) => lastKey(k, manager, owner);
-  await env.DB.batch([
-    saveVenue(env, location, address, input.queueRoundMin ?? null, ts),
-    setSetting(env.DB, key("last_start_time"), input.startTime),
-    setSetting(env.DB, key("last_end_time"), input.endTime),
-    setSetting(env.DB, key("last_location"), location),
-    setSetting(env.DB, key("last_deadline_offset_min"), String(v.offsetMin)),
-  ]);
+  await env.DB.batch(
+    v.started
+      ? // An after-the-fact or test event: no 报名截止 for a deadline long gone, and the next
+        // 新建活动 form and 最近的场馆 stay as the real events left them.
+        [
+          env.DB.prepare(
+            "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, 'closed', ?, ?)",
+          ).bind(id, v.deadlineAt, ts),
+        ]
+      : [
+          saveVenue(env, location, address, input.queueRoundMin ?? null, ts),
+          setSetting(env.DB, key("last_start_time"), input.startTime),
+          setSetting(env.DB, key("last_end_time"), input.endTime),
+          setSetting(env.DB, key("last_location"), location),
+          setSetting(env.DB, key("last_deadline_offset_min"), String(v.offsetMin)),
+        ],
+  );
   await syncDeadline(env, id);
-  return getEvent(env, id);
+  return { event: await getEvent(env, id), started: v.started };
 }
 
 /** Statuses in which the roster may still change (by the Owner). */

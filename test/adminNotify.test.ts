@@ -149,6 +149,26 @@ describe("an admin's event", () => {
     expect(to(CAROL_CHAT)).toHaveLength(1);
     expect(to(OWNER_CHAT)[0]).toMatch(/^📋 抄送：管理员 Carol 负责的活动\n/);
   });
+
+  it("says nothing about one created after it started (for testing)", async () => {
+    const { admin } = await scenario();
+    await connectOwner();
+    const res = await request(
+      `${GOOGLE}/events`,
+      admin,
+      {
+        date: futureDate(-2),
+        startTime: "18:30",
+        endTime: "20:30",
+        location: "Carol Gym",
+        deadlineDays: 0,
+        deadlineHours: 0,
+      },
+      "1",
+    );
+    expect(res.status).toBe(200);
+    expect(to(OWNER_CHAT)).toEqual([]);
+  });
 });
 
 describe("转交", () => {
