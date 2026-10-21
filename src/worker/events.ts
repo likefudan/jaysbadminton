@@ -254,13 +254,13 @@ export function validateEventInput(i: CreateEventInput): {
   const started = !!i.allowPast && startAt <= ts;
   if (deadlineAt <= ts && !started) throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
   if (started && Date.parse(ts) - Date.parse(startAt) > PAST_DAYS_MAX * 86400_000)
-    throw badRequest(`已经开始的活动最多补建 ${PAST_DAYS_MAX} 天内的`);
+    throw badRequest("已经开始的活动最多补建半年内的");
   return { startAt, endAt, deadlineAt, offsetMin, started };
 }
 
 export const TITLE_MAX = 30;
-/** How far back allowPast reaches: enough for 卡路里 (30 days), and a mistyped year is caught. */
-export const PAST_DAYS_MAX = 30;
+/** How far back allowPast reaches: half a year (Ke Li), so a mistyped year is still caught. */
+export const PAST_DAYS_MAX = 183;
 
 /** The optional event title, trimmed; too long is refused rather than cut. */
 export function cleanTitle(title: string | undefined): string {
