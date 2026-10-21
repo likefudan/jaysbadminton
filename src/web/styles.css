@@ -4198,3 +4198,116 @@ ul.audit li:first-child {
   margin: 4px 0;
   word-break: break-word;
 }
+
+/* ---- 卡路里: read from iPhone 「健康」 by a Shortcut ---- */
+:root {
+  --flame: #e0703f;
+}
+.kcal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 4px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  background: var(--acc-soft);
+  border: 1px solid var(--acc-line);
+}
+.kcal-row .flame,
+.kcal-privacy .flame,
+.mini-kcal .flame {
+  flex: none;
+  color: var(--flame);
+}
+.kcal-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  line-height: 1.35;
+}
+.kcal-text small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.kcal-num {
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+.kcal-row .button {
+  width: auto;
+  min-height: 0;
+  padding: 7px 14px;
+  font-size: 14px;
+}
+.kcal-row .link-button {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.mini-kcal {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  color: var(--flame);
+  font-weight: 650;
+}
+.kcal-intro {
+  margin: 0 0 10px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.kcal-steps {
+  display: grid;
+  gap: 12px;
+  margin: 8px 0 14px;
+  padding: 0;
+  list-style: none;
+}
+.kcal-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.kcal-steps small {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
+.kcal-steps .n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--acc);
+  color: var(--on-acc);
+  font-size: 13px;
+  font-weight: 700;
+}
+.sheet .button.block + .button.block {
+  margin-top: 10px;
+}
+.kcal-privacy {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+.ranks-swipe .value {
+  white-space: nowrap;
+}
+.kcal-card .switch-card {
+  margin-top: 12px;
+}

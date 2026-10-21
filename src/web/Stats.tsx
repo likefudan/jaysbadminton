@@ -10,6 +10,7 @@ export const BOARDS = [
   { key: "attendance", label: tk("出勤次数"), unit: tk("次") },
   { key: "streak", label: tk("最长连续"), unit: tk("场") },
   { key: "friends", label: tk("带朋友"), unit: tk("人次") },
+  { key: "calories", label: tk("卡路里"), unit: tk("千卡") },
 ] as const;
 
 /** 个人统计: visible only on the member's own page. */

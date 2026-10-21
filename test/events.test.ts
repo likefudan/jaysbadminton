@@ -687,6 +687,7 @@ describe("我的活动 (the member's events)", () => {
         amountCents: 2500,
         attended: true,
         friends: 1,
+        kcal: null,
       },
     ]);
 

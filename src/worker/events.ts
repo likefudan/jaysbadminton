@@ -174,6 +174,8 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     env.DB.prepare("DELETE FROM settlements WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
     ...deleteQueue(env, e.id),
+    env.DB.prepare("DELETE FROM calories WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM calorie_uploads WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM event_audit WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM events WHERE id = ?").bind(e.id),

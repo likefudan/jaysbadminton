@@ -35,6 +35,7 @@ import { developerMember } from "../developer";
 import { pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
 import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
+import { caloriesOf, canRead, myCalories, setCalorieBoard, startUpload } from "../calories";
 import { addAccount, addAccounts, queueInfo, queueLive, removeAccount, removeCourt, saveCourt } from "../courtQueue";
 
 type Vars = { member: MemberRow };
@@ -117,6 +118,7 @@ memberRoutes.get("/:token/events", async (c) => {
       amountCents: mine.payOf(e.id)?.amount_due_cents ?? null,
       attended: rows.some((r) => r.friend_index === 0 && r.attended === 1),
       friends: rows.filter((r) => r.friend_index > 0).length,
+      kcal: mine.kcalOf(e.id),
     };
   });
 
@@ -157,7 +159,7 @@ type MyRows = Awaited<ReturnType<typeof myRows>>;
 async function myRows(env: Env, m: MemberRow, eventId?: number) {
   const only = eventId === undefined ? "" : " AND event_id = ?";
   const args = eventId === undefined ? [m.id] : [m.id, eventId];
-  const [pays, regs] = await Promise.all([
+  const [pays, regs, kcal] = await Promise.all([
     env.DB.prepare(`SELECT * FROM payments WHERE member_id = ?${only}`)
       .bind(...args)
       .all<{
@@ -171,10 +173,12 @@ async function myRows(env: Env, m: MemberRow, eventId?: number) {
     env.DB.prepare(`SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?${only}`)
       .bind(...args)
       .all<{ event_id: number; friend_index: number; friend_name: string | null; attended: number }>(),
+    caloriesOf(env, m.id, eventId === undefined ? undefined : [eventId]),
   ]);
   return {
     payOf: (id: number) => pays.results.find((p) => p.event_id === id),
     regsOf: (id: number) => regs.results.filter((r) => r.event_id === id),
+    kcalOf: (id: number) => kcal.get(id) ?? null,
   };
 }
 
@@ -282,6 +286,8 @@ async function myEvents(
       // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
       queue: (rows.length > 0 || runs) && queueLive(row) ? await queueInfo(env, row, m.id) : null,
       courts: rows.length > 0 || runs ? bookedCourts(row) : [],
+      kcal: mine.kcalOf(e.id),
+      kcalOpen: canRead(row, selfOn),
     });
   }
   return events;
@@ -372,6 +378,21 @@ memberRoutes.post("/:token/events/:id/queue/photo", async (c) => {
 memberRoutes.post("/:token/events/:id/queue/courts/:cid/remove", async (c) => {
   const { e } = await queueEventFor(c, c.req.param("id"));
   await removeCourt(c.env, e, Number(c.req.param("cid")));
+  return c.json({ ok: true });
+});
+
+// 卡路里: 读取 hands the Shortcut a one-time code for this event; 个人信息 shows the totals and the
+// 卡路里榜 choice.
+memberRoutes.post("/:token/events/:id/calories", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  return c.json(await startUpload(c.env, c.get("member"), e, new URL(c.req.url).origin));
+});
+
+memberRoutes.get("/:token/calories", async (c) => c.json(await myCalories(c.env, c.get("member"))));
+
+memberRoutes.post("/:token/calories/board", async (c) => {
+  const body = await readJson(c.req.raw);
+  await setCalorieBoard(c.env, c.get("member"), body.on === true);
   return c.json({ ok: true });
 });
 

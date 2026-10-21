@@ -557,7 +557,56 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   请填写邮箱: { tw: "請填寫電子郵件", en: "Please enter an email" },
   邮箱格式不对: { tw: "電子郵件格式不對", en: "That email doesn't look right" },
   "留言最多 {n} 个字": { tw: "留言最多 {n} 個字", en: "The note can be at most {n} characters" },
+  // 卡路里 (iPhone 「健康」 via a Shortcut).
+  "这场打球消耗了多少？": { tw: "這場打球消耗了多少？", en: "How much did you burn?" },
+  "从 iPhone「健康」读取": { tw: "從 iPhone「健康」讀取", en: "Read it from Apple Health on your iPhone" },
+  "{n} 千卡": { tw: "{n} 大卡", en: "{n} kcal" },
+  "{time} · 来自 Apple 健康": { tw: "{time} · 來自 Apple 健康", en: "{time} · from Apple Health" },
+  读取: { tw: "讀取", en: "Read" },
+  重新读取: { tw: "重新讀取", en: "Read again" },
+  读取卡路里: { tw: "讀取卡路里", en: "Read calories" },
+  "网页读不到苹果「健康」的数据，要借助一个快捷指令。只需要装一次。": {
+    tw: "網頁讀不到蘋果「健康」的資料，要借助一個捷徑。只需要裝一次。",
+    en: "Web pages can't read Apple Health, so this uses a shortcut. You only need to add it once.",
+  },
+  "安装快捷指令「{name}」": { tw: "安裝捷徑「{name}」", en: 'Add the shortcut "{name}"' },
+  "在 iPhone 上打开，点「添加快捷指令」": {
+    tw: "在 iPhone 上打開，點「加入捷徑」",
+    en: 'Open it on your iPhone and tap "Add Shortcut"',
+  },
+  "回到这里点「开始读取」": { tw: "回到這裡點「開始讀取」", en: 'Come back here and tap "Start reading"' },
+  "第一次会问能不能读取「活动能量」，选允许": {
+    tw: "第一次會問能不能讀取「活動能量」，選允許",
+    en: 'The first time, it asks to read "Active Energy": tap Allow',
+  },
+  安装快捷指令: { tw: "安裝捷徑", en: "Add the shortcut" },
+  "安装链接还在准备中。": { tw: "安裝連結還在準備中。", en: "The install link isn't ready yet." },
+  "已安装，开始读取": { tw: "已安裝，開始讀取", en: "Added it. Start reading" },
+  "只读这场活动时间段（{time}）的活动能量，只存一个总数，只有你自己看得到。": {
+    tw: "只讀這場活動時間段（{time}）的活動能量，只存一個總數，只有你自己看得到。",
+    en: "Only the active energy during this event ({time}) is read, and only the total is kept. Only you can see it.",
+  },
+  我的卡路里: { tw: "我的卡路里", en: "My calories" },
+  "{year} 年": { tw: "{year} 年", en: "{year}" },
+  千卡: { tw: "大卡", en: "kcal" },
+  记录: { tw: "記錄", en: "Recorded" },
+  平均每场: { tw: "平均每場", en: "Per event" },
+  加入卡路里榜: { tw: "加入卡路里榜", en: "Join the calorie board" },
+  "首页排行榜会显示你的名字和今年的总千卡，所有人都看得到。随时可以退出。": {
+    tw: "首頁排行榜會顯示你的名字和今年的總大卡，所有人都看得到。隨時可以退出。",
+    en: "The home page board shows your name and this year's total kcal to everyone. You can leave any time.",
+  },
+  卡路里: { tw: "卡路里", en: "Calories" },
+  还没有人加入卡路里榜: { tw: "還沒有人加入卡路里榜", en: "Nobody has joined the calorie board yet" },
+  "今年从 iPhone「健康」读取的活动能量，自愿加入（在个人信息里打开）。": {
+    tw: "今年從 iPhone「健康」讀取的活動能量，自願加入（在個人資訊裡打開）。",
+    en: "Active energy read from Apple Health this year. Members join it themselves in Profile.",
+  },
   // Server messages a member can see.
+  "活动开始后 {n} 天内，报名了这场的人才能读取卡路里": {
+    tw: "活動開始後 {n} 天內，報名了這場的人才能讀取卡路里",
+    en: "Calories can be read by people on this event, within {n} days of its start",
+  },
   "链接无效，请联系群主": { tw: "連結無效，請聯絡群主", en: "This link isn't valid. Please contact the group owner." },
   "原成员链接无效，请联系群主": {
     tw: "原成員連結無效，請聯絡群主",

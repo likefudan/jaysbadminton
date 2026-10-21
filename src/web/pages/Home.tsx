@@ -7,6 +7,7 @@ import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
 import { ShareCardButton } from "../ShareCard";
 import { BOARDS } from "../Stats";
+import { kcalText } from "../Calories";
 import { SwipeSection } from "../Swipe";
 import { t, tx } from "../i18n";
 
@@ -100,7 +101,11 @@ function Leaders(props: { board: Leaderboard }) {
             ))}
           </span>
         }
-        empty={list.length === 0 ? <Empty>{t("还没有出勤记录")}</Empty> : undefined}
+        empty={
+          list.length === 0 ? (
+            <Empty>{tab === "calories" ? t("还没有人加入卡路里榜") : t("还没有出勤记录")}</Empty>
+          ) : undefined
+        }
         ordered
         class="ranks-swipe"
       >
@@ -109,13 +114,16 @@ function Leaders(props: { board: Leaderboard }) {
             <span class="rank-no">{r.rank}</span>
             <span class="who">{r.name}</span>
             <span class="value">
-              {r.value}
+              {tab === "calories" ? kcalText(r.value) : r.value}
               <small>{t(b.unit)}</small>
             </span>
           </li>
         ))}
       </SwipeSection>
       {tab === "streak" && <p class="muted small swipe-note">{t("连续参加的活动场数，取消的活动不算。")}</p>}
+      {tab === "calories" && (
+        <p class="muted small swipe-note">{t("今年从 iPhone「健康」读取的活动能量，自愿加入（在个人信息里打开）。")}</p>
+      )}
     </>
   );
 }

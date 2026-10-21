@@ -231,6 +231,28 @@ export interface MyEvent extends EventSummary {
   queue: QueueInfo | null;
   /** 预定场地: the courts booked for it, for players on it and whoever runs it; empty otherwise or until set. */
   courts: number[];
+  /** Their own 卡路里 for it from iPhone 「健康」; null until read. */
+  kcal: number | null;
+  /** 读取 is offered: they signed up themselves and it started less than 30 days ago. */
+  kcalOpen: boolean;
+}
+
+/** 读取卡路里: what the page hands the Shortcut. upload takes the number once, within 15 minutes. */
+export interface CalorieStart {
+  start: string;
+  end: string;
+  upload: string;
+}
+
+/** 我的卡路里 on 个人信息. */
+export interface MyCalories {
+  year: number;
+  yearKcal: number;
+  yearCount: number;
+  /** On the 卡路里榜. */
+  board: boolean;
+  /** Every event read, newest first. */
+  events: { code: string; date: string; title: string; location: string; kcal: number }[];
 }
 
 /** 我的活动: current and open events in full, newest first, and the paid-up past ones in brief. */
@@ -256,6 +278,7 @@ export interface MyHistoryEvent {
   amountCents: number | null;
   attended: boolean;
   friends: number;
+  kcal: number | null;
 }
 
 export interface MyRosterEntry {
@@ -304,6 +327,7 @@ export interface Leaderboard {
   attendance: RankEntry[]; // this year
   streak: RankEntry[]; // longest consecutive run, all time
   friends: RankEntry[]; // friends brought this year
+  calories: RankEntry[]; // 千卡 this year, members who chose to be on it
 }
 
 /** 个人统计, shown only on the member's own page. */
