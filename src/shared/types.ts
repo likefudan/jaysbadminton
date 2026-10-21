@@ -239,11 +239,9 @@ export interface MyEvent extends EventSummary {
 
 /** 读取卡路里: what the page hands the Shortcut. upload takes the number once, within 15 minutes. */
 export interface CalorieStart {
-  /** The Pacific day it starts, YYYY-MM-DD. */
-  day: string;
-  /** Start and end as Pacific HHmm numbers (2030 = 20:30), which Shortcuts compares as plain numbers. */
-  from: number;
-  to: number;
+  /** Pacific "YYYY-MM-DD HH:mm" to read 「健康」 from (10 minutes before the event, for the warm-up) and to. */
+  start: string;
+  end: string;
   upload: string;
 }
 

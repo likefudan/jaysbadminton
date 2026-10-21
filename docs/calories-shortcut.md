@@ -5,13 +5,13 @@ The Shortcut is generic: it holds no account or secret, so anyone can install it
 The site runs it with `shortcuts://run-shortcut?name=ReadBadmintonCalories&input=text&text=…`, and the text it passes in is:
 
 ```json
-{ "day": "2026-05-26", "from": 2030, "to": 2300, "upload": "https://…/api/calories/<one-time code>" }
+{ "start": "2026-05-26 20:20", "end": "2026-05-26 23:00", "upload": "https://…/api/calories/<one-time code>" }
 ```
 
-`day` is the event's Pacific date; `from` and `to` are its start and end as HHmm numbers (2030 = 8:30 PM;
-an event past midnight gets `to` 2359). Shortcuts can only filter Health samples by day, and "Get Dates
-from Input" doesn't reliably keep the time, so the Shortcut takes that day's samples and keeps those
-whose start time, as an HHmm number, is between `from` and `to`.
+`start` and `end` are Pacific wall-clock times, `yyyy-MM-dd HH:mm`. `start` is 10 minutes before the event
+(the warm-up); an event past midnight simply has an `end` on the next day. Health filters only work by
+whole day, so the Shortcut takes every sample from the start day to the day after the end, then keeps those
+whose start time, as a `yyyyMMddHHmm` number (202605262020), is between `start` and `end` as numbers.
 
 `upload` works once, for 15 minutes, and only writes this member's calories for this one event
 (`POST` with JSON `{"kcal": 432}`, 0–3000; 0 is not saved).
@@ -22,26 +22,29 @@ Open the Shortcuts app and create a new shortcut. Its name must be exactly **Rea
 the site runs it by name. Add these actions in order:
 
 1. **Get Dictionary from Input**: input is "Shortcut Input" (the top "Receive" row: Text).
-2. **Get Dictionary Value**: key `day`. Then **Get Dates from Input** on that "Dictionary Value".
-3. **Get Dictionary Value**: key `from` (Dictionary: the one from step 1).
-4. **Get Dictionary Value**: key `to` (Dictionary: the one from step 1).
-5. **Get Dictionary Value**: key `upload` (Dictionary: the one from step 1).
-6. **Find Health Samples**: type "Active Energy" (shown as Active Calories), one filter
-   "Start Date is on 〔Dates〕", unit **kcal**, no limit.
-7. **Repeat with Each** item in "Health Samples". Inside the repeat:
+2. **Get Dictionary Value** `start` → **Get Dates from Input**, renamed **StartDate**.
+3. **Get Dictionary Value** `end` → **Get Dates from Input**, renamed **EndDate**.
+4. **Get Dictionary Value** `upload`, renamed **Upload**.
+5. **Adjust Date**: add 1 day to EndDate, renamed **Until**.
+6. **Format Date** StartDate, Custom `yyyyMMddHHmm`, Time Format None → **Get Numbers from Input**, renamed **From**.
+7. **Format Date** EndDate the same way → **Get Numbers from Input**, renamed **To**.
+8. **Find Health Samples**: type Active Calories, filter "Start Date is between StartDate and Until",
+   unit **kcal**, no limit.
+9. **Repeat with Each** item in "Health Samples". Inside the repeat:
    1. **Get Details of Health Sample**: "Start Date" of "Repeat Item".
-   2. **Format Date**: that "Start Date", Date Format **Custom**, format string `HHmm`, Time Format None.
+   2. **Format Date**: that "Start Date", Custom `yyyyMMddHHmm`, Time Format None.
    3. **Get Numbers from Input**: "Formatted Date".
-   4. **If** "Numbers" **is between** the `from` value (step 3) and the `to` value (step 4):
-      **Get Details of Health Sample**: "Value" of "Repeat Item". Leave Otherwise empty.
-8. **Calculate Statistics**: "Sum" of "Repeat Results".
-9. **Round Number**: to Ones place / Integer.
-10. **Get Contents of URL**: URL is the `upload` value (step 5), method `POST`, request body "JSON",
+   4. **If** "Numbers" **is between** From and To: **Get Details of Health Sample** "Value" of "Repeat Item".
+      **Otherwise**: **Number** `0`. (Not empty: a skipped If passes its input, the yyyyMMddHHmm number,
+      into Repeat Results.)
+10. **Calculate Statistics**: "Sum" of "Repeat Results".
+11. **Round Number**: to Ones place / Integer.
+12. **Get Contents of URL**: URL is Upload, method `POST`, request body "JSON",
     add a "Number" field `kcal` with the value "Rounded Number".
-11. **Show Notification**: "Recorded 〔Rounded Number〕 kcal".
+13. **Show Notification**: "Recorded 〔Rounded Number〕 kcal".
 
 To try it without the site, set "If there's no input" on the Receive row to **Ask For Text**, run it, and
-paste for example `{"day":"2026-05-26","from":2030,"to":2300,"upload":"https://example.com/test"}`
+paste for example `{"start":"2026-05-26 20:30","end":"2026-05-27 00:30","upload":"https://example.com/test"}`
 (the upload then fails, which is fine; the notification shows the number). Set it back to Continue.
 
 When it's done: long-press the shortcut → Share → Copy iCloud Link, and put the link into

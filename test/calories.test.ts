@@ -32,16 +32,18 @@ async function scene() {
 const card = async (base: string, id: number) => (await anon.call(`${base}/events/${id}`)).data.event;
 
 describe("卡路里", () => {
-  it("hands the Shortcut the Pacific day and HHmm numbers, up to 23:59 past midnight", () => {
+  it("hands the Shortcut Pacific start (10 minutes early, for the warm-up) and end, past midnight too", () => {
     expect(timeWindow({ start_at: "2026-05-27T03:30:00.000Z", end_at: "2026-05-27T06:00:00.000Z" })).toEqual({
-      day: "2026-05-26",
-      from: 2030,
-      to: 2300,
+      start: "2026-05-26 20:20",
+      end: "2026-05-26 23:00",
     });
     expect(timeWindow({ start_at: "2026-05-27T05:30:00.000Z", end_at: "2026-05-27T08:00:00.000Z" })).toEqual({
-      day: "2026-05-26",
-      from: 2230,
-      to: 2359,
+      start: "2026-05-26 22:20",
+      end: "2026-05-27 01:00",
+    });
+    expect(timeWindow({ start_at: "2026-05-27T07:05:00.000Z", end_at: "2026-05-27T09:00:00.000Z" })).toEqual({
+      start: "2026-05-26 23:55",
+      end: "2026-05-27 02:00",
     });
   });
 
@@ -55,9 +57,7 @@ describe("卡路里", () => {
     const { status, data } = await anon.call(`${alice.base}/events/${e.id}/calories`, {});
     expect(status).toBe(200);
     const row = await env.DB.prepare("SELECT start_at, end_at FROM events WHERE id = ?").bind(e.id).first();
-    const at = (iso: unknown) => toPacific(String(iso));
-    const hhmm = (iso: unknown) => Number(at(iso).time.replace(":", ""));
-    expect(data).toMatchObject({ day: at(row!.start_at).date, from: hhmm(row!.start_at), to: expect.any(Number) });
+    expect(data).toMatchObject(timeWindow({ start_at: String(row!.start_at), end_at: String(row!.end_at) }));
     expect(data.upload).toMatch(new RegExp(`^${ORIGIN}/api/calories/[\\w-]{43}$`));
 
     // The Shortcut sends a number (a string too); the link works once.
