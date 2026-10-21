@@ -234,6 +234,8 @@ export function validateEventInput(i: CreateEventInput): {
   endAt: string;
   deadlineAt: string;
   offsetMin: number;
+  /** Already started (allowPast only): created closed. */
+  started: boolean;
 } {
   if (!isDate(i.date)) throw badRequest("请选择日期");
   if (!isTime(i.startTime) || !isTime(i.endTime)) throw badRequest("请填写开始和结束时间");
@@ -248,12 +250,17 @@ export function validateEventInput(i: CreateEventInput): {
   if (endAt <= startAt) endAt = new Date(Date.parse(endAt) + 86400_000).toISOString();
   const offsetMin = days * 1440 + hours * 60;
   const deadlineAt = new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
-  if (deadlineAt <= now() && !(i.allowPast && startAt <= now()))
-    throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
-  return { startAt, endAt, deadlineAt, offsetMin };
+  const ts = now();
+  const started = !!i.allowPast && startAt <= ts;
+  if (deadlineAt <= ts && !started) throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
+  if (started && Date.parse(ts) - Date.parse(startAt) > PAST_DAYS_MAX * 86400_000)
+    throw badRequest(`已经开始的活动最多补建 ${PAST_DAYS_MAX} 天内的`);
+  return { startAt, endAt, deadlineAt, offsetMin, started };
 }
 
 export const TITLE_MAX = 30;
+/** How far back allowPast reaches: enough for 卡路里 (30 days), and a mistyped year is caught. */
+export const PAST_DAYS_MAX = 30;
 
 /** The optional event title, trimmed; too long is refused rather than cut. */
 export function cleanTitle(title: string | undefined): string {
@@ -322,8 +329,6 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const ts = now();
   const owner = await ownerId(env.DB);
   const manager = input.managerId ?? owner;
-  // Already started (allowPast): closed from the start, with no 报名截止 notice for a deadline long gone.
-  const past = v.deadlineAt <= ts;
   // The 活动编号 skips every number an event created on this date has ever had (including events
   // since moved to another date or deleted), so no number is handed out twice. If two requests race
   // for the same one, the unique index refuses the second insert and it takes the next letter.
@@ -366,7 +371,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
           input.queueRoundMin ?? null,
           v.deadlineAt,
           v.offsetMin,
-          past ? "closed" : "open",
+          // Already started: closed from the start, with no 报名截止 notice for a deadline long gone.
+          v.started ? "closed" : "open",
           ts,
           manager,
           manager,
@@ -385,7 +391,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     setSetting(env.DB, key("last_end_time"), input.endTime),
     setSetting(env.DB, key("last_location"), location),
     setSetting(env.DB, key("last_deadline_offset_min"), String(v.offsetMin)),
-    ...(past
+    ...(v.started
       ? [
           env.DB.prepare(
             "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, 'closed', ?, ?)",

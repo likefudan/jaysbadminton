@@ -217,7 +217,9 @@ adminEventRoutes.post("/events", async (c) => {
   // Revoked while this request was on its way: the event goes to the Owner like their others did.
   if (isStaff(actor.role)) await handBackIfRevoked(c.env, e.id, actor.memberId);
   const created = await getEvent(c.env, e.id);
-  await notifyCreated(c.env, created);
+  // One that has already started (群主 or 管理员 only) is made quietly: no 新活动 notice or push.
+  const started = created.status !== "open";
+  if (!started) await notifyCreated(c.env, created);
   // "我自己也报名": the creator signs up as a normal player (ticked by default in the form).
   if (b.joinSelf === true) {
     const self = await activeSelf(c.env, actor.memberId);
@@ -226,8 +228,7 @@ adminEventRoutes.post("/events", async (c) => {
       await audit(c.env, e.id, actorId(actor), "self_signup", "创建时自己报名");
     }
   }
-  // One that has already started (群主 or 管理员 only) can't be signed up for: no 新活动 push.
-  const queued = created.status === "open" && (await pushNewEvent(c.env, created, actor.memberId));
+  const queued = !started && (await pushNewEvent(c.env, created, actor.memberId));
   const res = c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
   // Last, in the background, so it never slows down creating the event.
   if (queued) sendSoon(c);
