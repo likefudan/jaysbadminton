@@ -243,7 +243,7 @@ Oct 1, 2026 · @Ke Li
 
 **自动对账（Venmo）**
 
-- Owner 在 Gmail 里设过滤器，把 Venmo 官方发来的收款通知邮件自动转发到 venmo@jaysbadminton.llmat.dev，系统收到后立即处理：发件人为 venmo@venmo.com，标题形如「Yue Sun paid $7.00 to your Venmo account. Leave it in Venmo or transfer it to your bank account.」。只转发和处理这类邮件，系统接触不到其他邮件；伪造的「Venmo 邮件」会被拒绝；只处理系统启用之后收到的邮件。
+- Owner 在 Gmail 里设过滤器，把 Venmo 官方发来的收款通知邮件自动转发到 venmo@jaysbadminton.llmat.dev，系统收到后立即处理：发件人为 venmo@venmo.com，标题形如「Yue Sun paid $7.00 to your Venmo account. Leave it in Venmo or transfer it to your bank account.」或「Yue Sun paid you $7.00」（Venmo 两种都会用）。只转发和处理这类邮件，系统接触不到其他邮件；伪造的「Venmo 邮件」会被拒绝；只处理系统启用之后收到的邮件。
 - 从邮件中提取付款人、金额、备注，按备注中的付款编号匹配到对应活动和成员，标记为已付款，并记录付款时间和金额。
 - 按 Venmo 交易编号去重，同一笔交易只处理一次，避免重复处理。
 - Owner 会把所有 Venmo 收款邮件都转发过来，其中大部分与羽毛球无关，按以下规则处理：

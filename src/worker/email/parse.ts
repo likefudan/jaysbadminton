@@ -52,6 +52,17 @@ const toCents = (s: string): number | null => {
   return m ? Number(m[1]!.replace(/,/g, "")) * 100 + Number(m[2]) : null;
 };
 
+/**
+ * Venmo titles a receipt either "Alice paid $7.00 to your Venmo account. …" or "Alice paid you
+ * $7.00". Outgoing payments ("You paid Bob $7.00"), requests and charges don't match.
+ */
+const RECEIPT_SUBJECT = / paid (?:you )?(\$[\d,]+\.\d{2})(?: to your Venmo account|$|[\s.])/;
+
+/** The amount in a receipt subject, or null when the subject isn't a receipt's. */
+export function receiptSubjectAmount(subject: string): string | null {
+  return RECEIPT_SUBJECT.exec(subject.replace(/\s+/g, " ").trim())?.[1] ?? null;
+}
+
 const after = (lines: string[], label: string, from: number) => {
   const i = lines.indexOf(label, from);
   return i >= 0 ? lines[i + 1] : undefined;
@@ -100,8 +111,8 @@ export function parseReceipt(
   if (!/^[A-Za-z0-9]+$/.test(txnId)) return fail("交易 ID 格式不正确（应为字母或数字）");
 
   // The subject is signed too; disagreeing amounts mean the layout changed under us.
-  const subjectAmount = /paid (\$[\d,]+\.\d{2}) to your Venmo account/.exec(subject.replace(/\s+/g, " "));
-  if (subjectAmount && toCents(subjectAmount[1]!) !== amountCents) return fail("标题金额与正文金额不一致");
+  const subjectAmount = receiptSubjectAmount(subject);
+  if (subjectAmount && toCents(subjectAmount) !== amountCents) return fail("标题金额与正文金额不一致");
 
   return { payer, amountCents, note, date, txnId, sentTo };
 }
