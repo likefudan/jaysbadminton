@@ -1,23 +1,34 @@
 import type { CalorieStart, MyCalories } from "../shared/types";
 import { toPacific } from "../shared/time";
-import { now } from "./db";
+import { getSettings, now } from "./db";
 import type { EventRow } from "./events";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 import { randomToken, sha256 } from "./lib/crypto";
 import type { MemberRow } from "./members";
 
-/** 读取 is offered from the start of the event for 30 days (Ke Li). */
-export const READ_DAYS = 30;
+/** 读取 is offered from the start of the event for 30 days (Ke Li), unless 设置 says otherwise. */
+export const DEFAULT_READ_DAYS = 30;
 const UPLOAD_MINUTES = 15;
 /** More than anyone burns in an evening of badminton: anything above is a wrong reading. */
 export const KCAL_MAX = 3000;
 
-/** The member may read their 卡路里 for this event now: they played (signed up themselves) and it has started, up to 30 days. */
-export function canRead(e: Pick<EventRow, "status" | "start_at">, selfOn: boolean, at = new Date()): boolean {
+/** 读取卡路里: how many days from the start, as set in 设置. */
+export async function calorieReadDays(env: Env): Promise<number> {
+  const n = Number((await getSettings(env.DB, ["calorie_read_days"])).calorie_read_days);
+  return Number.isInteger(n) && n >= 1 ? n : DEFAULT_READ_DAYS;
+}
+
+/** The member may read their 卡路里 for this event now: they played (signed up themselves) and it has started, up to `days` days. */
+export function canRead(
+  e: Pick<EventRow, "status" | "start_at">,
+  selfOn: boolean,
+  days: number,
+  at = new Date(),
+): boolean {
   if (!selfOn || e.status === "cancelled") return false;
   const start = Date.parse(e.start_at);
-  return at.getTime() >= start && at.getTime() <= start + READ_DAYS * 86400_000;
+  return at.getTime() >= start && at.getTime() <= start + days * 86400_000;
 }
 
 /** Their own number for each of these events (missing: not read yet). */
@@ -39,7 +50,8 @@ export async function startUpload(env: Env, m: MemberRow, e: EventRow, origin: s
   )
     .bind(e.id, m.id)
     .first();
-  if (!canRead(e, !!selfOn)) throw badRequest(`活动开始后 ${READ_DAYS} 天内，报名了这场的人才能读取卡路里`);
+  const days = await calorieReadDays(env);
+  if (!canRead(e, !!selfOn, days)) throw badRequest(`活动开始后 ${days} 天内，报名了这场的人才能读取卡路里`);
   const code = randomToken();
   const ts = now();
   await env.DB.batch([

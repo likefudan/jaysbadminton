@@ -86,6 +86,16 @@ describe("卡路里", () => {
     expect(await card(alice.base, e.id)).toMatchObject({ kcalOpen: false });
   });
 
+  it("stays open as many days as 设置 says", async () => {
+    const { ctx, alice, e } = await scene();
+    await startedAgo(e.id, 40 * 24);
+    expect((await ctx.admin.call(`${ctx.base}/settings`, { calorieReadDays: 60 })).status).toBe(200);
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.calorieReadDays).toBe(60);
+    expect(await card(alice.base, e.id)).toMatchObject({ kcalOpen: true });
+    expect((await anon.call(`${alice.base}/events/${e.id}/calories`, {})).status).toBe(200);
+    expect((await ctx.admin.call(`${ctx.base}/settings`, { calorieReadDays: 0 })).status).toBe(400);
+  });
+
   it("rejects numbers out of range and expired links, using the link up either way", async () => {
     const { alice, e } = await scene();
     await startedAgo(e.id, 1);

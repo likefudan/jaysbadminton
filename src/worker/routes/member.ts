@@ -35,7 +35,7 @@ import { developerMember } from "../developer";
 import { pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
 import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
-import { caloriesOf, canRead, myCalories, setCalorieBoard, startUpload } from "../calories";
+import { calorieReadDays, caloriesOf, canRead, myCalories, setCalorieBoard, startUpload } from "../calories";
 import { addAccount, addAccounts, queueInfo, queueLive, removeAccount, removeCourt, saveCourt } from "../courtQueue";
 
 type Vars = { member: MemberRow };
@@ -231,6 +231,7 @@ async function myEvents(
     return managers.get(id)!;
   };
   const list = await summaries(env, results);
+  const readDays = await calorieReadDays(env);
   const events: MyEvent[] = [];
   for (const e of list) {
     const row = rowOf.get(e.id)!;
@@ -287,7 +288,7 @@ async function myEvents(
       queue: (rows.length > 0 || runs) && queueLive(row) ? await queueInfo(env, row, m.id) : null,
       courts: rows.length > 0 || runs ? bookedCourts(row) : [],
       kcal: mine.kcalOf(e.id),
-      kcalOpen: canRead(row, selfOn),
+      kcalOpen: canRead(row, selfOn, readDays),
     });
   }
   return events;

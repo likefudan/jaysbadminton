@@ -223,10 +223,11 @@ export interface CreateEventInput {
   deadlineDays: number;
   deadlineHours: number;
   /**
-   * 群主 and 管理员 may create an event that has already started (to record one after the fact, or
-   * to test something tied to its time, like 卡路里). It is created closed, quietly: see createEvent.
+   * 群主 and 管理员 may create an event that has already started up to this many days ago (to record
+   * one after the fact, or to test something tied to its time, like 卡路里); left out, nobody may.
+   * It is created closed, quietly: see createEvent.
    */
-  allowPast?: boolean;
+  pastDays?: number;
 }
 
 export function validateEventInput(i: CreateEventInput): {
@@ -234,7 +235,7 @@ export function validateEventInput(i: CreateEventInput): {
   endAt: string;
   deadlineAt: string;
   offsetMin: number;
-  /** Already started (allowPast only): created closed. */
+  /** Already started (pastDays only): created closed. */
   started: boolean;
 } {
   if (!isDate(i.date)) throw badRequest("请选择日期");
@@ -251,16 +252,22 @@ export function validateEventInput(i: CreateEventInput): {
   const offsetMin = days * 1440 + hours * 60;
   const deadlineAt = new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
   const ts = now();
-  const started = !!i.allowPast && startAt <= ts;
+  const started = i.pastDays !== undefined && startAt <= ts;
   if (deadlineAt <= ts && !started) throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
-  if (started && Date.parse(ts) - Date.parse(startAt) > PAST_DAYS_MAX * 86400_000)
-    throw badRequest("已经开始的活动最多补建半年内的");
+  if (started && Date.parse(ts) - Date.parse(startAt) > i.pastDays! * 86400_000)
+    throw badRequest(`已经开始的活动最多补建 ${i.pastDays} 天内的`);
   return { startAt, endAt, deadlineAt, offsetMin, started };
 }
 
 export const TITLE_MAX = 30;
-/** How far back allowPast reaches: half a year (Ke Li), so a mistyped year is still caught. */
-export const PAST_DAYS_MAX = 183;
+/** How far back an already-started event may be created, unless 设置 says otherwise: half a year (Ke Li). */
+export const DEFAULT_PAST_DAYS = 183;
+
+/** 补建已开始的活动: how many days back, as set in 设置. */
+export async function pastEventDays(env: Env): Promise<number> {
+  const n = Number((await getSettings(env.DB, ["past_event_days"])).past_event_days);
+  return Number.isInteger(n) && n >= 1 ? n : DEFAULT_PAST_DAYS;
+}
 
 /** The optional event title, trimmed; too long is refused rather than cut. */
 export function cleanTitle(title: string | undefined): string {

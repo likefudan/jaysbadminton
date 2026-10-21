@@ -31,7 +31,7 @@ export const FlameIcon = (props: { size?: number }) => (
 
 /**
  * 卡路里 on an event card: the number once read, and 读取 on iPhone from the start of the event for
- * 30 days. Web pages can't read 「健康」, so 读取 runs a Shortcut with the event's times and a
+ * as many days as 设置 says (30 at first). Web pages can't read 「健康」, so 读取 runs a Shortcut with the event's times and a
  * one-time upload link; the card reloads when they come back to the page.
  */
 export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => void }) {
