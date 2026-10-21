@@ -2105,10 +2105,12 @@ a.ev-meta {
 [data-style="aurora"] .swipe > .rank-card.p1 {
   background: linear-gradient(135deg, var(--acc), var(--acc-2));
 }
-.tone-soft .ev-head {
+.tone-soft .ev-head,
+.next-card.tone-soft {
   background: var(--acc-soft);
 }
-.tone-plain .ev-head {
+.tone-plain .ev-head,
+.next-card.tone-plain {
   background: var(--surface-2);
 }
 .hero-top {

@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import type { EventSummary, HomeResponse, Leaderboard, MyEventsResponse } from "../../shared/types";
+import type { EventSummary, HomeResponse, Leaderboard, MyEvent, MyEventsResponse } from "../../shared/types";
 import { Empty, Load, Page, SectionTitle } from "../components";
 import { CourtsLine, EventHero, EventLink, MiniEventCard, mineStatus } from "../events";
 import { useApi, useMemberSession } from "../hooks";
@@ -10,7 +10,7 @@ import { BOARDS } from "../Stats";
 import { SwipeSection } from "../Swipe";
 import { t, tx } from "../i18n";
 
-/** The next event as one big card; 报名 (grey when signed out, 查看 once they're on it) sits in its corner. */
+/** An event as one big card; 报名 (or 查看 once they're on it) sits in its corner. */
 function NextEvent(props: {
   e: EventSummary;
   /** The button's label; null for none (signed out: 登录 / 注册 goes on the page once, not on the card). */
@@ -20,12 +20,14 @@ function NextEvent(props: {
   mine?: { cls: string; label: string } | null;
   /** 预定场地, for a member on it. */
   courts?: number[];
+  /** Coral (the default), light or plain: see toneFor. */
+  tone?: "hero" | "soft" | "plain";
 }) {
   const e = props.e;
   const status =
     props.mine ?? (e.status === "open" ? { cls: "open", label: t("报名中") } : { cls: "closed", label: t("已截止") });
   return (
-    <section class="next-card tone-hero">
+    <section class={`next-card tone-${props.tone ?? "hero"}`}>
       <a class="next-event" href={`/e/${e.code}`}>
         <EventHero e={e} status={status}>
           <span class="next-count">
@@ -44,16 +46,40 @@ function NextEvent(props: {
   );
 }
 
-/** The next event for a signed-in member: 我已报名 in its corner once they're on it, as on 我的活动, and 查看. */
-function MyNextEvent(props: { e: EventSummary; cta: string }) {
+/**
+ * A member's card colour, the rule on 我的活动 (Ke Li): coral for the ones they (or their friends)
+ * are on until the bill comes, light for ones they could still join, plain for the rest.
+ */
+function toneFor(e: EventSummary, own: MyEvent | undefined): "hero" | "soft" | "plain" {
+  const onIt = !!own && (own.selfSignedUp || (own.myFriends?.length ?? 0) > 0) && !own.payment;
+  if (onIt) return "hero";
+  return e.status === "open" ? "soft" : "plain";
+}
+
+/** All the current events for a signed-in member, soonest first, each in the same card (Ke Li). */
+function MyEvents(props: { events: EventSummary[] }) {
   const [res] = useApi<MyEventsResponse>("/api/m/session/events");
-  const own = res.state === "ok" ? res.data.events.find((x) => x.id === props.e.id) : undefined;
-  const mine = own ? mineStatus(own) : null;
-  // 报名 only while they could still sign up; 查看 once they're on it or sign-up has closed.
-  const cta = own?.selfSignedUp || props.e.status !== "open" ? t("查看") : props.cta;
-  // The whole card and its button open the same page: the event's own card, where they can sign up,
-  // see who is coming and pay (Ke Li tapped the card background and landed somewhere else).
-  return <NextEvent e={props.e} cta={cta} ctaHref={`/e/${props.e.code}`} mine={mine} courts={own?.courts} />;
+  if (res.state === "loading") return null;
+  const mine = res.state === "ok" ? res.data.events : [];
+  return (
+    <>
+      {props.events.map((e) => {
+        const own = mine.find((x) => x.id === e.id);
+        const cta = own?.selfSignedUp || e.status !== "open" ? t("查看") : t("报名");
+        return (
+          <NextEvent
+            key={e.id}
+            e={e}
+            cta={cta}
+            ctaHref={`/e/${e.code}`}
+            mine={own ? mineStatus(own) : null}
+            courts={own?.courts}
+            tone={toneFor(e, own)}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 /** 排行榜 as a row of small cards that scrolls sideways, first place in the accent colour. */
@@ -106,18 +132,13 @@ export function Home() {
           const others = data.currentEvents.filter((e) => e !== next);
           return (
             <>
-              {next ? (
-                member === "member" ? (
-                  <MyNextEvent e={next} cta={cta} />
-                ) : (
-                  <>
-                    {/* Signed out: nothing on the card, one 登录 / 注册 for the page under it (Ke Li). */}
-                    <NextEvent e={next} cta={member === "pending" ? cta : null} />
-                  </>
-                )
+              {member === "member" && data.currentEvents.length > 0 ? (
+                <MyEvents events={data.currentEvents} />
+              ) : next ? (
+                // Signed out: nothing on the card, 登录 / 注册 is in the top bar (Ke Li).
+                <NextEvent e={next} cta={member === "pending" ? cta : null} />
               ) : (
                 <>
-                  {/* Signed out, 登录 / 注册 is in the top bar already. */}
                   {(member === "member" || member === "pending") && (
                     <a class="button block" href="/me">
                       {cta}
@@ -126,7 +147,7 @@ export function Home() {
                   <Empty>{t("暂时没有活动")}</Empty>
                 </>
               )}
-              {others.length > 0 && (
+              {member !== "member" && others.length > 0 && (
                 <>
                   <SectionTitle>{t("近期活动")}</SectionTitle>
                   <div class="card list">

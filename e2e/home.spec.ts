@@ -57,6 +57,40 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   await expect(page.locator("main")).toContainText("还没有出勤记录");
 });
 
+/** Signed in: every current event in the same card, soonest first, coloured as on 我的活动 (Ke Li). */
+test("signed in, each event gets the same card, soonest first, coral for the ones I'm on", async ({ page }) => {
+  const closed = event({ id: 2, code: "C2", date: "2026-10-19", title: "上周二", status: "closed" });
+  const mineOpen = event({});
+  const other = event({ id: 3, code: "C3", date: "2026-10-27", title: "下周二" });
+  const own = (e: object, on: boolean) => ({
+    ...e,
+    selfSignedUp: on,
+    myFriends: on ? [] : null,
+    payment: null,
+    courts: [],
+  });
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { signedIn: true, hasMember: true, pending: false } }),
+  );
+  await page.route("**/api/public/home", (route) =>
+    route.fulfill({ json: { currentEvents: [closed, mineOpen, other], pastEvents: [], leaderboard: null } }),
+  );
+  await page.route("**/api/m/session/events", (route) =>
+    route.fulfill({
+      json: { events: [own(closed, true), own(mineOpen, true), own(other, false)], history: [], friendCap: 3 },
+    }),
+  );
+  await page.goto("/");
+  const cards = page.locator(".next-card");
+  await expect(cards).toHaveCount(3);
+  await expect(cards.locator(".hero-what")).toHaveText([/上周二/, /快乐星期二/, /下周二/]);
+  await expect(cards.nth(0)).toHaveClass(/tone-hero/);
+  await expect(cards.nth(1)).toHaveClass(/tone-hero/);
+  await expect(cards.nth(2)).toHaveClass(/tone-soft/);
+  await expect(cards.locator(".next-cta")).toHaveText(["查看 →", "查看 →", "报名 →"]);
+  await expect(page.getByText("近期活动")).toHaveCount(0);
+});
+
 /** Signed out: no button on the event card, one 登录 / 注册 for the page, in the top bar (Ke Li). */
 test("signed out, the card has no button and the page has one 登录 / 注册", async ({ page }) => {
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false } }));
