@@ -69,6 +69,8 @@ export async function saveUpload(env: Env, code: string, raw: unknown): Promise<
   const n = typeof raw === "string" ? Number(raw.replace(/[^\d.]/g, "")) : Number(raw);
   if (!Number.isFinite(n) || n < 0 || n > KCAL_MAX) throw badRequest("卡路里数字不对");
   const kcal = Math.round(n);
+  // 0: nothing in 「健康」 for that time (no Apple Watch worn); keep 读取 on the card rather than a 0.
+  if (kcal === 0) return 0;
   await env.DB.prepare(
     `INSERT INTO calories (event_id, member_id, kcal, recorded_at) VALUES (?, ?, ?, ?)
      ON CONFLICT (event_id, member_id) DO UPDATE SET kcal = excluded.kcal, recorded_at = excluded.recorded_at`,

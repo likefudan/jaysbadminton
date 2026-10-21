@@ -53,6 +53,11 @@ describe("卡路里", () => {
     const again = (await anon.call(`${alice.base}/events/${e.id}/calories`, {})).data;
     expect((await upload(again.upload, "388 kcal")).data.kcal).toBe(388);
     expect(await card(alice.base, e.id)).toMatchObject({ kcal: 388 });
+
+    // 0 means nothing in 「健康」 (no Apple Watch): the number read before stays.
+    const none = (await anon.call(`${alice.base}/events/${e.id}/calories`, {})).data;
+    expect((await upload(none.upload, 0)).data).toEqual({ ok: true, kcal: 0 });
+    expect(await card(alice.base, e.id)).toMatchObject({ kcal: 388 });
   });
 
   it("refuses people not on it, and after 30 days", async () => {
