@@ -207,13 +207,25 @@ function drawQr(
   ctx.restore();
 }
 
-/** A button that opens the 分享名片: an image to long-press and save or forward. */
+/** The iOS share icon: a box with an arrow up. */
+function ShareGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+      <path d="M8.5 9.5H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1.5" />
+      <path d="M12 15V3" />
+      <path d="M8.5 6.5 12 3l3.5 3.5" />
+    </svg>
+  );
+}
+
+/** 分享 (the share icon and the word) that opens the 分享名片: an image to long-press and save or forward. */
 export function ShareCardButton(props: { text: CardText }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button class="share-site" type="button" onClick={() => setOpen(true)}>
-        {t("生成分享名片")}
+        <ShareGlyph />
+        {t("分享")}
       </button>
       {open && <ShareCardSheet {...props} onClose={() => setOpen(false)} />}
     </>
@@ -237,7 +249,7 @@ export function EventActions(props: { e: EventSummary }) {
       {calendar && <CalendarButton e={e} />}
       {share && (
         <button class="calendar-link" type="button" onClick={() => setOpen(true)}>
-          {t("分享名片")}
+          {t("分享")}
         </button>
       )}
       {open && <EventShareSheet e={e} onClose={() => setOpen(false)} />}
@@ -260,24 +272,14 @@ export function CardCornerIcons(props: { e: EventSummary; calendar: boolean }) {
   );
 }
 
-/** 分享名片 as the iOS share icon (a box with an arrow up), in the top corner of an open event's card. */
+/** 分享 as the iOS share icon (a box with an arrow up), in the top corner of an open event's card. */
 export function ShareIconButton(props: { e: EventSummary }) {
   const [open, setOpen] = useState(false);
   if (props.e.status !== "open") return null;
   return (
     <>
-      <button
-        class="share-icon"
-        type="button"
-        aria-label={t("分享名片")}
-        title={t("分享名片")}
-        onClick={() => setOpen(true)}
-      >
-        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
-          <path d="M8.5 9.5H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1.5" />
-          <path d="M12 15V3" />
-          <path d="M8.5 6.5 12 3l3.5 3.5" />
-        </svg>
+      <button class="share-icon" type="button" aria-label={t("分享")} title={t("分享")} onClick={() => setOpen(true)}>
+        <ShareGlyph />
       </button>
       {open && <EventShareSheet e={props.e} onClose={() => setOpen(false)} />}
     </>
@@ -312,7 +314,7 @@ function ShareCardSheet(props: { text: CardText; onClose: () => void }) {
     // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
     // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
     <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet" role="dialog" aria-label={t("分享名片")}>
+      <div class="sheet" role="dialog" aria-label={t("分享")}>
         <div class="sheet-head sheet-head-close">
           <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
             ✕
@@ -322,7 +324,7 @@ function ShareCardSheet(props: { text: CardText; onClose: () => void }) {
         {!failed && !png && <p class="muted">{t("正在生成…")}</p>}
         {png && (
           <>
-            <img class="sharecard" src={png} alt={t("分享名片")} />
+            <img class="sharecard" src={png} alt={t("分享")} />
             <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>
           </>
         )}

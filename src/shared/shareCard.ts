@@ -9,14 +9,12 @@ export interface CardText {
   url: string;
 }
 
-const TAGLINE = "报名、结算、付款，一个链接搞定。";
-
 /** The card's own words in the visitor's language (the web's t); Chinese by default. */
 type Words = (zh: string) => string;
 const zh: Words = (s) => s;
 
 export function siteCardText(origin: string, tr: Words = zh): CardText {
-  return { heading: "", lines: [tr(TAGLINE)], hint: tr("扫码查看活动、报名"), url: `${origin}/` };
+  return { heading: "", lines: [], hint: tr("扫码查看活动、报名"), url: `${origin}/` };
 }
 
 export function eventCardText(

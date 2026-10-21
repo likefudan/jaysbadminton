@@ -2492,7 +2492,9 @@ a.ev-meta {
   color: var(--muted);
 }
 .share-site {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 22px auto 0;
   padding: 10px 16px;
   border: 0;
@@ -2502,6 +2504,13 @@ a.ev-meta {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
+}
+.share-site svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* ---- Bill ---- */
