@@ -254,7 +254,7 @@ test("a signed-in member sees the roster and can sign up on the shared event pag
   });
 
   await page.goto("/e/AB12");
-  await expect(page.getByText("登录后即可报名；新朋友请先注册入群。")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(0);
   await page.getByRole("button", { name: "报名", exact: true }).click();
   await page.getByRole("button", { name: "确认报名" }).click();
   await expect(page.locator(".status-mine")).toHaveText("我已报名");
@@ -285,7 +285,10 @@ test("a visitor still sees only the headcount on the shared event page", async (
   );
   await page.goto("/e/AB12");
   await expect(page.getByText("2 人已报名")).toBeVisible();
-  await expect(page.getByText("登录后即可报名；新朋友请先注册入群。")).toBeVisible();
-  await expect(page.getByRole("link", { name: "登录 / 注册" })).toBeVisible();
+  // The new card, nothing to press on it; one 登录 / 注册 for the page, in the top bar (Ke Li).
+  await expect(page.locator(".card.ev-card .status")).toHaveText("报名中");
+  await expect(page.locator(".card.ev-card .button")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(1);
+  await expect(page.locator(".topbar").getByRole("link", { name: "登录 / 注册" })).toHaveAttribute("href", "/me");
   await expect(page.locator(".roster-fold")).toHaveCount(0);
 });

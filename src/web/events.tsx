@@ -16,7 +16,7 @@ export function mapLink(address: string): string {
  * What the public sees: only whether sign-up is open, plus 已取消; nothing about money
  * (finalized and settled events read as 已截止 or show no badge at all once in the past).
  */
-function publicStatus(s: EventStatus): { cls: string; label: string } | null {
+export function publicStatus(s: EventStatus): { cls: string; label: string } | null {
   if (s === "open") return { cls: "open", label: t("报名中") };
   if (s === "closed" || s === "finalized") return { cls: "closed", label: t("已截止") };
   if (s === "cancelled") return { cls: "cancelled", label: t("已取消") };

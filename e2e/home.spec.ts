@@ -57,7 +57,7 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   await expect(page.locator("main")).toContainText("还没有出勤记录");
 });
 
-/** Signed out: no button on the event card, one 登录 / 注册 for the page under it (Ke Li). */
+/** Signed out: no button on the event card, one 登录 / 注册 for the page, in the top bar (Ke Li). */
 test("signed out, the card has no button and the page has one 登录 / 注册", async ({ page }) => {
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false } }));
   await page.route("**/api/public/home", (route) =>
@@ -68,7 +68,7 @@ test("signed out, the card has no button and the page has one 登录 / 注册", 
   await expect(card).toContainText("12 人已报名");
   await expect(card.locator(".next-cta")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(1);
-  await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveAttribute("href", "/me");
+  await expect(page.locator(".topbar").getByRole("link", { name: "登录 / 注册" })).toHaveAttribute("href", "/me");
 });
 
 /** 并列: people with the same count share a rank and its colour; the next rank skips. */

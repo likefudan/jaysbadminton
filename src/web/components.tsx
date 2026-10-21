@@ -8,6 +8,7 @@ import { GoogleAccount } from "./GoogleAccount";
 import { useLocation } from "preact-iso";
 import { isAdminPath, t, tm } from "./i18n";
 import { LangSwitch } from "./LangSwitch";
+import { useMemberSession } from "./hooks";
 
 export function Page(props: {
   title: string;
@@ -36,6 +37,7 @@ export function Page(props: {
           <span class="brand-name">{site}</span>
         </a>
         <div class="topbar-actions">
+          {!admin && !SIGN_IN_PAGES.test(path) && <TopSignIn />}
           <GoogleAccount />
           {!admin && <LangSwitch />}
           <AppearanceButton onClick={() => setLooks(true)} />
@@ -273,5 +275,18 @@ export function LinkCard(props: { title: string; link: string; note?: string }) 
       <code class="link">{props.link}</code>
       <CopyButton text={props.link} label={t("复制链接")} />
     </div>
+  );
+}
+
+/** The sign-in pages themselves (and member links, signed in by their token): no 登录 / 注册 on top. */
+const SIGN_IN_PAGES = /^\/(me|login|join|recover|m)(\/|$)/;
+
+/** Signed out: one 登录 / 注册 for the whole site, in the top bar (Ke Li: at the top, never on a card). */
+function TopSignIn() {
+  if (useMemberSession() !== "none") return null;
+  return (
+    <a class="profile-switch signin-pill" href="/me">
+      {t("登录 / 注册")}
+    </a>
   );
 }
