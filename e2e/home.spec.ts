@@ -41,7 +41,8 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   const card = page.locator(".next-card");
   await expect(card.getByRole("link", { name: /快乐星期二/ })).toHaveAttribute("href", "/e/JBM20261020");
   await expect(card).toContainText("12 人已报名");
-  await expect(card.getByRole("link", { name: "报名", exact: true })).toHaveAttribute("href", "/me");
+  // 报名 opens the same page as the card itself: the event's own card.
+  await expect(card.getByRole("link", { name: "报名", exact: true })).toHaveAttribute("href", "/e/JBM20261020");
   // The site name is only in the top bar now, not repeated as a big title.
   await expect(page.locator(".hero")).toHaveCount(0);
 
@@ -54,6 +55,20 @@ test("the home page leads with the next event and scrolls the small cards sidewa
 
   await page.getByRole("button", { name: "最长连续" }).click();
   await expect(page.locator("main")).toContainText("还没有出勤记录");
+});
+
+/** Signed out: no button on the event card, one 登录 / 注册 for the page under it (Ke Li). */
+test("signed out, the card has no button and the page has one 登录 / 注册", async ({ page }) => {
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false } }));
+  await page.route("**/api/public/home", (route) =>
+    route.fulfill({ json: { currentEvents: [event({})], pastEvents: [], leaderboard: null } }),
+  );
+  await page.goto("/");
+  const card = page.locator(".next-card");
+  await expect(card).toContainText("12 人已报名");
+  await expect(card.locator(".next-cta")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveAttribute("href", "/me");
 });
 
 /** 并列: people with the same count share a rank and its colour; the next rank skips. */

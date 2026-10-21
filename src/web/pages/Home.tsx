@@ -10,10 +10,13 @@ import { BOARDS } from "../Stats";
 import { SwipeSection } from "../Swipe";
 import { t, tx } from "../i18n";
 
-/** The next event as one big card; 报名 (or 登录 / 注册, or 查看 once they're on it) sits in its corner. */
+/** The next event as one big card; 报名 (grey when signed out, 查看 once they're on it) sits in its corner. */
 function NextEvent(props: {
   e: EventSummary;
-  cta: string;
+  /** The button's label; null for none (signed out: 登录 / 注册 goes on the page once, not on the card). */
+  cta: string | null;
+  /** Where the button goes: 我的活动 (or sign-in) by default; the event's own page for a member. */
+  ctaHref?: string;
   mine?: { cls: string; label: string } | null;
   /** 预定场地, for a member on it. */
   courts?: number[];
@@ -31,10 +34,12 @@ function NextEvent(props: {
           {props.courts && props.courts.length > 0 && <CourtsLine courts={props.courts} />}
         </EventHero>
       </a>
-      <a class="next-cta" href="/me">
-        {props.cta}
-        <span aria-hidden="true"> →</span>
-      </a>
+      {props.cta !== null && (
+        <a class="next-cta" href={props.ctaHref ?? "/me"}>
+          {props.cta}
+          <span aria-hidden="true"> →</span>
+        </a>
+      )}
     </section>
   );
 }
@@ -46,7 +51,9 @@ function MyNextEvent(props: { e: EventSummary; cta: string }) {
   const mine = own ? mineStatus(own) : null;
   // 报名 only while they could still sign up; 查看 once they're on it or sign-up has closed.
   const cta = own?.selfSignedUp || props.e.status !== "open" ? t("查看") : props.cta;
-  return <NextEvent e={props.e} cta={cta} mine={mine} courts={own?.courts} />;
+  // The whole card and its button open the same page: the event's own card, where they can sign up,
+  // see who is coming and pay (Ke Li tapped the card background and landed somewhere else).
+  return <NextEvent e={props.e} cta={cta} ctaHref={`/e/${props.e.code}`} mine={mine} courts={own?.courts} />;
 }
 
 /** 排行榜 as a row of small cards that scrolls sideways, first place in the accent colour. */
@@ -103,7 +110,15 @@ export function Home() {
                 member === "member" ? (
                   <MyNextEvent e={next} cta={cta} />
                 ) : (
-                  <NextEvent e={next} cta={cta} />
+                  <>
+                    {/* Signed out: nothing on the card, one 登录 / 注册 for the page under it (Ke Li). */}
+                    <NextEvent e={next} cta={member === "pending" ? cta : null} />
+                    {member === "none" && (
+                      <a class="button block" href="/me">
+                        {cta}
+                      </a>
+                    )}
+                  </>
                 )
               ) : (
                 <>

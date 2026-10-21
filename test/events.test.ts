@@ -729,8 +729,12 @@ describe("我的活动 (the member's events)", () => {
     expect(page.payment).toMatchObject({ amountCents: 2500, paidCents: 2500, status: "paid" });
     expect(page.canEdit).toBe(false);
 
-    // Not theirs: nothing beyond the public card.
-    expect((await c.call(`${alice.base}/events/${other.id}`)).data).toEqual({ event: null });
+    // Not theirs: the same card, but no roster, no bill and nothing to change.
+    const notMine = (await c.call(`${alice.base}/events/${other.id}`)).data.event;
+    expect(notMine).toMatchObject({ id: other.id, selfSignedUp: false, myFriends: null, roster: null, payment: null });
+    expect(notMine.canEdit).toBe(false);
+    expect(notMine.queue).toBeNull();
+    expect(notMine.courts).toEqual([]);
   });
 
   it("a disabled member sees only their own events and bills, nothing to join", async () => {

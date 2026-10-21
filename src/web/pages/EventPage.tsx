@@ -45,7 +45,7 @@ export function EventPage(props: { code?: string }) {
 
 /**
  * The event as it appears on the member's own page, past ones included (who came, their bill and
- * whether it is paid); falls back to the public card when it isn't theirs (not on it and not open).
+ * whether it is paid), and ones they are not on (你没有报名); the public card only for a cancelled one.
  */
 function MemberView(props: { e: PublicEvent }) {
   const [res, reload] = useApi<MyEventResponse>(`/api/m/session/events/${props.e.id}`);
