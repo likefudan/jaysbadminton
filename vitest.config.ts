@@ -23,6 +23,8 @@ export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
     setupFiles: ["./test/setup.ts"],
+    // A busy CI runner can take several times longer than usual; 5 s failed good runs on main.
+    testTimeout: 15_000,
     // Every test file loads the Worker afresh; bundling these two big packages into one file each
     // (the Anthropic SDK is hundreds of small modules) saves each file about two seconds.
     deps: { optimizer: { ssr: { enabled: true, include: ["@anthropic-ai/sdk", "pinyin-pro"] } } },
