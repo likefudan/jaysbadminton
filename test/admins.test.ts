@@ -104,9 +104,10 @@ describe("an admin", () => {
     expect((await request(`${ctx.base}/events`, ctx.admin.cookie, past)).status).toBe(200);
     const theirs = await request(`${GOOGLE}/events`, org, past);
     expect(((await theirs.json()) as any).error.message).toBe("按这个提前量算出的截止时间已经过了，请调整");
-    // A mistyped year is caught: at most 30 days back.
+    // A mistyped year is caught: at most half a year back.
     const old = await asAdmin("/events", { ...past, date: `${Number(start.year) - 10}-${start.month}-${start.day}` });
-    expect(old.data.error.message).toBe("已经开始的活动最多补建 30 天内的");
+    expect(old.data.error.message).toBe("已经开始的活动最多补建半年内的");
+    expect((await asAdmin("/events", { ...past, date: futureDate(-170) })).status).toBe(200);
     // Still to start with its deadline already gone is refused, for everyone.
     const late = await asAdmin("/events", { ...past, date: futureDate(1), deadlineDays: 3 });
     expect(late.data.error.message).toBe("按这个提前量算出的截止时间已经过了，请调整");
