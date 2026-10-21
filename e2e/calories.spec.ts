@@ -104,6 +104,10 @@ test.describe("on iPhone", () => {
     await toRead.getByRole("button", { name: "读取" }).click();
     const sheet = page.getByRole("dialog", { name: "读取卡路里" });
     await expect(sheet).toContainText("安装快捷指令「ReadBadmintonCalories」");
+    await expect(sheet.getByRole("link", { name: "安装快捷指令" })).toHaveAttribute(
+      "href",
+      "https://www.icloud.com/shortcuts/71f9d5e777b84f72bebf91b44a1e1508",
+    );
     await expect(sheet).toContainText("20:30–22:30");
 
     // The page hands over to the Shortcuts app; catch where it goes.
