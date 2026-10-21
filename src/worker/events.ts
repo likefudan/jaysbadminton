@@ -252,7 +252,7 @@ export function validateEventInput(i: CreateEventInput): {
   const offsetMin = days * 1440 + hours * 60;
   const deadlineAt = new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
   const ts = now();
-  const started = i.pastDays !== undefined && startAt <= ts;
+  const started = !!i.pastDays && i.pastDays > 0 && startAt <= ts;
   if (deadlineAt <= ts && !started) throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
   if (started && Date.parse(ts) - Date.parse(startAt) > i.pastDays! * 86400_000)
     throw badRequest(`已经开始的活动最多补建 ${i.pastDays} 天内的`);
@@ -327,7 +327,7 @@ export function saveVenue(
   ).bind(venue, address, queueRoundMin, ts);
 }
 
-/** started: it had already started (allowPast), so it was made closed and is to be kept quiet. */
+/** started: it had already started (pastDays), so it was made closed and is to be kept quiet. */
 export async function createEvent(env: Env, input: CreateEventInput): Promise<{ event: EventRow; started: boolean }> {
   const v = validateEventInput(input);
   const location = input.location.trim();

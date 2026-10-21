@@ -230,8 +230,7 @@ async function myEvents(
     if (!managers.has(id)) managers.set(id, payeeName(env.DB, id));
     return managers.get(id)!;
   };
-  const list = await summaries(env, results);
-  const readDays = await calorieReadDays(env);
+  const [list, readDays] = await Promise.all([summaries(env, results), calorieReadDays(env)]);
   const events: MyEvent[] = [];
   for (const e of list) {
     const row = rowOf.get(e.id)!;

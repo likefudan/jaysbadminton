@@ -641,7 +641,11 @@ function DaysCard(props: { base: string; initial: GeneralSettings }) {
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
-          const body = { pastEventDays: Number(past), calorieReadDays: Number(kcal) };
+          // Only what changed, so 群操作记录 names just that.
+          const body = {
+            ...(past !== String(props.initial.pastEventDays) && { pastEventDays: Number(past) }),
+            ...(kcal !== String(props.initial.calorieReadDays) && { calorieReadDays: Number(kcal) }),
+          };
           if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
         }}
       >
