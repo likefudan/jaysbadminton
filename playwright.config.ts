@@ -6,7 +6,9 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "e2e",
-  workers: 1,
+  // Two browsers side by side. Only flows.spec.ts uses the shared database, and it runs its steps
+  // in order in one worker (serial); the other files answer the API from page.route.
+  workers: 2,
   fullyParallel: false,
   retries: 0,
   timeout: 60_000,
