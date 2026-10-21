@@ -110,20 +110,43 @@ export async function sendToMember(env: Env, memberId: string, text: BotText): P
   return sendTo(env, m.chat_id, text);
 }
 
+/** Every current admin's own chat, only while the feature is on. */
+async function adminChats(env: Env): Promise<string[]> {
+  if (!organizersEnabled(env)) return [];
+  const { results } = await env.DB.prepare(
+    `SELECT t.chat_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
+     WHERE t.chat_id IS NOT NULL AND m.role = 'admin' AND ${currentStaffSql("m")}`,
+  ).all<{ chat_id: string }>();
+  return results.map((r) => r.chat_id);
+}
+
 /**
  * Sends to every current admin's own chat (新成员申请, admin-role.zh.md §6), only while the feature
  * is on. True when at least one of them got it.
  */
 export async function sendToAdmins(env: Env, text: BotText): Promise<boolean> {
-  if (!organizersEnabled(env)) return false;
-  const { results } = await env.DB.prepare(
-    `SELECT t.chat_id FROM telegram_bindings t JOIN members m ON m.id = t.member_id
-     WHERE t.chat_id IS NOT NULL AND m.role = 'admin' AND ${currentStaffSql("m")}`,
-  ).all<{ chat_id: string }>();
+  const chats = await adminChats(env);
   const sent = await Promise.all(
-    results.map((r) => sendTo(env, r.chat_id, async (l) => withAdminLink(env, l, await text(l), true))),
+    chats.map((chat) => sendTo(env, chat, async (l) => withAdminLink(env, l, await text(l), true))),
   );
   return sent.some(Boolean);
+}
+
+/**
+ * Sends to the Owner and every current admin (admins only while the feature is on), each in their
+ * own bot language, leaving out the chats in `skip`; a chat shared by two of them gets it once.
+ * Which chats there were, and which of them took it.
+ */
+export async function sendToOwnerAndAdmins(
+  env: Env,
+  text: BotText,
+  skip: ReadonlySet<string> = new Set(),
+): Promise<{ chats: string[]; delivered: string[] }> {
+  const { telegram_chat_id: owner } = await getSettings(env.DB, ["telegram_chat_id"]);
+  const chats = [...new Set([...(owner ? [owner] : []), ...(await adminChats(env))])];
+  const todo = chats.filter((c) => !skip.has(c));
+  const ok = await Promise.all(todo.map((chat) => sendTo(env, chat, text)));
+  return { chats, delivered: todo.filter((_, i) => ok[i]) };
 }
 
 export interface ManagerDelivery {

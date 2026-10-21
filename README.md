@@ -86,7 +86,7 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 
 ### 网站维护者
 
-- **发布**：改动合并到 `main` 后自动部署到测试网站。测试没问题后，在 GitHub → Actions → **Release** → Run workflow（分支选 `main`，发布说明可选填），或者直接让 Claude「发布」。它会给 `main` 打上当天的 `vYYYY.MM.DD` 标签（同一天再发加 `.2`）、发布 Release（自动附上合并的 PR 列表），然后先备份正式数据库再部署到正式网站。`main` 的 CI 没通过、或者这个提交已经发布过时会拒绝发布。也可以照旧在 GitHub → Releases 手动新建标签发布。
+- **发布**：改动合并到 `main` 后自动部署到测试网站。测试没问题后，在 GitHub → Actions → **Release** → Run workflow（分支选 `main`，发布说明可选填），或者直接让 Claude「发布」。它会给 `main` 打上当天的 `vYYYY.MM.DD` 标签（同一天再发加 `.2`）、发布 Release（自动附上合并的 PR 列表），然后先备份正式数据库再部署到正式网站。`main` 的 CI 没通过、或者这个提交已经发布过时会拒绝发布。部署成功后，群主和每位连接了 Telegram 的管理员（组织者功能打开时）会收到一条「新版本已发布」的消息，列出上次发布以来的改动，由 Claude 改写成白话，按各自在机器人里选的语言（简/繁/EN）发送；没有 `ANTHROPIC_API_KEY` 或 Claude 出错时直接列 PR 标题。只有最新的版本会通知、每个版本只通知一次，所以回滚或重新部署不会再发。也可以照旧在 GitHub → Releases 手动新建标签发布。
 - **回滚**：Actions → CI → Run workflow，「Use workflow from」选上一个版本标签。只能回滚到 migrations 文件夹里已经包含数据库执行过的全部迁移的版本，也就是不早于最近一次新增迁移的那个版本（在那个标签上 `ls migrations/` 就能看到它带了哪些迁移），原因见下面「回滚的限制」。
 - **忘记群主密码**：修改 GitHub secret `ADMIN_PASSWORD`（测试网站是 `ADMIN_PASSWORD_STAGING`），再按上面的方法重新部署一次。
 - **丢了管理链接**：已绑定 Google 的话直接用 Google 登录；或者在 Telegram 给机器人发「管理页面」；或者运行一次部署并勾选 `reset_admin_link`（正式网站选最新版本标签，测试网站选 `main`），然后回到 `/admin` 重新设置。数据不受影响。

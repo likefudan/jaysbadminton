@@ -172,6 +172,11 @@ jobs:
         run: npx wrangler d1 execute DB --remote --command "DELETE FROM settings WHERE key IN ('admin_token_hash', 'admin_token_enc')"
       - name: Smoke test the live site
         run: node scripts/smoke.mjs
+      # 正式版发布通知: the Owner and the admins hear in Telegram what this release changed.
+      # Only for the newest release, once; a failure here never fails the deploy.
+      - name: Tell the Owner and admins
+        continue-on-error: true
+        run: node scripts/release-notice.mjs
       - name: Tell the developers
         if: always()
         env:
