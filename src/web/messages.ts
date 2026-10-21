@@ -664,11 +664,8 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "删除这组排队（不排了）？": { tw: "刪除這組排隊（不排了）？", en: "Remove this queue spot (no longer waiting)?" },
   还剩几分钟: { tw: "還剩幾分鐘", en: "Minutes left" },
-  这片场正在打的那组还剩几分钟: {
-    tw: "這片場正在打的那組還剩幾分鐘",
-    en: "Minutes left for the group now on this court",
-  },
-  还要等几分钟上场: { tw: "還要等幾分鐘上場", en: "Minutes until we're on" },
+  正在打的还剩几分钟: { tw: "正在打的還剩幾分鐘", en: "Current group: min left" },
+  还要等几分钟: { tw: "還要等幾分鐘", en: "Minutes to wait" },
   "{n} 号场": { tw: "{n} 號場", en: "Court {n}" },
   登记球场: { tw: "登記球場", en: "Add court" },
   "{name} {time} 登记": { tw: "{name} {time} 登記", en: "Added by {name} at {time}" },
