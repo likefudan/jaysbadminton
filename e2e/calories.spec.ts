@@ -66,7 +66,7 @@ export async function calorieMocks(page: Page, opts: { board?: boolean } = {}) {
   );
   await page.route("**/api/m/tok/events/2/calories", (route) =>
     route.fulfill({
-      json: { day: "2030-10-20", from: 2030, to: 2230, upload: "https://x.test/api/calories/abc" },
+      json: { start: "2030-10-20 20:20", end: "2030-10-20 22:30", upload: "https://x.test/api/calories/abc" },
     }),
   );
   await page.route("**/api/m/tok/calories", (route) =>
@@ -120,9 +120,8 @@ test.describe("on iPhone", () => {
     expect(url.searchParams.get("name")).toBe("ReadBadmintonCalories");
     expect(url.searchParams.get("input")).toBe("text");
     expect(JSON.parse(url.searchParams.get("text")!)).toEqual({
-      day: "2030-10-20",
-      from: 2030,
-      to: 2230,
+      start: "2030-10-20 20:20",
+      end: "2030-10-20 22:30",
       upload: "https://x.test/api/calories/abc",
     });
   });
