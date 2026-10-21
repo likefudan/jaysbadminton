@@ -10,10 +10,11 @@ import { BOARDS } from "../Stats";
 import { SwipeSection } from "../Swipe";
 import { t, tx } from "../i18n";
 
-/** The next event as one big card; 报名 (or 登录 / 注册, or 查看 once they're on it) sits in its corner. */
+/** The next event as one big card; 报名 (grey when signed out, 查看 once they're on it) sits in its corner. */
 function NextEvent(props: {
   e: EventSummary;
-  cta: string;
+  /** The button's label; null for none (signed out: 登录 / 注册 goes on the page once, not on the card). */
+  cta: string | null;
   /** Where the button goes: 我的活动 (or sign-in) by default; the event's own page for a member. */
   ctaHref?: string;
   mine?: { cls: string; label: string } | null;
@@ -33,10 +34,12 @@ function NextEvent(props: {
           {props.courts && props.courts.length > 0 && <CourtsLine courts={props.courts} />}
         </EventHero>
       </a>
-      <a class="next-cta" href={props.ctaHref ?? "/me"}>
-        {props.cta}
-        <span aria-hidden="true"> →</span>
-      </a>
+      {props.cta !== null && (
+        <a class="next-cta" href={props.ctaHref ?? "/me"}>
+          {props.cta}
+          <span aria-hidden="true"> →</span>
+        </a>
+      )}
     </section>
   );
 }
@@ -107,7 +110,15 @@ export function Home() {
                 member === "member" ? (
                   <MyNextEvent e={next} cta={cta} />
                 ) : (
-                  <NextEvent e={next} cta={cta} />
+                  <>
+                    {/* Signed out: nothing on the card, one 登录 / 注册 for the page under it (Ke Li). */}
+                    <NextEvent e={next} cta={member === "pending" ? cta : null} />
+                    {member === "none" && (
+                      <a class="button block" href="/me">
+                        {cta}
+                      </a>
+                    )}
+                  </>
                 )
               ) : (
                 <>
