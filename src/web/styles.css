@@ -3962,11 +3962,11 @@ ul.audit li:first-child {
 .chip.on small {
   color: inherit;
 }
-/* 场号 and the minutes side by side; the 场号 dropdown opens across the whole row. */
+/* 场号 and the status side by side; the 场号 dropdown opens across the whole row. */
 .cq-row {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 2fr 3fr;
   gap: 10px;
   align-items: start;
 }
@@ -3982,25 +3982,32 @@ ul.audit li:first-child {
   background: var(--surface-raised);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
-.cq-minutes {
-  display: block;
-  min-width: 0;
+.cq-row .cq-combo-toggle {
+  width: 36px;
 }
-.cq-minutes .sheet-label {
-  display: block;
+.seg.cq-status button {
+  min-height: 40px;
+  padding-left: 0;
+  padding-right: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+/* The minutes: a small box with the slider right beside it. */
+.cq-minutes {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 .cq-minutes-box {
+  flex: none;
+  width: 116px;
   display: flex;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--field);
-  padding-right: 12px;
+  padding-right: 10px;
 }
-.cq-minutes input {
+.cq-minutes input[type="number"] {
   flex: 1;
   width: 100%;
   min-width: 0;
@@ -4018,9 +4025,8 @@ ul.audit li:first-child {
   color: var(--muted);
 }
 .cq-slider {
-  display: block;
-  width: 100%;
-  margin: 12px 0 2px;
+  flex: 1;
+  min-width: 0;
   accent-color: var(--acc);
 }
 /* Thirty to fifty accounts: the list scrolls inside its own box, under the picked row and search. */

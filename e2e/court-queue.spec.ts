@@ -166,7 +166,7 @@ test("a court opens to change its time, accounts or status, or to remove it", as
   await expect(wait).toHaveValue(/^4[89]$/);
   await page.screenshot({ path: test.info().outputPath("court-queue-edit.png") });
 
-  // Typed, or dragged on the slider that shows once the box is tapped.
+  // Typed, or dragged on the slider beside the box.
   await wait.fill("30");
   const slider = sheet.getByRole("slider", { name: "还要等几分钟" });
   await expect(slider).toHaveAttribute("max", "90");
@@ -204,10 +204,16 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   await sheet.getByRole("button", { name: "排第 3 组" }).click();
   await sheet.getByRole("spinbutton", { name: "正在打的还剩几分钟" }).fill("10");
   await expect(sheet).toContainText("大约 100 分钟后上场");
-  // 场号 and the minutes share a row.
-  const no = await sheet.getByRole("spinbutton", { name: "场号" }).boundingBox();
-  const min = await sheet.getByRole("spinbutton", { name: "正在打的还剩几分钟" }).boundingBox();
-  expect(Math.abs(no!.y - min!.y)).toBeLessThan(2);
+  // 场号 and the status share a row; the minutes box has its slider beside it.
+  const box = async (l: ReturnType<typeof sheet.getByRole>) => (await l.boundingBox())!;
+  const no = await box(sheet.getByRole("spinbutton", { name: "场号" }));
+  const status = await box(sheet.getByRole("button", { name: "排第 3 组" }));
+  expect(status.x).toBeGreaterThan(no.x + no.width);
+  expect(Math.abs(no.y + no.height / 2 - (status.y + status.height / 2))).toBeLessThan(6);
+  const min = await box(sheet.getByRole("spinbutton", { name: "正在打的还剩几分钟" }));
+  const drag = await box(sheet.getByRole("slider", { name: "正在打的还剩几分钟" }));
+  expect(drag.x).toBeGreaterThan(min.x + min.width);
+  expect(Math.abs(min.y + min.height / 2 - (drag.y + drag.height / 2))).toBeLessThan(6);
   // Accounts in alphabetical order, whatever the case; those on a court say where; a search narrows them.
   const chips = sheet.locator(".cq-chips .chip");
   await expect(chips.nth(0)).toHaveText("Am16号");
@@ -294,7 +300,7 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
   }, sent!.image);
   expect(Math.max(...size)).toBeLessThanOrEqual(1600);
 
-  await expect(sheet).toContainText("找到 2 片场，逐个核对后保存");
+  await expect(sheet).toContainText("找到 2 片场，请注意逐个核对后保存");
   await expect(sheet).toContainText("17号场在照片上看不清");
   await expect(sheet.getByRole("button", { name: "在打", exact: true })).toHaveClass(/on/);
   await expect(sheet.getByRole("spinbutton", { name: "还剩几分钟", exact: true })).toHaveValue("25");

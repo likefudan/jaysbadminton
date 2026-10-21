@@ -254,8 +254,6 @@ function CourtSheet(props: {
   const [saved, setSaved] = useState<number[]>([]);
   const [unsure, setUnsure] = useState<string[]>([]);
   const [noMinutes, setNoMinutes] = useState(false);
-  // The slider under the minutes shows once the box is tapped.
-  const [slider, setSlider] = useState(false);
   // A court read from the photo that is already on the card is saved as a change to that entry.
   const [entryId, setEntryId] = useState<number | null>(null);
   const { busy, error, run } = useAction();
@@ -337,34 +335,39 @@ function CourtSheet(props: {
           onPick={(k) => fill(photo.result.courts[k]!, k)}
         />
       )}
-      <p class="sheet-label">{t("状态")}</p>
-      <div class="seg">
-        {Array.from({ length: QUEUE_MAX_POSITION + 1 }, (_, k) => (
-          <button type="button" key={k} class={position === k ? "on" : ""} onClick={() => setPosition(k)}>
-            {k === 0 ? t("在打") : t("排第 {k} 组", { k })}
-          </button>
-        ))}
-      </div>
       <div class="cq-row">
         <CourtNumber value={court} onChange={setCourt} q={props.q} now={props.now} except={c?.id ?? null} />
-        <label class={noMinutes && minutes === "" ? "cq-minutes cq-unsure" : "cq-minutes"}>
-          <span class="sheet-label">{label}</span>
-          <span class="cq-minutes-box">
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              value={minutes}
-              aria-label={label}
-              onFocus={() => setSlider(true)}
-              onClick={() => setSlider(true)}
-              onInput={(ev) => setMinutes((ev.target as HTMLInputElement).value)}
-            />
-            <span>{t("分钟")}</span>
-          </span>
-        </label>
+        <div>
+          <p class="sheet-label">{t("状态")}</p>
+          <div class="seg cq-status">
+            {Array.from({ length: QUEUE_MAX_POSITION + 1 }, (_, k) => (
+              <button
+                type="button"
+                key={k}
+                class={position === k ? "on" : ""}
+                aria-label={k === 0 ? t("在打") : t("排第 {k} 组", { k })}
+                onClick={() => setPosition(k)}
+              >
+                {k === 0 ? t("在打") : t("排{k}", { k })}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-      {slider && (
+      <p class="sheet-label">{label}</p>
+      {/* Typed in the box, or dragged on the slider right beside it. */}
+      <div class={noMinutes && minutes === "" ? "cq-minutes cq-unsure" : "cq-minutes"}>
+        <label class="cq-minutes-box">
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={minutes}
+            aria-label={label}
+            onInput={(ev) => setMinutes((ev.target as HTMLInputElement).value)}
+          />
+          <span>{t("分钟")}</span>
+        </label>
         <input
           class="cq-slider"
           type="range"
@@ -375,7 +378,7 @@ function CourtSheet(props: {
           aria-label={label}
           onInput={(ev) => setMinutes((ev.target as HTMLInputElement).value)}
         />
-      )}
+      </div>
       {noMinutes && minutes === "" && <p class="cq-unsure-note small">{t("照片上没读出剩余时间，请看屏幕填写。")}</p>}
       <p class="muted small">
         {wait !== null
@@ -457,7 +460,7 @@ function PhotoButton(props: { path: string; disabled: boolean; onRead: (url: str
         <input type="file" accept="image/*" disabled={busy || props.disabled} onChange={pick} />
         {busy ? t("识别中…") : t("📷 拍照登记")}
       </label>
-      {!busy && !error && <p class="muted small">{t("拍一张球馆电脑的排队屏幕，自动填好下面的场号、时间和账号。")}</p>}
+      {!busy && !error && <p class="muted small">{t("拍排队屏幕，自动填好场号、时间和账号")}</p>}
       {error && <p class="error">{error}</p>}
     </div>
   );
@@ -483,7 +486,9 @@ function PhotoFound(props: {
       ) : (
         <>
           <p class="sheet-label">
-            {found.length > 1 ? t("找到 {n} 片场，逐个核对后保存", { n: found.length }) : t("找到 1 片场，核对后保存")}
+            {found.length > 1
+              ? t("找到 {n} 片场，请注意逐个核对后保存", { n: found.length })
+              : t("找到 1 片场，请注意核对后保存")}
           </p>
           {found.length > 1 && (
             <div class="chips cq-found-list">
