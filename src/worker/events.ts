@@ -222,6 +222,11 @@ export interface CreateEventInput {
   queueRoundMin?: number | null;
   deadlineDays: number;
   deadlineHours: number;
+  /**
+   * 群主 and 管理员 may create an event that has already started (to record one after the fact, or
+   * to test something tied to its time, like 卡路里). It is created closed, quietly: see createEvent.
+   */
+  allowPast?: boolean;
 }
 
 export function validateEventInput(i: CreateEventInput): {
@@ -243,7 +248,8 @@ export function validateEventInput(i: CreateEventInput): {
   if (endAt <= startAt) endAt = new Date(Date.parse(endAt) + 86400_000).toISOString();
   const offsetMin = days * 1440 + hours * 60;
   const deadlineAt = new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
-  if (deadlineAt <= now()) throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
+  if (deadlineAt <= now() && !(i.allowPast && startAt <= now()))
+    throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
   return { startAt, endAt, deadlineAt, offsetMin };
 }
 
@@ -316,6 +322,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
   const ts = now();
   const owner = await ownerId(env.DB);
   const manager = input.managerId ?? owner;
+  // Already started (allowPast): closed from the start, with no 报名截止 notice for a deadline long gone.
+  const past = v.deadlineAt <= ts;
   // The 活动编号 skips every number an event created on this date has ever had (including events
   // since moved to another date or deleted), so no number is handed out twice. If two requests race
   // for the same one, the unique index refuses the second insert and it takes the next letter.
@@ -343,7 +351,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     try {
       const res = await env.DB.prepare(
         `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, queue_round_min, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?) RETURNING id`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       )
         .bind(
           number,
@@ -358,6 +366,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
           input.queueRoundMin ?? null,
           v.deadlineAt,
           v.offsetMin,
+          past ? "closed" : "open",
           ts,
           manager,
           manager,
@@ -376,6 +385,13 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     setSetting(env.DB, key("last_end_time"), input.endTime),
     setSetting(env.DB, key("last_location"), location),
     setSetting(env.DB, key("last_deadline_offset_min"), String(v.offsetMin)),
+    ...(past
+      ? [
+          env.DB.prepare(
+            "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, 'closed', ?, ?)",
+          ).bind(id, v.deadlineAt, ts),
+        ]
+      : []),
   ]);
   await syncDeadline(env, id);
   return getEvent(env, id);

@@ -211,6 +211,7 @@ adminEventRoutes.post("/events", async (c) => {
     queueRoundMin: cleanRoundMin(b.queueRoundMin),
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
+    allowPast: can(actor.role, "group"),
   });
   await audit(c.env, e.id, actorId(actor), "create", `创建活动（${e.date} ${e.location}）`);
   // Revoked while this request was on its way: the event goes to the Owner like their others did.
@@ -225,7 +226,8 @@ adminEventRoutes.post("/events", async (c) => {
       await audit(c.env, e.id, actorId(actor), "self_signup", "创建时自己报名");
     }
   }
-  const queued = await pushNewEvent(c.env, created, actor.memberId);
+  // One that has already started (群主 or 管理员 only) can't be signed up for: no 新活动 push.
+  const queued = created.status === "open" && (await pushNewEvent(c.env, created, actor.memberId));
   const res = c.json(await detail(c.env, await getEvent(c.env, e.id), c.get("actor").memberId));
   // Last, in the background, so it never slows down creating the event.
   if (queued) sendSoon(c);
