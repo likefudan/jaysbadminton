@@ -130,8 +130,10 @@ describe("卡路里", () => {
 
     const board = async () => (await anon.call("/api/public/home")).data.leaderboard.calories;
     await anon.call(`${alice.base}/calories/board`, { on: true });
-    // Counted like attendance: settled-up events only.
-    expect(await board()).toEqual([]);
+    // The same total as 我的卡路里, before the event is settled too; a cancelled event drops out.
+    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 700 }]);
+    await env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e2.id).run();
+    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 400 }]);
     await env.DB.prepare("UPDATE events SET status = 'settled' WHERE id IN (?, ?)").bind(e.id, e2.id).run();
     expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 700 }]);
     await anon.call(`${bob.base}/calories/board`, { on: true });
