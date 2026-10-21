@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 import { KeyLookupError, verifyDkim } from "../src/worker/email/dkim";
-import { htmlLines, parseEmail, receiptSubjectAmount } from "../src/worker/email/parse";
+import { htmlLines, isReceiptSubject, parseEmail, receiptSubjectAmount } from "../src/worker/email/parse";
 import { handleEmail } from "../src/worker/inbound";
 import { Client, billingScenario, createTestEvent, futureDate } from "./helpers";
 import { receiptHtml, testKey, venmoEmail, type ReceiptFields } from "./venmoMail";
@@ -67,15 +67,18 @@ describe("receipt parsing", () => {
 });
 
 describe("receipt subject", () => {
-  it("accepts both Venmo receipt titles and nothing else", () => {
-    expect(receiptSubjectAmount("Alice W paid $7.00 to your Venmo account. Leave it in Venmo or transfer it")).toBe(
-      "$7.00",
-    );
+  it("needs only paid/pay and an amount, and skips our own payments", () => {
+    for (const subject of [
+      "Alice W paid $7.00 to your Venmo account. Leave it in Venmo or transfer it",
+      "Alice W paid you $1,234.50",
+      "Alice W just paid you $7",
+      "Payment received: $7.00 from Alice W",
+    ])
+      expect(isReceiptSubject(subject), subject).toBe(true);
+    for (const subject of ["You paid Alice W $7.00", "Alice W requests $7.00", "Venmo newsletter", "Alice W paid you"])
+      expect(isReceiptSubject(subject), subject).toBe(false);
     expect(receiptSubjectAmount("Alice W paid you $1,234.50")).toBe("$1,234.50");
-    expect(receiptSubjectAmount("Alice W paid you $7.00.")).toBe("$7.00");
-    expect(receiptSubjectAmount("You paid Alice W $7.00")).toBeNull();
-    expect(receiptSubjectAmount("Alice W requests $7.00")).toBeNull();
-    expect(receiptSubjectAmount("Venmo newsletter")).toBeNull();
+    expect(receiptSubjectAmount("Alice W paid you $7.00, total $9.00")).toBeNull();
   });
 });
 

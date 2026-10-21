@@ -53,14 +53,20 @@ const toCents = (s: string): number | null => {
 };
 
 /**
- * Venmo titles a receipt either "Alice paid $7.00 to your Venmo account. …" or "Alice paid you
- * $7.00". Outgoing payments ("You paid Bob $7.00"), requests and charges don't match.
+ * Venmo has titled receipts "Alice paid $7.00 to your Venmo account. …" and "Alice paid you
+ * $7.00", and may change again, so only "paid"/"pay" (also "payment") and a dollar amount are required; the body
+ * checks decide. Our own payments ("You paid Bob $7.00") are left out so they don't read as
+ * unparseable receipts.
  */
-const RECEIPT_SUBJECT = / paid (?:you )?(\$[\d,]+\.\d{2})(?: to your Venmo account|$|[\s.])/;
+export function isReceiptSubject(subject: string): boolean {
+  const s = subject.replace(/\s+/g, " ").trim();
+  return /\bpa(?:id|y)/i.test(s) && /\$\s?[\d,]+(?:\.\d{2})?/.test(s) && !/^you\b/i.test(s);
+}
 
-/** The amount in a receipt subject, or null when the subject isn't a receipt's. */
+/** The subject's amount when it names exactly one, to cross-check against the body. */
 export function receiptSubjectAmount(subject: string): string | null {
-  return RECEIPT_SUBJECT.exec(subject.replace(/\s+/g, " ").trim())?.[1] ?? null;
+  const amounts = subject.match(/\$\s?[\d,]+\.\d{2}\b/g) ?? [];
+  return amounts.length === 1 ? amounts[0]!.replace(/\s/g, "") : null;
 }
 
 const after = (lines: string[], label: string, from: number) => {
