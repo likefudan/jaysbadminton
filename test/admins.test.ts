@@ -98,6 +98,8 @@ describe("an admin", () => {
     // Nobody is told about it: no 新活动 push, and no 报名截止 or 快开始了 still to come.
     expect((await db.prepare("SELECT COUNT(*) AS n FROM push_outbox").first<{ n: number }>())!.n).toBe(0);
     expect(await nextDeadlineAlarm(env, res.data.id)).toBeNull();
+    // The next 新建活动 form doesn't pick up the test event's time or venue.
+    expect((await asAdmin("/events/defaults")).data.location).not.toBe("Old Gym");
     // The Owner may too; an organizer still may not.
     expect((await request(`${ctx.base}/events`, ctx.admin.cookie, past)).status).toBe(200);
     const theirs = await request(`${GOOGLE}/events`, org, past);

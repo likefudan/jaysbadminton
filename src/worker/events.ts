@@ -320,7 +320,8 @@ export function saveVenue(
   ).bind(venue, address, queueRoundMin, ts);
 }
 
-export async function createEvent(env: Env, input: CreateEventInput): Promise<EventRow> {
+/** started: it had already started (allowPast), so it was made closed and is to be kept quiet. */
+export async function createEvent(env: Env, input: CreateEventInput): Promise<{ event: EventRow; started: boolean }> {
   const v = validateEventInput(input);
   const location = input.location.trim();
   const address = input.address.trim();
@@ -385,22 +386,25 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<Ev
     }
   }
   const key = (k: string) => lastKey(k, manager, owner);
-  await env.DB.batch([
-    saveVenue(env, location, address, input.queueRoundMin ?? null, ts),
-    setSetting(env.DB, key("last_start_time"), input.startTime),
-    setSetting(env.DB, key("last_end_time"), input.endTime),
-    setSetting(env.DB, key("last_location"), location),
-    setSetting(env.DB, key("last_deadline_offset_min"), String(v.offsetMin)),
-    ...(v.started
-      ? [
+  await env.DB.batch(
+    v.started
+      ? // An after-the-fact or test event: no 报名截止 for a deadline long gone, and the next
+        // 新建活动 form and 最近的场馆 stay as the real events left them.
+        [
           env.DB.prepare(
             "INSERT OR IGNORE INTO notification_log (event_id, type, sent_on, sent_at) VALUES (?, 'closed', ?, ?)",
           ).bind(id, v.deadlineAt, ts),
         ]
-      : []),
-  ]);
+      : [
+          saveVenue(env, location, address, input.queueRoundMin ?? null, ts),
+          setSetting(env.DB, key("last_start_time"), input.startTime),
+          setSetting(env.DB, key("last_end_time"), input.endTime),
+          setSetting(env.DB, key("last_location"), location),
+          setSetting(env.DB, key("last_deadline_offset_min"), String(v.offsetMin)),
+        ],
+  );
   await syncDeadline(env, id);
-  return getEvent(env, id);
+  return { event: await getEvent(env, id), started: v.started };
 }
 
 /** Statuses in which the roster may still change (by the Owner). */

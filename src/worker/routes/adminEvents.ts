@@ -199,7 +199,7 @@ adminEventRoutes.post("/events", async (c) => {
   const b = await readJson(c.req.raw);
   const actor = c.get("actor");
   // Whoever creates it runs it and is paid for it (the Owner's own events, as before, are theirs).
-  const e = await createEvent(c.env, {
+  const { event: e, started } = await createEvent(c.env, {
     managerId: actor.memberId,
     date: str(b.date),
     startTime: str(b.startTime),
@@ -218,7 +218,6 @@ adminEventRoutes.post("/events", async (c) => {
   if (isStaff(actor.role)) await handBackIfRevoked(c.env, e.id, actor.memberId);
   const created = await getEvent(c.env, e.id);
   // One that has already started (群主 or 管理员 only) is made quietly: no 新活动 notice or push.
-  const started = created.status !== "open";
   if (!started) await notifyCreated(c.env, created);
   // "我自己也报名": the creator signs up as a normal player (ticked by default in the form).
   if (b.joinSelf === true) {
