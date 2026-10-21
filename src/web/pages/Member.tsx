@@ -14,6 +14,7 @@ import { useApi } from "../hooks";
 import { CardCornerIcons } from "../ShareCard";
 import { SwipeSection } from "../Swipe";
 import { MyStatsCard } from "../Stats";
+import { CalorieRow, FlameIcon, MyCaloriesCard, kcalText } from "../Calories";
 import { InstallPrompt } from "../Install";
 import { PushPrompt } from "../Push";
 import { GoogleLink } from "./Account";
@@ -98,6 +99,7 @@ export function MemberProfilePage(props: { token?: string }) {
           <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
           <Load result={profile}>{(p) => <ProfileHero profile={p} />}</Load>
           <MyStatsCard base={base} />
+          <MyCaloriesCard base={base} />
           {profile.state === "ok" && (
             <>
               <SectionTitle>{t("活动记录")}</SectionTitle>
@@ -174,9 +176,17 @@ function MyEvents(props: { base: string }) {
                     key={h.id}
                     e={h}
                     line={
-                      h.amountCents
-                        ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
-                        : t("没有费用")
+                      <>
+                        {h.amountCents
+                          ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
+                          : t("没有费用")}
+                        {h.kcal != null && (
+                          <span class="mini-kcal">
+                            <FlameIcon size={12} />
+                            {kcalText(h.kcal)}
+                          </span>
+                        )}
+                      </>
                     }
                   />
                 ))}
@@ -265,6 +275,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {e.roster && e.roster.length > 0 && (
           <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
         )}
+        <CalorieRow base={props.base} e={e} onChange={props.onChange} />
         {e.queue && <CourtQueue base={props.base} e={e} onChange={props.onChange} />}
         {friendsOnly && !editing && e.runByMe && (
           <p class="muted">

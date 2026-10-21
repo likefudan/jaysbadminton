@@ -5,7 +5,7 @@ import { closeExpired } from "./events";
 import { syncAllDeadlines } from "./deadlines";
 export { DeadlineAlarm } from "./deadlines";
 export { PushSender } from "./push";
-import { HttpError } from "./http";
+import { HttpError, readJson } from "./http";
 import {
   MAX_EMAIL_BYTES,
   purgeDeletedInbound,
@@ -29,6 +29,7 @@ import { googleRoutes } from "./googleAuth";
 import { diagnoseOversizedEmail, purgePaymentDiagnostics } from "./paymentDiagnostics";
 import { purgeCourtPhotos } from "./courtPhoto";
 import { sendReleaseNotices } from "./releaseNotice";
+import { saveUpload } from "./calories";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -86,6 +87,12 @@ app.post("/api/telegram/webhook", async (c) => {
 // CI calls this after a production release has deployed (scripts/release-notice.mjs). It takes
 // nothing: it only sends the notices CI recorded in the database, each once, so anyone may call it.
 app.post("/api/release-notice", async (c) => c.json({ sent: await sendReleaseNotices(c.env) }));
+
+// The 卡路里 Shortcut posts the number here with the one-time code from 读取; no cookie, no origin.
+app.post("/api/calories/:code", async (c) => {
+  const body = await readJson(c.req.raw);
+  return c.json({ ok: true, kcal: await saveUpload(c.env, c.req.param("code"), body.kcal) });
+});
 
 // Pulled once a day by the Apps Script in the Owner's Google Sheet; the key is the only credential.
 app.get("/export/:key/all.json", async (c) => {

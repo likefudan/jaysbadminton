@@ -16,7 +16,7 @@ describe("skeleton", () => {
     expect(await res.json()).toEqual({
       currentEvents: [],
       pastEvents: [],
-      leaderboard: { year: expect.any(Number), attendance: [], streak: [], friends: [] },
+      leaderboard: { year: expect.any(Number), attendance: [], streak: [], friends: [], calories: [] },
     });
   });
 

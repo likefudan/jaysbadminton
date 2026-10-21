@@ -29,6 +29,8 @@ export interface MemberRow {
   /** 'member' or 'organizer'; read it through memberRole, which also checks status and the flag. */
   role: string;
   role_since: string | null;
+  /** 1: on the 卡路里榜 (their own choice). */
+  calorie_board: number;
 }
 
 export const toSummary = (m: MemberRow): MemberSummary => ({

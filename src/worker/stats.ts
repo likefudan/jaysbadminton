@@ -77,7 +77,30 @@ export async function leaderboard(env: Env): Promise<Leaderboard> {
     }
     streak.set(id, { name, value: best });
   }
-  return { year: Number(year), attendance: top(attendance), streak: top(streak), friends: top(friends) };
+  return {
+    year: Number(year),
+    attendance: top(attendance),
+    streak: top(streak),
+    friends: top(friends),
+    calories: await calorieBoard(env, year),
+  };
+}
+
+/**
+ * 卡路里榜: this year's 千卡 of the members who chose to be on it, counted like attendance (settled-up
+ * events, not marked absent), so an event still being played or later cancelled doesn't count.
+ */
+async function calorieBoard(env: Env, year: string): Promise<RankEntry[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT c.member_id, m.username, SUM(c.kcal) AS kcal
+     FROM calories c JOIN events e ON e.id = c.event_id JOIN members m ON m.id = c.member_id
+     JOIN registrations r ON r.event_id = c.event_id AND r.member_id = c.member_id AND r.friend_index = 0
+     WHERE ${COUNTED} AND m.status = 'active' AND m.calorie_board = 1 AND r.attended = 1 AND e.date LIKE ?
+     GROUP BY c.member_id`,
+  )
+    .bind(`${year}-%`)
+    .all<{ member_id: string; username: string; kcal: number }>();
+  return top(new Map(results.map((r) => [r.member_id, { name: r.username, value: r.kcal }])));
 }
 
 /** 个人统计: only on the member's own page. Spending is what they were billed (incl. friends). */
