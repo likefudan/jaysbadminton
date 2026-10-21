@@ -103,7 +103,7 @@ test.describe("on iPhone", () => {
 
     await toRead.getByRole("button", { name: "读取" }).click();
     const sheet = page.getByRole("dialog", { name: "读取卡路里" });
-    await expect(sheet).toContainText("安装快捷指令「羽毛球卡路里」");
+    await expect(sheet).toContainText("安装快捷指令「ReadBadmintonCalories」");
     await expect(sheet).toContainText("20:30–22:30");
 
     // The page hands over to the Shortcuts app; catch where it goes.
@@ -117,7 +117,7 @@ test.describe("on iPhone", () => {
     await expect(sheet).toBeHidden();
     const url = new URL(href);
     expect(url.protocol).toBe("shortcuts:");
-    expect(url.searchParams.get("name")).toBe("羽毛球卡路里");
+    expect(url.searchParams.get("name")).toBe("ReadBadmintonCalories");
     expect(url.searchParams.get("input")).toBe("text");
     expect(JSON.parse(url.searchParams.get("text")!)).toEqual({
       start: "2030-10-21T03:30:00Z",
