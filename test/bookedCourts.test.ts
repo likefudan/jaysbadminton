@@ -128,8 +128,10 @@ describe("开始前 10 分钟的推送", () => {
     await expire(e.id);
     const stub = env.DEADLINES.get(env.DEADLINES.idFromName(String(e.id)));
     await stub.sync(e.id);
-    await runDurableObjectAlarm(stub);
-    expect(await runInDurableObject(stub, (_o, state) => state.storage.getAlarm())).toBe(start - 10 * 60_000);
+    await runDurableObjectAlarm(stub); // false when the alarm is already firing by itself
+    await vi.waitFor(async () =>
+      expect(await runInDurableObject(stub, (_o, state) => state.storage.getAlarm())).toBe(start - 10 * 60_000),
+    );
   });
 
   it("goes to everyone on the event with the courts, once", async () => {
