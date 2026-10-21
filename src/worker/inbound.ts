@@ -4,7 +4,7 @@ import { addReceipt, checkCollected, receiptsFor, refundOf } from "./billing";
 import { SYSTEM, audit, billOwner, money } from "./audit";
 import { getSettings, now, setSetting } from "./db";
 import { type KeyResolver, verifyDkim } from "./email/dkim";
-import { parseEmail, type VenmoReceipt } from "./email/parse";
+import { isReceiptSubject, parseEmail, type VenmoReceipt } from "./email/parse";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
 import { message, notifyPayment } from "./notify";
@@ -302,14 +302,14 @@ async function processEmail(
     if (to && signed) await forwarded(env, to, mail.toAddresses[0]!);
     return { outcome, organizer: to };
   };
-  const receiptSubject = / paid \$[\d,]+\.\d{2} to your Venmo account/.test(mail.subject.replace(/\s+/g, " "));
+  const receiptSubject = isReceiptSubject(mail.subject);
   diagnostic?.step(
     "subject",
     "收款通知标题",
     receiptSubject ? "passed" : "failed",
     receiptSubject ? undefined : "不是支持的 Venmo 收款通知标题",
     mail.subject,
-    "… paid $金额 to your Venmo account",
+    "含 paid 或 pay，以及 $金额",
   );
   if (!receiptSubject) {
     // Other Venmo mail is never acted on, so it isn't checked; an organizer's is, as it is the

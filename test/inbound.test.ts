@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 import { KeyLookupError, verifyDkim } from "../src/worker/email/dkim";
-import { htmlLines, parseEmail } from "../src/worker/email/parse";
+import { htmlLines, isReceiptSubject, parseEmail, receiptSubjectAmount } from "../src/worker/email/parse";
 import { handleEmail } from "../src/worker/inbound";
 import { Client, billingScenario, createTestEvent, futureDate } from "./helpers";
 import { receiptHtml, testKey, venmoEmail, type ReceiptFields } from "./venmoMail";
@@ -66,6 +66,22 @@ describe("receipt parsing", () => {
   });
 });
 
+describe("receipt subject", () => {
+  it("needs only paid/pay and an amount, and skips our own payments", () => {
+    for (const subject of [
+      "Alice W paid $7.00 to your Venmo account. Leave it in Venmo or transfer it",
+      "Alice W paid you $1,234.50",
+      "Alice W just paid you $7",
+      "Payment received: $7.00 from Alice W",
+    ])
+      expect(isReceiptSubject(subject), subject).toBe(true);
+    for (const subject of ["You paid Alice W $7.00", "Alice W requests $7.00", "Venmo newsletter", "Alice W paid you"])
+      expect(isReceiptSubject(subject), subject).toBe(false);
+    expect(receiptSubjectAmount("Alice W paid you $1,234.50")).toBe("$1,234.50");
+    expect(receiptSubjectAmount("Alice W paid you $7.00, total $9.00")).toBeNull();
+  });
+});
+
 describe("DKIM", () => {
   it("accepts Venmo's signature through forwarding headers", async () => {
     expect(await verifyDkim((await venmoEmail()).raw, "venmo.com", resolveKey)).toEqual({ ok: true });
@@ -108,6 +124,17 @@ describe("matching", () => {
     const loose = s.bobCode.replace("-m", " - M").toUpperCase();
     expect(await deliver({ amount: "31.00", note: loose, txnId: "T2" })).toBe("paid");
     expect((await s.admin.call(s.eb)).data.status).toBe("settled");
+  });
+
+  it('matches a receipt titled "X paid you $N"', async () => {
+    const s = await finalized();
+    const opts = { subject: "Alice W paid you $56.00" };
+    expect(await deliver({ amount: "56.00", note: s.aliceCode, txnId: "T9" }, opts)).toBe("paid");
+    expect(await s.by("Alice")).toMatchObject({ status: "paid", amountPaidCents: 5600 });
+    // The title and body amounts must still agree.
+    expect(await deliver({ amount: "31.00", note: s.bobCode, txnId: "T10" }, { subject: "Bob paid you $3.00" })).toBe(
+      "parse_failed",
+    );
   });
 
   it("sends a payment for a deleted event to 待确认, never to a new event on the same day", async () => {

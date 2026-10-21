@@ -52,6 +52,23 @@ const toCents = (s: string): number | null => {
   return m ? Number(m[1]!.replace(/,/g, "")) * 100 + Number(m[2]) : null;
 };
 
+/**
+ * Venmo has titled receipts "Alice paid $7.00 to your Venmo account. …" and "Alice paid you
+ * $7.00", and may change again, so only "paid"/"pay" (also "payment") and a dollar amount are required; the body
+ * checks decide. Our own payments ("You paid Bob $7.00") are left out so they don't read as
+ * unparseable receipts.
+ */
+export function isReceiptSubject(subject: string): boolean {
+  const s = subject.replace(/\s+/g, " ").trim();
+  return /\bpa(?:id|y)/i.test(s) && /\$\s?[\d,]+(?:\.\d{2})?/.test(s) && !/^you\b/i.test(s);
+}
+
+/** The subject's amount when it names exactly one, to cross-check against the body. */
+export function receiptSubjectAmount(subject: string): string | null {
+  const amounts = subject.match(/\$\s?[\d,]+\.\d{2}\b/g) ?? [];
+  return amounts.length === 1 ? amounts[0]!.replace(/\s/g, "") : null;
+}
+
 const after = (lines: string[], label: string, from: number) => {
   const i = lines.indexOf(label, from);
   return i >= 0 ? lines[i + 1] : undefined;
@@ -100,8 +117,8 @@ export function parseReceipt(
   if (!/^[A-Za-z0-9]+$/.test(txnId)) return fail("交易 ID 格式不正确（应为字母或数字）");
 
   // The subject is signed too; disagreeing amounts mean the layout changed under us.
-  const subjectAmount = /paid (\$[\d,]+\.\d{2}) to your Venmo account/.exec(subject.replace(/\s+/g, " "));
-  if (subjectAmount && toCents(subjectAmount[1]!) !== amountCents) return fail("标题金额与正文金额不一致");
+  const subjectAmount = receiptSubjectAmount(subject);
+  if (subjectAmount && toCents(subjectAmount) !== amountCents) return fail("标题金额与正文金额不一致");
 
   return { payer, amountCents, note, date, txnId, sentTo };
 }
