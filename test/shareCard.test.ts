@@ -18,10 +18,10 @@ const event: EventSummary = {
 };
 
 describe("分享名片 text", () => {
-  it("links the home page with the tagline", () => {
+  it("links the home page with no tagline", () => {
     expect(siteCardText("https://example.com")).toEqual({
       heading: "",
-      lines: ["报名、结算、付款，一个链接搞定。"],
+      lines: [],
       hint: "扫码查看活动、报名",
       url: "https://example.com/",
     });
