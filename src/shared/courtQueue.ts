@@ -103,3 +103,39 @@ export interface PhotoResult {
   /** Courts cut off or too blurry to read. */
   unreadable: number[];
 }
+
+/** One line of a pasted account list. */
+export interface PastedAccount {
+  username: string;
+  password: string;
+}
+
+/**
+ * 批量添加: reads a pasted list of numbered lines, "1. Cassie lion3", exactly as typed (no case
+ * changes). Whatever comes before the first numbered line (a group note, a title) is skipped;
+ * after it, a line that isn't "number. username password" is returned in `bad`. A username
+ * repeated in the paste (any case) is kept once.
+ */
+export function parseAccountList(text: string): { accounts: PastedAccount[]; bad: string[] } {
+  const accounts: PastedAccount[] = [];
+  const bad: string[] = [];
+  const seen = new Set<string>();
+  let started = false;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    const numbered = /^\d+\s*[.、．)）]\s*(.*)$/.exec(line);
+    if (!started && !numbered) continue;
+    started = true;
+    if (!line) continue;
+    const parts = numbered?.[1]?.split(/\s+/).filter(Boolean) ?? [];
+    if (parts.length !== 2) {
+      bad.push(line);
+      continue;
+    }
+    const [username, password] = parts as [string, string];
+    if (seen.has(username.toLowerCase())) continue;
+    seen.add(username.toLowerCase());
+    accounts.push({ username, password });
+  }
+  return { accounts, bad };
+}

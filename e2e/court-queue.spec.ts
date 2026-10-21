@@ -248,12 +248,57 @@ test("hall accounts: everyone's are listed, yours can be removed, and more added
   await sheet.getByLabel("用户名").fill("Lily");
   await sheet.getByLabel("密码").fill("4321");
   await page.screenshot({ path: test.info().outputPath("court-queue-accounts.png") });
-  await sheet.getByRole("button", { name: "添加" }).click();
+  await sheet.getByRole("button", { name: "添加", exact: true }).click();
   await expect
     .poll(() => posts.at(-1))
     .toEqual({
       url: "/api/m/tok/events/9/queue/accounts",
       body: { username: "Lily", password: "4321" },
+    });
+});
+
+test("批量添加 reads a pasted list as typed, skips accounts already there, and says what it couldn't read", async ({
+  page,
+}) => {
+  const posts = await setUp(page);
+  await page.getByRole("button", { name: "球馆账号（18）" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByRole("button", { name: "批量添加" }).click();
+  const box = sheet.getByLabel("粘贴账号列表，每行「编号. 用户名 密码」");
+  await expect(box).toHaveAttribute("autocapitalize", "none");
+  await box.fill(
+    [
+      "#Group Note",
+      "Sunday group password",
+      "1. rosa river4",
+      "2. MARK owl2",
+      "3. 小明 tiger5",
+      "4. pandaQ",
+      "5. Nina Moon8",
+    ].join("\n"),
+  );
+  await expect(sheet.locator(".cq-batch-preview")).toContainText("会添加 3 个 rosa、小明、Nina");
+  await expect(sheet.locator(".cq-batch-preview")).toContainText("已经有了，跳过 1 个：MARK");
+  await expect(sheet.locator(".cq-batch-preview .cq-unsure-note")).toContainText("4. pandaQ");
+  await sheet.locator(".cq-batch").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath("court-queue-batch.png") });
+  await page.route("**/api/m/tok/events/9/queue/accounts/batch", (route) => {
+    posts.push({ url: new URL(route.request().url()).pathname, body: route.request().postDataJSON() });
+    return route.fulfill({ json: { added: 3, skipped: [] } });
+  });
+  await sheet.getByRole("button", { name: "添加 3 个账号" }).click();
+  await expect(sheet.getByText("已添加 3 个账号")).toBeVisible();
+  await expect
+    .poll(() => posts.at(-1))
+    .toEqual({
+      url: "/api/m/tok/events/9/queue/accounts/batch",
+      body: {
+        accounts: [
+          { username: "rosa", password: "river4" },
+          { username: "小明", password: "tiger5" },
+          { username: "Nina", password: "Moon8" },
+        ],
+      },
     });
 });
 

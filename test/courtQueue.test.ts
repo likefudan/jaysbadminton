@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { courtPhase, queueWait } from "../src/shared/courtQueue";
+import { courtPhase, parseAccountList, queueWait } from "../src/shared/courtQueue";
 import { purgeCourtPhotos, toPhotoResult } from "../src/worker/courtPhoto";
 import worker from "../src/worker/index";
 import { Client, ORIGIN, approveMember, createTestEvent, setUpAdmin } from "./helpers";
@@ -70,6 +70,58 @@ describe("球场排队", () => {
       queueRoundMin: null,
     });
     expect((await venue("Queue Hall")).queueRoundMin).toBeNull();
+  });
+
+  it("reads a pasted account list from the first numbered line, exactly as typed", () => {
+    const text = [
+      "#Group Note",
+      "Sunday group password",
+      "",
+      "1. Alice cat12",
+      "2. bob Dog7",
+      "3、龙小明 tiger5",
+      "4. ALICE again",
+      "5. justaname",
+      "",
+      "6.Coco  moon 9",
+      "7) Dana sun3",
+    ].join("\r\n");
+    expect(parseAccountList(text)).toEqual({
+      accounts: [
+        { username: "Alice", password: "cat12" },
+        { username: "bob", password: "Dog7" },
+        { username: "龙小明", password: "tiger5" },
+        { username: "Dana", password: "sun3" },
+      ],
+      bad: ["5. justaname", "6.Coco  moon 9"],
+    });
+    expect(parseAccountList("no numbers here\nat all")).toEqual({ accounts: [], bad: [] });
+  });
+
+  it("批量添加 skips accounts already on the event (any case) and keeps the cap", async () => {
+    const { alice, bob, q, card, e } = await scenario();
+    await anon.call(`${alice.base}${q}/accounts`, { username: "Mark", password: "1357" });
+    const r = await anon.call(`${alice.base}${q}/accounts/batch`, {
+      accounts: [
+        { username: "mark", password: "new" },
+        { username: "Coco", password: "2468" },
+        { username: "龙小明", password: "x1" },
+      ],
+    });
+    expect(r.data).toEqual({ added: 2, skipped: ["mark"] });
+    const accounts = (await card(alice.base))!.queue.accounts as { username: string; password: string }[];
+    expect(accounts.map((a) => [a.username, a.password]).sort()).toEqual([
+      ["Coco", "2468"],
+      ["Mark", "1357"],
+      ["龙小明", "x1"],
+    ]);
+    expect((await anon.call(`${alice.base}${q}/accounts/batch`, { accounts: [] })).status).toBe(400);
+    const many = Array.from({ length: 98 }, (_, i) => ({ username: `u${i}`, password: "p" }));
+    const over = await anon.call(`${alice.base}${q}/accounts/batch`, { accounts: many });
+    expect(over.status).toBe(400);
+    expect(over.data.error.message).toBe("每场最多 100 个账号，现在已有 3 个");
+    // Only people on the event can add.
+    expect((await anon.call(`${bob.base}/events/${e.id}/queue/accounts/batch`, { accounts: many })).status).toBe(400);
   });
 
   it("shares accounts with everyone on the event, and only the adder or the runner removes one", async () => {
