@@ -644,10 +644,10 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   球场: { tw: "球場", en: "Courts" },
   "{name} 更新于 {time}": { tw: "{name} 更新於 {time}", en: "Updated by {name} at {time}" },
   "＋ 登记球场": { tw: "＋ 登記球場", en: "＋ Add court" },
-  "球馆账号（{n}）": { tw: "球館帳號（{n}）", en: "Hall accounts ({n})" },
+  "球馆账号（{n}）": { tw: "球館帳號（{n}）", en: "Venue accounts ({n})" },
   "还没有登记球场。在球馆电脑上排好后，点「登记球场」填进来。": {
     tw: "還沒有登記球場。在球館電腦上排好後，點「登記球場」填進來。",
-    en: 'No courts yet. After signing up on the hall\'s computer, tap "Add court" to enter it here.',
+    en: 'No courts yet. After signing up on the venue\'s computer, tap "Add court" to enter it here.',
   },
   "在打 · {n} 片": { tw: "在打 · {n} 片", en: "Playing · {n}" },
   "剩 {n} 分": { tw: "剩 {n} 分", en: "{n} min left" },
@@ -693,12 +693,12 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "用了哪几个账号（1-{n} 个）": { tw: "用了哪幾個帳號（1-{n} 個）", en: "Which accounts (1-{n})" },
   "还没有人添加球馆账号，请先在「球馆账号」里添加。": {
     tw: "還沒有人新增球館帳號，請先在「球館帳號」裡新增。",
-    en: 'No hall accounts yet. Add some under "Hall accounts" first.',
+    en: 'No venue accounts yet. Add some under "Venue accounts" first.',
   },
   "删除（提前结束，不打了）": { tw: "刪除（提前結束，不打了）", en: "Remove (finished early)" },
   "删除（不排了）": { tw: "刪除（不排了）", en: "Remove (no longer waiting)" },
   "删除账号 {name}？": { tw: "刪除帳號 {name}？", en: "Remove account {name}?" },
-  球馆账号: { tw: "球館帳號", en: "Hall accounts" },
+  球馆账号: { tw: "球館帳號", en: "Venue accounts" },
   "报名这场的人都能看到这些账号和密码。": {
     tw: "報名這場的人都能看到這些帳號和密碼。",
     en: "Everyone signed up for this event can see these accounts and passwords.",
@@ -761,7 +761,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "黄色的账号照片上看不太清，请对照球馆屏幕核对。": {
     tw: "黃色的帳號照片上看不太清，請對照球館螢幕核對。",
-    en: "Accounts in yellow weren't clear in the photo. Please check them against the hall's screen.",
+    en: "Accounts in yellow weren't clear in the photo. Please check them against the venue's screen.",
   },
   "照片上没读出剩余时间，请看屏幕填写。": {
     tw: "照片上沒讀出剩餘時間，請看螢幕填寫。",
@@ -779,7 +779,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "照片太大了，请重新拍一张": { tw: "照片太大了，請重新拍一張", en: "That photo is too large. Please take another" },
   "还没有人添加球馆账号，请先在「球馆账号」里添加": {
     tw: "還沒有人新增球館帳號，請先在「球館帳號」裡新增",
-    en: 'No hall accounts yet. Add some under "Hall accounts" first',
+    en: 'No venue accounts yet. Add some under "Venue accounts" first',
   },
   "拍照登记用得太频繁了，请稍后再试或手动填写": {
     tw: "拍照登記用得太頻繁了，請稍後再試或手動填寫",
