@@ -41,4 +41,4 @@ When it's done: long-press the shortcut → Share → Copy iCloud Link, and put 
   Samples returns the raw samples, so adding both sources may count twice. If the number is too high,
   add the filter "Source is 〔your Apple Watch〕" in step 5. A shortcut built that way only fits your
   own devices, so it needs another approach (for example grouping by hour) before it's shared.
-- People without an Apple Watch only have the iPhone's data, which is much lower.
+- Active Energy is only there for people who wore an Apple Watch while playing (an iPhone alone, or a scale, records none). A total of 0 is not saved, so the card keeps offering 读取.

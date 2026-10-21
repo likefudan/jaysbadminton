@@ -125,7 +125,11 @@ function CalorieGuide(props: { window: string; onRead: () => void; onClose: () =
             ✕
           </button>
         </div>
-        <p class="kcal-intro">{t("网页读不到苹果「健康」的数据，要借助一个快捷指令。只需要装一次。")}</p>
+        <p class="kcal-intro">
+          {t(
+            "网页读不到苹果「健康」的数据，要借助一个快捷指令，只需要装一次。打球时要戴 Apple Watch，「健康」里才有活动能量。",
+          )}
+        </p>
         <ol class="kcal-steps">
           <li>
             <span class="n">1</span>

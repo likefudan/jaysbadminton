@@ -565,9 +565,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   读取: { tw: "讀取", en: "Read" },
   重新读取: { tw: "重新讀取", en: "Read again" },
   读取卡路里: { tw: "讀取卡路里", en: "Read calories" },
-  "网页读不到苹果「健康」的数据，要借助一个快捷指令。只需要装一次。": {
-    tw: "網頁讀不到蘋果「健康」的資料，要借助一個捷徑。只需要裝一次。",
-    en: "Web pages can't read Apple Health, so this uses a shortcut. You only need to add it once.",
+  "网页读不到苹果「健康」的数据，要借助一个快捷指令，只需要装一次。打球时要戴 Apple Watch，「健康」里才有活动能量。": {
+    tw: "網頁讀不到蘋果「健康」的資料，要借助一個捷徑，只需要裝一次。打球時要戴 Apple Watch，「健康」裡才有活動能量。",
+    en: "Web pages can't read Apple Health, so this uses a shortcut. You only need to add it once. Wear an Apple Watch while you play: that's what records active energy in Health.",
   },
   "安装快捷指令「{name}」": { tw: "安裝捷徑「{name}」", en: 'Add the shortcut "{name}"' },
   "在 iPhone 上打开，点「添加快捷指令」": {
