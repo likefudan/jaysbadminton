@@ -50,14 +50,15 @@ To try it without the site, set "If there's no input" on the Receive row to **As
 paste for example `{"start":"2026-05-26 20:30","end":"2026-05-26 23:00","upload":"https://example.com/test"}`
 (the upload then fails, which is fine; the notification shows the number). Set it back to Continue.
 
-When it's done: long-press the shortcut → Share → Copy iCloud Link, and put the link into
-`SHORTCUT_INSTALL_URL` in `src/shared/calories.ts`.
+When it's done: long-press the shortcut → Share → Copy iCloud Link, and paste the link into
+管理 → 设置 → 「卡路里快捷指令」 (the Owner or an admin). `SHORTCUT_INSTALL_URL` in
+`src/shared/calories.ts` is only the default until that is saved.
 
 ## Changing the Shortcut later
 
 Members keep the copy they installed; a new iCloud link doesn't update it. So for every change:
-raise `v` in step 12, share a new iCloud link, and set both `SHORTCUT_INSTALL_URL` and
-`SHORTCUT_VERSION` (to the new `v`) in `src/shared/calories.ts` in the same commit. The site remembers
+raise `v` in step 12, share a new iCloud link, and save the link and the new `v` together in
+管理 → 设置 → 「卡路里快捷指令」. No deploy is needed. The site remembers
 the `v` of each member's last upload (none sent = 1); while 读取 is open, members behind get
 「快捷指令有新版本，点这里更新」 on the event card, and their number is still saved.
 

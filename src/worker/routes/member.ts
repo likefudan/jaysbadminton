@@ -43,6 +43,7 @@ import {
   myCalories,
   setCalorieBoard,
   shortcutOutdated,
+  shortcutSetting,
   startUpload,
 } from "../calories";
 import { addAccount, addAccounts, queueInfo, queueLive, removeAccount, removeCourt, saveCourt } from "../courtQueue";
@@ -239,7 +240,11 @@ async function myEvents(
     if (!managers.has(id)) managers.set(id, payeeName(env.DB, id));
     return managers.get(id)!;
   };
-  const [list, readDays] = await Promise.all([summaries(env, results), calorieReadDays(env)]);
+  const [list, readDays, shortcut] = await Promise.all([
+    summaries(env, results),
+    calorieReadDays(env),
+    shortcutSetting(env),
+  ]);
   const events: MyEvent[] = [];
   for (const e of list) {
     const row = rowOf.get(e.id)!;
@@ -297,7 +302,8 @@ async function myEvents(
       courts: rows.length > 0 || runs ? bookedCourts(row) : [],
       kcal: mine.kcalOf(e.id),
       kcalOpen: canRead(row, selfOn, readDays),
-      kcalUpdate: canRead(row, selfOn, readDays) && shortcutOutdated(m.calorie_shortcut_v),
+      kcalUpdate: canRead(row, selfOn, readDays) && shortcutOutdated(m.calorie_shortcut_v, shortcut.version),
+      kcalInstall: canRead(row, selfOn, readDays) ? shortcut.url : "",
     });
   }
   return events;

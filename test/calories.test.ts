@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { toPacific } from "../src/shared/time";
+import { SHORTCUT_INSTALL_URL, SHORTCUT_VERSION } from "../src/shared/calories";
 import { shortcutOutdated, timeWindow } from "../src/worker/calories";
 import { Client, ORIGIN, approveMember, createTestEvent, setUpAdmin } from "./helpers";
 
@@ -60,6 +61,27 @@ describe("卡路里", () => {
     await anon.call(next.upload.replace(ORIGIN, ""), { kcal: 410, v: 2 });
     expect(await version()).toBe(2);
     expect(await card(alice.base, e.id)).toMatchObject({ kcal: 410, kcalUpdate: false });
+  });
+
+  it("takes the Shortcut link and version from 设置, so a new one needs no deploy", async () => {
+    const { ctx, alice, e } = await scene();
+    await startedAgo(e.id, 1);
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.calorieShortcut).toEqual({
+      url: SHORTCUT_INSTALL_URL,
+      version: SHORTCUT_VERSION,
+    });
+    expect(await card(alice.base, e.id)).toMatchObject({ kcalInstall: SHORTCUT_INSTALL_URL });
+    const next = (await anon.call(`${alice.base}/events/${e.id}/calories`, {})).data;
+    await anon.call(next.upload.replace(ORIGIN, ""), { kcal: 410, v: SHORTCUT_VERSION });
+
+    const url = `https://www.icloud.com/shortcuts/${"a".repeat(32)}`;
+    const set = (calorieShortcut: unknown) => ctx.admin.call(`${ctx.base}/settings`, { calorieShortcut });
+    expect((await set({ url: "https://example.com/x", version: 3 })).status).toBe(400);
+    expect((await set({ url, version: 0 })).status).toBe(400);
+    expect((await set({ url, version: SHORTCUT_VERSION + 1 })).status).toBe(200);
+    expect(await card(alice.base, e.id)).toMatchObject({ kcalInstall: url, kcalUpdate: true });
+    // Not offered 读取, no link.
+    expect(await card(alice.base, (await createTestEvent(ctx)).id)).toMatchObject({ kcalInstall: "" });
   });
 
   it("reads only once the event has started, with a one-time link the Shortcut posts to", async () => {

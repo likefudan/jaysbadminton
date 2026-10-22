@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { createPortal } from "preact/compat";
-import { SHORTCUT_INSTALL_URL, SHORTCUT_NAME } from "../shared/calories";
+import { SHORTCUT_NAME } from "../shared/calories";
 import type { CalorieStart, MyCalories, MyEvent } from "../shared/types";
 import { api } from "./api";
 import { Card, Load, SectionTitle, useAction } from "./components";
@@ -113,13 +113,27 @@ export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => vo
         </button>
       )}
       {error && <p class="error">{error}</p>}
-      {guide && <CalorieGuide window={span} update={update} onRead={read} onClose={() => setGuide(false)} />}
+      {guide && (
+        <CalorieGuide
+          window={span}
+          install={e.kcalInstall}
+          update={update}
+          onRead={read}
+          onClose={() => setGuide(false)}
+        />
+      )}
     </div>
   );
 }
 
 /** The first 读取: install the Shortcut once, then come back and read. Also for updating it to a newer version. */
-function CalorieGuide(props: { window: string; update: boolean; onRead: () => void; onClose: () => void }) {
+function CalorieGuide(props: {
+  window: string;
+  install: string;
+  update: boolean;
+  onRead: () => void;
+  onClose: () => void;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
     addEventListener("keydown", onKey);
@@ -163,8 +177,8 @@ function CalorieGuide(props: { window: string; update: boolean; onRead: () => vo
             </span>
           </li>
         </ol>
-        {SHORTCUT_INSTALL_URL ? (
-          <a class="button block secondary" href={SHORTCUT_INSTALL_URL} target="_blank" rel="noreferrer">
+        {props.install ? (
+          <a class="button block secondary" href={props.install} target="_blank" rel="noreferrer">
             {t("安装快捷指令")}
           </a>
         ) : (

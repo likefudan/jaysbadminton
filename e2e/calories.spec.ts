@@ -30,6 +30,7 @@ const ev = (id: number, o: object) => ({
   kcal: null,
   kcalOpen: true,
   kcalUpdate: false,
+  kcalInstall: "https://www.icloud.com/shortcuts/909be1bdeb324b88a0caca0b0031aa11",
   ...o,
 });
 

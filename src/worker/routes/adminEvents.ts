@@ -15,7 +15,8 @@ import {
 } from "../billing";
 import { formatInstantZh, isDate, isTime, pacificToUtc, toPacific } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
-import { calorieReadDays } from "../calories";
+import { calorieReadDays, shortcutSetting } from "../calories";
+import { SHORTCUT_URL_RE } from "../../shared/calories";
 import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
 import type { Env } from "../env";
 import {
@@ -661,6 +662,7 @@ adminEventRoutes.get("/settings", async (c) => {
     friendCap: await friendCap(c.env),
     pastEventDays: await pastEventDays(c.env),
     calorieReadDays: await calorieReadDays(c.env),
+    calorieShortcut: await shortcutSetting(c.env),
     ...payment,
     siteTitle: await siteTitle(c.env),
     theme: await siteTheme(c.env),
@@ -696,6 +698,17 @@ adminEventRoutes.post("/settings", async (c) => {
       throw badRequest(`读取卡路里天数请填 1–${DAYS_SETTING_MAX}`);
     writes.push(setSetting(c.env.DB, "calorie_read_days", String(n)));
     said.push(`活动开始后 ${n} 天内可以读取卡路里`);
+  }
+  // 卡路里快捷指令: a new version is a new iCloud link, so both come together (Ke Li: no deploy for it).
+  if (b.calorieShortcut !== undefined) {
+    const o = (b.calorieShortcut ?? {}) as { url?: unknown; version?: unknown };
+    const url = str(o.url).trim();
+    const v = num(o.version);
+    if (!SHORTCUT_URL_RE.test(url)) throw badRequest("请填 iCloud 快捷指令链接（https://www.icloud.com/shortcuts/…）");
+    if (!Number.isInteger(v) || v < 1 || v > 999) throw badRequest("版本号请填 1–999");
+    writes.push(setSetting(c.env.DB, "calorie_shortcut_url", url));
+    writes.push(setSetting(c.env.DB, "calorie_shortcut_version", String(v)));
+    said.push(`卡路里快捷指令 v${v}`);
   }
   if (b.siteTitle !== undefined) {
     const t = str(b.siteTitle).trim();
