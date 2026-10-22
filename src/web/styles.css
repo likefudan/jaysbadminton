@@ -4311,3 +4311,20 @@ ul.audit li:first-child {
 .kcal-card .switch-card {
   margin-top: 12px;
 }
+.spend-detail td.kcal-del {
+  width: 1%;
+  padding: 3px 0 3px 6px;
+  vertical-align: middle;
+}
+.kcal-del .link-button {
+  width: auto;
+  margin: 0;
+  padding: 4px 6px;
+  font-size: 13px;
+  text-decoration: none;
+}
+.link-button.kcal-del-all {
+  margin: 14px 0 0;
+  color: var(--danger);
+  font-size: 13.5px;
+}

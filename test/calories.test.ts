@@ -152,5 +152,16 @@ describe("卡路里", () => {
     // 已结清 shows it too.
     const { history } = (await anon.call(`${bob.base}/events`)).data;
     expect(history.find((h: { id: number }) => h.id === e.id)?.kcal).toBe(500);
+
+    // Deleting one event, then everything: gone from 我的卡路里 and the board, others' stay.
+    const code = (await env.DB.prepare("SELECT code FROM events WHERE id = ?").bind(e.id).first<{ code: string }>())!
+      .code;
+    expect((await anon.call(`${alice.base}/calories/delete`, {})).status).toBe(400);
+    await anon.call(`${alice.base}/calories/delete`, { code });
+    expect((await anon.call(`${alice.base}/calories`)).data).toMatchObject({ yearKcal: 300, yearCount: 1 });
+    await anon.call(`${alice.base}/calories/delete`, { all: true });
+    expect((await anon.call(`${alice.base}/calories`)).data).toMatchObject({ yearKcal: 0, events: [], board: true });
+    expect(await board()).toEqual([]);
+    expect((await anon.call(`${bob.base}/calories`)).data.yearKcal).toBe(500);
   });
 });

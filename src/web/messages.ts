@@ -580,6 +580,16 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: 'The first time, it asks to read "Active Energy": tap Allow',
   },
   安装快捷指令: { tw: "安裝捷徑", en: "Add the shortcut" },
+  "删除 {date} 这场的卡路里记录（{n} 千卡）？": {
+    tw: "刪除 {date} 這場的卡路里記錄（{n} 千卡）？",
+    en: "Delete your calories for {date} ({n} kcal)?",
+  },
+  "删除你全部 {n} 场的卡路里记录？删除后不能恢复，排行榜上也不会再有。": {
+    tw: "刪除你全部 {n} 場的卡路里記錄？刪除後不能恢復，排行榜上也不會再有。",
+    en: "Delete your calories for all {n} events? This can't be undone, and they'll be gone from the leaderboard too.",
+  },
+  删除这场的卡路里记录: { tw: "刪除這場的卡路里記錄", en: "Delete calories for this event" },
+  删除我的全部卡路里记录: { tw: "刪除我的全部卡路里記錄", en: "Delete all my calorie records" },
   "安装链接还在准备中。": { tw: "安裝連結還在準備中。", en: "The install link isn't ready yet." },
   "已安装，开始读取": { tw: "已安裝，開始讀取", en: "Added it. Start reading" },
   "只读这场活动时间段（{time}，含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。": {

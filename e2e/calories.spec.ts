@@ -83,6 +83,7 @@ export async function calorieMocks(page: Page, opts: { board?: boolean } = {}) {
       },
     }),
   );
+  await page.route("**/api/m/tok/calories/delete", (route) => route.fulfill({ json: { ok: true } }));
   await page.route("**/api/m/tok/calories/board", async (route) => {
     board = route.request().postDataJSON().on;
     await route.fulfill({ json: { ok: true } });
@@ -152,4 +153,24 @@ test("个人信息 shows this year's calories and the 卡路里榜 switch", asyn
   await card.locator(".switch-card").click();
   expect((await saved).postDataJSON()).toEqual({ on: true });
   await expect(sw).toBeChecked();
+});
+
+test("个人信息 deletes one event's calories or all of them, after asking", async ({ page }) => {
+  await calorieMocks(page);
+  await page.goto("/m/tok/profile");
+  const card = page.locator(".kcal-card");
+  await card.getByText("明细（2 场）").click();
+  const asked: string[] = [];
+  page.on("dialog", (d) => {
+    asked.push(d.message());
+    d.accept();
+  });
+  let sent = page.waitForRequest("**/api/m/tok/calories/delete");
+  await card.getByRole("button", { name: "删除这场的卡路里记录" }).first().click();
+  expect((await sent).postDataJSON()).toEqual({ code: "E1" });
+  sent = page.waitForRequest("**/api/m/tok/calories/delete");
+  await card.getByRole("button", { name: "删除我的全部卡路里记录" }).click();
+  expect((await sent).postDataJSON()).toEqual({ all: true });
+  expect(asked[0]).toContain("432 千卡");
+  expect(asked[1]).toContain("全部 2 场");
 });
