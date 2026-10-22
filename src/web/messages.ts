@@ -619,6 +619,8 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "The home page board shows your name and this year's total kcal to everyone. You can leave any time.",
   },
   能量: { tw: "能量", en: "Energy" },
+  "查看全部 {n} 人": { tw: "查看全部 {n} 人", en: "Show all {n}" },
+  收起: { tw: "收起", en: "Show less" },
   还没有人加入能量榜: { tw: "還沒有人加入能量榜", en: "Nobody has joined the Energy board yet" },
   "今年从 iPhone「健康」读取的活动能量，自愿加入（在个人信息里打开）。": {
     tw: "今年從 iPhone「健康」讀取的活動能量，自願加入（在個人資訊裡打開）。",

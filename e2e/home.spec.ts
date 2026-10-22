@@ -17,7 +17,7 @@ const event = (o: object) => ({
 
 /** 首页: the next event as one big card, 排行榜 and 历史活动 as rows that scroll sideways, not the page. */
 test("the home page leads with the next event and scrolls the small cards sideways", async ({ page }) => {
-  const names = ["arthur", "Dafei", "Jayx", "Johnzhang", "joseff", "Lily"];
+  const names = ["arthur", "Dafei", "Jayx", "Johnzhang", "joseff", "Lily", "Tom", "Kevin"];
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({ json: { signedIn: true, hasMember: true, pending: false } }),
   );
@@ -48,15 +48,21 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   await expect(page.locator(".hero")).toHaveCount(0);
 
   // 能量 is the first board and the one shown first (Ke Li).
-  const tabs = page.locator(".seg.mini button");
+  const tabs = page.locator(".board-tabs button");
   await expect(tabs).toHaveText(["能量", "出勤次数", "最长连续", "带朋友"]);
   await expect(tabs.first()).toHaveClass(/\bon\b/);
   await expect(page.locator("main")).toContainText("还没有人加入能量榜");
   await page.getByRole("button", { name: "出勤次数" }).click();
-  const ranks = page.locator(".ranks-swipe");
-  await expect(ranks.locator(".rank-card")).toHaveCount(6);
-  const scrolls = await ranks.evaluate((el) => el.scrollWidth > el.clientWidth);
-  expect(scrolls).toBe(true);
+  // A podium for the top three (2nd, 1st, 3rd from the left), rows below it, the rest behind 查看全部.
+  await expect(page.locator(".podium .who")).toHaveText(["Dafei", "arthur", "Jayx"]);
+  await expect(page.locator(".podium .crown")).toHaveCount(1);
+  const rows = page.locator(".board-rows li");
+  await expect(rows).toHaveCount(3);
+  await page.getByRole("button", { name: "查看全部 8 人" }).click();
+  await expect(rows).toHaveCount(5);
+  await expect(rows.last()).toContainText("Kevin");
+  await page.getByRole("button", { name: "收起" }).click();
+  await expect(rows).toHaveCount(3);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await expect(page.locator(".mini-card")).toHaveCount(4);
 
@@ -132,10 +138,10 @@ test("ties on the leaderboard share a rank", async ({ page }) => {
   );
   await page.goto("/");
   await page.getByRole("button", { name: "出勤次数" }).click();
-  const cards = page.locator(".ranks-swipe .rank-card");
-  await expect(cards.locator(".rank-no")).toHaveText(["1", "2", "2", "2", "5"]);
-  await expect(cards.nth(3)).toHaveClass(/\bp2\b/);
-  await expect(cards.nth(4)).toHaveClass(/\bp5\b/);
+  // The podium shows 2nd, 1st, 3rd from the left; tied places share a number.
+  await expect(page.locator(".podium .step")).toHaveText(["2", "1", "2"]);
+  await expect(page.locator(".podium .place").nth(2)).toHaveClass(/\bp2\b/);
+  await expect(page.locator(".board-rows .rank-no")).toHaveText(["2", "5"]);
 });
 
 test.describe("with a mouse", () => {
@@ -169,7 +175,7 @@ test.describe("with a mouse", () => {
     await head.getByRole("button", { name: "下一页" }).click();
     await expect.poll(left).toBeGreaterThan(100);
     await expect(head.getByRole("button", { name: "上一页" })).toBeEnabled();
-    // One card on the leaderboard fits, so it gets no arrows.
+    // The leaderboard is a podium now, not a sideways row: no arrows.
     await expect(page.locator(".section-title", { hasText: "排行榜" }).locator(".swipe-arrows")).toHaveCount(0);
 
     // Drag back to the start; letting go on a card doesn't open it.
