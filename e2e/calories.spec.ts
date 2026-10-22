@@ -122,7 +122,7 @@ test.describe("on iPhone", () => {
     await expect(sheet).toContainText("安装快捷指令「ReadBadmintonCalories」");
     await expect(sheet.getByRole("link", { name: "安装快捷指令" })).toHaveAttribute(
       "href",
-      "https://www.icloud.com/shortcuts/71f9d5e777b84f72bebf91b44a1e1508",
+      "https://www.icloud.com/shortcuts/909be1bdeb324b88a0caca0b0031aa11",
     );
     await expect(sheet).toContainText("20:30–22:30");
 
