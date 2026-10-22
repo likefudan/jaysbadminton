@@ -286,7 +286,7 @@ function CaloriesCard(props: { c: MyCalories; base: string; onChange: () => void
         )}
         <label class="switch-card plain">
           <span>
-            <strong>{t("加入卡路里榜")}</strong>
+            <strong>{t("加入能量榜")}</strong>
             <small>{t("首页排行榜会显示你的名字和今年的总千卡，所有人都看得到。随时可以退出。")}</small>
           </span>
           <input
