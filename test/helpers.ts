@@ -40,9 +40,12 @@ export async function setUpAdmin() {
 
 /** A Pacific calendar date `days` from today, YYYY-MM-DD. */
 export function futureDate(days: number): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(
-    new Date(Date.now() + days * 86400_000),
-  );
+  // Calendar days from today in Pacific time, not days × 24 h: across the end of daylight saving
+  // time 24 h short of midnight lands on the same date twice (10 and 11 days on 2026-10-22).
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date());
+  const d = new Date(`${today}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 /** A 用邮箱注册 body: the two names plus a fresh email, typed twice as the form requires. */
