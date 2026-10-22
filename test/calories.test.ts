@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { toPacific } from "../src/shared/time";
-import { timeWindow } from "../src/worker/calories";
+import { shortcutOutdated, timeWindow } from "../src/worker/calories";
 import { Client, ORIGIN, approveMember, createTestEvent, setUpAdmin } from "./helpers";
 
 const anon = new Client();
@@ -41,6 +41,25 @@ describe("卡路里", () => {
       start: "2026-05-26 23:55",
       end: "2026-05-27 01:30",
     });
+  });
+
+  it("remembers the Shortcut version each upload came with, and asks only those behind to update", async () => {
+    expect(shortcutOutdated(null, 2)).toBe(false);
+    expect(shortcutOutdated(1, 2)).toBe(true);
+    expect(shortcutOutdated(2, 2)).toBe(false);
+    const { alice, e } = await scene();
+    await startedAgo(e.id, 1);
+    const version = async () =>
+      (await env.DB.prepare("SELECT calorie_shortcut_v AS v FROM members WHERE id = ?").bind(alice.id).first())!.v;
+    expect(await version()).toBeNull();
+    expect(await card(alice.base, e.id)).toMatchObject({ kcalUpdate: false });
+    const first = (await anon.call(`${alice.base}/events/${e.id}/calories`, {})).data;
+    await upload(first.upload, 400);
+    expect(await version()).toBe(1);
+    const next = (await anon.call(`${alice.base}/events/${e.id}/calories`, {})).data;
+    await anon.call(next.upload.replace(ORIGIN, ""), { kcal: 410, v: 2 });
+    expect(await version()).toBe(2);
+    expect(await card(alice.base, e.id)).toMatchObject({ kcal: 410, kcalUpdate: false });
   });
 
   it("reads only once the event has started, with a one-time link the Shortcut posts to", async () => {

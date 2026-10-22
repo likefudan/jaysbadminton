@@ -4323,6 +4323,12 @@ ul.audit li:first-child {
   font-size: 13px;
   text-decoration: none;
 }
+.link-button.kcal-update {
+  margin: 4px 0 0;
+  color: var(--accent);
+  font-size: 13.5px;
+  text-align: left;
+}
 .link-button.kcal-del-all {
   margin: 14px 0 0;
   color: var(--danger);

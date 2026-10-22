@@ -31,6 +31,7 @@ export interface MemberRow {
   role_since: string | null;
   /** 1: on the 卡路里榜 (their own choice). */
   calorie_board: number;
+  calorie_shortcut_v: number | null;
 }
 
 export const toSummary = (m: MemberRow): MemberSummary => ({

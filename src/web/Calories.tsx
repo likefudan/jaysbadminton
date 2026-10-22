@@ -52,6 +52,7 @@ export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => vo
   }, [waiting]);
 
   const canRead = e.kcalOpen && ios;
+  const update = canRead && (e.kcalUpdate ?? false);
   const kcal = e.kcal ?? null;
   if (kcal === null && !canRead) return null;
 
@@ -91,24 +92,34 @@ export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => vo
               type="button"
               class="button secondary"
               disabled={busy}
-              onClick={() => (installed() ? read() : setGuide(true))}
+              onClick={() => (installed() && !update ? read() : setGuide(true))}
             >
               {t("读取")}
             </button>
           ) : (
-            <button type="button" class="link-button" disabled={busy} onClick={read}>
+            <button
+              type="button"
+              class="link-button"
+              disabled={busy}
+              onClick={() => (update ? setGuide(true) : read())}
+            >
               {t("重新读取")}
             </button>
           ))}
       </div>
+      {update && (
+        <button type="button" class="link-button kcal-update" onClick={() => setGuide(true)}>
+          {t("快捷指令有新版本，点这里更新")}
+        </button>
+      )}
       {error && <p class="error">{error}</p>}
-      {guide && <CalorieGuide window={span} onRead={read} onClose={() => setGuide(false)} />}
+      {guide && <CalorieGuide window={span} update={update} onRead={read} onClose={() => setGuide(false)} />}
     </>
   );
 }
 
-/** The first 读取: install the Shortcut once, then come back and read. */
-function CalorieGuide(props: { window: string; onRead: () => void; onClose: () => void }) {
+/** The first 读取: install the Shortcut once, then come back and read. Also for updating it to a newer version. */
+function CalorieGuide(props: { window: string; update: boolean; onRead: () => void; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
     addEventListener("keydown", onKey);
@@ -126,16 +137,22 @@ function CalorieGuide(props: { window: string; onRead: () => void; onClose: () =
           </button>
         </div>
         <p class="kcal-intro">
-          {t(
-            "网页读不到苹果「健康」的数据，要借助一个快捷指令，只需要装一次。打球时要戴 Apple Watch，「健康」里才有活动能量。",
-          )}
+          {props.update
+            ? t("快捷指令有新版本，读得更快。请重新安装一次，替换掉旧的。")
+            : t(
+                "网页读不到苹果「健康」的数据，要借助一个快捷指令，只需要装一次。打球时要戴 Apple Watch，「健康」里才有活动能量。",
+              )}
         </p>
         <ol class="kcal-steps">
           <li>
             <span class="n">1</span>
             <span>
               {t("安装快捷指令「{name}」", { name: SHORTCUT_NAME })}
-              <small>{t("在 iPhone 上打开，点「添加快捷指令」")}</small>
+              <small>
+                {props.update
+                  ? t("在 iPhone 上打开，问到同名的快捷指令时选「替换」")
+                  : t("在 iPhone 上打开，点「添加快捷指令」")}
+              </small>
             </span>
           </li>
           <li>

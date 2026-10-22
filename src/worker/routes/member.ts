@@ -42,6 +42,7 @@ import {
   deleteCalories,
   myCalories,
   setCalorieBoard,
+  shortcutOutdated,
   startUpload,
 } from "../calories";
 import { addAccount, addAccounts, queueInfo, queueLive, removeAccount, removeCourt, saveCourt } from "../courtQueue";
@@ -296,6 +297,7 @@ async function myEvents(
       courts: rows.length > 0 || runs ? bookedCourts(row) : [],
       kcal: mine.kcalOf(e.id),
       kcalOpen: canRead(row, selfOn, readDays),
+      kcalUpdate: canRead(row, selfOn, readDays) && shortcutOutdated(m.calorie_shortcut_v),
     });
   }
   return events;

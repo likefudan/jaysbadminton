@@ -91,7 +91,7 @@ app.post("/api/release-notice", async (c) => c.json({ sent: await sendReleaseNot
 // The 卡路里 Shortcut posts the number here with the one-time code from 读取; no cookie, no origin.
 app.post("/api/calories/:code", async (c) => {
   const body = await readJson(c.req.raw);
-  return c.json({ ok: true, kcal: await saveUpload(c.env, c.req.param("code"), body.kcal) });
+  return c.json({ ok: true, kcal: await saveUpload(c.env, c.req.param("code"), body.kcal, body.v) });
 });
 
 // Pulled once a day by the Apps Script in the Owner's Google Sheet; the key is the only credential.

@@ -235,6 +235,8 @@ export interface MyEvent extends EventSummary {
   kcal: number | null;
   /** 读取 is offered: they signed up themselves and it started less than 30 days ago. */
   kcalOpen: boolean;
+  /** 读取 is offered but their Shortcut is older than the one the install link gives. */
+  kcalUpdate: boolean;
 }
 
 /** 读取卡路里: what the page hands the Shortcut. upload takes the number once, within 15 minutes. */

@@ -590,6 +590,18 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   删除这场的卡路里记录: { tw: "刪除這場的卡路里記錄", en: "Delete calories for this event" },
   删除我的全部卡路里记录: { tw: "刪除我的全部卡路里記錄", en: "Delete all my calorie records" },
+  "快捷指令有新版本，点这里更新": {
+    tw: "捷徑有新版本，點這裡更新",
+    en: "A new version of the shortcut is out. Tap to update",
+  },
+  "快捷指令有新版本，读得更快。请重新安装一次，替换掉旧的。": {
+    tw: "捷徑有新版本，讀得更快。請重新安裝一次，取代舊的。",
+    en: "There's a faster version of the shortcut. Install it again to replace the old one.",
+  },
+  "在 iPhone 上打开，问到同名的快捷指令时选「替换」": {
+    tw: "在 iPhone 上打開，問到同名的捷徑時選「取代」",
+    en: 'Open it on your iPhone and choose "Replace" when asked about the shortcut with the same name',
+  },
   "安装链接还在准备中。": { tw: "安裝連結還在準備中。", en: "The install link isn't ready yet." },
   "已安装，开始读取": { tw: "已安裝，開始讀取", en: "Added it. Start reading" },
   "只读这场活动时间段（{time}，含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。": {
