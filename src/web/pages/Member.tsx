@@ -275,7 +275,6 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {e.roster && e.roster.length > 0 && (
           <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
         )}
-        <CalorieRow base={props.base} e={e} onChange={props.onChange} />
         {e.queue && <CourtQueue base={props.base} e={e} onChange={props.onChange} />}
         {friendsOnly && !editing && e.runByMe && (
           <p class="muted">
@@ -361,6 +360,8 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
           <p class="muted small">{t("报名已截止，需要修改请联系{name}。费用会在活动后公布。", { name: runner })}</p>
         )}
         {e.payment && <PaymentBox p={e.payment} />}
+        {/* Last on the card, under its own line (Ke Li): it comes after the game, the bill included. */}
+        <CalorieRow base={props.base} e={e} onChange={props.onChange} />
       </div>
     </section>
   );
