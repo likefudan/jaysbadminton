@@ -33,6 +33,7 @@ test("the home page leads with the next event and scrolls the small cards sidewa
           attendance: names.map((name, i) => ({ rank: i + 1, name, value: 9 - i })),
           streak: [],
           friends: [],
+          calories: [],
         },
       },
     }),
@@ -46,6 +47,12 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   // The site name is only in the top bar now, not repeated as a big title.
   await expect(page.locator(".hero")).toHaveCount(0);
 
+  // 能量 is the first board and the one shown first (Ke Li).
+  const tabs = page.locator(".seg.mini button");
+  await expect(tabs).toHaveText(["能量", "出勤次数", "最长连续", "带朋友"]);
+  await expect(tabs.first()).toHaveClass(/\bon\b/);
+  await expect(page.locator("main")).toContainText("还没有人加入能量榜");
+  await page.getByRole("button", { name: "出勤次数" }).click();
   const ranks = page.locator(".ranks-swipe");
   await expect(ranks.locator(".rank-card")).toHaveCount(6);
   const scrolls = await ranks.evaluate((el) => el.scrollWidth > el.clientWidth);
@@ -116,10 +123,15 @@ test("ties on the leaderboard share a rank", async ({ page }) => {
   ];
   await page.route("**/api/public/home", (route) =>
     route.fulfill({
-      json: { currentEvents: [], pastEvents: [], leaderboard: { year: 2026, attendance, streak: [], friends: [] } },
+      json: {
+        currentEvents: [],
+        pastEvents: [],
+        leaderboard: { year: 2026, attendance, streak: [], friends: [], calories: [] },
+      },
     }),
   );
   await page.goto("/");
+  await page.getByRole("button", { name: "出勤次数" }).click();
   const cards = page.locator(".ranks-swipe .rank-card");
   await expect(cards.locator(".rank-no")).toHaveText(["1", "2", "2", "2", "5"]);
   await expect(cards.nth(3)).toHaveClass(/\bp2\b/);
@@ -139,7 +151,13 @@ test.describe("with a mouse", () => {
           pastEvents: Array.from({ length: 8 }, (_, i) =>
             event({ id: 10 + i, code: `P${i}`, date: `2026-09-0${i + 1}`, status: "settled" }),
           ),
-          leaderboard: { year: 2026, attendance: [{ name: "arthur", value: 2, rank: 1 }], streak: [], friends: [] },
+          leaderboard: {
+            year: 2026,
+            attendance: [],
+            streak: [],
+            friends: [],
+            calories: [{ name: "arthur", value: 1522, rank: 1 }],
+          },
         },
       }),
     );

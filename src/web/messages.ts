@@ -613,13 +613,13 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   千卡: { tw: "大卡", en: "kcal" },
   记录: { tw: "記錄", en: "Recorded" },
   平均每场: { tw: "平均每場", en: "Per event" },
-  加入卡路里榜: { tw: "加入卡路里榜", en: "Join the calorie board" },
+  加入能量榜: { tw: "加入能量榜", en: "Join the Energy board" },
   "首页排行榜会显示你的名字和今年的总千卡，所有人都看得到。随时可以退出。": {
     tw: "首頁排行榜會顯示你的名字和今年的總大卡，所有人都看得到。隨時可以退出。",
     en: "The home page board shows your name and this year's total kcal to everyone. You can leave any time.",
   },
-  卡路里: { tw: "卡路里", en: "Calories" },
-  还没有人加入卡路里榜: { tw: "還沒有人加入卡路里榜", en: "Nobody has joined the calorie board yet" },
+  能量: { tw: "能量", en: "Energy" },
+  还没有人加入能量榜: { tw: "還沒有人加入能量榜", en: "Nobody has joined the Energy board yet" },
   "今年从 iPhone「健康」读取的活动能量，自愿加入（在个人信息里打开）。": {
     tw: "今年從 iPhone「健康」讀取的活動能量，自願加入（在個人資訊裡打開）。",
     en: "Active energy read from Apple Health this year. Members join it themselves in Profile.",

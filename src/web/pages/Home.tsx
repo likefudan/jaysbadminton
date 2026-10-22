@@ -85,7 +85,7 @@ function MyEvents(props: { events: EventSummary[] }) {
 
 /** 排行榜 as a row of small cards that scrolls sideways, first place in the accent colour. */
 function Leaders(props: { board: Leaderboard }) {
-  const [tab, setTab] = useState<(typeof BOARDS)[number]["key"]>("attendance");
+  const [tab, setTab] = useState<(typeof BOARDS)[number]["key"]>(BOARDS[0].key);
   const b = BOARDS.find((x) => x.key === tab)!;
   const list = props.board[tab];
   return (
@@ -103,7 +103,7 @@ function Leaders(props: { board: Leaderboard }) {
         }
         empty={
           list.length === 0 ? (
-            <Empty>{tab === "calories" ? t("还没有人加入卡路里榜") : t("还没有出勤记录")}</Empty>
+            <Empty>{tab === "calories" ? t("还没有人加入能量榜") : t("还没有出勤记录")}</Empty>
           ) : undefined
         }
         ordered
