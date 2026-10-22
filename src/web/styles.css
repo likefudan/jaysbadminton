@@ -4203,11 +4203,17 @@ ul.audit li:first-child {
 :root {
   --flame: #e0703f;
 }
+/* 卡路里 at the foot of an event card, under a line like the bill's. */
+.kcal-foot {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
 .kcal-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 12px 0 4px;
+  margin: 0 0 4px;
   padding: 11px 14px;
   border-radius: var(--radius);
   background: var(--acc-soft);

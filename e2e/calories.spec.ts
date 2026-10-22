@@ -189,3 +189,41 @@ test("个人信息 deletes one event's calories or all of them, after asking", a
   expect(asked[0]).toContain("432 千卡");
   expect(asked[1]).toContain("全部 2 场");
 });
+
+test.describe("on iPhone, after the bill", () => {
+  test.use({ userAgent: IPHONE });
+
+  test("卡路里 sits last on the card, under its own line below the bill (Ke Li)", async ({ page }) => {
+    await calorieMocks(page);
+    await page.route("**/api/m/tok/events", (route) =>
+      route.fulfill({
+        json: {
+          events: [
+            ev(2, {
+              date: "2030-10-20",
+              status: "finalized",
+              payment: {
+                amountCents: 2392,
+                paidCents: 0,
+                refundCents: 0,
+                status: "unpaid",
+                code: "E2",
+                shares: [{ name: "Ke", friendIndex: 0, attended: true, courtCents: 2000, shuttleCents: 392 }],
+                payeeName: "Jay",
+                venmoUsername: "jay",
+                zelleAccount: "",
+              },
+            }),
+          ],
+          history: [],
+          friendCap: 2,
+        },
+      }),
+    );
+    await page.goto("/m/tok");
+    const card = page.locator(".ev-card", { hasText: "10/20" });
+    await expect(card.locator(".kcal-foot")).toBeVisible();
+    // Nothing comes after it in the card body.
+    expect(await card.locator(".ev-main > :last-child").getAttribute("class")).toBe("kcal-foot");
+  });
+});

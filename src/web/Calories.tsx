@@ -72,7 +72,7 @@ export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => vo
 
   const span = `${e.startTime}–${e.endTime}`;
   return (
-    <>
+    <div class="kcal-foot">
       <div class="kcal-row">
         <FlameIcon />
         {kcal === null ? (
@@ -114,7 +114,7 @@ export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => vo
       )}
       {error && <p class="error">{error}</p>}
       {guide && <CalorieGuide window={span} update={update} onRead={read} onClose={() => setGuide(false)} />}
-    </>
+    </div>
   );
 }
 
