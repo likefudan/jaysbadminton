@@ -1,3 +1,4 @@
+import { SHORTCUT_VERSION } from "../shared/calories";
 import type { CalorieStart, MyCalories } from "../shared/types";
 import { toPacific } from "../shared/time";
 import { getSettings, now } from "./db";
@@ -84,8 +85,13 @@ export function timeWindow(e: Pick<EventRow, "start_at" | "end_at">): Pick<Calor
   };
 }
 
+/** They last uploaded with an older Shortcut than the install link gives (never uploaded: not asked). */
+export function shortcutOutdated(v: number | null, current = SHORTCUT_VERSION): boolean {
+  return v !== null && v < current;
+}
+
 /** The Shortcut posting the number: the code is used up whether or not the number is accepted. */
-export async function saveUpload(env: Env, code: string, raw: unknown): Promise<number> {
+export async function saveUpload(env: Env, code: string, raw: unknown, version?: unknown): Promise<number> {
   const row = await env.DB.prepare(
     "DELETE FROM calorie_uploads WHERE code_hash = ? AND expires_at >= ? RETURNING event_id, member_id",
   )
@@ -95,6 +101,10 @@ export async function saveUpload(env: Env, code: string, raw: unknown): Promise<
   const n = typeof raw === "string" ? Number(raw.replace(/[^\d.]/g, "")) : Number(raw);
   if (!Number.isFinite(n) || n < 0 || n > KCAL_MAX) throw badRequest("卡路里数字不对");
   const kcal = Math.round(n);
+  const v = Number(version);
+  await env.DB.prepare("UPDATE members SET calorie_shortcut_v = ? WHERE id = ?")
+    .bind(Number.isInteger(v) && v > 0 ? v : 1, row.member_id)
+    .run();
   // 0: nothing in 「健康」 for that time (no Apple Watch worn); keep 读取 on the card rather than a 0.
   if (kcal === 0) return 0;
   await env.DB.prepare(

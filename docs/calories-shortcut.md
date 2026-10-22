@@ -29,7 +29,9 @@ the site runs it by name. Add these actions in order:
 6. **Format Date**: StartDate, Custom `yyyyMMddHHmm`. **Get Numbers from Input** on it, rename **From**.
 7. **Format Date**: EndDate, Custom `yyyyMMddHHmm`. **Get Numbers from Input** on it, rename **To**.
 8. **Find Health Samples**: type "Active Energy" (shown as Active Calories), one filter
-   "Start Date is between StartDate and Until", unit **kcal**, no limit.
+   "Start Date is between StartDate and Until", unit **kcal**, **Group by Minute**, no limit.
+   Grouping adds up each minute's samples first: an Apple Watch can write thousands of tiny samples in
+   an evening, and repeating over each of them made the Shortcut far too slow.
 9. **Repeat with Each** item in "Health Samples". Inside the repeat:
    1. **Get Details of Health Sample**: "Start Date" of "Repeat Item".
    2. **Format Date**: that "Start Date", Custom `yyyyMMddHHmm`.
@@ -40,7 +42,8 @@ the site runs it by name. Add these actions in order:
 10. **Calculate Statistics**: "Sum" of "Repeat Results".
 11. **Round Number**: to Ones place / Integer.
 12. **Get Contents of URL**: URL is Upload, method `POST`, request body "JSON",
-    add a "Number" field `kcal` with the value "Rounded Number".
+    add a "Number" field `kcal` with the value "Rounded Number", and a "Number" field `v` with the
+    Shortcut's version (now `2`).
 13. **Show Notification**: "Recorded 〔Rounded Number〕 kcal".
 
 To try it without the site, set "If there's no input" on the Receive row to **Ask For Text**, run it, and
@@ -49,6 +52,14 @@ paste for example `{"start":"2026-05-26 20:30","end":"2026-05-26 23:00","upload"
 
 When it's done: long-press the shortcut → Share → Copy iCloud Link, and put the link into
 `SHORTCUT_INSTALL_URL` in `src/shared/calories.ts`.
+
+## Changing the Shortcut later
+
+Members keep the copy they installed; a new iCloud link doesn't update it. So for every change:
+raise `v` in step 12, share a new iCloud link, and set both `SHORTCUT_INSTALL_URL` and
+`SHORTCUT_VERSION` (to the new `v`) in `src/shared/calories.ts` in the same commit. The site remembers
+the `v` of each member's last upload (none sent = 1); while 读取 is open, members behind get
+「快捷指令有新版本，点这里更新」 on the event card, and their number is still saved.
 
 ## What to check when testing
 

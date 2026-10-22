@@ -29,11 +29,12 @@ const ev = (id: number, o: object) => ({
   courts: [],
   kcal: null,
   kcalOpen: true,
+  kcalUpdate: false,
   ...o,
 });
 
 /** 我的活动 and 个人信息 for Ke, with one event to read and one already read; the Shortcut call is caught. */
-export async function calorieMocks(page: Page, opts: { board?: boolean } = {}) {
+export async function calorieMocks(page: Page, opts: { board?: boolean; update?: boolean } = {}) {
   let board = opts.board ?? false;
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false, hasMember: false } }));
   await page.route("**/api/m/tok/me", (route) =>
@@ -46,7 +47,7 @@ export async function calorieMocks(page: Page, opts: { board?: boolean } = {}) {
   await page.route("**/api/m/tok/events", (route) =>
     route.fulfill({
       json: {
-        events: [ev(2, { date: "2030-10-20" }), ev(1, { kcal: 432 })],
+        events: [ev(2, { date: "2030-10-20" }), ev(1, { kcal: 432, kcalUpdate: opts.update ?? false })],
         history: [
           {
             id: 9,
@@ -92,6 +93,20 @@ export async function calorieMocks(page: Page, opts: { board?: boolean } = {}) {
 
 test.describe("on iPhone", () => {
   test.use({ userAgent: IPHONE });
+
+  test("an older Shortcut gets 「点这里更新」, which opens the install sheet saying to replace it", async ({
+    page,
+  }) => {
+    await calorieMocks(page, { update: true });
+    await page.goto("/m/tok");
+    const card = page.locator(".ev-card", { hasText: "10/13" });
+    await expect(page.locator(".ev-card", { hasText: "10/20" }).getByText("点这里更新")).toHaveCount(0);
+    await card.getByRole("button", { name: "快捷指令有新版本，点这里更新" }).click();
+    const sheet = page.getByRole("dialog", { name: "读取卡路里" });
+    await expect(sheet).toContainText("请重新安装一次");
+    await expect(sheet).toContainText("选「替换」");
+    await expect(sheet.getByRole("link", { name: "安装快捷指令" })).toBeVisible();
+  });
 
   test("读取 explains the Shortcut once, then runs it with the event's times and upload link", async ({ page }) => {
     await calorieMocks(page);
