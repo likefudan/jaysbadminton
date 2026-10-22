@@ -237,6 +237,8 @@ export interface MyEvent extends EventSummary {
   kcalOpen: boolean;
   /** 读取 is offered but their Shortcut is older than the one the install link gives. */
   kcalUpdate: boolean;
+  /** The Shortcut's iCloud link from 设置, while 读取 is offered; empty otherwise. */
+  kcalInstall: string;
 }
 
 /** 读取卡路里: what the page hands the Shortcut. upload takes the number once, within 15 minutes. */

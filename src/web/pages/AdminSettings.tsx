@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
 import { checkPassword } from "../../shared/rules";
 import type { LinkResponse, RevokeImpact } from "../../shared/types";
 import { formatInstantZh } from "../../shared/time";
@@ -504,6 +505,7 @@ interface GeneralSettings {
   friendCap: number;
   pastEventDays: number;
   calorieReadDays: number;
+  calorieShortcut: { url: string; version: number };
   venmoUsername: string;
   venmoEmail: string;
   zelleAccount: string;
@@ -520,6 +522,7 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
       <PublicPageCard base={props.base} initial={props.initial} />
       <SignupCard base={props.base} initial={props.initial} />
       <DaysCard base={props.base} initial={props.initial} />
+      <ShortcutCard base={props.base} initial={props.initial} />
     </>
   );
 }
@@ -646,6 +649,43 @@ function DaysCard(props: { base: string; initial: GeneralSettings }) {
             ...(past !== String(props.initial.pastEventDays) && { pastEventDays: Number(past) }),
             ...(kcal !== String(props.initial.calorieReadDays) && { calorieReadDays: Number(kcal) }),
           };
+          if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
+        }}
+      >
+        {saved ? "已保存" : "保存"}
+      </button>
+    </Card>
+  );
+}
+
+/**
+ * 卡路里快捷指令: the iCloud link members install and the version it sends, so a new Shortcut needs
+ * no deploy (Ke Li). Members whose last upload came from an older version are asked to update.
+ */
+function ShortcutCard(props: { base: string; initial: GeneralSettings }) {
+  const [url, setUrl] = useState(props.initial.calorieShortcut.url);
+  const [version, setVersion] = useState(String(props.initial.calorieShortcut.version));
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  const edit = (set: (v: string) => void) => (v: string) => {
+    set(v);
+    setSaved(false);
+  };
+  return (
+    <Card title="卡路里快捷指令">
+      <p class="muted small">
+        快捷指令的名字必须是「{SHORTCUT_NAME}」。改了快捷指令以后：把发送的 v 加一，重新分享拿到新的 iCloud
+        链接，两样一起填在这里。用旧版本读取过的人，活动卡片上会提示更新。
+      </p>
+      <Field label="iCloud 链接" type="url" verbatim value={url} onInput={edit(setUrl)} />
+      <Field label="版本号（快捷指令发送的 v）" type="number" value={version} onInput={edit(setVersion)} />
+      {error && <p class="error">{error}</p>}
+      <button
+        type="button"
+        class="button secondary block"
+        disabled={busy || !SHORTCUT_URL_RE.test(url.trim())}
+        onClick={async () => {
+          const body = { calorieShortcut: { url: url.trim(), version: Number(version) } };
           if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
         }}
       >

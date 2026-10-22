@@ -1,4 +1,4 @@
-import { SHORTCUT_VERSION } from "../shared/calories";
+import { SHORTCUT_INSTALL_URL, SHORTCUT_VERSION } from "../shared/calories";
 import type { CalorieStart, MyCalories } from "../shared/types";
 import { toPacific } from "../shared/time";
 import { getSettings, now } from "./db";
@@ -18,6 +18,16 @@ export const KCAL_MAX = 3000;
 export async function calorieReadDays(env: Env): Promise<number> {
   const n = Number((await getSettings(env.DB, ["calorie_read_days"])).calorie_read_days);
   return Number.isInteger(n) && n >= 1 ? n : DEFAULT_READ_DAYS;
+}
+
+/** The Shortcut to install and its version, as set in 设置 (the built-in ones until then). */
+export async function shortcutSetting(env: Env): Promise<{ url: string; version: number }> {
+  const s = await getSettings(env.DB, ["calorie_shortcut_url", "calorie_shortcut_version"]);
+  const v = Number(s.calorie_shortcut_version);
+  return {
+    url: s.calorie_shortcut_url || SHORTCUT_INSTALL_URL,
+    version: Number.isInteger(v) && v >= 1 ? v : SHORTCUT_VERSION,
+  };
 }
 
 /** The member may read their 卡路里 for this event now: they played (signed up themselves) and it has started, up to `days` days. */
@@ -86,7 +96,7 @@ export function timeWindow(e: Pick<EventRow, "start_at" | "end_at">): Pick<Calor
 }
 
 /** They last uploaded with an older Shortcut than the install link gives (never uploaded: not asked). */
-export function shortcutOutdated(v: number | null, current = SHORTCUT_VERSION): boolean {
+export function shortcutOutdated(v: number | null, current: number): boolean {
   return v !== null && v < current;
 }
 

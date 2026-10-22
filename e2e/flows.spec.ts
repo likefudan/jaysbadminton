@@ -74,6 +74,17 @@ test("the Owner sets up the site and the payment details", async ({ page }) => {
   const google = page.locator(".card", { has: page.getByText("用 Google 登录管理页") });
   await expect(google).toContainText("绑定一个 Google 账号（只能一个）");
   await expect(google.getByRole("button", { name: "先登录 Google" })).toBeVisible();
+
+  // 卡路里快捷指令: the link and version members install, set here instead of in a deploy.
+  const shortcut = page.locator(".card", { has: page.getByRole("heading", { name: "卡路里快捷指令" }) });
+  const link = shortcut.getByLabel("iCloud 链接");
+  await expect(link).toHaveValue(/^https:\/\/www\.icloud\.com\/shortcuts\/[0-9a-f]{32}$/);
+  const installed = await link.inputValue();
+  await link.fill("https://example.com/x");
+  await expect(shortcut.getByRole("button", { name: "保存" })).toBeDisabled();
+  await link.fill(installed);
+  await shortcut.getByRole("button", { name: "保存" }).click();
+  await expect(shortcut.getByRole("button", { name: "已保存" })).toBeVisible();
 });
 
 test("a newcomer registers with email and the Owner approves them", async ({ page }) => {
