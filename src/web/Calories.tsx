@@ -189,6 +189,13 @@ function CaloriesCard(props: { c: MyCalories; base: string; onChange: () => void
     if (!(await run(() => api(`${props.base}/calories/board`, { on })))) setBoard(!on);
     else props.onChange();
   }
+  async function remove(e?: MyCalories["events"][number]) {
+    const ask = e
+      ? t("删除 {date} 这场的卡路里记录（{n} 千卡）？", { date: fmtDate(e.date, true), n: kcalText(e.kcal) })
+      : t("删除你全部 {n} 场的卡路里记录？删除后不能恢复，排行榜上也不会再有。", { n: c.events.length });
+    if (!confirm(ask)) return;
+    if (await run(() => api(`${props.base}/calories/delete`, e ? { code: e.code } : { all: true }))) props.onChange();
+  }
   const year = String(c.year);
   return (
     <>
@@ -229,6 +236,17 @@ function CaloriesCard(props: { c: MyCalories; base: string; onChange: () => void
                     </td>
                     <td class="muted">{e.title || e.location}</td>
                     <td class="num">{t("{n} 千卡", { n: kcalText(e.kcal) })}</td>
+                    <td class="kcal-del">
+                      <button
+                        type="button"
+                        class="link-button"
+                        aria-label={t("删除这场的卡路里记录")}
+                        disabled={busy}
+                        onClick={() => remove(e)}
+                      >
+                        ✕
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -249,6 +267,11 @@ function CaloriesCard(props: { c: MyCalories; base: string; onChange: () => void
             onChange={(e) => toggle((e.target as HTMLInputElement).checked)}
           />
         </label>
+        {c.events.length > 0 && (
+          <button type="button" class="link-button danger kcal-del-all" disabled={busy} onClick={() => remove()}>
+            {t("删除我的全部卡路里记录")}
+          </button>
+        )}
         {error && <p class="error">{error}</p>}
       </Card>
     </>

@@ -125,6 +125,20 @@ export async function myCalories(env: Env, m: MemberRow): Promise<MyCalories> {
   };
 }
 
+/** Deletes their 卡路里 for one event (by its code), or all of it when no code is given. */
+export async function deleteCalories(env: Env, m: MemberRow, code?: string): Promise<void> {
+  if (code === undefined) {
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM calories WHERE member_id = ?").bind(m.id),
+      env.DB.prepare("DELETE FROM calorie_uploads WHERE member_id = ?").bind(m.id),
+    ]);
+    return;
+  }
+  await env.DB.prepare("DELETE FROM calories WHERE member_id = ? AND event_id = (SELECT id FROM events WHERE code = ?)")
+    .bind(m.id, code)
+    .run();
+}
+
 export async function setCalorieBoard(env: Env, m: MemberRow, on: boolean): Promise<void> {
   await env.DB.prepare("UPDATE members SET calorie_board = ? WHERE id = ?")
     .bind(on ? 1 : 0, m.id)

@@ -20,6 +20,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         h: "这个网站是谁的",
         body: [
           "Jay's Badminton（jaysbadminton.llmat.dev）是一个休闲羽毛球群自己用的报名和记账网站，由群主个人运营，不是公司，也不营利。本政策说明网站收集哪些信息、拿来做什么、谁能看到、保存多久。",
+          "本网站不向华盛顿州提供服务。如果你住在华盛顿州，请不要注册或使用本网站。",
         ],
       },
       {
@@ -31,7 +32,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
             "活动记录：报名和取消、带的朋友（人数和你填的名字）、出勤、应付金额和付款状态。",
             "付款通知：活动的收款人把 Venmo 收款通知邮件转发给网站，网站从中读出付款人名字、金额、备注和时间，用来自动对账，并保存邮件文字供收款人核对。付款人可能不是成员，例如替别人付款的人。Zelle 付款由收款人手动标记。网站碰不到你的银行或 Venmo 账户，也不保存卡号或密码。",
             "推送通知：你开启推送时，保存浏览器提供的推送地址和密钥。",
-            "卡路里（自愿）：你在 iPhone 上点「读取」时，快捷指令从「健康」读出这场活动时间段内的活动能量，网站只保存一个总数，只有你自己看得到；你选择加入卡路里榜后，首页会显示你的名字和今年的总数。网站读不到「健康」里的其他数据。",
+            "卡路里（自愿）：你在 iPhone 上点「读取」时，快捷指令从「健康」读出这场活动时间段内的活动能量，网站只保存一个总数，只有你自己看得到；你选择加入卡路里榜后，首页会显示你的名字和今年的总数。网站读不到「健康」里的其他数据。你可以在「个人信息」里删除某一场或全部卡路里记录。",
             "技术信息：登录用的 Cookie；语言、外观等偏好只存在你自己的浏览器里。网站没有广告，也不用第三方统计工具。",
           ],
         ],
@@ -69,6 +70,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         body: [
           [
             "成员资料和活动记录：在你是成员期间一直保存。",
+            "卡路里：保存到你自己删除为止，删除后立即从网站移除。",
             "删除成员后：专属链接、Google 账号关联和推送订阅立即删除；你的名字会加上成员编号留在过去的名单和账单里，因为账目需要完整。",
             "登录状态保存 30 天；移到回收站的 Venmo 收款 30 天后永久删除；付款邮件的处理日志（只有时间和结果）120 天后删除；群主开启付款记录诊断后，还会保存邮件标题、付款人、交易编号、备注和处理步骤，仅群主可见，不保存完整邮件正文，诊断记录 14 天后删除；数据库备份 90 天后删除。",
           ],
@@ -77,7 +79,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       {
         h: "你的选择",
         body: [
-          "你可以在「个人信息」里修改名字和邮箱、开关推送通知，也可以随时退出 Google 登录。想查看、更正或删除你的个人信息，请联系网站维护者（见下面的「联系我们」）。",
+          "你可以在「个人信息」里修改名字和邮箱、开关推送通知、删除自己的卡路里记录，也可以随时退出 Google 登录。想查看、更正或删除你的个人信息，请联系网站维护者（见下面的「联系我们」）。",
           "本网站不面向 13 岁以下的儿童。",
         ],
       },
@@ -98,6 +100,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         h: "這個網站是誰的",
         body: [
           "Jay's Badminton（jaysbadminton.llmat.dev）是一個休閒羽毛球群自己用的報名和記帳網站，由群主個人經營，不是公司，也不營利。本政策說明網站收集哪些資訊、拿來做什麼、誰能看到、保存多久。",
+          "本網站不向華盛頓州提供服務。如果你住在華盛頓州，請不要註冊或使用本網站。",
         ],
       },
       {
@@ -109,7 +112,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
             "活動記錄：報名和取消、帶的朋友（人數和你填的名字）、出席、應付金額和付款狀態。",
             "付款通知：活動的收款人把 Venmo 收款通知郵件轉寄給網站，網站從中讀出付款人名字、金額、備註和時間，用來自動對帳，並保存郵件文字供收款人核對。付款人可能不是成員，例如替別人付款的人。Zelle 付款由收款人手動標記。網站碰不到你的銀行或 Venmo 帳戶，也不保存卡號或密碼。",
             "推播通知：你開啟推播時，保存瀏覽器提供的推播位址和金鑰。",
-            "卡路里（自願）：你在 iPhone 上點「讀取」時，捷徑從「健康」讀出這場活動時間段內的活動能量，網站只保存一個總數，只有你自己看得到；你選擇加入卡路里榜後，首頁會顯示你的名字和今年的總數。網站讀不到「健康」裡的其他資料。",
+            "卡路里（自願）：你在 iPhone 上點「讀取」時，捷徑從「健康」讀出這場活動時間段內的活動能量，網站只保存一個總數，只有你自己看得到；你選擇加入卡路里榜後，首頁會顯示你的名字和今年的總數。網站讀不到「健康」裡的其他資料。你可以在「個人資訊」裡刪除某一場或全部卡路里記錄。",
             "技術資訊：登入用的 Cookie；語言、外觀等偏好只存在你自己的瀏覽器裡。網站沒有廣告，也不用第三方統計工具。",
           ],
         ],
@@ -147,6 +150,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         body: [
           [
             "成員資料和活動記錄：在你是成員期間一直保存。",
+            "卡路里：保存到你自己刪除為止，刪除後立即從網站移除。",
             "刪除成員後：專屬連結、Google 帳號連結和推播訂閱立即刪除；你的名字會加上成員編號留在過去的名單和帳單裡，因為帳目需要完整。",
             "登入狀態保存 30 天；移到資源回收筒的 Venmo 收款 30 天後永久刪除；付款郵件的處理日誌（只有時間和結果）120 天後刪除；群主開啟付款記錄診斷後，還會保存郵件標題、付款人、交易編號、備註和處理步驟，僅群主可見，不保存完整郵件正文，診斷記錄 14 天後刪除；資料庫備份 90 天後刪除。",
           ],
@@ -155,7 +159,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       {
         h: "你的選擇",
         body: [
-          "你可以在「個人資訊」裡修改名字和電子郵件、開關推播通知，也可以隨時登出 Google。想查看、更正或刪除你的個人資訊，請聯絡網站維護者（見下面的「聯絡我們」）。",
+          "你可以在「個人資訊」裡修改名字和電子郵件、開關推播通知、刪除自己的卡路里記錄，也可以隨時登出 Google。想查看、更正或刪除你的個人資訊，請聯絡網站維護者（見下面的「聯絡我們」）。",
           "本網站不以 13 歲以下的兒童為對象。",
         ],
       },
@@ -176,6 +180,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         h: "Who runs this site",
         body: [
           "Jay's Badminton (jaysbadminton.llmat.dev) is the sign-up and bookkeeping site of a casual badminton group. It is run by the group owner as an individual, not by a company, and makes no money. This policy explains what the site collects, what it is used for, who can see it, and how long it is kept.",
+          "This site does not offer its service in Washington State. If you live in Washington State, please do not sign up for or use this site.",
         ],
       },
       {
@@ -187,7 +192,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
             "Event records: sign-ups and cancellations, friends you bring (how many, and any names you enter), attendance, amounts owed and payment status.",
             "Payment notices: an event's payee forwards their Venmo payment notification emails to the site, which reads the payer's name, the amount, the note and the time to match payments automatically, and keeps the email text so the payee can check it. A payer may not be a member, for example someone paying on another person's behalf. Zelle payments are marked by hand by the payee. The site never touches your bank or Venmo account and stores no card numbers or passwords.",
             "Push notifications: if you turn them on, the push address and keys your browser provides.",
-            "Calories (optional): when you tap \"Read\" on an iPhone, a shortcut reads the active energy during that event from Apple Health and the site keeps only the total, visible only to you. If you join the calorie board, the home page shows your name and this year's total. The site can't read anything else in Apple Health.",
+            'Calories (optional): when you tap "Read" on an iPhone, a shortcut reads the active energy during that event from Apple Health and the site keeps only the total, visible only to you. If you join the calorie board, the home page shows your name and this year\'s total. The site can\'t read anything else in Apple Health. You can delete one event\'s calories or all of them under "Profile".',
             "Technical information: cookies that keep you signed in. Preferences such as language and appearance stay in your own browser. The site has no ads and no third-party analytics.",
           ],
         ],
@@ -225,6 +230,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         body: [
           [
             "Member details and event records: for as long as you are a member.",
+            "Calories: until you delete them; deleting removes them from the site at once.",
             "When a member is deleted: their personal link, Google account link and push subscriptions are removed at once; their name stays on past rosters and bills with their member number added, because the accounts must stay complete.",
             "Sign-ins last 30 days. Venmo payments moved to the trash are deleted for good after 30 days. The payment email log (time and outcome only) is deleted after 120 days. If the Owner enables payment diagnostics, email subjects, payer names, transaction IDs, notes and processing steps are also stored, visible only to the Owner; full email bodies are not retained, and diagnostic records are deleted after 14 days. Database backups are deleted after 90 days.",
           ],
@@ -233,7 +239,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       {
         h: "Your choices",
         body: [
-          'You can change your name and email address and turn push notifications on or off under "Profile", and sign out of Google at any time. To see, correct or delete your personal information, contact the site maintainer (see "Contact" below).',
+          'You can change your name and email address and turn push notifications on or off and delete your calorie records under "Profile", and sign out of Google at any time. To see, correct or delete your personal information, contact the site maintainer (see "Contact" below).',
           "This site is not meant for children under 13.",
         ],
       },
@@ -253,12 +259,13 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
 
 export const TERMS: Record<Lang, LegalDoc> = {
   "zh-CN": {
-    updated: "最后更新：2026 年 10 月 15 日",
+    updated: "最后更新：2026 年 10 月 21 日",
     sections: [
       {
         h: "服务是什么",
         body: [
           "Jay's Badminton 是羽毛球群成员报名活动、查看名单、出勤和费用的工具，由群主个人免费提供。使用本网站即表示你同意这些条款。",
+          "本网站不向华盛顿州提供服务。如果你住在华盛顿州，请不要注册或使用本网站。",
         ],
       },
       {
@@ -312,12 +319,13 @@ export const TERMS: Record<Lang, LegalDoc> = {
     ],
   },
   "zh-TW": {
-    updated: "最後更新：2026 年 10 月 15 日",
+    updated: "最後更新：2026 年 10 月 21 日",
     sections: [
       {
         h: "服務是什麼",
         body: [
           "Jay's Badminton 是羽毛球群成員報名活動、查看名單、出席和費用的工具，由群主個人免費提供。使用本網站即表示你同意這些條款。",
+          "本網站不向華盛頓州提供服務。如果你住在華盛頓州，請不要註冊或使用本網站。",
         ],
       },
       {
@@ -371,12 +379,13 @@ export const TERMS: Record<Lang, LegalDoc> = {
     ],
   },
   en: {
-    updated: "Last updated: October 15, 2026",
+    updated: "Last updated: October 21, 2026",
     sections: [
       {
         h: "What the service is",
         body: [
           "Jay's Badminton is where members of a badminton group sign up for events and see rosters, attendance and costs. The group owner provides it for free as an individual. By using the site you agree to these terms.",
+          "This site does not offer its service in Washington State. If you live in Washington State, please do not sign up for or use this site.",
         ],
       },
       {
