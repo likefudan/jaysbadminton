@@ -83,43 +83,85 @@ function MyEvents(props: { events: EventSummary[] }) {
   );
 }
 
-/** 排行榜 as a row of small cards that scrolls sideways, first place in the accent colour. */
+/** How many show before 查看全部: the podium plus three rows. */
+const LEADERS_SHOWN = 6;
+
+/**
+ * 排行榜 (Ke Li picked the podium): the top three on steps, 1st in the middle with a crown,
+ * the rest as rows below, so it doesn't look like the event cards above it.
+ */
 function Leaders(props: { board: Leaderboard }) {
   const [tab, setTab] = useState<(typeof BOARDS)[number]["key"]>(BOARDS[0].key);
+  const [all, setAll] = useState(false);
   const b = BOARDS.find((x) => x.key === tab)!;
   const list = props.board[tab];
+  const value = (v: number) => (
+    <span class="value">
+      {tab === "calories" ? kcalText(v) : v}
+      <small>{t(b.unit)}</small>
+    </span>
+  );
+  // 2nd, 1st, 3rd from left to right; a missing place stays an empty column.
+  const podium = [list[1], list[0], list[2]];
+  const rest = list.slice(3, all ? undefined : LEADERS_SHOWN);
   return (
     <>
-      <SwipeSection
-        title={t("{year} 年排行榜", { year: props.board.year })}
-        extra={
-          <span class="seg mini">
-            {BOARDS.map((x) => (
-              <button type="button" key={x.key} class={x.key === tab ? "on" : ""} onClick={() => setTab(x.key)}>
-                {t(x.label)}
-              </button>
-            ))}
-          </span>
-        }
-        empty={
-          list.length === 0 ? (
-            <Empty>{tab === "calories" ? t("还没有人加入能量榜") : t("还没有出勤记录")}</Empty>
-          ) : undefined
-        }
-        ordered
-        class="ranks-swipe"
-      >
-        {list.map((r) => (
-          <li key={r.name} class={`rank-card p${r.rank}`}>
-            <span class="rank-no">{r.rank}</span>
-            <span class="who">{r.name}</span>
-            <span class="value">
-              {tab === "calories" ? kcalText(r.value) : r.value}
-              <small>{t(b.unit)}</small>
-            </span>
-          </li>
+      <SectionTitle>{t("{year} 年排行榜", { year: props.board.year })}</SectionTitle>
+      <div class="seg board-tabs">
+        {BOARDS.map((x) => (
+          <button
+            type="button"
+            key={x.key}
+            class={x.key === tab ? "on" : ""}
+            onClick={() => {
+              setTab(x.key);
+              setAll(false);
+            }}
+          >
+            {t(x.label)}
+          </button>
         ))}
-      </SwipeSection>
+      </div>
+      {list.length === 0 ? (
+        <Empty>{tab === "calories" ? t("还没有人加入能量榜") : t("还没有出勤记录")}</Empty>
+      ) : (
+        <div class="card board">
+          <ol class="podium">
+            {podium.map((r, i) =>
+              r ? (
+                <li key={r.name} class={`place p${r.rank}`}>
+                  {r.rank === 1 && (
+                    <span class="crown" aria-hidden="true">
+                      👑
+                    </span>
+                  )}
+                  <span class="who">{r.name}</span>
+                  {value(r.value)}
+                  <span class="step">{r.rank}</span>
+                </li>
+              ) : (
+                <li key={`empty${i}`} class="place empty" aria-hidden="true" />
+              ),
+            )}
+          </ol>
+          {rest.length > 0 && (
+            <ol class="board-rows">
+              {rest.map((r) => (
+                <li key={r.name}>
+                  <span class="rank-no">{r.rank}</span>
+                  <span class="who">{r.name}</span>
+                  {value(r.value)}
+                </li>
+              ))}
+            </ol>
+          )}
+          {list.length > LEADERS_SHOWN && (
+            <button type="button" class="board-more" onClick={() => setAll(!all)}>
+              {all ? t("收起") : t("查看全部 {n} 人", { n: list.length })}
+            </button>
+          )}
+        </div>
+      )}
       {tab === "streak" && <p class="muted small swipe-note">{t("连续参加的活动场数，取消的活动不算。")}</p>}
       {tab === "calories" && (
         <p class="muted small swipe-note">{t("今年从 iPhone「健康」读取的活动能量，自愿加入（在个人信息里打开）。")}</p>
