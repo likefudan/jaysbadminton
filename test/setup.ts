@@ -1,8 +1,8 @@
-import { applyD1Migrations } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { beforeEach } from "vitest";
 
-await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
+// What applyD1Migrations does, without importing "cloudflare:test" into every test file.
+for (const m of env.TEST_MIGRATIONS) await env.DB.batch(m.queries.map((q) => env.DB.prepare(q)));
 
 const TABLES = [
   "payment_diagnostics",

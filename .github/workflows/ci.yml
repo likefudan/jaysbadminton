@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Unit tests and the browser tests run side by side; deploys wait for both.
+  # Unit tests (in two halves) and the browser tests run side by side; deploys wait for all of them.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -39,9 +39,27 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       # The runner has 2 CPUs, so Vitest would default to one worker and run the files one by one.
-      - run: npm test -- --maxWorkers=2
+      # Half the test files here, the other half in unit-2 at the same time.
+      - run: npm test -- --maxWorkers=2 --shard=1/2
 
+  unit-2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test -- --maxWorkers=2 --shard=2/2
+
+  # The browser tests in two halves at the same time: e2e runs flows.spec.ts, e2e-2 all the others.
   e2e:
+    name: ${{ matrix.shard == 1 && 'e2e' || 'e2e-2' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -65,20 +83,21 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
       - name: Browser tests (main flows on a local Worker)
-        run: npx playwright test
+        run: npx playwright test ${{ matrix.shard == 1 && 'flows' || '' }}
         env:
           WRANGLER_SEND_METRICS: "false"
+          E2E_SKIP_FLOWS: ${{ matrix.shard == 2 && '1' || '' }}
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/
           retention-days: 7
 
   deploy-staging:
-    needs: [check, e2e]
+    needs: [check, unit-2, e2e]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency: deploy-staging
@@ -119,7 +138,7 @@ jobs:
           SITE_ORIGIN: https://staging.jaysbadminton.llmat.dev
 
   deploy-production:
-    needs: [check, e2e]
+    needs: [check, unit-2, e2e]
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency: deploy-production
