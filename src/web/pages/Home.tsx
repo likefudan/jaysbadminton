@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { EventSummary, HomeResponse, Leaderboard, MyEvent, MyEventsResponse } from "../../shared/types";
 import { Empty, Load, Page, SectionTitle } from "../components";
-import { CourtsLine, EventHero, EventLink, MiniEventCard, mineStatus } from "../events";
+import { CourtsLine, EventHero, EventLink, MiniEventCard, mineStatus, onCard } from "../events";
 import { useApi, useMemberSession } from "../hooks";
 import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
@@ -52,8 +52,7 @@ function NextEvent(props: {
  * are on until the bill comes, light for ones they could still join, plain for the rest.
  */
 function toneFor(e: EventSummary, own: MyEvent | undefined): "hero" | "soft" | "plain" {
-  const onIt = !!own && (own.selfSignedUp || (own.myFriends?.length ?? 0) > 0) && !own.payment;
-  if (onIt) return "hero";
+  if (own && onCard(own)) return "hero";
   return e.status === "open" ? "soft" : "plain";
 }
 

@@ -514,6 +514,53 @@ export async function pushRosterChange(
   }
 }
 
+/**
+ * 带群友: a member was brought to an event by someone paying for them, or taken off it again (by
+ * whoever brought them, or from the admin page). `actor` did it; never pushed to themselves.
+ */
+export async function pushBrought(
+  env: Env,
+  e: EventRow,
+  guest: string,
+  bringer: string,
+  actor: string | null,
+  added: boolean,
+): Promise<boolean> {
+  if (guest === actor) return false;
+  try {
+    const [by, payer] = await Promise.all([payeeName(env.DB, actor), payeeName(env.DB, bringer)]);
+    const title =
+      actor === bringer
+        ? added
+          ? `${by} 带你报名了`
+          : `${by} 取消了带你报名`
+        : added
+          ? `${by} 帮你报了名`
+          : `${by} 把你移出了名单`;
+    const body = added ? `${when(e)}：你在名单上了，费用由 ${payer} 付。` : `${when(e)}：你不在名单上了。`;
+    return await pushTo(env, guest, "roster", e, { title, body, url: `/e/${e.code}`, tag: `roster-${e.id}` });
+  } catch (err) {
+    console.error("push failed:", err);
+    return false;
+  }
+}
+
+/** 带群友: the member someone brought said they're not coming (我不去了); tells whoever brought them. */
+export async function pushGuestLeft(env: Env, e: EventRow, bringer: string, guest: string): Promise<boolean> {
+  try {
+    const name = await payeeName(env.DB, guest);
+    return await pushTo(env, bringer, "roster", e, {
+      title: `${name} 不去了`,
+      body: `${when(e)}：${name} 不在名单上了，不用再替 ${name} 付。`,
+      url: `/e/${e.code}`,
+      tag: `roster-${e.id}`,
+    });
+  } catch (err) {
+    console.error("push failed:", err);
+    return false;
+  }
+}
+
 /** 活动取消: everyone on the list (themselves or friends), except whoever cancelled it. */
 export async function pushCancelled(env: Env, e: EventRow, actor: string | null): Promise<boolean> {
   try {

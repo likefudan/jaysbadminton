@@ -1,11 +1,18 @@
 import { useState } from "preact/hooks";
 import { dollars } from "../../shared/settle";
-import type { MeResponse, MemberProfile, MyEvent, MyEventsResponse, PaymentStatus } from "../../shared/types";
+import type {
+  GuestChoice,
+  MeResponse,
+  MemberProfile,
+  MyEvent,
+  MyEventsResponse,
+  PaymentStatus,
+} from "../../shared/types";
 import { STATUS_ZH } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Load, Page, SectionTitle, useAction } from "../components";
-import { CourtsLine, EventHero, MiniEventCard, mapLink, mineStatus } from "../events";
-import { FriendsEditor } from "../FriendsEditor";
+import { CourtsLine, EventHero, MiniEventCard, friendCount, mapLink, mineStatus, onCard } from "../events";
+import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { Heatmap, ProfileHero, ProfileSettings } from "../Profile";
 import { RosterList } from "../Roster";
@@ -130,9 +137,17 @@ export function MemberProfilePage(props: { token?: string }) {
 const byTime = (a: { date: string; startTime?: string }, b: { date: string; startTime?: string }) =>
   `${a.date} ${a.startTime ?? ""}`.localeCompare(`${b.date} ${b.startTime ?? ""}`);
 
-/** Their own part is settled: paid up, or nothing billed to them once the bills are out. */
+/**
+ * Their own part is settled: paid up, or nothing billed to them once the bills are out. Brought by
+ * someone (带群友): once that person has paid.
+ */
 const settledForMe = (e: MyEvent) =>
-  e.status !== "open" && (e.payment ? e.payment.status === "paid" : e.status === "finalized" || e.status === "settled");
+  e.status !== "open" &&
+  (e.payment
+    ? e.payment.status === "paid"
+    : e.broughtBy
+      ? e.broughtBy.paid || e.status === "settled"
+      : e.status === "finalized" || e.status === "settled");
 
 /**
  * 我的活动 in three parts (Ke Li's order): 报名中, signed up or not; 待结清, past the deadline with
@@ -147,7 +162,9 @@ function MyEvents(props: { base: string }) {
         const open = r.events.filter((e) => e.status === "open").sort(byTime);
         const owing = r.events.filter((e) => e.status !== "open" && !settledForMe(e)).sort(byTime);
         const settled = [
-          ...r.events.filter(settledForMe).map((e) => ({ ...e, amountCents: e.payment?.amountCents ?? null })),
+          ...r.events
+            .filter(settledForMe)
+            .map((e) => ({ ...e, amountCents: e.payment?.amountCents ?? null, paidBy: e.broughtBy?.name ?? null })),
           ...r.history,
         ].sort((a, b) => byTime(b, a));
         return (
@@ -177,9 +194,11 @@ function MyEvents(props: { base: string }) {
                     e={h}
                     line={
                       <>
-                        {h.amountCents
-                          ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
-                          : t("没有费用")}
+                        {h.paidBy
+                          ? t("{name} 已付清", { name: h.paidBy })
+                          : h.amountCents
+                            ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
+                            : t("没有费用")}
                         {h.kcal != null && (
                           <span class="mini-kcal">
                             <FlameIcon size={12} />
@@ -202,15 +221,19 @@ function MyEvents(props: { base: string }) {
 export function SignupCard(props: { base: string; e: MyEvent; onChange: () => void }) {
   const e = props.e;
   const [editing, setEditing] = useState(false);
-  const [friends, setFriends] = useState<string[]>(e.myFriends ?? []);
+  const saved = () => toSlots(e.myFriends ?? [], e.myGuests);
+  const [friends, setFriends] = useState<FriendSlot[]>(saved);
   const { busy, error, run } = useAction();
   const signedUp = e.selfSignedUp;
+  // 带群友: someone else brought them and pays; they can only say they're not coming (Ke Li).
+  const brought = e.broughtBy;
+  const nFriends = friendCount(e);
   // Who runs it, by name: the organizer on theirs, the Owner on the rest (names, not 群主).
   const runner = e.managerName;
   // Friends added for them come from the admin page: the organizer's, or the Owner's on any event.
   const adder = e.managerName === e.ownerName ? e.ownerName : t("{a} 或 {b}", { a: e.managerName, b: e.ownerName });
   // Whoever runs it may hang friends under a member who isn't coming: they are on the bill, not the list.
-  const friendsOnly = !signedUp && (e.myFriends?.length ?? 0) > 0;
+  const friendsOnly = !signedUp && nFriends > 0;
   // 我已报名 / 朋友已报名 / 已付清 with a tick once they're on it (Ke Li), so no 已报名 line underneath.
   const mine = mineStatus(e);
   const badge =
@@ -220,7 +243,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
       : { cls: e.status, label: t(STATUS_ZH[e.status]) });
   // Accent for the ones they're on until the bill comes (closed included, Ke Li), light accent for
   // ones they could join, plain for the rest (billed, cancelled, closed without them).
-  const onIt = (signedUp || friendsOnly) && !e.payment;
+  const onIt = onCard(e);
   const tone =
     e.status === "open"
       ? onIt
@@ -230,20 +253,25 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         ? "hero"
         : "plain";
 
+  const choices = () => api<{ members: GuestChoice[] }>(`${props.base}/events/${e.id}/guests`).then((r) => r.members);
+
   async function save() {
-    if (await run(() => api(`${props.base}/events/${e.id}/signup`, { friends }))) {
+    if (await run(() => api(`${props.base}/events/${e.id}/signup`, fromSlots(friends)))) {
       setEditing(false);
       props.onChange();
     }
   }
   async function cancel() {
-    // Friends hung under them go too, the ones added for them from the admin page included (Ke Li's call).
-    const n = e.myFriends?.length ?? 0;
-    const question = friendsOnly
-      ? t("把名下的 {n} 个朋友从名单上去掉？", { n })
-      : n
-        ? t("取消你自己和名下 {n} 个朋友的报名？", { n })
-        : t("确定取消报名吗？");
+    // Friends hung under them go too, the ones added for them from the admin page included (Ke Li's call),
+    // and the group members they bring.
+    const n = nFriends;
+    const question = brought
+      ? t("确定不去了吗？")
+      : friendsOnly
+        ? t("把名下的 {n} 个朋友从名单上去掉？", { n })
+        : n
+          ? t("取消你自己和名下 {n} 个朋友的报名？", { n })
+          : t("确定取消报名吗？");
     if (!confirm(question)) return;
     if (await run(() => api(`${props.base}/events/${e.id}/cancel`, {}))) props.onChange();
   }
@@ -255,10 +283,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
           e={e}
           status={badge}
           action={
-            <CardCornerIcons
-              e={e}
-              calendar={signedUp && !e.payment && (e.status === "open" || e.status === "closed")}
-            />
+            <CardCornerIcons e={e} calendar={signedUp && onIt && (e.status === "open" || e.status === "closed")} />
           }
         />
       </div>
@@ -278,14 +303,14 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {e.queue && <CourtQueue base={props.base} e={e} onChange={props.onChange} />}
         {friendsOnly && !editing && e.runByMe && (
           <p class="muted">
-            {t("你本人没有报名；名单上有挂在你名下的 {n} 个朋友，费用算在你的账单上。", { n: e.myFriends!.length })}
+            {t("你本人没有报名；名单上有挂在你名下的 {n} 个朋友，费用算在你的账单上。", { n: nFriends })}
           </p>
         )}
         {friendsOnly && !editing && !e.runByMe && (
           <p class="muted">
             {t("你本人没有报名；{adder}在你名下加了 {n} 个朋友，费用算在你的账单上。", {
               adder,
-              n: e.myFriends!.length,
+              n: nFriends,
             })}
           </p>
         )}
@@ -294,8 +319,9 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
           <>
             <FriendsEditor
               friends={friends}
-              max={Math.max(e.friendCap, e.myFriends?.length ?? 0)}
+              max={Math.max(e.friendCap, nFriends)}
               onChange={setFriends}
+              choices={choices}
             />
             {error && <p class="error">{error}</p>}
             <button type="button" class="button block" disabled={busy} onClick={save}>
@@ -309,13 +335,17 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {e.canEdit && !editing && (
           <>
             {error && <p class="error">{error}</p>}
-            {signedUp ? (
+            {brought ? (
+              <button type="button" class="button danger block" disabled={busy} onClick={cancel}>
+                {t("我不去了")}
+              </button>
+            ) : signedUp ? (
               <div class="inline">
                 <button
                   type="button"
                   class="button secondary"
                   onClick={() => {
-                    setFriends(e.myFriends ?? []);
+                    setFriends(saved());
                     setEditing(true);
                   }}
                 >
@@ -332,7 +362,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
                   class="button"
                   onClick={() => {
                     // Signing up keeps the friends already under them.
-                    setFriends(e.myFriends ?? []);
+                    setFriends(saved());
                     setEditing(true);
                   }}
                 >
@@ -356,7 +386,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
             )}
           </>
         )}
-        {!e.canEdit && e.status === "closed" && (signedUp || friendsOnly) && (
+        {!e.canEdit && e.status === "closed" && (signedUp || friendsOnly) && !brought && (
           <p class="muted small">{t("报名已截止，需要修改请联系{name}。费用会在活动后公布。", { name: runner })}</p>
         )}
         {e.payment && <PaymentBox p={e.payment} />}

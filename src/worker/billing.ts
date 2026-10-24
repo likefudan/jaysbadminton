@@ -16,7 +16,15 @@ export async function settleRows(env: Env, eventId: number): Promise<SettleRow[]
 }
 
 export const toSettleRows = (list: RosterEntry[]): SettleRow[] =>
-  list.map((r) => ({ id: r.id, memberId: r.memberId, friendIndex: r.friendIndex, name: r.name, attended: r.attended }));
+  list.map((r) => ({
+    id: r.id,
+    // 带群友: a brought member's share goes on the bill of whoever brought them.
+    memberId: r.paidBy ?? r.memberId,
+    friendIndex: r.friendIndex,
+    name: r.name,
+    attended: r.attended,
+    ...(r.paidBy ? { guest: true } : {}),
+  }));
 
 export async function savedInput(env: Env, eventId: number): Promise<SettleInput | null> {
   const s = await env.DB.prepare(
@@ -69,7 +77,7 @@ async function writeSettlement(
     .bind(e.id)
     .all<{ member_id: string; status: string; has_receipts: number; has_others: number }>();
   const people = await env.DB.prepare(
-    "SELECT id, username FROM members WHERE id IN (SELECT member_id FROM registrations WHERE event_id = ?)",
+    "SELECT id, username FROM members WHERE id IN (SELECT COALESCE(paid_by, member_id) FROM registrations WHERE event_id = ?)",
   )
     .bind(e.id)
     .all<{ id: string; username: string }>();

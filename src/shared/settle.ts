@@ -2,17 +2,21 @@
 // who attended. Each total is split in whole cents so the shares add up to it exactly: everyone pays
 // the same base amount and the leftover cents go one each to shares picked at random, but stably:
 // the pick is a hash of the registration, so recomputing or showing a bill gives the same result. A
-// member owes the sum of their own share and their friends' shares. Settlements saved before exact
+// member owes the sum of their own share, their friends' shares and those of the group members they
+// brought (带群友). Settlements saved before exact
 // splitting (`roundUp`) keep rounding every share up, so their bills never change behind anyone's
 // back. Shared by the Worker and the preview UI.
 
 export interface SettleRow {
   /** The registration's id: decides, stably, which shares carry a leftover cent. */
   id: number;
+  /** Whose bill it goes on: the member, or whoever brought them (带群友). */
   memberId: string;
   friendIndex: number;
   name: string;
   attended: boolean;
+  /** A group member brought by `memberId`, on their own row (friendIndex 0) but on that bill. */
+  guest?: boolean;
 }
 
 export interface SettleInput {
@@ -26,6 +30,8 @@ export interface SettleInput {
 export interface Share {
   name: string;
   friendIndex: number;
+  /** A group member the bill's owner brought (带群友). */
+  guest?: boolean;
   attended: boolean;
   courtCents: number;
   shuttleCents: number;
@@ -92,6 +98,7 @@ export function settle(rows: SettleRow[], input: SettleInput): Settlement {
     const share: Share = {
       name: r.name,
       friendIndex: r.friendIndex,
+      ...(r.guest ? { guest: true } : {}),
       attended: r.attended,
       courtCents: courtShareCents + (courtExtra.has(r.id) ? 1 : 0),
       shuttleCents: r.attended ? shuttleShareCents + (shuttleExtra.has(r.id) ? 1 : 0) : 0,
@@ -102,7 +109,9 @@ export function settle(rows: SettleRow[], input: SettleInput): Settlement {
     byMember.set(r.memberId, bill);
   }
   const bills = [...byMember.values()];
-  for (const b of bills) b.shares.sort((x, y) => x.friendIndex - y.friendIndex);
+  // The member first, then the group members they brought, then friends by name.
+  const rank = (x: Share) => (x.guest ? 0.5 : x.friendIndex);
+  for (const b of bills) b.shares.sort((x, y) => rank(x) - rank(y));
   return {
     registered,
     attended,

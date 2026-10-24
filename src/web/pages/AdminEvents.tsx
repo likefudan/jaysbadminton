@@ -10,6 +10,7 @@ import type {
   EventDetail,
   MemberSummary,
   OrganizersBlock,
+  GuestChoice,
   RosterEntry,
   Venue,
 } from "../../shared/types";
@@ -18,7 +19,7 @@ import { formatDateZh, formatInstantZh } from "../../shared/time";
 import { api } from "../api";
 import { Card, CopyButton, Empty, Field, Load, useAction } from "../components";
 import { EventInfo } from "../events";
-import { FriendsEditor } from "../FriendsEditor";
+import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
 import { useApi } from "../hooks";
 import { has } from "../organizers";
 import { Billing } from "./AdminSettle";
@@ -476,6 +477,7 @@ function EventAdminBody(props: {
       <MySignup
         eb={eb}
         e={e}
+        members={props.members}
         me={props.members.find((m) => m.id === props.viewer.id)}
         title={props.viewer.role === "owner" ? "群主" : props.viewer.role === "admin" ? "管理员" : "负责人"}
         onDone={props.onChange}
@@ -504,10 +506,15 @@ function EventAdminBody(props: {
         {e.roster.map((r) => (
           <div class="row" key={r.id}>
             <div class="who">
-              {r.friendIndex > 0 && "　↳ "}
+              {(r.friendIndex > 0 || r.paidBy) && "　↳ "}
               {r.name}
               {r.addedByOwner && <span class="badge">{addedBy}</span>}
               {r.friendIndex > 0 && <small>　{r.memberName} 带的朋友</small>}
+              {r.paidBy && (
+                <small>
+                  　{r.paidByName} 带的群友，{r.paidByName} 付钱
+                </small>
+              )}
             </div>
             {editable && (
               <div class="actions">
@@ -718,25 +725,35 @@ function DeleteEvent(props: { eb: string; e: EventDetail; onDone: () => void }) 
 function MySignup(props: {
   eb: string;
   e: EventDetail;
+  members: MemberSummary[];
   me: MemberSummary | undefined;
   /** 群主 / 管理员 / 负责人: why they may still change their sign-up after it closed. */
   title: string;
   onDone: () => void;
 }) {
   const { e, me } = props;
-  const mine = me ? e.roster.filter((r) => r.memberId === me.id) : [];
+  const mine = me ? e.roster.filter((r) => r.memberId === me.id && !r.paidBy) : [];
   const signedUp = mine.some((r) => r.friendIndex === 0);
-  const myFriends = mine.filter((r) => r.friendIndex > 0);
+  // 带群友: the group members they bring, then friends by name.
+  const myGuests = me ? e.roster.filter((r) => r.paidBy === me.id) : [];
+  const myFriends = [...myGuests, ...mine.filter((r) => r.friendIndex > 0)];
+  const broughtBy = me ? e.roster.find((r) => r.memberId === me.id && r.paidBy)?.paidByName : undefined;
   // Unnamed friends show as "<name>的朋友<n>"; edit them as blank again.
-  const current = () => myFriends.map((r) => (r.name === `${r.memberName}的朋友${r.friendIndex}` ? "" : r.name));
+  const current = () =>
+    toSlots(
+      mine
+        .filter((r) => r.friendIndex > 0)
+        .map((r) => (r.name === `${r.memberName}的朋友${r.friendIndex}` ? "" : r.name)),
+      myGuests.map((r) => ({ id: r.memberId, name: r.name })),
+    );
   const [editing, setEditing] = useState(false);
-  const [friends, setFriends] = useState<string[]>(current);
+  const [friends, setFriends] = useState<FriendSlot[]>(current);
   const { busy, error, run } = useAction();
   const canEdit = e.status === "open" || e.status === "closed";
   if (!me) return null;
 
   async function save() {
-    if (await run(() => api(`${props.eb}/self-signup`, { friends }))) {
+    if (await run(() => api(`${props.eb}/self-signup`, fromSlots(friends)))) {
       setEditing(false);
       props.onDone();
     }
@@ -747,18 +764,25 @@ function MySignup(props: {
     if (await run(() => api(`${props.eb}/self-cancel`, {}))) props.onDone();
   }
 
-  const status = signedUp
-    ? `✓ 你已报名${myFriends.length ? `，带 ${myFriends.length} 个朋友（${myFriends.map((r) => r.name).join("、")}）` : ""}`
-    : myFriends.length
-      ? `你没有报名，但名单上有你带的 ${myFriends.length} 个朋友`
-      : "你还没有报名";
+  const status = broughtBy
+    ? `✓ ${broughtBy} 带你报名，费用由 ${broughtBy} 付`
+    : signedUp
+      ? `✓ 你已报名${myFriends.length ? `，带 ${myFriends.length} 个朋友（${myFriends.map((r) => r.name).join("、")}）` : ""}`
+      : myFriends.length
+        ? `你没有报名，但名单上有你带的 ${myFriends.length} 个朋友`
+        : "你还没有报名";
 
   return (
     <Card title="我的报名">
-      {!editing && <p class={signedUp ? "ok" : "muted"}>{status}</p>}
+      {!editing && <p class={signedUp || broughtBy ? "ok" : "muted"}>{status}</p>}
       {canEdit && editing && (
         <>
-          <FriendsEditor friends={friends} max={null} onChange={setFriends} />
+          <FriendsEditor
+            friends={friends}
+            max={null}
+            onChange={setFriends}
+            choices={async () => guestChoices(props.members, e.roster, me.id)}
+          />
           {error && <p class="error">{error}</p>}
           <button type="button" class="button block" disabled={busy} onClick={save}>
             {signedUp ? "保存修改" : "确认报名"}
@@ -768,7 +792,7 @@ function MySignup(props: {
           </button>
         </>
       )}
-      {canEdit && !editing && (
+      {canEdit && !editing && !broughtBy && (
         <>
           {error && <p class="error">{error}</p>}
           {signedUp ? (
@@ -925,6 +949,26 @@ function Reopen(props: { eb: string; e: EventDetail; onDone: () => void }) {
   );
 }
 
+/**
+ * 选群友 on the admin page, from the member list it already has: every active member but the one
+ * bringing them, and whether (and why not) they can be brought.
+ */
+function guestChoices(members: MemberSummary[], roster: RosterEntry[], bringer: string): GuestChoice[] {
+  return members
+    .filter((m) => m.status === "active" && !m.deletedAt && m.id !== bringer)
+    .sort((a, b) => a.username.localeCompare(b.username, "en", { sensitivity: "base" }))
+    .map((m) => {
+      const own = roster.find((r) => r.memberId === m.id && r.friendIndex === 0);
+      const on = roster.some((r) => r.memberId === m.id);
+      return {
+        id: m.id,
+        name: m.username,
+        state: !on ? "free" : own?.paidBy === bringer ? "mine" : own?.paidBy ? "brought" : "on",
+        by: own?.paidBy && own.paidBy !== bringer ? own.paidByName : null,
+      };
+    });
+}
+
 function AddPeople(props: {
   eb: string;
   members: MemberSummary[];
@@ -936,14 +980,16 @@ function AddPeople(props: {
 }) {
   const [memberId, setMemberId] = useState("");
   const [includeSelf, setIncludeSelf] = useState(true);
-  const [friends, setFriends] = useState<string[]>([]);
+  const [friends, setFriends] = useState<FriendSlot[]>([]);
   const { busy, error, run } = useAction();
   const onRoster = new Set(props.roster.filter((r) => r.friendIndex === 0).map((r) => r.memberId));
   const selfAvailable = memberId !== "" && !onRoster.has(memberId);
+  // Brought by someone (带群友): they can't bring anyone themselves.
+  const brought = props.roster.some((r) => r.memberId === memberId && r.paidBy);
 
   async function add() {
     const ok = await run(() =>
-      api(`${props.eb}/roster/add`, { memberId, includeSelf: includeSelf && selfAvailable, friends }),
+      api(`${props.eb}/roster/add`, { memberId, includeSelf: includeSelf && selfAvailable, ...fromSlots(friends) }),
     );
     if (ok) {
       setMemberId("");
@@ -957,11 +1003,18 @@ function AddPeople(props: {
     <Card title="添加人员">
       <p class="muted small">
         临时来的非成员，请作为「朋友」挂在{props.payee.isMe ? "你自己" : `本场收款人 ${props.payee.name} `}
-        或某个成员名下，费用由这个人承担。
+        或某个成员名下，费用由这个人承担。群里的成员也可以用「选群友」挂在别人名下，由那个人付钱。
       </p>
       <label class="field">
         <span>成员</span>
-        <select value={memberId} onChange={(e) => setMemberId((e.target as HTMLSelectElement).value)}>
+        <select
+          value={memberId}
+          onChange={(e) => {
+            setMemberId((e.target as HTMLSelectElement).value);
+            // Group members picked for someone else don't carry over to the next one.
+            setFriends((f) => f.filter((s) => !s.guest));
+          }}
+        >
           <option value="">请选择</option>
           {props.members.map((m) => (
             <option key={m.id} value={m.id}>
@@ -981,7 +1034,13 @@ function AddPeople(props: {
           这个成员本人也来
         </label>
       )}
-      <FriendsEditor friends={friends} max={null} onChange={setFriends} label="挂在他名下的朋友" />
+      <FriendsEditor
+        friends={friends}
+        max={null}
+        onChange={setFriends}
+        label="挂在他名下的朋友"
+        choices={memberId && !brought ? async () => guestChoices(props.members, props.roster, memberId) : undefined}
+      />
       {error && <p class="error">{error}</p>}
       <button
         type="button"

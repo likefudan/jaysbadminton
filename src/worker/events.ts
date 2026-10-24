@@ -4,6 +4,7 @@ import {
   type EventDetail,
   type EventStatus,
   type EventSummary,
+  type GuestChoice,
   type RosterEntry,
 } from "../shared/types";
 import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
@@ -52,6 +53,8 @@ interface RosterRow {
   friend_name: string | null;
   attended: number;
   added_by_owner: number;
+  paid_by: string | null;
+  paid_by_name: string | null;
 }
 
 export const DEFAULT_FRIEND_CAP = 3;
@@ -117,16 +120,20 @@ export async function summaries(env: Env, rows: EventRow[]): Promise<EventSummar
 
 export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> {
   const { results } = await env.DB.prepare(
-    `SELECT r.id, r.member_id, m.username, r.friend_index, r.friend_name, r.attended, r.added_by_owner
-     FROM registrations r JOIN members m ON m.id = r.member_id
+    `SELECT r.id, r.member_id, m.username, r.friend_index, r.friend_name, r.attended, r.added_by_owner,
+       r.paid_by, p.username AS paid_by_name
+     FROM registrations r JOIN members m ON m.id = r.member_id LEFT JOIN members p ON p.id = r.paid_by
      WHERE r.event_id = ? ORDER BY r.id`,
   )
     .bind(eventId)
     .all<RosterRow>();
-  // Keep each member's friends right after them, in sign-up order of the member.
+  // Keep each member's friends right after them, in sign-up order of the member: first the group
+  // members they brought (带群友), then the friends known only by name.
+  const group = (r: RosterRow) => r.paid_by ?? r.member_id;
+  const rank = (r: RosterRow) => (r.paid_by ? 0.5 : r.friend_index);
   const order = new Map<string, number>();
-  for (const r of results) if (!order.has(r.member_id)) order.set(r.member_id, r.id);
-  results.sort((a, b) => order.get(a.member_id)! - order.get(b.member_id)! || a.friend_index - b.friend_index);
+  for (const r of results) if (!order.has(group(r))) order.set(group(r), r.id);
+  results.sort((a, b) => order.get(group(a))! - order.get(group(b))! || rank(a) - rank(b) || a.id - b.id);
   return results.map((r) => ({
     id: r.id,
     memberId: r.member_id,
@@ -135,6 +142,8 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
     name: r.friend_index === 0 ? r.username : friendLabel(r.username, r.friend_index, r.friend_name),
     attended: r.attended === 1,
     addedByOwner: r.added_by_owner === 1,
+    paidBy: r.paid_by,
+    paidByName: r.paid_by_name,
   }));
 }
 
@@ -195,10 +204,10 @@ export async function friendCap(env: Env): Promise<number> {
   return Number.isInteger(n) && n >= 0 ? n : DEFAULT_FRIEND_CAP;
 }
 
-/** How many friends a member has on an event's list now. */
+/** How many friends a member has on an event's list now, the group members they brought included. */
 export async function friendCount(env: Env, eventId: number, memberId: string): Promise<number> {
   const r = await env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index > 0",
+    "SELECT COUNT(*) AS n FROM registrations WHERE event_id = ?1 AND ((member_id = ?2 AND friend_index > 0) OR paid_by = ?2)",
   )
     .bind(eventId, memberId)
     .first<{ n: number }>();
@@ -425,8 +434,124 @@ export function assertRosterEditable(e: EventRow): void {
 }
 
 /**
- * Replaces a member's sign-up (themselves plus friends) for an event. Friend names that are
- * blank fall back to "<member>的朋友<n>" at display time.
+ * 带群友: the members someone brings and pays for, checked: active members on no row of the event
+ * yet (and bringing nobody there themselves), or already brought by this same member. Each id
+ * once; never the bringer themselves.
+ */
+export async function validateGuests(env: Env, eventId: number, bringer: string, raw: unknown): Promise<string[]> {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.some((x) => typeof x !== "string")) throw badRequest("群友名单格式不对");
+  const ids = [...new Set(raw as string[])];
+  if (ids.length === 0) return [];
+  if (ids.includes(bringer)) throw badRequest("不能带自己");
+  const { results } = await env.DB.prepare(
+    `SELECT m.id, m.username, m.status, m.deleted_at,
+       EXISTS (SELECT 1 FROM registrations r WHERE r.event_id = ?1 AND r.member_id = m.id) AS on_list,
+       EXISTS (SELECT 1 FROM registrations r WHERE r.event_id = ?1 AND r.paid_by = m.id) AS brings,
+       (SELECT r.paid_by FROM registrations r WHERE r.event_id = ?1 AND r.member_id = m.id AND r.friend_index = 0) AS paid_by,
+       (SELECT p.username FROM registrations r JOIN members p ON p.id = r.paid_by
+          WHERE r.event_id = ?1 AND r.member_id = m.id AND r.friend_index = 0) AS by_name
+     FROM members m WHERE m.id IN (SELECT value FROM json_each(?2))`,
+  )
+    .bind(eventId, JSON.stringify(ids))
+    .all<{
+      id: string;
+      username: string;
+      status: string;
+      deleted_at: string | null;
+      on_list: number;
+      brings: number;
+      paid_by: string | null;
+      by_name: string | null;
+    }>();
+  const byId = new Map(results.map((r) => [r.id, r]));
+  for (const id of ids) {
+    const g = byId.get(id);
+    if (!g || g.deleted_at || g.status !== "active") throw badRequest("只能带正常状态的群友");
+    if (g.on_list && g.paid_by !== bringer)
+      throw badRequest(g.paid_by ? `${g.username} 已经被 ${g.by_name} 带了` : `${g.username} 已经在名单上了`);
+    if (g.brings) throw badRequest(`${g.username} 自己带了群友，不能再被带`);
+  }
+  return ids;
+}
+
+/** 选群友: everyone active but the viewer, by name, and whether (and why not) they can be brought to the event. */
+export async function guestChoices(env: Env, eventId: number, viewer: string): Promise<GuestChoice[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT m.id, m.username,
+       EXISTS (SELECT 1 FROM registrations r WHERE r.event_id = ?1 AND (r.member_id = m.id OR r.paid_by = m.id)) AS on_list,
+       r0.paid_by, p.username AS by_name
+     FROM members m
+     LEFT JOIN registrations r0 ON r0.event_id = ?1 AND r0.member_id = m.id AND r0.friend_index = 0
+     LEFT JOIN members p ON p.id = r0.paid_by
+     WHERE m.status = 'active' AND m.deleted_at IS NULL AND m.id != ?2
+     ORDER BY m.username COLLATE NOCASE`,
+  )
+    .bind(eventId, viewer)
+    .all<{ id: string; username: string; on_list: number; paid_by: string | null; by_name: string | null }>();
+  return results.map((r) => ({
+    id: r.id,
+    name: r.username,
+    state: !r.on_list ? "free" : r.paid_by === viewer ? "mine" : r.paid_by ? "brought" : "on",
+    by: r.paid_by && r.paid_by !== viewer ? r.by_name : null,
+  }));
+}
+
+/** How many group members a member brings to an event (带群友). */
+export async function guestCount(env: Env, eventId: number, memberId: string): Promise<number> {
+  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ? AND paid_by = ?")
+    .bind(eventId, memberId)
+    .first<{ n: number }>();
+  return r?.n ?? 0;
+}
+
+/** Who brought this member to the event and pays for them (带群友); null when they came on their own or aren't on it. */
+export async function broughtBy(env: Env, eventId: number, memberId: string): Promise<string | null> {
+  const r = await env.DB.prepare(
+    "SELECT paid_by FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index = 0",
+  )
+    .bind(eventId, memberId)
+    .first<{ paid_by: string | null }>();
+  return r?.paid_by ?? null;
+}
+
+/**
+ * Puts a group member on an event, brought by (and billed to) `bringer`; RETURNING their id when
+ * it did. Someone who got on the list themselves (or was brought by another) since validateGuests
+ * stays as they are.
+ */
+export const insertGuest = (
+  env: Env,
+  eventId: number,
+  guest: string,
+  bringer: string,
+  addedByOwner: boolean,
+  ts: string,
+) =>
+  env.DB.prepare(
+    `INSERT INTO registrations (event_id, member_id, friend_index, friend_name, attended, added_by_owner, created_at, updated_at, paid_by)
+     SELECT ?1, ?2, 0, NULL, 1, ?3, ?4, ?4, ?5
+     WHERE NOT EXISTS (SELECT 1 FROM registrations WHERE event_id = ?1 AND member_id = ?2)
+     ON CONFLICT DO NOTHING RETURNING member_id`,
+  ).bind(eventId, guest, addedByOwner ? 1 : 0, ts, bringer);
+
+/** The names of members, in the order given. */
+export async function memberNames(env: Env, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const { results } = await env.DB.prepare(
+    "SELECT id, username FROM members WHERE id IN (SELECT value FROM json_each(?))",
+  )
+    .bind(JSON.stringify(ids))
+    .all<{ id: string; username: string }>();
+  const by = new Map(results.map((r) => [r.id, r.username]));
+  return ids.map((id) => by.get(id) ?? "");
+}
+
+/**
+ * Saves a member's sign-up: themselves (blank friend names fall back to "<member>的朋友<n>" at
+ * display time), their friends by name and, unless `guests` is left out
+ * (kept as they are), the group members they bring. Returns the group members added and taken off,
+ * and the names of any it could not bring because they got on the list themselves just now.
  */
 export async function setSignup(
   env: Env,
@@ -434,7 +559,8 @@ export async function setSignup(
   memberId: string,
   friends: string[],
   addedByOwner: boolean,
-): Promise<void> {
+  guests?: string[],
+): Promise<{ added: string[]; removed: string[]; missed: string[] }> {
   const ts = now();
   const existing = await env.DB.prepare(
     "SELECT friend_index, attended, created_at, added_by_owner FROM registrations WHERE event_id = ? AND member_id = ?",
@@ -450,7 +576,7 @@ export async function setSignup(
     { i: 0, name: null },
     ...friends.map((name, n) => ({ i: indexes[n]!, name: name.trim().slice(0, 20) || null })),
   ];
-  await env.DB.batch([
+  const own = [
     env.DB.prepare(
       `DELETE FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index > 0
          AND friend_index NOT IN (SELECT value FROM json_each(?))`,
@@ -459,7 +585,8 @@ export async function setSignup(
       env.DB.prepare(
         `INSERT INTO registrations (event_id, member_id, friend_index, friend_name, attended, added_by_owner, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (event_id, member_id, friend_index) DO UPDATE SET friend_name = excluded.friend_name, updated_at = excluded.updated_at`,
+         ON CONFLICT (event_id, member_id, friend_index) DO UPDATE SET friend_name = excluded.friend_name,
+           updated_at = excluded.updated_at, paid_by = NULL`,
       ).bind(
         eventId,
         memberId,
@@ -471,25 +598,73 @@ export async function setSignup(
         ts,
       ),
     ),
-  ]);
+  ];
+  const brought =
+    guests === undefined
+      ? []
+      : [
+          env.DB.prepare(
+            `DELETE FROM registrations WHERE event_id = ? AND paid_by = ?
+               AND member_id NOT IN (SELECT value FROM json_each(?)) RETURNING member_id`,
+          ).bind(eventId, memberId, JSON.stringify(guests)),
+          ...guests.map((g) => insertGuest(env, eventId, g, memberId, addedByOwner, ts)),
+        ];
+  const res = await env.DB.batch([...own, ...brought]);
+  if (guests === undefined) return { added: [], removed: [], missed: [] };
+  const ids = (r: D1Result | undefined) => ((r?.results ?? []) as { member_id: string }[]).map((x) => x.member_id);
+  const removed = ids(res[own.length]);
+  const added = res.slice(own.length + 1).flatMap(ids);
+  let missed: string[] = [];
+  if (guests.length > added.length) {
+    const { results } = await env.DB.prepare(
+      `SELECT m.username FROM members m WHERE m.id IN (SELECT value FROM json_each(?2))
+         AND NOT EXISTS (SELECT 1 FROM registrations r WHERE r.event_id = ?1 AND r.member_id = m.id AND r.paid_by = ?3)`,
+    )
+      .bind(eventId, JSON.stringify(guests), memberId)
+      .all<{ username: string }>();
+    missed = results.map((r) => r.username);
+  }
+  return { added, removed, missed };
 }
 
-/** Returns whether anything was removed (false: they were not signed up, e.g. a second click). */
-export async function removeSignup(env: Env, eventId: number, memberId: string): Promise<boolean> {
-  const r = await env.DB.prepare("DELETE FROM registrations WHERE event_id = ? AND member_id = ?")
+/** setSignup's answer when someone it was to bring got on the list themselves in the meantime. */
+export const guestsMissed = (names: string[]) =>
+  new HttpError(409, "guest_taken", `${names.join("、")} 刚刚已经报名了，没能带上；其他的已经保存`);
+
+/**
+ * Takes a member off an event, with their friends and the group members they brought. Returns
+ * whether anything went, the group members taken off with them (to tell them), and who brought
+ * the member if someone did (to tell them).
+ */
+export async function removeSignup(
+  env: Env,
+  eventId: number,
+  memberId: string,
+): Promise<{ removed: boolean; guests: string[]; paidBy: string | null }> {
+  const { results } = await env.DB.prepare(
+    "DELETE FROM registrations WHERE event_id = ?1 AND (member_id = ?2 OR paid_by = ?2) RETURNING member_id, paid_by, friend_index",
+  )
     .bind(eventId, memberId)
-    .run();
-  return r.meta.changes > 0;
+    .all<{ member_id: string; paid_by: string | null; friend_index: number }>();
+  return {
+    removed: results.length > 0,
+    guests: results.filter((r) => r.member_id !== memberId).map((r) => r.member_id),
+    paidBy: results.find((r) => r.member_id === memberId && r.friend_index === 0)?.paid_by ?? null,
+  };
 }
 
-/** keep: friends already on the list, which may stay even above the cap (the Owner may have added them). */
-export function validateFriends(raw: unknown, cap: number | null, keep = 0): string[] {
+/**
+ * keep: friends already on the list, which may stay even above the cap (the Owner may have added
+ * them); guests: how many group members come along too.
+ */
+export function validateFriends(raw: unknown, cap: number | null, keep = 0, guests = 0): string[] {
   if (!Array.isArray(raw)) throw badRequest("朋友名单格式不对");
   const friends = raw.map((f) => (typeof f === "string" ? f : ""));
-  if (cap !== null && friends.length > Math.max(cap, keep))
+  // Group members brought (带群友) count as friends towards the cap.
+  if (cap !== null && friends.length + guests > Math.max(cap, keep))
     throw badRequest(
       keep > cap ? `最多带 ${cap} 个朋友；现在的 ${keep} 个可以保留，但不能再加` : `最多带 ${cap} 个朋友`,
     );
-  if (friends.length > Math.max(20, keep)) throw badRequest("朋友太多了");
+  if (friends.length + guests > Math.max(20, keep)) throw badRequest("朋友太多了");
   return friends;
 }

@@ -1,4 +1,4 @@
-import type { EventStatus, EventSummary } from "../shared/types";
+import type { EventStatus, EventSummary, MyEvent } from "../shared/types";
 import { STATUS_ZH } from "../shared/types";
 import type { ComponentChildren } from "preact";
 import { toPacific } from "../shared/time";
@@ -41,16 +41,30 @@ export function DateTile(props: { date: string }) {
 /**
  * The status of an event the member is on, with a tick for the dot (Ke Li): 我已报名 while open,
  * （已截止） once closed, （请付款） while their bill is unpaid, then 已付清. 朋友已报名 the same way
- * when only friends hung under them are on it. Null when they're not on it, or it was cancelled.
+ * when only friends hung under them are on it. Someone brought by another member (带群友) sees
+ * who: Ke 带我报名 → （已截止） → （Ke 付款） → Ke 已付清. Null when they're not on it, or it was cancelled.
  */
 export function mineStatus(e: {
   status: EventStatus;
   selfSignedUp: boolean;
   myFriends?: string[] | null;
+  myGuests?: { id: string }[];
+  broughtBy?: { name: string; billed: boolean; paid: boolean } | null;
   payment?: { status: string } | null;
 }): { cls: string; label: string } | null {
-  const who = e.selfSignedUp ? "me" : (e.myFriends?.length ?? 0) > 0 ? "friends" : null;
-  if (!who || e.status === "cancelled") return null;
+  if (e.status === "cancelled") return null;
+  // Their own bill (friends the admin hung under them) comes first; otherwise the bringer's.
+  const b = e.payment ? null : e.broughtBy;
+  if (b) {
+    if (b.paid) return { cls: "mine", label: t("{name} 已付清", { name: b.name }) };
+    if (b.billed) return { cls: "mine", label: t("{name} 带我报名（{name} 付款）", { name: b.name }) };
+    if (e.status === "open") return { cls: "mine", label: t("{name} 带我报名", { name: b.name }) };
+    if (e.status === "closed" || e.status === "finalized")
+      return { cls: "mine", label: t("{name} 带我报名（已截止）", { name: b.name }) };
+    return null;
+  }
+  const who = e.selfSignedUp ? "me" : friendCount(e) > 0 ? "friends" : null;
+  if (!who) return null;
   const mine = (me: string, friends: string) => ({ cls: "mine", label: who === "me" ? me : friends });
   if (e.payment?.status === "paid") return { cls: "mine", label: t("已付清") };
   if (e.payment) return mine(t("我已报名（请付款）"), t("朋友已报名（请付款）"));
@@ -59,6 +73,16 @@ export function mineStatus(e: {
     return mine(t("我已报名（已截止）"), t("朋友已报名（已截止）"));
   return null;
 }
+
+/** Friends they bring, by name and group members (带群友) together. */
+export const friendCount = (e: { myFriends?: string[] | null; myGuests?: { id: string }[] }) =>
+  (e.myFriends?.length ?? 0) + (e.myGuests?.length ?? 0);
+
+/**
+ * On the event (themselves or friends under them) with nothing billed yet: the card keeps its
+ * coral top (Ke Li). Brought by someone, until that person's bill is out.
+ */
+export const onCard = (e: MyEvent) => (e.selfSignedUp || friendCount(e) > 0) && !e.payment && !e.broughtBy?.billed;
 
 /** 预定场地 on a player's card: 场地：3、5 号. */
 export function CourtsLine(props: { courts: number[] }) {

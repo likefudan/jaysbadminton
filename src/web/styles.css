@@ -681,6 +681,125 @@ button.event-link {
   font-size: 13px;
   margin-top: 2px;
 }
+/* 带群友: a friend slot that is a name box with 选群友 beside it, or a picked group member. */
+.guest-input {
+  display: flex;
+  gap: 8px;
+}
+.guest-input input {
+  flex: 1;
+}
+.guest-pick {
+  flex: none;
+  padding: 0 12px;
+  border: 1px solid var(--acc-line);
+  border-radius: var(--radius-sm);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font: inherit;
+  font-size: 14.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.guest-picked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--acc-line);
+  border-radius: var(--radius-sm);
+  background: var(--acc-soft);
+}
+.guest-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--acc);
+  color: var(--on-acc);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.guest-name {
+  font-weight: 400;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 16px;
+}
+.guest-tag {
+  flex: none;
+  font-style: normal;
+  padding: 1px 6px;
+  border: 1px solid var(--acc-line);
+  border-radius: 6px;
+  color: var(--acc-ink);
+  font-size: 12px;
+}
+.guest-clear {
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.guest-sheet {
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+.guest-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.guest-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 50px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.guest-list button.off {
+  cursor: default;
+}
+.guest-list button.off .guest-name {
+  color: var(--faint);
+}
+.guest-list button.off .guest-avatar {
+  background: var(--line);
+  color: var(--muted);
+}
+.guest-list small {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+.guest-none {
+  padding: 14px 2px;
+}
 .friends-row .stepper {
   margin: 0;
 }
