@@ -1,3 +1,4 @@
+import { createPortal } from "preact/compat";
 import { useEffect, useState } from "preact/hooks";
 import type { GuestChoice } from "../shared/types";
 import { Field } from "./components";
@@ -150,7 +151,9 @@ function GuestPicker(props: {
           ? t("{name} 已带", { name: c.by ?? "" })
           : null;
   const shown = (list ?? []).filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase()));
-  return (
+  // Into <body>, like the other sheets: the card's backdrop-filter would trap a fixed sheet inside
+  // it, so a long list ran off the screen with no way to close it (Ke Li).
+  return createPortal(
     // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
     // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
     <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
@@ -194,6 +197,7 @@ function GuestPicker(props: {
           {list && shown.length === 0 && <li class="muted guest-none">{t("没有找到")}</li>}
         </ul>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
