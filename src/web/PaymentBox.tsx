@@ -16,7 +16,7 @@ export function PaymentBox(props: { p: MyPayment }) {
         {p.shares.map((s, i) => (
           <li key={i}>
             <span>
-              {s.friendIndex === 0 ? t("本人") : s.name}
+              {s.friendIndex === 0 && !s.guest ? t("本人") : s.name}
               {!s.attended && <em>{t("未出席")}</em>}
             </span>
             <span class="muted">

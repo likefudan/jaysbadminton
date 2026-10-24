@@ -40,6 +40,11 @@ import {
   setSignup,
   summaries,
   validateFriends,
+  validateGuests,
+  broughtBy,
+  guestsMissed,
+  insertGuest,
+  memberNames,
   type EventRow,
 } from "../events";
 import { HttpError, badRequest, readJson, str } from "../http";
@@ -90,7 +95,15 @@ import { resolveAddress, suggestAddresses } from "../places";
 import { TABLES, isTable, toCsv } from "../export";
 import { currentScript, disableExport, rotateExportKey, sheetsStatus } from "../sheets";
 import { type ChatOwner, disconnect, sendToMember, sendToOwner, startBinding, telegramStatus } from "../telegram";
-import { pushBills, pushCancelled, pushNewEvent, pushRosterChange, sendSoon } from "../push";
+import {
+  pushBills,
+  pushBrought,
+  pushCancelled,
+  pushGuestLeft,
+  pushNewEvent,
+  pushRosterChange,
+  sendSoon,
+} from "../push";
 import { actorId, audit, auditRows, billOwner, friendName, groupAudit, money, record, rosterLabel } from "../audit";
 import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
 
@@ -260,24 +273,44 @@ async function selfSignupEvent(env: Env, id: string, memberId: string | null) {
   return { e, self };
 }
 
-/** One's own rows on the roster (themselves and friends, with names), for telling whether a save changed them. */
+/**
+ * One's own rows on the roster (themselves and friends, with names, and the group members they
+ * bring), for telling whether a save changed them.
+ */
 async function ownSignup(env: Env, eventId: number, memberId: string) {
-  const { results } = await env.DB.prepare(
-    "SELECT friend_index, friend_name FROM registrations WHERE event_id = ? AND member_id = ? ORDER BY friend_index",
-  )
-    .bind(eventId, memberId)
-    .all<{ friend_index: number; friend_name: string | null }>();
-  return { rows: results, key: results.length ? JSON.stringify(results) : "" };
+  const [{ results }, { results: guests }] = await Promise.all([
+    env.DB.prepare(
+      "SELECT friend_index, friend_name FROM registrations WHERE event_id = ? AND member_id = ? ORDER BY friend_index",
+    )
+      .bind(eventId, memberId)
+      .all<{ friend_index: number; friend_name: string | null }>(),
+    env.DB.prepare(
+      `SELECT m.username FROM registrations r JOIN members m ON m.id = r.member_id
+       WHERE r.event_id = ? AND r.paid_by = ? ORDER BY r.id`,
+    )
+      .bind(eventId, memberId)
+      .all<{ username: string }>(),
+  ]);
+  const guestNames = guests.map((g) => g.username);
+  return {
+    rows: results,
+    guests: guestNames,
+    key: results.length || guestNames.length ? JSON.stringify([results, guestNames]) : "",
+  };
 }
 
 adminEventRoutes.post("/events/:id/self-signup", async (c) => {
   const { e, self } = await selfSignupEvent(c.env, c.req.param("id"), c.get("actor").memberId);
   const body = await readJson(c.req.raw);
   // No cap here, but friends already on the list (some may be added from 添加人员) may stay.
+  const by = await broughtBy(c.env, e.id, self);
+  if (by) throw badRequest(`${await payeeName(c.env.DB, by)} 已经带你报名了。要自己报名，请先在名单里把你删掉`);
   const keep = await friendCount(c.env, e.id, self);
-  const friends = validateFriends(body.friends ?? [], null, keep);
+  // Left out (an older page): the group members they bring stay as they are.
+  const guests = body.guests === undefined ? undefined : await validateGuests(c.env, e.id, self, body.guests);
+  const friends = validateFriends(body.friends ?? [], null, keep, guests?.length ?? 0);
   const before = await ownSignup(c.env, e.id, self);
-  await setSignup(c.env, e.id, self, friends, false);
+  const { added, removed, missed } = await setSignup(c.env, e.id, self, friends, false, guests);
   await audit(c.env, e.id, actorId(c.get("actor")), "self_signup", async () => {
     // Saved again without a change: nothing to record.
     const after = await ownSignup(c.env, e.id, self);
@@ -285,18 +318,30 @@ adminEventRoutes.post("/events/:id/self-signup", async (c) => {
     const what = before.key ? "修改自己的报名" : "自己报名";
     // Named as the roster now shows them (friend numbers are kept across saves).
     const me = await billOwner(c.env, self);
-    const names = after.rows
-      .filter((r) => r.friend_index > 0)
-      .map((r) => friendName(me, r.friend_index, r.friend_name));
+    const names = [
+      ...after.guests.map((g) => `${g}（群友）`),
+      ...after.rows.filter((r) => r.friend_index > 0).map((r) => friendName(me, r.friend_index, r.friend_name)),
+    ];
     return names.length ? `${what}，带 ${names.length} 个朋友：${names.join("、")}` : `${what}，不带朋友`;
   });
+  const pushed = await Promise.all([
+    ...added.map((g) => pushBrought(c.env, e, g, self, self, true)),
+    ...removed.map((g) => pushBrought(c.env, e, g, self, self, false)),
+  ]);
+  if (pushed.some(Boolean)) sendSoon(c);
+  if (missed.length > 0) throw guestsMissed(missed);
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
 adminEventRoutes.post("/events/:id/self-cancel", async (c) => {
   const { e, self } = await selfSignupEvent(c.env, c.req.param("id"), c.get("actor").memberId);
-  if (await removeSignup(c.env, e.id, self))
-    await audit(c.env, e.id, actorId(c.get("actor")), "self_cancel", "取消自己的报名（连同带的朋友）");
+  const { removed, guests, paidBy } = await removeSignup(c.env, e.id, self);
+  if (removed) await audit(c.env, e.id, actorId(c.get("actor")), "self_cancel", "取消自己的报名（连同带的朋友）");
+  const pushed = await Promise.all([
+    ...guests.map((g) => pushBrought(c.env, e, g, self, self, false)),
+    ...(paidBy ? [pushGuestLeft(c.env, e, paidBy, self)] : []),
+  ]);
+  if (pushed.some(Boolean)) sendSoon(c);
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
@@ -570,7 +615,12 @@ adminEventRoutes.post("/events/:id/roster/add", async (c) => {
   if (m.status !== "active") throw badRequest("只能添加正常状态的成员");
   const includeSelf = b.includeSelf === true;
   const friends = validateFriends(b.friends ?? [], null);
-  if (!includeSelf && friends.length === 0) throw badRequest("请选择要添加的人");
+  // 带群友: group members brought by this member, on their bill.
+  const guests = await validateGuests(c.env, e.id, m.id, b.guests);
+  if (!includeSelf && friends.length === 0 && guests.length === 0) throw badRequest("请选择要添加的人");
+  // Someone brought by another member can't bring anyone (Ke Li): they'd have to sign up themselves.
+  if ((guests.length > 0 || friends.length > 0) && (await broughtBy(c.env, e.id, m.id)))
+    throw badRequest(`${m.username} 是别人带来的，不能再带朋友`);
 
   const rows = await c.env.DB.prepare("SELECT friend_index FROM registrations WHERE event_id = ? AND member_id = ?")
     .bind(e.id, m.id)
@@ -584,24 +634,37 @@ adminEventRoutes.post("/events/:id/roster/add", async (c) => {
       `INSERT INTO registrations (event_id, member_id, friend_index, friend_name, attended, added_by_owner, created_at, updated_at)
        VALUES (?, ?, ?, ?, 1, 1, ?, ?)`,
     ).bind(e.id, m.id, index, name, ts, ts);
-  await c.env.DB.batch([
+  const res = await c.env.DB.batch([
     ...(includeSelf ? [insert(0, null)] : []),
     ...friends.map((f) => insert(next++, f.trim().slice(0, 20) || null)),
+    ...guests.map((g) => insertGuest(c.env, e.id, g, m.id, true, ts)),
   ]);
+  const brought = res
+    .slice(res.length - guests.length)
+    .flatMap((r) => ((r.results ?? []) as { member_id: string }[]).map((x) => x.member_id));
+  const broughtNames = await memberNames(c.env, brought);
   const first = next - friends.length;
   const added = [
     ...(includeSelf ? [m.username] : []),
+    ...broughtNames.map((n) => `${n}（${m.username} 带的群友）`),
     ...friends.map((f, i) => friendName(m.username, first + i, f.trim().slice(0, 20) || null)),
   ];
   await audit(c.env, e.id, actorId(c.get("actor")), "roster_add", `添加 ${added.join("、")}`);
   await recomputeIfFinalized(c.env, e);
-  const pushed = await pushRosterChange(c.env, e, m.id, c.get("actor").memberId, {
-    added: true,
-    self: includeSelf,
-    friends: friends.map((f, i) => f.trim().slice(0, 20) || `朋友${first + i}`),
-    left: 0,
-  });
-  if (pushed) sendSoon(c);
+  const pushed = await Promise.all([
+    includeSelf || friends.length > 0 || brought.length > 0
+      ? pushRosterChange(c.env, e, m.id, c.get("actor").memberId, {
+          added: true,
+          self: includeSelf,
+          friends: [...broughtNames, ...friends.map((f, i) => f.trim().slice(0, 20) || `朋友${first + i}`)],
+          left: 0,
+        })
+      : false,
+    ...brought.map((g) => pushBrought(c.env, e, g, m.id, c.get("actor").memberId, true)),
+  ]);
+  if (pushed.some(Boolean)) sendSoon(c);
+  const missed = guests.filter((g) => !brought.includes(g));
+  if (missed.length > 0) throw guestsMissed(await memberNames(c.env, missed));
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
@@ -629,25 +692,40 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
   await assertCostsShared(c.env, e, (list) => list.filter((r) => r.id !== rid));
   const who = await rosterLabel(c.env, rid);
   const row = await c.env.DB.prepare(
-    "SELECT member_id, friend_index, friend_name FROM registrations WHERE id = ? AND event_id = ?",
+    `SELECT r.member_id, r.friend_index, r.friend_name, r.paid_by, m.username FROM registrations r
+     JOIN members m ON m.id = r.member_id WHERE r.id = ? AND r.event_id = ?`,
   )
     .bind(rid, e.id)
-    .first<{ member_id: string; friend_index: number; friend_name: string | null }>();
+    .first<{
+      member_id: string;
+      friend_index: number;
+      friend_name: string | null;
+      paid_by: string | null;
+      username: string;
+    }>();
   const res = await c.env.DB.prepare("DELETE FROM registrations WHERE id = ? AND event_id = ?").bind(rid, e.id).run();
   if (res.meta.changes) await audit(c.env, e.id, actorId(c.get("actor")), "roster_remove", `把 ${who} 移出名单`);
   await recomputeIfFinalized(c.env, e);
   if (row && res.meta.changes) {
-    const left = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM registrations WHERE event_id = ? AND member_id = ?")
-      .bind(e.id, row.member_id)
+    const actor = c.get("actor").memberId;
+    // Whose list it was: a group member someone brought (带群友) is on that person's, and bill.
+    const owner = row.paid_by ?? row.member_id;
+    const left = await c.env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM registrations WHERE event_id = ?1 AND (member_id = ?2 OR paid_by = ?2)",
+    )
+      .bind(e.id, owner)
       .first<{ n: number }>();
-    const self = row.friend_index === 0;
-    const pushed = await pushRosterChange(c.env, e, row.member_id, c.get("actor").memberId, {
-      added: false,
-      self,
-      friends: self ? [] : [row.friend_name?.trim() || `朋友${row.friend_index}`],
-      left: left?.n ?? 0,
-    });
-    if (pushed) sendSoon(c);
+    const self = row.friend_index === 0 && !row.paid_by;
+    const pushed = await Promise.all([
+      pushRosterChange(c.env, e, owner, actor, {
+        added: false,
+        self,
+        friends: self ? [] : [row.paid_by ? row.username : row.friend_name?.trim() || `朋友${row.friend_index}`],
+        left: left?.n ?? 0,
+      }),
+      ...(row.paid_by ? [pushBrought(c.env, e, row.member_id, row.paid_by, actor, false)] : []),
+    ]);
+    if (pushed.some(Boolean)) sendSoon(c);
   }
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });

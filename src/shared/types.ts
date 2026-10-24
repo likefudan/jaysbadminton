@@ -178,6 +178,9 @@ export interface RosterEntry {
   name: string; // display name; friends without a name show as "<member>的朋友<n>"
   attended: boolean;
   addedByOwner: boolean;
+  /** 带群友: the member paying for this one (who brought them); null when they pay for themselves. */
+  paidBy: string | null;
+  paidByName: string | null;
 }
 
 /** 预定场地: court numbers at the hall run 1–99 (Ke Li); a dozen is more than any event books. */
@@ -207,9 +210,27 @@ export interface AuditEntry {
   detail: string;
 }
 
+/**
+ * 选群友: a member who could be brought to an event. free: not on it; mine: brought by the viewer
+ * already; on: on it themselves; brought: brought by someone else (`by`).
+ */
+export interface GuestChoice {
+  id: string;
+  name: string;
+  state: "free" | "mine" | "on" | "brought";
+  by: string | null;
+}
+
 export interface MyEvent extends EventSummary {
   /** null when not signed up; otherwise the names entered for each friend ("" = unnamed). */
   myFriends: string[] | null;
+  /** 带群友: the group members they bring and pay for (count as friends towards the cap). */
+  myGuests: { id: string; name: string }[];
+  /**
+   * Brought by another member who pays for them (带群友): who, whether that person's bill is out,
+   * and whether it's paid. They are on the list (selfSignedUp) but have no bill of their own.
+   */
+  broughtBy: { name: string; billed: boolean; paid: boolean } | null;
   /** On the list themselves; false with myFriends set when the Owner hung friends under them without them. */
   selfSignedUp: boolean;
   canEdit: boolean;
@@ -283,6 +304,8 @@ export interface MyHistoryEvent {
   amountCents: number | null;
   attended: boolean;
   friends: number;
+  /** Brought by this member, who paid for them (带群友); null otherwise. */
+  paidBy: string | null;
   kcal: number | null;
 }
 

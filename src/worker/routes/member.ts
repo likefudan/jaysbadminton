@@ -17,22 +17,27 @@ import { eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payee
 import { ownerName, payeeName } from "../payees";
 import {
   bookedCourts,
+  broughtBy,
   closeExpired,
   friendCap,
   friendCount,
   getEvent,
+  guestChoices,
+  guestCount,
+  guestsMissed,
   removeSignup,
   roster,
   setSignup,
   summaries,
   type EventRow,
   validateFriends,
+  validateGuests,
 } from "../events";
 import type { Env } from "../env";
 import { badRequest, HttpError, invalidLink, readJson, str } from "../http";
 import { type MemberRow, memberByToken, renameMember } from "../members";
 import { developerMember } from "../developer";
-import { pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
+import { pushBrought, pushGuestLeft, pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
 import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
 import {
@@ -101,11 +106,11 @@ memberRoutes.get("/:token/events", async (c) => {
   // open ones they can still join; newest first.
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM events WHERE status != 'cancelled' AND (status = 'open'
-       OR id IN (SELECT event_id FROM registrations WHERE member_id = ?)
-       OR id IN (SELECT event_id FROM payments WHERE member_id = ?))
+       OR id IN (SELECT event_id FROM registrations WHERE member_id = ?1 OR paid_by = ?1)
+       OR id IN (SELECT event_id FROM payments WHERE member_id = ?1))
      ORDER BY start_at DESC`,
   )
-    .bind(m.id, m.id)
+    .bind(m.id)
     .all<EventRow>();
   const mine = await myRows(c.env, m);
   const generalCap = await friendCap(c.env);
@@ -116,7 +121,8 @@ memberRoutes.get("/:token/events", async (c) => {
   const isHistory = (e: EventRow) =>
     (e.status === "finalized" || e.status === "settled") &&
     e.end_at <= ended &&
-    (mine.payOf(e.id)?.status ?? "paid") === "paid";
+    // Brought by someone (带群友): over once whoever brought them has paid.
+    (mine.payOf(e.id)?.status ?? mine.broughtOf(e.id)?.status ?? "paid") === "paid";
   const history: MyHistoryEvent[] = results.filter(isHistory).map((e) => {
     const rows = mine.regsOf(e.id);
     return {
@@ -127,7 +133,8 @@ memberRoutes.get("/:token/events", async (c) => {
       location: e.location,
       amountCents: mine.payOf(e.id)?.amount_due_cents ?? null,
       attended: rows.some((r) => r.friend_index === 0 && r.attended === 1),
-      friends: rows.filter((r) => r.friend_index > 0).length,
+      friends: rows.filter((r) => r.friend_index > 0).length + mine.guestsOf(e.id).length,
+      paidBy: mine.broughtOf(e.id)?.username ?? null,
       kcal: mine.kcalOf(e.id),
     };
   });
@@ -169,7 +176,7 @@ type MyRows = Awaited<ReturnType<typeof myRows>>;
 async function myRows(env: Env, m: MemberRow, eventId?: number) {
   const only = eventId === undefined ? "" : " AND event_id = ?";
   const args = eventId === undefined ? [m.id] : [m.id, eventId];
-  const [pays, regs, kcal] = await Promise.all([
+  const [pays, regs, guests, brought, kcal] = await Promise.all([
     env.DB.prepare(`SELECT * FROM payments WHERE member_id = ?${only}`)
       .bind(...args)
       .all<{
@@ -183,11 +190,28 @@ async function myRows(env: Env, m: MemberRow, eventId?: number) {
     env.DB.prepare(`SELECT event_id, friend_index, friend_name, attended FROM registrations WHERE member_id = ?${only}`)
       .bind(...args)
       .all<{ event_id: number; friend_index: number; friend_name: string | null; attended: number }>(),
+    // 带群友: the group members they bring and pay for, in the order they were added.
+    env.DB.prepare(
+      `SELECT r.event_id, r.member_id, m.username FROM registrations r JOIN members m ON m.id = r.member_id
+       WHERE r.paid_by = ?${only.replace("event_id", "r.event_id")} ORDER BY r.id`,
+    )
+      .bind(...args)
+      .all<{ event_id: number; member_id: string; username: string }>(),
+    // …and whoever brought them, with that person's bill once there is one.
+    env.DB.prepare(
+      `SELECT r.event_id, r.paid_by, m.username, p.status FROM registrations r JOIN members m ON m.id = r.paid_by
+       LEFT JOIN payments p ON p.event_id = r.event_id AND p.member_id = r.paid_by
+       WHERE r.member_id = ? AND r.friend_index = 0 AND r.paid_by IS NOT NULL${only.replace("event_id", "r.event_id")}`,
+    )
+      .bind(...args)
+      .all<{ event_id: number; paid_by: string; username: string; status: PaymentStatus | null }>(),
     caloriesOf(env, m.id, eventId === undefined ? undefined : [eventId]),
   ]);
   return {
     payOf: (id: number) => pays.results.find((p) => p.event_id === id),
     regsOf: (id: number) => regs.results.filter((r) => r.event_id === id),
+    guestsOf: (id: number) => guests.results.filter((r) => r.event_id === id),
+    broughtOf: (id: number) => brought.results.find((r) => r.event_id === id),
     kcalOf: (id: number) => kcal.get(id) ?? null,
   };
 }
@@ -251,13 +275,17 @@ async function myEvents(
     const runs = await runsEvent(env, m, row);
     const rows = mine.regsOf(e.id);
     const friends = rows.filter((r) => r.friend_index > 0).sort((a, b) => a.friend_index - b.friend_index);
+    const guests = mine.guestsOf(e.id);
+    const brought = mine.broughtOf(e.id);
     const pay = mine.payOf(e.id);
     const selfOn = rows.some((r) => r.friend_index === 0);
+    // On the list in any way: themselves, or friends or group members under them.
+    const onIt = rows.length > 0 || guests.length > 0;
     // Events they are not on are only offered while open, and never to a disabled member.
-    if (!all && rows.length === 0 && !pay && (e.status !== "open" || m.status !== "active")) continue;
+    if (!all && !onIt && !pay && (e.status !== "open" || m.status !== "active")) continue;
     const settled = e.status === "finalized" || e.status === "settled";
     // One roster read serves both the bill breakdown and the list of who is coming.
-    const people = rows.length > 0 || (pay && settled) ? await roster(env, e.id) : [];
+    const people = onIt || (pay && settled) ? await roster(env, e.id) : [];
     let payment: MyPayment | null = null;
     if (pay && settled) {
       const input = await savedInput(env, e.id);
@@ -280,14 +308,19 @@ async function myEvents(
     if (selfOn) {
       names = people.map((r) => ({
         name: r.name,
-        friendOf: r.friendIndex > 0 ? r.memberName : null,
-        mine: r.memberId === m.id,
+        // A group member someone brought shows who did, except to themselves (they see 我).
+        friendOf: r.friendIndex > 0 ? r.memberName : r.memberId !== m.id ? r.paidByName : null,
+        mine: r.memberId === m.id || r.paidBy === m.id,
         absent: settled && !r.attended,
       }));
     }
     events.push({
       ...e,
-      myFriends: rows.length === 0 ? null : friends.map((f) => f.friend_name ?? ""),
+      myFriends: onIt ? friends.map((f) => f.friend_name ?? "") : null,
+      myGuests: guests.map((g) => ({ id: g.member_id, name: g.username })),
+      broughtBy: brought
+        ? { name: brought.username, billed: settled && brought.status !== null, paid: brought.status === "paid" }
+        : null,
       selfSignedUp: selfOn,
       canEdit: m.status === "active" && (e.status === "open" || (runs && e.status === "closed")),
       friendCap: runs ? MANAGER_FRIEND_MAX : generalCap,
@@ -298,8 +331,8 @@ async function myEvents(
       payment,
       roster: names,
       // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
-      queue: (rows.length > 0 || runs) && queueLive(row) ? await queueInfo(env, row, m.id) : null,
-      courts: rows.length > 0 || runs ? bookedCourts(row) : [],
+      queue: (onIt || runs) && queueLive(row) ? await queueInfo(env, row, m.id) : null,
+      courts: onIt || runs ? bookedCourts(row) : [],
       kcal: mine.kcalOf(e.id),
       kcalOpen: canRead(row, selfOn, readDays),
       kcalUpdate: canRead(row, selfOn, readDays) && shortcutOutdated(m.calorie_shortcut_v, shortcut.version),
@@ -336,16 +369,48 @@ memberRoutes.post("/:token/events/:id/signup", async (c) => {
   const { e, runs } = await openEventFor(c, c.req.param("id"));
   const body = await readJson(c.req.raw);
   const m = c.get("member");
+  // Brought by someone (带群友): they're on the list already and can't change it or bring anyone.
+  const by = await broughtBy(c.env, e.id, m.id);
+  if (by) throw badRequest(`${await payeeName(c.env.DB, by)} 已经带你报名了。要自己报名，请先点「我不去了」`);
   const [cap, keep] = await Promise.all([runs ? null : friendCap(c.env), friendCount(c.env, e.id, m.id)]);
-  const friends = validateFriends(body.friends ?? [], cap, keep);
-  await setSignup(c.env, e.id, m.id, friends, false);
+  // Left out (a page from before 带群友): the group members they bring stay as they are, and count.
+  const guests = body.guests === undefined ? undefined : await validateGuests(c.env, e.id, m.id, body.guests);
+  const friends = validateFriends(
+    body.friends ?? [],
+    cap,
+    keep,
+    guests?.length ?? (await guestCount(c.env, e.id, m.id)),
+  );
+  const { added, removed, missed } = await setSignup(c.env, e.id, m.id, friends, false, guests);
+  const pushed = await Promise.all([
+    ...added.map((g) => pushBrought(c.env, e, g, m.id, m.id, true)),
+    ...removed.map((g) => pushBrought(c.env, e, g, m.id, m.id, false)),
+  ]);
+  if (pushed.some(Boolean)) sendSoon(c);
+  if (missed.length > 0) throw guestsMissed(missed);
   return c.json({ ok: true });
 });
 
+/** 取消报名, with their friends and the group members they bring; 我不去了 for someone brought. */
 memberRoutes.post("/:token/events/:id/cancel", async (c) => {
   const { e } = await openEventFor(c, c.req.param("id"));
-  await removeSignup(c.env, e.id, c.get("member").id);
+  const m = c.get("member");
+  const { guests, paidBy } = await removeSignup(c.env, e.id, m.id);
+  const pushed = await Promise.all([
+    ...guests.map((g) => pushBrought(c.env, e, g, m.id, m.id, false)),
+    ...(paidBy ? [pushGuestLeft(c.env, e, paidBy, m.id)] : []),
+  ]);
+  if (pushed.some(Boolean)) sendSoon(c);
   return c.json({ ok: true });
+});
+
+/**
+ * 选群友: the members they could bring to this event, by name: everyone active but themselves,
+ * with why someone can't be picked (on the list already, or brought by someone else).
+ */
+memberRoutes.get("/:token/events/:id/guests", async (c) => {
+  const { e } = await openEventFor(c, c.req.param("id"));
+  return c.json({ members: await guestChoices(c.env, e.id, c.get("member").id) });
 });
 
 /** 球场排队 changes: players on the event (or whoever runs it), while the feature is on for it. */

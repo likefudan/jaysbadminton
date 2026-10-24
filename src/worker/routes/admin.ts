@@ -276,7 +276,7 @@ adminRoutes.post("/:token/members/:id/deactivate", async (c) => {
     ).bind(m.id, ...(role ? [role] : [])),
     // Requirements: deactivating cancels sign-ups for events still open; closed events keep theirs.
     c.env.DB.prepare(
-      `DELETE FROM registrations WHERE member_id = ?1 AND event_id IN (SELECT id FROM events WHERE status = 'open')
+      `DELETE FROM registrations WHERE (member_id = ?1 OR paid_by = ?1) AND event_id IN (SELECT id FROM events WHERE status = 'open')
          AND EXISTS (SELECT 1 FROM members WHERE id = ?1 AND status = 'inactive')
        RETURNING event_id`,
     ).bind(m.id),
@@ -401,7 +401,7 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   // bill someone who no longer has a link. Archived events are fixed, so those don't count.
   const pending = await c.env.DB.prepare(
     `SELECT e.date, e.status FROM registrations r JOIN events e ON e.id = r.event_id
-     WHERE r.member_id = ? AND e.status IN ('open', 'closed', 'finalized') ORDER BY e.start_at LIMIT 1`,
+     WHERE (r.member_id = ?1 OR r.paid_by = ?1) AND e.status IN ('open', 'closed', 'finalized') ORDER BY e.start_at LIMIT 1`,
   )
     .bind(m.id)
     .first<{ date: string; status: string }>();

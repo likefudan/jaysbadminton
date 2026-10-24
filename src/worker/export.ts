@@ -128,13 +128,14 @@ export const TABLES = {
     async build(env: Env): Promise<Table> {
       const rows = await all(
         env,
-        `SELECT r.*, e.date, e.number, m.username FROM registrations r
+        `SELECT r.*, e.date, e.number, m.username, p.username AS paid_by_name FROM registrations r
          JOIN events e ON e.id = r.event_id JOIN members m ON m.id = r.member_id
+         LEFT JOIN members p ON p.id = r.paid_by
          ORDER BY e.start_at, r.member_id, r.friend_index`,
       );
       return {
         title: this.title,
-        columns: ["活动编号", "日期", "成员编号", "成员", "名字", "是朋友", "到场", "群主添加", "报名时间"],
+        columns: ["活动编号", "日期", "成员编号", "成员", "名字", "是朋友", "到场", "群主添加", "报名时间", "带他的人"],
         rows: rows.map((r) => [
           r.number,
           r.date,
@@ -145,6 +146,8 @@ export const TABLES = {
           r.attended ? "到场" : "未到",
           yes(r.added_by_owner),
           at(r.created_at),
+          // 带群友: who brought them and pays for them; empty when they pay for themselves.
+          r.paid_by_name ?? "",
         ]),
       };
     },
