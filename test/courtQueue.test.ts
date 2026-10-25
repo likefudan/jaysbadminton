@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { courtPhase, parseAccountList, queueWait } from "../src/shared/courtQueue";
 import { purgeCourtPhotos, toPhotoResult } from "../src/worker/courtPhoto";
 import worker from "../src/worker/index";
-import { Client, ORIGIN, approveMember, createTestEvent, setUpAdmin } from "./helpers";
+import { Client, ORIGIN, appoint, approveMember, googleCookie, createTestEvent, request, setUpAdmin } from "./helpers";
 
 const anon = new Client();
 const minutesFrom = (iso: string) => Math.round((Date.parse(iso) - Date.now()) / 60_000);
@@ -200,6 +200,58 @@ describe("球场排队", () => {
     expect((await bad({ accounts: ["Mark"], court: 0 })).status).toBe(400);
     expect((await bad({ accounts: ["Mark"], position: 4 })).status).toBe(400);
     expect((await bad({ accounts: ["Mark"], minutes: 0 })).status).toBe(400);
+  });
+
+  it("批量删除 is for the Owner and admins: ticked courts go, playing or queued, on this event only", async () => {
+    const { ctx, e, alice, bob, q, card } = await scenario();
+    await anon.call(`${alice.base}${q}/accounts`, { username: "Mark", password: "1" });
+    for (const [court, position] of [
+      [1, 0],
+      [2, 0],
+      [3, 1],
+    ])
+      await anon.call(`${alice.base}${q}/courts`, { court, position, minutes: 20, accounts: ["Mark"] });
+    const ids = ((await card(alice.base))!.queue.courts as any[]).map((c) => c.id);
+
+    // A player sees no 选择 and is refused.
+    expect((await card(alice.base))!.queue.manage).toBe(false);
+    expect((await anon.call(`${alice.base}${q}/courts/remove`, { ids })).status).toBe(400);
+
+    // The Owner, signed in with Google on their own member page.
+    await env.DB.prepare(
+      "UPDATE members SET google_sub = 'google-jay', google_email = 'jay@gmail.com' WHERE is_owner = 1",
+    ).run();
+    const jay = await googleCookie("google-jay", "jay@gmail.com");
+    const asJay = async (path: string, body?: unknown) => {
+      const res = await request(`/api/m/session${path}`, jay, body, "0");
+      return { status: res.status, data: (await res.json()) as any };
+    };
+    await asJay(`/events/${e.id}/signup`, { friends: [] });
+    expect((await asJay(`/events/${e.id}`)).data.event.queue.manage).toBe(true);
+    expect((await asJay(`${q}/courts/remove`, { ids: [] })).status).toBe(400);
+    expect((await asJay(`${q}/courts/remove`, { ids: ["1"] })).status).toBe(400);
+    // Another event's court isn't touched.
+    const other = await createTestEvent(ctx, { queueRoundMin: 45 });
+    const oq = `${alice.base}/events/${other.id}`;
+    await anon.call(`${oq}/signup`, { friends: [] });
+    await anon.call(`${oq}/queue/accounts`, { username: "Mark", password: "1" });
+    await anon.call(`${oq}/queue/courts`, { court: 1, position: 0, minutes: 20, accounts: ["Mark"] });
+    const elsewhere = (await anon.call(oq)).data.event.queue.courts[0].id;
+    const res = await asJay(`${q}/courts/remove`, { ids: [ids[0], ids[2], elsewhere] });
+    expect(res.data.removed).toBe(2);
+    expect(((await card(alice.base))!.queue.courts as any[]).map((c) => c.id)).toEqual([ids[1]]);
+    expect((await anon.call(oq)).data.event.queue.courts).toHaveLength(1);
+
+    // An admin (with the feature on); an organizer is refused.
+    await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: [] });
+    await appoint(bob.id, "bob", "admin");
+    const asBob = (path: string, body?: unknown) => request(`${bob.base}${path}`, "", body);
+    expect(((await (await asBob(`/events/${e.id}`)).json()) as any).event.queue.manage).toBe(true);
+    await appoint(bob.id, "bob", "organizer");
+    expect((await asBob(`${q}/courts/remove`, { ids: [ids[1]] })).status).toBe(400);
+    await appoint(bob.id, "bob", "admin");
+    expect((await asBob(`${q}/courts/remove`, { ids: [ids[1]] })).status).toBe(200);
+    expect((await card(alice.base))!.queue.courts).toHaveLength(0);
   });
 
   it("goes away a few hours after the event ends, and with the event when it is deleted", async () => {
