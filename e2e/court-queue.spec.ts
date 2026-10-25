@@ -20,6 +20,7 @@ const court = (id: number, n: number, position: number, start: number | null, en
 const queue = {
   roundMin: 45,
   photo: true,
+  manage: false,
   accounts: [
     "Xiayw",
     "Pengy",
@@ -86,7 +87,7 @@ const event = {
   queue,
 };
 
-async function setUp(page: Page) {
+async function setUp(page: Page, ev = event) {
   const posts: { url: string; body: unknown }[] = [];
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false, hasMember: false } }));
   await page.route("**/api/m/tok/me", (route) =>
@@ -97,7 +98,7 @@ async function setUp(page: Page) {
       route.fulfill({ status: 503, json: { error: { message: "x" } } }),
     );
   await page.route("**/api/m/tok/events", (route) =>
-    route.fulfill({ json: { events: [event], history: [], friendCap: 2 } }),
+    route.fulfill({ json: { events: [ev], history: [], friendCap: 2 } }),
   );
   await page.route("**/api/m/tok/events/9/queue/**", (route) => {
     posts.push({ url: new URL(route.request().url()).pathname, body: route.request().postDataJSON() });
@@ -185,6 +186,59 @@ test("a court opens to change its time, accounts or status, or to remove it", as
   await page.locator(".cq-court", { hasText: "7号" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "删除（提前结束，不打了）" }).click();
   await expect.poll(() => posts.at(-1)?.url).toBe("/api/m/tok/events/9/queue/courts/2/remove");
+});
+
+/** The court tile with exactly this number ("1号" would also find 16号). */
+const tile = (page: Page, n: number) =>
+  page.locator(".cq-court").filter({ has: page.locator(".cq-court-head b", { hasText: new RegExp(`^${n}号$`) }) });
+
+test("选择 lets the Owner and admins tick courts, playing or queued, and delete them together", async ({ page }) => {
+  // Players and organizers don't get it.
+  await setUp(page);
+  await expect(page.locator(".cq-legend")).toContainText("点场可修改");
+  await expect(page.locator(".cq-legend").getByRole("button", { name: "选择" })).toHaveCount(0);
+
+  const posts = await setUp(page, { ...event, queue: { ...queue, manage: true } });
+  await page.locator(".cq-legend").getByRole("button", { name: "选择" }).click();
+  const bar = page.locator(".cq-pickbar");
+  await expect(bar).toContainText("已选 0 个");
+  await expect(bar.getByRole("button", { name: "批量删除" })).toBeDisabled();
+  // Tapping ticks instead of opening the sheet: one playing, one queued.
+  await tile(page, 7).click();
+  await tile(page, 8).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".cq-court.picked")).toHaveCount(2);
+  await expect(bar).toContainText("已选 2 个");
+  await page.screenshot({ path: test.info().outputPath("court-queue-pick.png") });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({ path: test.info().outputPath("court-queue-pick-dark.png") });
+  await page.emulateMedia({ colorScheme: "light" });
+  await tile(page, 8).click();
+  await expect(bar).toContainText("已选 1 个");
+
+  await bar.getByRole("button", { name: "全选" }).click();
+  await expect(bar).toContainText("已选 7 个");
+  await bar.getByRole("button", { name: "全不选" }).click();
+  await expect(bar).toContainText("已选 0 个");
+  await tile(page, 1).click();
+  await tile(page, 6).click();
+  page.once("dialog", (d) => d.accept());
+  await bar.getByRole("button", { name: "批量删除" }).click();
+  await expect
+    .poll(() => posts.at(-1))
+    .toEqual({ url: "/api/m/tok/events/9/queue/courts/remove", body: { ids: [1, 6] } });
+  // Done: back to the colour key.
+  await expect(page.locator(".cq-pickbar")).toHaveCount(0);
+  await expect(page.locator(".cq-legend")).toContainText("点场可修改");
+
+  // 取消 leaves without deleting.
+  await page.locator(".cq-legend").getByRole("button", { name: "选择" }).click();
+  await tile(page, 4).click();
+  await page.locator(".cq-pickbar").getByRole("button", { name: "取消" }).click();
+  await expect(page.locator(".cq-court.picked")).toHaveCount(0);
+  await tile(page, 4).click();
+  await expect(page.getByRole("dialog")).toContainText("4 号场");
+  expect(posts).toHaveLength(1);
 });
 
 test("a new queued court works out the wait from the screen", async ({ page }) => {

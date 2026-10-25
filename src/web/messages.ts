@@ -742,6 +742,20 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "{n} 分钟内到时间": { tw: "{n} 分鐘內到時間", en: "Up within {n} min" },
   排队: { tw: "排隊", en: "Queued" },
   点场可修改: { tw: "點場可修改", en: "Tap to edit" },
+  选择: { tw: "選擇", en: "Select" },
+  "已选 {n} 个": { tw: "已選 {n} 個", en: "{n} selected" },
+  全选: { tw: "全選", en: "Select all" },
+  全不选: { tw: "全不選", en: "Select none" },
+  批量删除: { tw: "批次刪除", en: "Delete selected" },
+  "删除选中的 {n} 片场和排队？": {
+    tw: "刪除選中的 {n} 片場和排隊？",
+    en: "Delete the {n} selected courts and queue groups?",
+  },
+  请先勾选要删除的球场: { tw: "請先勾選要刪除的球場", en: "Select the courts to delete first" },
+  只有群主和管理员可以批量删除: {
+    tw: "只有群主和管理員可以批次刪除",
+    en: "Only the group owner and admins can delete several at once",
+  },
   "{n}号": { tw: "{n}號", en: "Court {n}" },
   "删除这片场（提前结束，不打了）？": {
     tw: "刪除這片場（提前結束，不打了）？",

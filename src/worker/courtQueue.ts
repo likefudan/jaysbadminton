@@ -33,7 +33,7 @@ export const queueLive = (e: EventRow, at = now()): boolean =>
   e.queue_round_min !== null && e.status !== "cancelled" && Date.parse(at) <= Date.parse(e.end_at) + AFTER_END_MS;
 
 /** Everything the card shows: shared accounts (with who added them) and the courts entered. */
-export async function queueInfo(env: Env, e: EventRow, viewer: string): Promise<QueueInfo> {
+export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: boolean): Promise<QueueInfo> {
   const [accounts, courts] = await Promise.all([
     env.DB.prepare(
       `SELECT a.id, a.username, a.password, a.member_id, m.username AS by_name
@@ -65,6 +65,7 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string): Promise<
   return {
     roundMin: e.queue_round_min!,
     photo: photoEnabled(env),
+    manage,
     accounts: accounts.results.map((a) => ({
       id: a.id,
       username: a.username,
@@ -225,6 +226,19 @@ export async function saveCourt(env: Env, e: EventRow, memberId: string, body: R
 /** Anyone on the event may take a court off: the list is everyone's to keep current. */
 export async function removeCourt(env: Env, e: EventRow, id: number) {
   await env.DB.prepare("DELETE FROM queue_courts WHERE id = ? AND event_id = ?").bind(id, e.id).run();
+}
+
+/** 批量删除 (the Owner and admins only, checked by the route): the ticked courts, playing or queued. */
+export async function removeCourts(env: Env, e: EventRow, body: Record<string, unknown>): Promise<number> {
+  const ids = Array.isArray(body.ids) ? [...new Set(body.ids)] : [];
+  if (ids.length === 0 || ids.length > COURTS_MAX || !ids.every((id) => Number.isInteger(id) && id > 0))
+    throw badRequest("请先勾选要删除的球场");
+  const res = await env.DB.prepare(
+    `DELETE FROM queue_courts WHERE event_id = ? AND id IN (${ids.map(() => "?").join(", ")})`,
+  )
+    .bind(e.id, ...ids)
+    .run();
+  return res.meta.changes ?? 0;
 }
 
 /** For deleteEvent: the event's courts, accounts and photos go with it. */

@@ -4036,6 +4036,61 @@ ul.audit li:first-child {
   margin-left: auto;
   color: var(--muted);
 }
+.cq-pick-start {
+  margin-left: 2px;
+  font-weight: 600;
+}
+/* 选择 (群主 and 管理员): the key's bar turns into the delete bar; ticked courts get a ring. */
+.cq-pickbar {
+  font-size: 14px;
+  color: var(--text);
+}
+.cq-pickbar .text-button {
+  margin-left: 0;
+}
+.cq-pickbar-end {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.cq-pickbar .button {
+  margin: 0;
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 14px;
+}
+.cq-court-head {
+  position: relative;
+}
+/* The tick sits beside the court number, clear of the names. */
+.cq-check {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  background: var(--surface);
+}
+.cq-court.picked .cq-check {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+.cq-court.picked .cq-check::after {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.cq-court.picked .cq-block {
+  box-shadow: inset 0 0 0 3px var(--danger);
+}
 .cq-sheet {
   max-height: 92vh;
   overflow-y: auto;

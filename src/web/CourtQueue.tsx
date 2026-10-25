@@ -48,6 +48,9 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
   const q = props.e.queue!;
   const now = useNow();
   const [sheet, setSheet] = useState<Sheet>(null);
+  // 选择 (the Owner and admins): the ticked courts' ids; null when not choosing.
+  const [picked, setPicked] = useState<Set<number> | null>(null);
+  const { busy, error, run } = useAction();
 
   // The buttons stick just under the top bar, whose height depends on the phone (notch, font size).
   useEffect(() => {
@@ -80,6 +83,24 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
     setSheet(null);
     props.onChange();
   };
+  const choosing = q.manage && picked !== null;
+  const open = (c: QueueCourt) => {
+    if (!choosing) return setSheet({ kind: "court", court: c });
+    const next = new Set(picked);
+    if (!next.delete(c.id)) next.add(c.id);
+    setPicked(next);
+  };
+  // Ticked courts that have ended since drop off the screen, so they aren't counted or deleted.
+  const ticked = choosing ? shown.filter(({ c }) => picked.has(c.id)).map(({ c }) => c.id) : [];
+  const allTicked = ticked.length === shown.length;
+  async function removePicked() {
+    if (!confirm(t("删除选中的 {n} 片场和排队？", { n: ticked.length }))) return;
+    const path = `${props.base}/events/${props.e.id}/queue/courts/remove`;
+    if (await run(() => api(path, { ids: ticked }))) {
+      setPicked(null);
+      props.onChange();
+    }
+  }
 
   return (
     <div class="cq">
@@ -112,7 +133,8 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
                 c={c}
                 tone={p.minutes <= QUEUE_SOON_MIN ? "soon" : "play"}
                 line={t("剩 {n} 分", { n: p.minutes })}
-                onOpen={() => setSheet({ kind: "court", court: c })}
+                picked={choosing ? picked.has(c.id) : undefined}
+                onOpen={() => open(c)}
               />
             ))}
           </div>
@@ -128,13 +150,35 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
                 c={c}
                 tone="queue"
                 line={t("第{k}组 ≈{n}分", { k: c.position, n: p.minutes })}
-                onOpen={() => setSheet({ kind: "court", court: c })}
+                picked={choosing ? picked.has(c.id) : undefined}
+                onOpen={() => open(c)}
               />
             ))}
           </div>
         </>
       )}
-      {shown.length > 0 && (
+      {error && <p class="error">{error}</p>}
+      {shown.length > 0 && choosing && (
+        <div class="cq-legend cq-pickbar">
+          <span>{t("已选 {n} 个", { n: ticked.length })}</span>
+          <button
+            type="button"
+            class="text-button"
+            onClick={() => setPicked(new Set(allTicked ? [] : shown.map(({ c }) => c.id)))}
+          >
+            {allTicked ? t("全不选") : t("全选")}
+          </button>
+          <span class="cq-pickbar-end">
+            <button type="button" class="button secondary" disabled={busy} onClick={() => setPicked(null)}>
+              {t("取消")}
+            </button>
+            <button type="button" class="button danger" disabled={busy || ticked.length === 0} onClick={removePicked}>
+              {t("批量删除")}
+            </button>
+          </span>
+        </div>
+      )}
+      {shown.length > 0 && !choosing && (
         <div class="cq-legend">
           <span>
             <i class="play" />
@@ -149,6 +193,11 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
             {t("排队")}
           </span>
           <span class="cq-tip">{t("点场可修改")}</span>
+          {q.manage && (
+            <button type="button" class="text-button cq-pick-start" onClick={() => setPicked(new Set())}>
+              {t("选择")}
+            </button>
+          )}
         </div>
       )}
       {sheet?.kind === "court" && (
@@ -171,7 +220,15 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
 }
 
 /** One court: a block with a dashed net across it; the group's names split over the two halves. */
-function CourtTile(props: { c: QueueCourt; tone: "play" | "soon" | "queue"; line: string; onOpen: () => void }) {
+function CourtTile(props: {
+  c: QueueCourt;
+  tone: "play" | "soon" | "queue";
+  line: string;
+  /** While choosing courts to delete: whether this one is ticked. */
+  picked?: boolean;
+  onOpen: () => void;
+}) {
+  const choosing = props.picked !== undefined;
   const names = props.c.accounts;
   const half = (xs: string[]) => (
     <div class="cq-half">
@@ -181,10 +238,16 @@ function CourtTile(props: { c: QueueCourt; tone: "play" | "soon" | "queue"; line
     </div>
   );
   return (
-    <button type="button" class={`cq-court ${props.tone}`} onClick={props.onOpen}>
+    <button
+      type="button"
+      class={`cq-court ${props.tone}${props.picked ? " picked" : ""}`}
+      aria-pressed={choosing ? props.picked : undefined}
+      onClick={props.onOpen}
+    >
       <span class="cq-court-head">
         <b>{t("{n}号", { n: props.c.court })}</b>
         <small>{props.line}</small>
+        {choosing && <i class="cq-check" aria-hidden="true" />}
       </span>
       <span class="cq-block">
         {half(names.filter((_, i) => i % 2 === 0))}

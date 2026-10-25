@@ -13,7 +13,7 @@ import type {
 import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
 import { myStats } from "../stats";
-import { eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payeeProfile } from "../organizers";
+import { can, eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payeeProfile } from "../organizers";
 import { ownerName, payeeName } from "../payees";
 import {
   bookedCourts,
@@ -51,7 +51,16 @@ import {
   shortcutSetting,
   startUpload,
 } from "../calories";
-import { addAccount, addAccounts, queueInfo, queueLive, removeAccount, removeCourt, saveCourt } from "../courtQueue";
+import {
+  addAccount,
+  addAccounts,
+  queueInfo,
+  queueLive,
+  removeAccount,
+  removeCourt,
+  removeCourts,
+  saveCourt,
+} from "../courtQueue";
 
 type Vars = { member: MemberRow };
 export const memberRoutes = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -331,7 +340,7 @@ async function myEvents(
       payment,
       roster: names,
       // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
-      queue: (onIt || runs) && queueLive(row) ? await queueInfo(env, row, m.id) : null,
+      queue: (onIt || runs) && queueLive(row) ? await queueInfo(env, row, m.id, managesQueue(env, m)) : null,
       courts: onIt || runs ? bookedCourts(row) : [],
       kcal: mine.kcalOf(e.id),
       kcalOpen: canRead(row, selfOn, readDays),
@@ -413,6 +422,9 @@ memberRoutes.get("/:token/events/:id/guests", async (c) => {
   return c.json({ members: await guestChoices(c.env, e.id, c.get("member").id) });
 });
 
+/** 球场排队 批量删除 is for the Owner and admins (群主、管理员). */
+const managesQueue = (env: Env, m: MemberRow) => can(memberRole(env, m), "group");
+
 /** 球场排队 changes: players on the event (or whoever runs it), while the feature is on for it. */
 async function queueEventFor(c: { env: Env; get: (k: "member") => MemberRow }, id: string) {
   const m = c.get("member");
@@ -454,6 +466,13 @@ memberRoutes.post("/:token/events/:id/queue/courts", async (c) => {
 memberRoutes.post("/:token/events/:id/queue/photo", async (c) => {
   const { e, m } = await queueEventFor(c, c.req.param("id"));
   return c.json(await readCourtPhoto(c.env, e, m.id, await readJson(c.req.raw)));
+});
+
+// 批量删除: the Owner and admins clear several courts at once (Ke Li); others remove them one by one.
+memberRoutes.post("/:token/events/:id/queue/courts/remove", async (c) => {
+  const { e, m } = await queueEventFor(c, c.req.param("id"));
+  if (!managesQueue(c.env, m)) throw badRequest("只有群主和管理员可以批量删除");
+  return c.json({ removed: await removeCourts(c.env, e, await readJson(c.req.raw)) });
 });
 
 memberRoutes.post("/:token/events/:id/queue/courts/:cid/remove", async (c) => {
