@@ -54,6 +54,7 @@ import {
 import {
   addAccount,
   addAccounts,
+  clearAccounts,
   queueInfo,
   queueLive,
   removeAccount,
@@ -422,7 +423,7 @@ memberRoutes.get("/:token/events/:id/guests", async (c) => {
   return c.json({ members: await guestChoices(c.env, e.id, c.get("member").id) });
 });
 
-/** 球场排队 批量删除 is for the Owner and admins (群主、管理员). */
+/** 球场排队 批量删除 and 清空账号 are for the Owner and admins (群主、管理员). */
 const managesQueue = (env: Env, m: MemberRow) => can(memberRole(env, m), "group");
 
 /** 球场排队 changes: players on the event (or whoever runs it), while the feature is on for it. */
@@ -448,6 +449,13 @@ memberRoutes.post("/:token/events/:id/queue/accounts", async (c) => {
 memberRoutes.post("/:token/events/:id/queue/accounts/batch", async (c) => {
   const { e, m } = await queueEventFor(c, c.req.param("id"));
   return c.json(await addAccounts(c.env, e, m.id, await readJson(c.req.raw)));
+});
+
+// 清空: the Owner and admins take off every account on the event at once (Ke Li).
+memberRoutes.post("/:token/events/:id/queue/accounts/clear", async (c) => {
+  const { e, m } = await queueEventFor(c, c.req.param("id"));
+  if (!managesQueue(c.env, m)) throw badRequest("只有群主和管理员可以清空账号");
+  return c.json({ removed: await clearAccounts(c.env, e) });
 });
 
 memberRoutes.post("/:token/events/:id/queue/accounts/:aid/remove", async (c) => {

@@ -311,6 +311,28 @@ test("hall accounts: everyone's are listed, yours can be removed, and more added
     });
 });
 
+test("清空全部账号 is for the Owner and admins, after a confirm", async ({ page }) => {
+  await setUp(page);
+  await page.getByRole("button", { name: "球馆账号（18）" }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "清空全部账号" })).toHaveCount(0);
+
+  const posts = await setUp(page, { ...event, queue: { ...queue, manage: true } });
+  await page.getByRole("button", { name: "球馆账号（18）" }).click();
+  const sheet = page.getByRole("dialog");
+  const clear = sheet.getByRole("button", { name: "清空全部账号" });
+  await clear.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath("court-queue-clear.png") });
+  page.once("dialog", (d) => d.dismiss());
+  await clear.click();
+  expect(posts).toHaveLength(0);
+  page.once("dialog", (d) => {
+    expect(d.message()).toBe("清空这场的全部 18 个球馆账号？已登记的球场不受影响。");
+    return d.accept();
+  });
+  await clear.click();
+  await expect.poll(() => posts.at(-1)).toEqual({ url: "/api/m/tok/events/9/queue/accounts/clear", body: {} });
+});
+
 test("批量添加 reads a pasted list as typed, skips accounts already there, and says what it couldn't read", async ({
   page,
 }) => {

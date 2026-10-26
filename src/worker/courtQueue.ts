@@ -166,6 +166,12 @@ export async function removeAccount(env: Env, e: EventRow, memberId: string, run
   if (!res.meta.changes) throw badRequest("只能删除自己填的账号");
 }
 
+/** 清空 (the Owner and admins only, checked by the route): every account on the event. Courts keep their names. */
+export async function clearAccounts(env: Env, e: EventRow): Promise<number> {
+  const res = await env.DB.prepare("DELETE FROM queue_accounts WHERE event_id = ?").bind(e.id).run();
+  return res.meta.changes ?? 0;
+}
+
 function int(v: unknown, min: number, max: number, message: string): number {
   const n = typeof v === "number" ? v : Number(typeof v === "string" && v.trim() ? v : Number.NaN);
   if (!Number.isInteger(n) || n < min || n > max) throw badRequest(message);

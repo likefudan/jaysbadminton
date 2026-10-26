@@ -254,6 +254,34 @@ describe("球场排队", () => {
     expect((await card(alice.base))!.queue.courts).toHaveLength(0);
   });
 
+  it("清空账号 is for the Owner and admins: every account on this event goes, courts stay", async () => {
+    const { ctx, e, alice, bob, q, card } = await scenario();
+    for (const username of ["Mark", "Lily"]) await anon.call(`${alice.base}${q}/accounts`, { username, password: "1" });
+    await anon.call(`${alice.base}${q}/courts`, { court: 1, position: 0, minutes: 20, accounts: ["Mark"] });
+    const other = await createTestEvent(ctx, { queueRoundMin: 45 });
+    const oq = `${alice.base}/events/${other.id}`;
+    await anon.call(`${oq}/signup`, { friends: [] });
+    await anon.call(`${oq}/queue/accounts`, { username: "Mark", password: "1" });
+
+    // A player who added them, and an organizer, are refused.
+    expect((await anon.call(`${alice.base}${q}/accounts/clear`, {})).status).toBe(400);
+    await anon.call(`${bob.base}/events/${e.id}/signup`, { friends: [] });
+    // With the feature on, as in production.
+    const clearAsBob = () => request(`${bob.base}${q}/accounts/clear`, "", {});
+    await appoint(bob.id, "bob", "organizer");
+    expect((await clearAsBob()).status).toBe(400);
+    expect((await card(alice.base))!.queue.accounts).toHaveLength(2);
+
+    await appoint(bob.id, "bob", "admin");
+    const res = await clearAsBob();
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).removed).toBe(2);
+    const after = (await card(alice.base))!.queue;
+    expect(after.accounts).toHaveLength(0);
+    expect(after.courts).toHaveLength(1);
+    expect((await anon.call(oq)).data.event.queue.accounts).toHaveLength(1);
+  });
+
   it("goes away a few hours after the event ends, and with the event when it is deleted", async () => {
     const { ctx, e, alice, q, card } = await scenario();
     await anon.call(`${alice.base}${q}/accounts`, { username: "Mark", password: "1" });

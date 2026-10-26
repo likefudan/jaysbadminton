@@ -4438,6 +4438,10 @@ ul.audit li:first-child {
   gap: 8px;
   margin-top: 8px;
 }
+.cq-clear {
+  width: 100%;
+  margin-top: 12px;
+}
 .cq-batch {
   margin: 10px 0 4px;
 }
