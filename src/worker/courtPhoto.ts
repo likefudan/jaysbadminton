@@ -19,8 +19,10 @@ import { badRequest, HttpError } from "./http";
  * each account says whether it was sure and the form marks the unsure ones.
  *
  * Fable 5.1 on Ke Li's Azure (Microsoft Foundry) goes first: on her photos of 2026-10-24 it found
- * every one of our accounts in 6 of 6 reads, where Sonnet 5.5 missed some every time; it takes about
- * 10 seconds and 8 cents a photo (Ke Li, 2026-10-26). Sonnet 5.5 on the Anthropic API (2-4 seconds,
+ * every one of our accounts in 6 of 6 reads, where Sonnet 5.5 missed some every time; about 8 cents
+ * a photo (Ke Li, 2026-10-26). Its thinking can't be turned off even at low effort; the "work
+ * quickly" line in the prompt cut a photo with 3 of our accounts from 9 to 2.5 seconds without
+ * losing any, though one with 8 still takes about 10. Sonnet 5.5 on the Anthropic API (2-4 seconds,
  * about a cent) is kept as the fallback when Azure fails or has no key.
  */
 const AZURE_BASE_URL = "https://happy-badminton-jay-main-1.services.ai.azure.com/anthropic";
@@ -110,7 +112,9 @@ const prompt = (
 ) => `This is a phone photo of a badminton hall's court-queue screen. Each court box shows "Court N", a "Minutes Left" number, a "Current Players" row with 1-4 usernames separated by " - ", and up to 3 numbered queue rows under "Queue:", each a group of 1-4 usernames.
 
 Our group's hall accounts are: ${accounts.join(", ")}.
-List only the courts where one of our accounts appears, playing or in a queue row. A name counts only if it is spelled exactly like our account letter by letter; similar-looking names belong to other people. Give the court's minutes_left, queue_position (the queue row number, null when playing) and our accounts on that row, each with uncertain set to true if you cannot read that name clearly. Put courts that are cut off or unreadable into unreadable_courts. Do not invent anything you cannot see.`;
+List only the courts where one of our accounts appears, playing or in a queue row. A name counts only if it is spelled exactly like our account letter by letter; similar-looking names belong to other people. Give the court's minutes_left, queue_position (the queue row number, null when playing) and our accounts on that row, each with uncertain set to true if you cannot read that name clearly. Put courts that are cut off or unreadable into unreadable_courts. Do not invent anything you cannot see.
+
+Work quickly: scan the screen once for our account names and answer directly. Don't re-check courts where none of our accounts appear.`;
 
 interface Raw {
   ours: {
