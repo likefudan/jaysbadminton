@@ -81,6 +81,8 @@ if (process.env.EMAIL_FROM) secrets.EMAIL_FROM = process.env.EMAIL_FROM;
 if (process.env.TURNSTILE_SECRET) secrets.TURNSTILE_SECRET = process.env.TURNSTILE_SECRET;
 // 拍照登记 reads photos with Claude: the button stays hidden until the key is set (src/worker/courtPhoto.ts).
 if (process.env.ANTHROPIC_API_KEY) secrets.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+// Fable 5.1 on Azure goes first; the Anthropic key above is its fallback.
+if (process.env.AZURE_ANTHROPIC_API_KEY) secrets.AZURE_ANTHROPIC_API_KEY = process.env.AZURE_ANTHROPIC_API_KEY;
 
 if (!existing.has("TOKEN_KEY")) {
   if (backup) {
