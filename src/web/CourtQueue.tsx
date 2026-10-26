@@ -734,6 +734,10 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
     if (!confirm(t("删除账号 {name}？", { name }))) return;
     if (await run(() => api(`${path}/${id}/remove`, {}))) props.onChange();
   }
+  async function clear() {
+    if (!confirm(t("清空这场的全部 {n} 个球馆账号？已登记的球场不受影响。", { n: props.q.accounts.length }))) return;
+    if (await run(() => api(`${path}/clear`, {}))) props.onChange();
+  }
   return (
     <SheetFrame
       title={t("球馆账号（{n}）", { n: props.q.accounts.length })}
@@ -779,6 +783,11 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
             );
           })}
         </ul>
+      )}
+      {props.q.manage && props.q.accounts.length > 0 && (
+        <button type="button" class="button danger cq-clear" disabled={busy} onClick={clear}>
+          {t("清空全部账号")}
+        </button>
       )}
     </SheetFrame>
   );

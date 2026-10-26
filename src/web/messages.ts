@@ -798,6 +798,15 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "删除（不排了）": { tw: "刪除（不排了）", en: "Remove (no longer waiting)" },
   "删除账号 {name}？": { tw: "刪除帳號 {name}？", en: "Remove account {name}?" },
   球馆账号: { tw: "球館帳號", en: "Venue accounts" },
+  清空全部账号: { tw: "清空全部帳號", en: "Remove all accounts" },
+  "清空这场的全部 {n} 个球馆账号？已登记的球场不受影响。": {
+    tw: "清空這場的全部 {n} 個球館帳號？已登記的球場不受影響。",
+    en: "Remove all {n} venue accounts from this event? Courts already entered stay.",
+  },
+  只有群主和管理员可以清空账号: {
+    tw: "只有群主和管理員可以清空帳號",
+    en: "Only the group owner and admins can remove all accounts",
+  },
   "报名这场的人都能看到这些账号和密码。": {
     tw: "報名這場的人都能看到這些帳號和密碼。",
     en: "Everyone signed up for this event can see these accounts and passwords.",
