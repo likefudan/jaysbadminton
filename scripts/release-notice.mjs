@@ -4,6 +4,7 @@
 // is announced, so redeploying an older tag to roll back says nothing; each version is announced
 // once, so redeploying the newest one says nothing either.
 // Usage: GITHUB_REF_NAME=v2026.10.21 node scripts/release-notice.mjs
+// For an extra site from sites.json, also SITE_ORIGIN and WRANGLER_CONFIG=wrangler.<id>.json.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,7 +23,19 @@ if (newest !== tag) {
 }
 
 const wrangler = (...args) =>
-  execFileSync("npx", ["wrangler", "d1", "execute", "DB", "--remote", ...args], { encoding: "utf8" });
+  execFileSync(
+    "npx",
+    [
+      "wrangler",
+      "d1",
+      "execute",
+      "DB",
+      "--remote",
+      ...args,
+      ...(process.env.WRANGLER_CONFIG ? ["--config", process.env.WRANGLER_CONFIG] : []),
+    ],
+    { encoding: "utf8" },
+  );
 
 // Since the last release that reached someone, so a release skipped for not being the newest (the
 // next one was tagged before it finished deploying) or never delivered still has its changes told;

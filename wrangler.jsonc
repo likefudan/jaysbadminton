@@ -8,7 +8,7 @@
     "directory": "./dist/web",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/", "/e/*", "/robots.txt", "/api/*", "/export/*"]
+    "run_worker_first": ["/", "/e/*", "/robots.txt", "/manifest.webmanifest", "/api/*", "/export/*"]
   },
   "d1_databases": [
     {
@@ -52,7 +52,7 @@
         "directory": "./dist/web",
         "binding": "ASSETS",
         "not_found_handling": "single-page-application",
-        "run_worker_first": ["/", "/e/*", "/robots.txt", "/api/*", "/export/*"]
+        "run_worker_first": ["/", "/e/*", "/robots.txt", "/manifest.webmanifest", "/api/*", "/export/*"]
       },
       "d1_databases": [
         {

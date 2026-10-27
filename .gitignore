@@ -7,3 +7,4 @@ dist/
 # Browser test output
 test-results/
 playwright-report/
+wrangler.*.json

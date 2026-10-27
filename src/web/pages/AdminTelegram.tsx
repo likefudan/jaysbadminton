@@ -5,6 +5,7 @@ import { type Loaded, useApi } from "../hooks";
 
 export interface TelegramStatus {
   botReady: boolean;
+  botInSettings: boolean;
   botUsername: string;
   connected: boolean;
   chatName: string;
@@ -28,6 +29,7 @@ export function TelegramCard(props: {
   const [waiting, setWaiting] = useState(false);
   const { busy, error, run } = useAction();
   const [sent, setSent] = useState(false);
+  const [changingBot, setChangingBot] = useState(false);
 
   // After opening Telegram, check every few seconds until Start has been tapped (up to the 10 minutes the link is valid).
   useEffect(() => {
@@ -65,8 +67,23 @@ export function TelegramCard(props: {
     <Card title={props.organizer ? "我的 Telegram" : "Telegram 通知"}>
       <Load result={status}>
         {(s) =>
-          !s.botReady ? (
-            <p class="muted">还没有配置机器人。请网站维护者在 GitHub secret 里加上 TELEGRAM_BOT_TOKEN 并重新部署。</p>
+          !s.botReady || changingBot ? (
+            s.botInSettings && !props.organizer ? (
+              <BotTokenForm
+                base={props.base}
+                replacing={s.botReady}
+                onSaved={() => {
+                  setChangingBot(false);
+                  reload();
+                }}
+              />
+            ) : (
+              <p class="muted">
+                {s.botInSettings
+                  ? "还没有配置机器人，请群主在设置里填上机器人的 token。"
+                  : "还没有配置机器人。请网站维护者在 GitHub secret 里加上 TELEGRAM_BOT_TOKEN 并重新部署。"}
+              </p>
+            )
           ) : (
             <>
               {s.connected ? (
@@ -105,11 +122,39 @@ export function TelegramCard(props: {
                   </button>
                 </>
               )}
+              {s.botInSettings && !props.organizer && (
+                <button type="button" class="link-button" disabled={busy} onClick={() => setChangingBot(true)}>
+                  更换机器人
+                </button>
+              )}
             </>
           )
         }
       </Load>
     </Card>
+  );
+}
+
+/** The Owner pastes the token BotFather gave them; the server checks it with Telegram before keeping it. */
+function BotTokenForm(props: { base: string; replacing: boolean; onSaved: () => void }) {
+  const [token, setToken] = useState("");
+  const { busy, error, run } = useAction();
+  async function save() {
+    if (props.replacing && !confirm("换成新机器人后，群主和组织者都要重新连接 Telegram。继续吗？")) return;
+    if (await run(() => api(`${props.base}/settings/telegram-bot`, { token }))) props.onSaved();
+  }
+  return (
+    <>
+      <p class="muted">
+        在 Telegram 里找 @BotFather，发送 /newbot 建一个机器人，把它给的 token
+        粘贴到这里。之后群主和组织者各自连接这个机器人接收通知。
+      </p>
+      <Field label="机器人 token" value={token} onInput={setToken} verbatim autocomplete="off" />
+      {error && <p class="error">{error}</p>}
+      <button type="button" class="button block" disabled={busy || !token.trim()} onClick={save}>
+        保存机器人
+      </button>
+    </>
   );
 }
 

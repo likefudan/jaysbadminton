@@ -1,8 +1,11 @@
 import { Card, Page } from "../components";
 import { currentLang, t } from "../i18n";
+import { useSiteTitle } from "../site";
 import { type LegalDoc, PRIVACY, TERMS } from "./legalText";
 
 function LegalPage(props: { title: string; doc: LegalDoc }) {
+  const site = useSiteTitle();
+  const fill = (s: string) => s.split("{site}").join(site).split("{host}").join(location.host);
   return (
     <Page title={props.title} subtitle={props.doc.updated}>
       <Card>
@@ -11,11 +14,11 @@ function LegalPage(props: { title: string; doc: LegalDoc }) {
             <h2>{s.h}</h2>
             {s.body.map((b, i) =>
               typeof b === "string" ? (
-                <p key={i}>{b}</p>
+                <p key={i}>{fill(b)}</p>
               ) : (
                 <ul key={i} class="legal-list">
                   {b.map((item, j) => (
-                    <li key={j}>{item}</li>
+                    <li key={j}>{fill(item)}</li>
                   ))}
                 </ul>
               ),
