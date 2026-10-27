@@ -3131,6 +3131,7 @@ button.calendar-link {
 
 .legal-links {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 0.6rem;
   padding: 1.5rem 1rem 2rem;
@@ -3140,6 +3141,12 @@ button.calendar-link {
 
 .legal-links a {
   color: inherit;
+}
+
+.legal-links .sponsor {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: center;
 }
 
 .legal-list {

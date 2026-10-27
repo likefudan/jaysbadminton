@@ -76,3 +76,24 @@ describe("a site's own Telegram bot, saved in 设置", () => {
     expect((await telegramStatus(env, null)).botInSettings).toBe(false);
   });
 });
+
+describe("the AI sponsor in the footer", () => {
+  const site = async (vars: Record<string, string | undefined>) => {
+    const ctx = createExecutionContext();
+    const res = await worker.fetch(new Request(`${ORIGIN}/api/public/site`), { ...env, ...vars }, ctx);
+    await waitOnExecutionContext(ctx);
+    return (await res.json<{ sponsor: unknown }>()).sponsor;
+  };
+
+  it("names the sponsor and its link when the site has one", async () => {
+    expect(await site({ SPONSOR_NAME: "Z3 Enterprise", SPONSOR_URL: "https://www.z3enterprise.com/" })).toEqual({
+      name: "Z3 Enterprise",
+      url: "https://www.z3enterprise.com/",
+    });
+    expect(await site({ SPONSOR_NAME: "Acme", SPONSOR_URL: undefined })).toEqual({ name: "Acme", url: null });
+  });
+
+  it("says nothing when the site has none", async () => {
+    expect(await site({ SPONSOR_NAME: undefined, SPONSOR_URL: "https://x.example/" })).toBeNull();
+  });
+});

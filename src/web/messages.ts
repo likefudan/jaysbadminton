@@ -18,6 +18,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "{a} 或 {b}": { tw: "{a} 或 {b}", en: "{a} or {b}" },
   "{name}还没设置 Venmo 账号。": { tw: "{name}還沒設定 Venmo 帳號。", en: "{name} hasn't set up a Venmo account yet." },
+  "AI 服务由 {name} 赞助": { tw: "AI 服務由 {name} 贊助", en: "AI services sponsored by {name}" },
   "{n} 人参加": { tw: "{n} 人參加", en: "{n} played" },
   "今天 {time}": { tw: "今天 {time}", en: "today {time}" },
   "明天 {time}": { tw: "明天 {time}", en: "tomorrow {time}" },

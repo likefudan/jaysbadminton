@@ -118,6 +118,22 @@ test("signed out, the card has no button and the page has one 登录 / 注册", 
   await expect(page.locator(".topbar").getByRole("link", { name: "登录 / 注册" })).toHaveAttribute("href", "/me");
 });
 
+/** The AI sponsor thanked under 隐私政策 · 使用条款 on every page, linked to their site (Ke Li, option A). */
+test("the footer thanks the AI sponsor", async ({ page }) => {
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false } }));
+  await page.route("**/api/public/home", (route) =>
+    route.fulfill({ json: { currentEvents: [event({})], pastEvents: [], leaderboard: null } }),
+  );
+  await page.goto("/");
+  const line = page.locator(".legal-links .sponsor");
+  await expect(line).toHaveText("♥ AI 服务由 Z3 Enterprise 赞助");
+  await expect(line.getByRole("link", { name: "Z3 Enterprise" })).toHaveAttribute(
+    "href",
+    "https://www.z3enterprise.com/",
+  );
+  await page.locator(".legal-links").screenshot({ path: test.info().outputPath("sponsor-footer.png") });
+});
+
 /** 并列: people with the same count share a rank and its colour; the next rank skips. */
 test("ties on the leaderboard share a rank", async ({ page }) => {
   const attendance = [
