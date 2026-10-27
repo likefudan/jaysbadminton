@@ -1,7 +1,7 @@
 import { getSettings, now, setSetting } from "./db";
 import type { Env } from "./env";
 import { HttpError } from "./http";
-import { hmac, randomToken, sha256 } from "./lib/crypto";
+import { decryptToken, encryptToken, hmac, randomToken, sha256 } from "./lib/crypto";
 import { currentAdminToken } from "./auth";
 import { ROLE_TITLE, currentStaffSql, eventManager, isStaff, memberRole, organizersEnabled } from "./organizers";
 import { BOT_LANGS, type BotLang, type BotText, bt, chatLang, initChatLang, setChatLang } from "./botLang";
@@ -24,10 +24,21 @@ interface TgResult<T> {
   description?: string;
 }
 
-async function call<T>(env: Env, method: string, body: unknown): Promise<TgResult<T>> {
-  if (!env.TELEGRAM_BOT_TOKEN) return { ok: false, description: "bot token not configured" };
+/**
+ * The bot's token: the GitHub secret where this site has one (production and the test site), else
+ * the one the Owner saved in 设置 (every other site deployed from sites.json). Null while neither is set.
+ */
+export async function botToken(env: Env): Promise<string | null> {
+  if (env.TELEGRAM_BOT_TOKEN) return env.TELEGRAM_BOT_TOKEN;
+  const { telegram_bot_token_enc: enc } = await getSettings(env.DB, ["telegram_bot_token_enc"]);
+  return enc ? decryptToken(enc, env.TOKEN_KEY).catch(() => null) : null;
+}
+
+async function call<T>(env: Env, method: string, body: unknown, token?: string): Promise<TgResult<T>> {
+  token ??= (await botToken(env)) ?? undefined;
+  if (!token) return { ok: false, description: "bot token not configured" };
   try {
-    const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -289,7 +300,7 @@ async function setWebhook(env: Env): Promise<TgResult<unknown>> {
  * TOKEN_KEY, so a replaced key would silence the bot. Moves it to a stored secret once.
  */
 export async function upgradeWebhookSecret(env: Env): Promise<void> {
-  if (!env.TELEGRAM_BOT_TOKEN) return;
+  if (!(await botToken(env))) return;
   const s = await getSettings(env.DB, ["telegram_chat_id", "telegram_webhook_secret"]);
   if (!s.telegram_chat_id || s.telegram_webhook_secret) return;
   const hook = await setWebhook(env);
@@ -298,6 +309,8 @@ export async function upgradeWebhookSecret(env: Env): Promise<void> {
 
 export interface TelegramStatus {
   botReady: boolean;
+  /** The bot comes from 设置 rather than a GitHub secret, so the Owner may set or replace it there. */
+  botInSettings: boolean;
   botUsername: string;
   connected: boolean;
   chatName: string;
@@ -320,7 +333,8 @@ export async function telegramStatus(env: Env, who: ChatOwner): Promise<Telegram
           .bind(who)
           .first<{ chat_id: string | null; chat_name: string | null }>();
   return {
-    botReady: !!env.TELEGRAM_BOT_TOKEN,
+    botReady: !!(await botToken(env)),
+    botInSettings: !env.TELEGRAM_BOT_TOKEN,
     botUsername: s.telegram_bot_username ?? "",
     connected: !!chat?.chat_id,
     chatName: chat?.chat_name ?? "",
@@ -334,8 +348,8 @@ export async function telegramStatus(env: Env, who: ChatOwner): Promise<Telegram
  * connecting at once don't replace each other's.
  */
 export async function startBinding(env: Env, who: ChatOwner): Promise<string> {
-  if (!env.TELEGRAM_BOT_TOKEN)
-    throw new HttpError(400, "no_bot", "还没有配置 Telegram 机器人（GitHub secret TELEGRAM_BOT_TOKEN）");
+  if (!(await botToken(env)))
+    throw new HttpError(400, "no_bot", "还没有配置 Telegram 机器人：请群主在设置里填上机器人的 token");
   const me = await call<{ username: string }>(env, "getMe", {});
   if (!me.ok || !me.result) throw new HttpError(502, "telegram", `连接 Telegram 失败：${me.description ?? "未知错误"}`);
   const hook = await setWebhook(env);
@@ -358,6 +372,36 @@ export async function startBinding(env: Env, who: ChatOwner): Promise<string> {
   return `https://t.me/${me.result.username}?start=${code}`;
 }
 
+/**
+ * 设置 → Telegram 机器人, on a site without the GitHub secret: checks the token with Telegram and
+ * keeps it encrypted. A different bot can't write to chats that never started it, so switching bots
+ * disconnects everyone, who then connect again to the new one.
+ */
+export async function saveBotToken(env: Env, token: string): Promise<string> {
+  if (env.TELEGRAM_BOT_TOKEN)
+    throw new HttpError(400, "bot_from_secret", "这个网站的机器人由 GitHub secret 设置，不能在这里改");
+  if (!/^\d+:[\w-]{30,}$/.test(token))
+    throw new HttpError(400, "bad_token", "token 格式不对：应该是 BotFather 给的「数字:字母」那一串");
+  const me = await call<{ username: string }>(env, "getMe", {}, token);
+  if (!me.ok || !me.result)
+    throw new HttpError(400, "bad_token", `Telegram 不认这个 token：${me.description ?? "未知错误"}`);
+  const s = await getSettings(env.DB, ["telegram_bot_username"]);
+  const switched = s.telegram_bot_username !== me.result.username;
+  await env.DB.batch([
+    setSetting(env.DB, "telegram_bot_token_enc", await encryptToken(token, env.TOKEN_KEY)),
+    setSetting(env.DB, "telegram_bot_username", me.result.username),
+    ...(switched
+      ? [
+          env.DB.prepare(
+            "DELETE FROM settings WHERE key IN ('telegram_chat_id', 'telegram_chat_name', 'telegram_commands')",
+          ),
+          env.DB.prepare("UPDATE telegram_bindings SET chat_id = NULL, chat_name = NULL"),
+        ]
+      : []),
+  ]);
+  return me.result.username;
+}
+
 /** The bot's menu (/admin, /language), in English for Telegram set to English; best effort. */
 async function setCommands(env: Env): Promise<boolean> {
   const menu = (l: BotLang) => [
@@ -373,7 +417,7 @@ async function setCommands(env: Env): Promise<boolean> {
 
 /** From the cron: a bot set up before /language was in its menu gets it, once. */
 export async function upgradeCommands(env: Env): Promise<void> {
-  if (!env.TELEGRAM_BOT_TOKEN) return;
+  if (!(await botToken(env))) return;
   const s = await getSettings(env.DB, ["telegram_chat_id", "telegram_commands"]);
   if (s.telegram_commands === COMMANDS_VERSION) return;
   // Only a bot someone has connected: the Owner, or an organizer or admin.

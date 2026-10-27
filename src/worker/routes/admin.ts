@@ -35,7 +35,7 @@ import {
 import { memberProfile, setAdminNote } from "../profile";
 import { googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
 import { isStaging } from "../site";
-import { escapeHtml, sendToOwner } from "../telegram";
+import { escapeHtml, saveBotToken, sendToOwner } from "../telegram";
 import { bt } from "../botLang";
 
 export const adminRoutes = new Hono<AdminEnv>();
@@ -341,6 +341,9 @@ adminRoutes.post("/:token/settings/password", async (c) => {
 adminRoutes.post("/:token/settings/backup-key", async (c) => {
   const body = await readJson(c.req.raw);
   if (!(await checkPassword(c.env, str(body.password)))) throw new HttpError(401, "wrong_password", "密码不正确");
+  // Its key is derived from the GitHub secret SITES_KEY (scripts/sync-secrets.mjs), backed up there already.
+  if (c.env.SITE_ID)
+    throw badRequest("这个网站的密钥由网站维护者的 GitHub secret SITES_KEY 生成，已经有备份，不需要再备份");
   const site = isStaging(c.env) ? "测试站" : "正式网站";
   const secret = isStaging(c.env) ? "LINK_ENCRYPTION_KEY_STAGING" : "LINK_ENCRYPTION_KEY";
   const sent = await sendToOwner(
@@ -356,6 +359,11 @@ adminRoutes.post("/:token/settings/backup-key", async (c) => {
   if (!sent) throw badRequest("发送失败：请先在设置里连接 Telegram");
   return c.json({ ok: true });
 });
+
+/** 设置 → Telegram 机器人: a site without the GitHub secret keeps its own bot's token. */
+adminRoutes.post("/:token/settings/telegram-bot", async (c) =>
+  c.json({ ok: true, botUsername: await saveBotToken(c.env, str((await readJson(c.req.raw)).token).trim()) }),
+);
 
 /** 恢复: back to a normal member. Members disabled before links were kept get a fresh link. */
 adminRoutes.post("/:token/members/:id/reactivate", async (c) => {

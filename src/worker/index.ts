@@ -18,7 +18,7 @@ import { remindExpiredPayees } from "./appointments";
 import { emailProblemAlert, pruneEmailLog, recordCronError } from "./health";
 import { runScheduled } from "./notify";
 import { eventMeta, homeMeta, sharePage } from "./share";
-import { isStaging } from "./site";
+import { isStaging, siteTitle } from "./site";
 import { SECURITY_HEADERS } from "../shared/security";
 import { checkExportKey } from "./sheets";
 import { handleUpdate, upgradeCommands, upgradeWebhookSecret, webhookSecret } from "./telegram";
@@ -109,6 +109,15 @@ app.get("/robots.txt", (c) =>
       : "User-agent: *\nDisallow: /m/\nDisallow: /admin\nDisallow: /api/\n",
   ),
 );
+
+// The home-screen app is named after this site, as every site deployed from this code has its own name.
+app.get("/manifest.webmanifest", async (c) => {
+  const res = await c.env.ASSETS.fetch(new Request(new URL("/manifest.webmanifest", c.req.url)));
+  if (!res.ok) return res;
+  const manifest = await res.json<Record<string, unknown>>();
+  manifest.name = await siteTitle(c.env);
+  return c.body(JSON.stringify(manifest), 200, { "Content-Type": "application/manifest+json" });
+});
 
 // Link previews for WeChat and friends: the app shell with this page's title and summary.
 app.get("/", async (c) => sharePage(c.env, c.req.raw, await homeMeta(c.env)));

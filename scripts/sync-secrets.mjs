@@ -6,20 +6,27 @@
 //   lives in the GitHub secret LINK_ENCRYPTION_KEY (LINK_ENCRYPTION_KEY_STAGING for the test site),
 //   passed in here as LINK_ENCRYPTION_KEY. Every deploy checks the backup still opens the stored
 //   admin link; if the Worker ever loses its key, the backup is put back instead of a new one.
-// Usage: node scripts/sync-secrets.mjs [production|staging] — each Worker has its own secrets.
+// - An extra site from sites.json has no secrets of its own: ADMIN_PASSWORD is the shared
+//   SITES_ADMIN_PASSWORD (only for first-time setup; the Owner then picks their own), and its
+//   TOKEN_KEY is derived from the shared SITES_KEY and the site id, so SITES_KEY backs up every site.
+// Usage: node scripts/sync-secrets.mjs [production|staging|site <id>] — each Worker has its own secrets.
 import { execFileSync } from "node:child_process";
-import { createHash, randomBytes, webcrypto } from "node:crypto";
+import { createHash, createHmac, randomBytes, webcrypto } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const target = process.argv[2] ?? "production";
-if (!["production", "staging"].includes(target)) throw new Error(`unknown environment ${target}`);
-const envArgs = target === "staging" ? ["--env", "staging"] : [];
+const siteId = target === "site" ? process.argv[3] : null;
+if (!["production", "staging", "site"].includes(target) || (target === "site" && !siteId))
+  throw new Error(`unknown environment ${process.argv.slice(2).join(" ")}`);
+const envArgs = siteId ? ["--config", `wrangler.${siteId}.json`] : target === "staging" ? ["--env", "staging"] : [];
 const wrangler = (...args) => execFileSync("npx", ["wrangler", ...args, ...envArgs], { encoding: "utf8" });
 
-const backupName = target === "staging" ? "LINK_ENCRYPTION_KEY_STAGING" : "LINK_ENCRYPTION_KEY";
-const backup = process.env.LINK_ENCRYPTION_KEY;
+const backupName = siteId ? "SITES_KEY" : target === "staging" ? "LINK_ENCRYPTION_KEY_STAGING" : "LINK_ENCRYPTION_KEY";
+const backup = siteId
+  ? process.env.SITES_KEY && createHmac("sha256", process.env.SITES_KEY).update(`site:${siteId}`).digest("base64url")
+  : process.env.LINK_ENCRYPTION_KEY;
 
 /**
  * True when `key` is the one this site's data is encrypted with: it decrypts the stored admin link

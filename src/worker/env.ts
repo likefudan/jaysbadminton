@@ -12,7 +12,8 @@ export interface Env {
   TOKEN_KEY: string;
   /** Initial / recovery admin password, pushed from the GitHub secret on every deploy. */
   ADMIN_PASSWORD: string;
-  /** From BotFather, pushed from the GitHub secret; notifications are skipped while it is missing. */
+  /** From BotFather, pushed from the GitHub secret (production and the test site). Sites from sites.json
+   *  have none: their Owner saves the bot in 设置 (telegram.ts botToken). Notifications wait for either. */
   TELEGRAM_BOT_TOKEN?: string;
   /** Google Places (New) key for address suggestions; Photon is used while it is missing. */
   GOOGLE_MAPS_API_KEY?: string;
@@ -29,6 +30,10 @@ export interface Env {
   AZURE_FOUNDRY_API_KEY?: string;
   /** Public site address, for links in messages sent by the cron job (which has no request). */
   SITE_ORIGIN: string;
+  /** An extra site's id in sites.json (each group's own site); missing on Jay's production and the test site. */
+  SITE_ID?: string;
+  /** The site's name until the Owner sets one in 设置; Jay's 羽毛球 when missing. */
+  SITE_NAME?: string;
   /** "production" or "staging" (the test site); missing in tests, which count as production. */
   ENVIRONMENT?: string;
   /** "1" turns on the 组织者 features (staging and local dev); "0" or missing keeps them off. */

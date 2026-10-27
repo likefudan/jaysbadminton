@@ -187,6 +187,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   // owner: the Owner's own sign-in, secrets and money, wiping the database, deletes that can't be undone
   "POST /settings/password": cap("owner"),
   "POST /settings/backup-key": cap("owner"),
+  "POST /settings/telegram-bot": cap("owner"),
   "POST /settings/rotate-admin": cap("owner"),
   "GET /settings/google": cap("owner"),
   "POST /settings/google/bind": cap("owner"),

@@ -3,7 +3,8 @@ import type { Lang } from "../lang";
 /**
  * The privacy policy and terms, written out in each language rather than looked up sentence by
  * sentence in messages.ts: legal text reads better kept whole. A string is a paragraph, an array
- * is a bulleted list. Change all three languages together, and the date with them.
+ * is a bulleted list. Change all three languages together, and the date with them. {site} and {host}
+ * stand for this site's name and address, so every site deployed from this code names itself.
  */
 export interface LegalDoc {
   updated: string;
@@ -19,7 +20,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       {
         h: "这个网站是谁的",
         body: [
-          "Jay's Badminton（jaysbadminton.llmat.dev）是一个休闲羽毛球群自己用的报名和记账网站，由群主个人运营，不是公司，也不营利。本政策说明网站收集哪些信息、拿来做什么、谁能看到、保存多久。",
+          "{site}（{host}）是一个休闲羽毛球群自己用的报名和记账网站，由群主个人运营，不是公司，也不营利。本政策说明网站收集哪些信息、拿来做什么、谁能看到、保存多久。",
           "本网站不向华盛顿州提供服务。如果你住在华盛顿州，请不要注册或使用本网站。",
         ],
       },
@@ -99,7 +100,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       {
         h: "這個網站是誰的",
         body: [
-          "Jay's Badminton（jaysbadminton.llmat.dev）是一個休閒羽毛球群自己用的報名和記帳網站，由群主個人經營，不是公司，也不營利。本政策說明網站收集哪些資訊、拿來做什麼、誰能看到、保存多久。",
+          "{site}（{host}）是一個休閒羽毛球群自己用的報名和記帳網站，由群主個人經營，不是公司，也不營利。本政策說明網站收集哪些資訊、拿來做什麼、誰能看到、保存多久。",
           "本網站不向華盛頓州提供服務。如果你住在華盛頓州，請不要註冊或使用本網站。",
         ],
       },
@@ -179,7 +180,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
       {
         h: "Who runs this site",
         body: [
-          "Jay's Badminton (jaysbadminton.llmat.dev) is the sign-up and bookkeeping site of a casual badminton group. It is run by the group owner as an individual, not by a company, and makes no money. This policy explains what the site collects, what it is used for, who can see it, and how long it is kept.",
+          "{site} ({host}) is the sign-up and bookkeeping site of a casual badminton group. It is run by the group owner as an individual, not by a company, and makes no money. This policy explains what the site collects, what it is used for, who can see it, and how long it is kept.",
           "This site does not offer its service in Washington State. If you live in Washington State, please do not sign up for or use this site.",
         ],
       },
@@ -264,7 +265,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
       {
         h: "服务是什么",
         body: [
-          "Jay's Badminton 是羽毛球群成员报名活动、查看名单、出勤和费用的工具，由群主个人免费提供。使用本网站即表示你同意这些条款。",
+          "{site} 是羽毛球群成员报名活动、查看名单、出勤和费用的工具，由群主个人免费提供。使用本网站即表示你同意这些条款。",
           "本网站不向华盛顿州提供服务。如果你住在华盛顿州，请不要注册或使用本网站。",
         ],
       },
@@ -324,7 +325,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
       {
         h: "服務是什麼",
         body: [
-          "Jay's Badminton 是羽毛球群成員報名活動、查看名單、出席和費用的工具，由群主個人免費提供。使用本網站即表示你同意這些條款。",
+          "{site} 是羽毛球群成員報名活動、查看名單、出席和費用的工具，由群主個人免費提供。使用本網站即表示你同意這些條款。",
           "本網站不向華盛頓州提供服務。如果你住在華盛頓州，請不要註冊或使用本網站。",
         ],
       },
@@ -384,7 +385,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
       {
         h: "What the service is",
         body: [
-          "Jay's Badminton is where members of a badminton group sign up for events and see rosters, attendance and costs. The group owner provides it for free as an individual. By using the site you agree to these terms.",
+          "{site} is where members of a badminton group sign up for events and see rosters, attendance and costs. The group owner provides it for free as an individual. By using the site you agree to these terms.",
           "This site does not offer its service in Washington State. If you live in Washington State, please do not sign up for or use this site.",
         ],
       },

@@ -7,7 +7,7 @@ export const SITE_TITLE_MAX = 30;
 
 export async function siteTitle(env: Env): Promise<string> {
   const s = await getSettings(env.DB, ["site_title"]);
-  return s.site_title || DEFAULT_SITE_TITLE;
+  return s.site_title || env.SITE_NAME || DEFAULT_SITE_TITLE;
 }
 
 export async function siteTheme(env: Env): Promise<ThemeId> {
