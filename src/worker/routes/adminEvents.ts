@@ -106,6 +106,8 @@ import {
 } from "../push";
 import { actorId, audit, auditRows, billOwner, friendName, groupAudit, money, record, rosterLabel } from "../audit";
 import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
+import { MODEL_RE, aiChoices, aiSettingKey, azureDeployments } from "../ai";
+import { AI_EFFORTS, AI_USES, AI_USE_NAME, type AiEffort } from "../../shared/ai";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -746,7 +748,19 @@ adminEventRoutes.get("/settings", async (c) => {
     theme: await siteTheme(c.env),
     showLeaderboard: (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard !== "0",
     ...(await notifySettings(c.env)),
+    ai: await aiChoices(c.env),
   });
+});
+
+/** AI 模型's menu: what is deployed on Azure right now (asked each time the card opens). */
+adminEventRoutes.get("/settings/ai-models", async (c) => {
+  if (!c.env.AZURE_FOUNDRY_API_KEY) return c.json({ models: [], ready: false });
+  try {
+    return c.json({ models: await azureDeployments(c.env), ready: true });
+  } catch (err) {
+    console.error("ai models:", err instanceof Error ? err.message : err);
+    throw new HttpError(502, "ai_models_failed", "没有查到 Azure 上的模型，请稍后再试");
+  }
 });
 
 /** 补建 and 读取卡路里 in days: up to ten years, so a stray extra digit is still caught. */
@@ -787,6 +801,18 @@ adminEventRoutes.post("/settings", async (c) => {
     writes.push(setSetting(c.env.DB, "calorie_shortcut_url", url));
     writes.push(setSetting(c.env.DB, "calorie_shortcut_version", String(v)));
     said.push(`卡路里快捷指令 v${v}`);
+  }
+  // AI 模型: any name Azure could have deployed; the menu only offers what is there.
+  for (const use of AI_USES) {
+    const o = (b.ai as Record<string, unknown> | undefined)?.[use] as { model?: unknown; effort?: unknown } | undefined;
+    if (!o) continue;
+    const model = str(o.model).trim();
+    const effort = str(o.effort) as AiEffort;
+    if (!MODEL_RE.test(model)) throw badRequest("请选择模型");
+    if (!AI_EFFORTS.includes(effort)) throw badRequest("请选择思考强度");
+    writes.push(setSetting(c.env.DB, aiSettingKey(use, "model"), model));
+    writes.push(setSetting(c.env.DB, aiSettingKey(use, "effort"), effort));
+    said.push(`${AI_USE_NAME[use]}用 ${model}（${effort}）`);
   }
   if (b.siteTitle !== undefined) {
     const t = str(b.siteTitle).trim();

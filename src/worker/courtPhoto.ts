@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import {
   QUEUE_COURT_MAX,
   QUEUE_GROUP_MAX,
@@ -7,64 +6,23 @@ import {
   type PhotoCourt,
   type PhotoResult,
 } from "../shared/courtQueue";
+import { aiEnabled, askAi } from "./ai";
 import { now } from "./db";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
 import { badRequest, HttpError } from "./http";
 
 /**
- * 拍照登记: a photo of the hall's queue screen is read by Claude, which picks out the courts where
- * our shared accounts are playing or queued. The result fills the 登记球场 form for the player to
- * check; nothing is saved as a court until they do. It can mistake a look-alike name for ours, so
+ * 拍照登记: a photo of the hall's queue screen is read by a vision model, which picks out the courts
+ * where our shared accounts are playing or queued. The result fills the 登记球场 form for the player
+ * to check; nothing is saved as a court until they do. It can mistake a look-alike name for ours, so
  * each account says whether it was sure and the form marks the unsure ones.
  *
- * Fable 5.1 on Ke Li's Azure (Microsoft Foundry) goes first: on her photos of 2026-10-24 it found
- * every one of our accounts in 6 of 6 reads, where Sonnet 5.5 missed some every time; about 8 cents
- * a photo (Ke Li, 2026-10-26). Its thinking can't be turned off even at low effort; the "work
- * quickly" line in the prompt cut a photo with 3 of our accounts from 9 to 2.5 seconds without
- * losing any, though one with 8 still takes about 10. Sonnet 5.5 on the Anthropic API (2-4 seconds,
- * about a cent) is kept as the fallback when Azure fails or has no key.
+ * The model is picked in 设置 → AI 模型 (ai.ts). Tested on Ke Li's photos with 30 accounts
+ * (2026-10-27): Fable 5.1 at low, Opus 5.5 at medium and GPT 6.1 Sol at low found every account;
+ * Sonnet 5.5 missed the same names every time and Grok 4.6 took others' names for ours. The "work
+ * quickly" line cut a photo with few of our accounts from 9 to 2.5 seconds on Fable.
  */
-const AZURE_BASE_URL = "https://happy-badminton-jay-main-1.services.ai.azure.com/anthropic";
-
-interface Reader {
-  name: string;
-  client: Anthropic;
-  model: string;
-}
-
-/** The readers to try in order, each only when its key is set. */
-const readers = (env: Env): Reader[] => [
-  ...(env.AZURE_ANTHROPIC_API_KEY
-    ? [
-        {
-          name: "azure",
-          // Same Messages API as Anthropic's; Foundry takes the key in x-api-key too. No retry here:
-          // the fallback is the retry.
-          client: new Anthropic({
-            apiKey: env.AZURE_ANTHROPIC_API_KEY,
-            baseURL: AZURE_BASE_URL,
-            timeout: 45_000,
-            maxRetries: 0,
-          }),
-          model: "claude-fable-5-1",
-        },
-      ]
-    : []),
-  ...(env.ANTHROPIC_API_KEY
-    ? [
-        {
-          name: "anthropic",
-          client: new Anthropic({
-            apiKey: env.ANTHROPIC_API_KEY,
-            timeout: 60_000,
-            maxRetries: 1,
-          }),
-          model: "claude-sonnet-5-5",
-        },
-      ]
-    : []),
-];
 
 /** Kept this long so a wrong reading can be looked at, then removed by the cron job (Ke Li). */
 const KEEP_MS = 7 * 24 * 3600_000;
@@ -73,7 +31,7 @@ const MAX_BYTES = 2_000_000;
 /** Per player per event per hour: a bad loop or a stuck button can't run up the bill. */
 const PER_HOUR = 20;
 
-export const photoEnabled = (env: Env) => !!(env.AZURE_ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY);
+export const photoEnabled = aiEnabled;
 
 const SCHEMA = {
   type: "object",
@@ -186,44 +144,6 @@ function jpeg(v: unknown): Uint8Array {
 
 const failed = () => new HttpError(502, "photo_failed", "照片没有识别出来，请重拍一张或手动填写");
 
-/** One reader's answer, or undefined when it failed (logged). */
-async function read(reader: Reader, image: string, accounts: string[]): Promise<unknown> {
-  try {
-    const response = await reader.client.messages.create({
-      model: reader.model,
-      max_tokens: 16000,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: "image/jpeg", data: image },
-            },
-            { type: "text", text: prompt(accounts) },
-          ],
-        },
-      ],
-      output_config: {
-        effort: "low",
-        format: { type: "json_schema", schema: SCHEMA },
-      },
-    });
-    if (response.stop_reason !== "end_turn") {
-      console.error(`court photo (${reader.name}): stopped with ${response.stop_reason}`);
-      return undefined;
-    }
-    const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-    return JSON.parse(text);
-  } catch (err) {
-    console.error(
-      `court photo (${reader.name}):`,
-      err instanceof Anthropic.APIError ? `${err.status} ${err.message}` : err,
-    );
-    return undefined;
-  }
-}
-
 /** 拍照登记: read the photo and return the courts with our accounts, for the form to fill in. */
 export async function readCourtPhoto(env: Env, e: EventRow, memberId: string, body: Record<string, unknown>) {
   if (!photoEnabled(env)) throw badRequest("拍照登记还没有开通，请手动填写");
@@ -246,11 +166,12 @@ export async function readCourtPhoto(env: Env, e: EventRow, memberId: string, bo
     .bind(e.id, memberId, image, ts)
     .first<{ id: number }>();
 
-  let raw: unknown;
-  for (const reader of readers(env)) {
-    raw = await read(reader, body.image as string, accounts);
-    if (raw !== undefined) break;
-  }
+  const raw = await askAi(env, "photo", {
+    text: prompt(accounts),
+    image: body.image as string,
+    schema: SCHEMA,
+    maxTokens: 16000,
+  });
   if (raw === undefined) throw failed();
   const result = toPhotoResult(raw, accounts);
   await env.DB.prepare("UPDATE queue_photos SET result = ? WHERE id = ?").bind(JSON.stringify(result), saved!.id).run();

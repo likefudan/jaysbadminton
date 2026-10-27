@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { aiEnabled, askAi } from "./ai";
 import { type BotLang, bt } from "./botLang";
 import { now } from "./db";
 import type { Env } from "./env";
@@ -9,10 +9,9 @@ import { escapeHtml, sendToOwnerAndAdmins } from "./telegram";
  * admin are told in Telegram, each in their bot language, that a new version is live and what it
  * changed. CI (scripts/release-notice.mjs) records the version and the merged PR titles since the
  * previous release in release_notices, then calls POST /api/release-notice; the cron also looks, in
- * case that call didn't get through. Claude rewrites the titles as plain lines in 简/繁/EN; without
- * it the titles go out as they are.
+ * case that call didn't get through. The model picked for 发版说明 in 设置 (ai.ts) rewrites the
+ * titles as plain lines in 简/繁/EN; without one the titles go out as they are.
  */
-const MODEL = "claude-sonnet-5-5";
 /** A notice CI recorded this long ago and never sent is old news: dropped, not announced late. */
 const STALE_MS = 2 * 24 * 3600_000;
 /** More than this many lines is a changelog, not a notice. */
@@ -56,18 +55,11 @@ export async function describeChanges(env: Env, changes: string[]): Promise<Line
   if (changes.length === 0) return null;
   const titles = changes.slice(0, MAX_LINES);
   const fallback: Lines = { "zh-CN": titles, "zh-TW": titles, en: titles, more: changes.length - titles.length };
-  if (!env.ANTHROPIC_API_KEY) return fallback;
+  if (!aiEnabled(env)) return fallback;
   try {
-    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: 45_000, maxRetries: 1 });
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      messages: [{ role: "user", content: prompt(changes) }],
-      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-    });
-    if (response.stop_reason !== "end_turn") throw new Error(`stopped: ${response.stop_reason}`);
-    const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-    const raw = JSON.parse(text) as Record<string, unknown>;
+    const answer = await askAi(env, "notes", { text: prompt(changes), schema: SCHEMA, maxTokens: 16000 });
+    if (answer === undefined) return fallback;
+    const raw = (answer ?? {}) as Record<string, unknown>; // null parses too
     const pick = (k: string) =>
       Array.isArray(raw[k])
         ? (raw[k] as unknown[])
@@ -81,7 +73,7 @@ export async function describeChanges(env: Env, changes: string[]): Promise<Line
     if (!zh || !tw || !en || tw.length !== zh.length || en.length !== zh.length) throw new Error("bad answer");
     return { "zh-CN": zh, "zh-TW": tw, en, more: 0 };
   } catch (err) {
-    console.error("release notes:", err instanceof Anthropic.APIError ? `${err.status} ${err.message}` : err);
+    console.error("release notes:", err instanceof Error ? err.message : err);
     return fallback;
   }
 }

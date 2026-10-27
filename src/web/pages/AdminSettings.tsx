@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { AI_EFFORTS, AI_USE_NAME, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
 import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
 import { checkPassword } from "../../shared/rules";
 import type { LinkResponse, RevokeImpact } from "../../shared/types";
@@ -506,6 +507,7 @@ interface GeneralSettings {
   pastEventDays: number;
   calorieReadDays: number;
   calorieShortcut: { url: string; version: number };
+  ai: Record<AiUse, AiChoice>;
   venmoUsername: string;
   venmoEmail: string;
   zelleAccount: string;
@@ -523,6 +525,7 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
       <SignupCard base={props.base} initial={props.initial} />
       <DaysCard base={props.base} initial={props.initial} />
       <ShortcutCard base={props.base} initial={props.initial} />
+      <AiCard base={props.base} initial={props.initial.ai} />
     </>
   );
 }
@@ -687,6 +690,99 @@ function ShortcutCard(props: { base: string; initial: GeneralSettings }) {
         onClick={async () => {
           const body = { calorieShortcut: { url: url.trim(), version: Number(version) } };
           if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
+        }}
+      >
+        {saved ? "已保存" : "保存"}
+      </button>
+    </Card>
+  );
+}
+
+const AI_USE_HINT: Record<AiUse, string> = {
+  photo: "读球馆排队屏幕的照片，要能看图",
+  notes: "正式版发布后，把改动写成 Telegram 通知",
+};
+const EFFORT_LABEL: Record<AiEffort, string> = { low: "低（快）", medium: "中", high: "高（慢）" };
+
+/**
+ * AI 模型 (Ke Li): which model on her Azure each use runs on, from what is deployed there right now.
+ * A saved model that is no longer deployed still shows, marked, so the menu never hides the setting.
+ */
+function AiCard(props: { base: string; initial: Record<AiUse, AiChoice> }) {
+  const [list] = useApi<{ models: string[]; ready: boolean }>(`${props.base}/settings/ai-models`);
+  const [pick, setPick] = useState(props.initial);
+  // What the server has: only changes from it are sent, so 群操作记录 names just those.
+  const [stored, setStored] = useState(props.initial);
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  const models = list.state === "ok" ? list.data.models : [];
+  const set = (use: AiUse, part: Partial<AiChoice>) => {
+    setPick((p) => ({ ...p, [use]: { ...p[use], ...part } }));
+    setSaved(false);
+  };
+  return (
+    <Card title="AI 模型">
+      {list.state === "ok" && !list.data.ready && (
+        <p class="muted small">还没有设置 Azure 的 key：拍照登记暂时用不了，发版说明直接列改动标题。</p>
+      )}
+      {list.state === "error" && <p class="error">{list.message}</p>}
+      {AI_USES.map((use) => {
+        const options = models.includes(pick[use].model) ? models : [pick[use].model, ...models];
+        return (
+          <div key={use} class="ai-model">
+            <strong>{AI_USE_NAME[use]}</strong>
+            <small class="muted">{AI_USE_HINT[use]}</small>
+            <div class="inline">
+              <label class="field">
+                <span>模型</span>
+                <select
+                  value={pick[use].model}
+                  disabled={list.state !== "ok"}
+                  onChange={(e) => set(use, { model: (e.target as HTMLSelectElement).value })}
+                >
+                  {options.map((m) => (
+                    <option key={m} value={m}>
+                      {list.state === "ok" && !models.includes(m) ? `${m}（未部署）` : m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label class="field">
+                <span>思考强度</span>
+                <select
+                  value={pick[use].effort}
+                  onChange={(e) => set(use, { effort: (e.target as HTMLSelectElement).value as AiEffort })}
+                >
+                  {AI_EFFORTS.map((x) => (
+                    <option key={x} value={x}>
+                      {EFFORT_LABEL[x]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+        );
+      })}
+      <p class="muted small">
+        选项是 Azure 上已经部署好的模型。选的模型出错或超时，会自动改用 Azure 上的 claude-sonnet-5-5。
+      </p>
+      {error && <p class="error">{error}</p>}
+      <button
+        type="button"
+        class="button secondary block"
+        disabled={busy}
+        onClick={async () => {
+          const ai = Object.fromEntries(
+            AI_USES.filter((u) => pick[u].model !== stored[u].model || pick[u].effort !== stored[u].effort).map((u) => [
+              u,
+              pick[u],
+            ]),
+          );
+          if (await run(() => api(`${props.base}/settings`, { ai }))) {
+            setStored(pick);
+            setSaved(true);
+          }
         }}
       >
         {saved ? "已保存" : "保存"}
