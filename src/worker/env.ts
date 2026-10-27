@@ -24,12 +24,9 @@ export interface Env {
    *  is pushed from the GitHub secret; the check is off until both are set. */
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET?: string;
-  /** Claude API key for 拍照登记 (courtPhoto.ts), pushed from the GitHub secret; the button is hidden
-   *  while it is missing. */
-  ANTHROPIC_API_KEY?: string;
-  /** Ke Li's Azure (Microsoft Foundry) key for Claude Fable 5.1, tried first by 拍照登记; pushed from
-   *  the GitHub secret like ANTHROPIC_API_KEY. */
-  AZURE_ANTHROPIC_API_KEY?: string;
+  /** Ke Li's Azure (Microsoft Foundry) key: the models picked in 设置 → AI 模型 (ai.ts); 拍照登记 is
+   *  hidden while it is missing. Pushed from the GitHub secret. */
+  AZURE_FOUNDRY_API_KEY?: string;
   /** Public site address, for links in messages sent by the cron job (which has no request). */
   SITE_ORIGIN: string;
   /** "production" or "staging" (the test site); missing in tests, which count as production. */

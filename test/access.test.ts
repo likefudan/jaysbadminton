@@ -307,6 +307,7 @@ describe("organizers on the admin pages", () => {
       ["POST", `/members/${bob.id}/regenerate`],
       ["POST", `/members/${bob.id}/note`],
       ["GET", "/settings"],
+      ["GET", "/settings/ai-models"],
       ["POST", "/settings"],
       ["POST", "/locations/remove"],
       ["GET", "/export/members.csv"],

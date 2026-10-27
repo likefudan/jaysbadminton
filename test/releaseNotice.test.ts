@@ -6,7 +6,7 @@ import { appoint, approveMember, ORIGIN, setUpAdmin } from "./helpers";
 
 /** 正式版发布通知: the Owner and the admins hear in Telegram what a production release changed. */
 
-const KEYED = { ...env, SITE_ORIGIN: ORIGIN, ORGANIZERS: "1", ANTHROPIC_API_KEY: "test-key" };
+const KEYED = { ...env, SITE_ORIGIN: ORIGIN, ORGANIZERS: "1", AZURE_FOUNDRY_API_KEY: "test-key" };
 
 let sent: { chat: string; text: string }[] = [];
 let asked: any[] = [];
@@ -23,7 +23,7 @@ beforeEach(() => {
   };
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = String(input instanceof Request ? input.url : input);
-    if (url.startsWith("https://api.anthropic.com/")) {
+    if (url.startsWith("https://happy-badminton-jay-main-1.openai.azure.com/")) {
       asked.push(JSON.parse(String(init?.body ?? (input as Request).body)));
       if (!answer) return Response.json({ type: "error", error: { type: "overloaded_error" } }, { status: 529 });
       return Response.json({
@@ -84,7 +84,7 @@ describe("正式版发布通知", () => {
     ]);
     expect(to("99")).toEqual([]);
     expect(asked).toHaveLength(1);
-    expect(asked[0].messages[0].content).toContain("预定场地：负责人填场地编号");
+    expect(asked[0].messages[0].content[0].text).toContain("预定场地：负责人填场地编号");
 
     sent = [];
     expect(await sendReleaseNotices(KEYED)).toBe(0);
@@ -141,7 +141,7 @@ describe("正式版发布通知", () => {
       "v2026.10.21",
       Array.from({ length: 13 }, (_, i) => `改动 ${i + 1}`),
     );
-    await sendReleaseNotices({ ...KEYED, ANTHROPIC_API_KEY: undefined });
+    await sendReleaseNotices({ ...KEYED, AZURE_FOUNDRY_API_KEY: undefined });
     expect(to("42")[0]).toContain("• 改动 10\n……还有 3 项改动");
     expect(to("77")[0]).toContain("…and 3 more changes");
     expect(asked).toEqual([]);

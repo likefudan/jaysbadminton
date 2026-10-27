@@ -218,6 +218,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "POST /members/:id/deactivate": memberTarget(),
   "POST /members/:id/reactivate": memberTarget(),
   "GET /settings": cap("group"),
+  "GET /settings/ai-models": cap("group"),
   "POST /settings": cap("group"),
   "POST /locations/remove": cap("group"),
   "POST /members/:id/appoint": memberTarget(),

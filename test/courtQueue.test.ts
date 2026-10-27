@@ -337,13 +337,17 @@ describe("拍照登记", () => {
         headers: { Origin: ORIGIN, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
-      { ...env, ANTHROPIC_API_KEY: "test-key" },
+      { ...env, AZURE_FOUNDRY_API_KEY: "test-key" },
       {} as ExecutionContext,
     );
   /** The Claude API answering with `ours` (and checking what it was sent). */
   function model(answer: object, seen: any[] = []) {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      if (!String(input instanceof Request ? input.url : input).startsWith("https://api.anthropic.com/"))
+      if (
+        !String(input instanceof Request ? input.url : input).startsWith(
+          "https://happy-badminton-jay-main-1.openai.azure.com/",
+        )
+      )
         throw new Error(String(input));
       seen.push(JSON.parse(String(init?.body ?? (input as Request).body)));
       return Response.json({
@@ -420,8 +424,8 @@ describe("拍照登记", () => {
       ],
       unreadable: [3, 15],
     });
-    // Sonnet at low effort, told our accounts, sent the photo as JPEG.
-    expect(seen[0].model).toBe("claude-sonnet-5-5");
+    // The default pick (Fable at low effort), told our accounts, sent the photo as JPEG.
+    expect(seen[0].model).toBe("claude-fable-5-1");
     expect(seen[0].output_config.effort).toBe("low");
     expect(seen[0].messages[0].content[0].source).toMatchObject({ media_type: "image/jpeg", data: image });
     expect(seen[0].messages[0].content[1].text).toContain("Peggy, Jayx, Wenxi, Orianne");
@@ -442,75 +446,6 @@ describe("拍照登记", () => {
     // Only players on the event; not a non-JPEG.
     expect((await withKey(`${bob.base}${q}/photo`, { image })).status).toBe(400);
     expect((await withKey(`${alice.base}${q}/photo`, { image: btoa("GIF89a") })).status).toBe(400);
-  });
-
-  it("reads with Fable on Azure first, and falls back to Sonnet when Azure fails", async () => {
-    const { alice, q } = await scenario();
-    await anon.call(`${alice.base}${q}/accounts`, { username: "Peggy", password: "1" });
-    const answer = {
-      ours: [
-        {
-          court: 2,
-          minutes_left: 7,
-          status: "playing",
-          queue_position: null,
-          accounts: [{ name: "Peggy", uncertain: false }],
-        },
-      ],
-      unreadable_courts: [],
-    };
-    const both = { ...env, ANTHROPIC_API_KEY: "test-key", AZURE_ANTHROPIC_API_KEY: "azure-key" };
-    const post = () =>
-      worker.fetch(
-        new Request(`${ORIGIN}${alice.base}${q}/photo`, {
-          method: "POST",
-          headers: { Origin: ORIGIN, "Content-Type": "application/json" },
-          body: JSON.stringify({ image }),
-        }),
-        both,
-        {} as ExecutionContext,
-      );
-    const calls: { url: string; key: string | null; model: string }[] = [];
-    let azureDown = false;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      const req = new Request(input, init);
-      const sent = (await req.json()) as any;
-      calls.push({ url: req.url, key: req.headers.get("x-api-key"), model: sent.model });
-      if (azureDown && req.url.includes("azure.com"))
-        return Response.json({ error: { code: "InternalServerError", message: "down" } }, { status: 500 });
-      return Response.json({
-        id: "msg_1",
-        type: "message",
-        role: "assistant",
-        model: sent.model,
-        content: [{ type: "text", text: JSON.stringify(answer) }],
-        stop_reason: "end_turn",
-        stop_sequence: null,
-        usage: { input_tokens: 3400, output_tokens: 900 },
-      });
-    });
-
-    let res = await post();
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as any).courts).toHaveLength(1);
-    expect(calls).toEqual([
-      {
-        url: "https://happy-badminton-jay-main-1.services.ai.azure.com/anthropic/v1/messages",
-        key: "azure-key",
-        model: "claude-fable-5-1",
-      },
-    ]);
-
-    // Azure down: the same photo goes to Sonnet on the Anthropic API.
-    calls.length = 0;
-    azureDown = true;
-    res = await post();
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as any).courts).toHaveLength(1);
-    expect(calls.map((c) => [c.model, c.key])).toEqual([
-      ["claude-fable-5-1", "azure-key"],
-      ["claude-sonnet-5-5", "test-key"],
-    ]);
   });
 
   it("says so when the model fails, and needs accounts first", async () => {
