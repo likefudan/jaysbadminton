@@ -57,9 +57,9 @@ export async function describeChanges(env: Env, changes: string[]): Promise<Line
   const fallback: Lines = { "zh-CN": titles, "zh-TW": titles, en: titles, more: changes.length - titles.length };
   if (!aiEnabled(env)) return fallback;
   try {
-    const answer = await askAi(env, "notes", { text: prompt(changes), schema: SCHEMA, maxTokens: 4000 });
+    const answer = await askAi(env, "notes", { text: prompt(changes), schema: SCHEMA, maxTokens: 16000 });
     if (answer === undefined) return fallback;
-    const raw = (answer ?? {}) as Record<string, unknown>;
+    const raw = (answer ?? {}) as Record<string, unknown>; // null parses too
     const pick = (k: string) =>
       Array.isArray(raw[k])
         ? (raw[k] as unknown[])

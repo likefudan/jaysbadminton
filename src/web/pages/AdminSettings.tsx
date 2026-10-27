@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { AI_EFFORTS, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
+import { AI_EFFORTS, AI_USE_NAME, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
 import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
 import { checkPassword } from "../../shared/rules";
 import type { LinkResponse, RevokeImpact } from "../../shared/types";
@@ -698,9 +698,9 @@ function ShortcutCard(props: { base: string; initial: GeneralSettings }) {
   );
 }
 
-const AI_USE_LABEL: Record<AiUse, { title: string; hint: string }> = {
-  photo: { title: "拍照登记", hint: "读球馆排队屏幕的照片，要能看图" },
-  notes: { title: "发版说明", hint: "正式版发布后，把改动写成 Telegram 通知" },
+const AI_USE_HINT: Record<AiUse, string> = {
+  photo: "读球馆排队屏幕的照片，要能看图",
+  notes: "正式版发布后，把改动写成 Telegram 通知",
 };
 const EFFORT_LABEL: Record<AiEffort, string> = { low: "低（快）", medium: "中", high: "高（慢）" };
 
@@ -711,6 +711,8 @@ const EFFORT_LABEL: Record<AiEffort, string> = { low: "低（快）", medium: "�
 function AiCard(props: { base: string; initial: Record<AiUse, AiChoice> }) {
   const [list] = useApi<{ models: string[]; ready: boolean }>(`${props.base}/settings/ai-models`);
   const [pick, setPick] = useState(props.initial);
+  // What the server has: only changes from it are sent, so 群操作记录 names just those.
+  const [stored, setStored] = useState(props.initial);
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useAction();
   const models = list.state === "ok" ? list.data.models : [];
@@ -728,8 +730,8 @@ function AiCard(props: { base: string; initial: Record<AiUse, AiChoice> }) {
         const options = models.includes(pick[use].model) ? models : [pick[use].model, ...models];
         return (
           <div key={use} class="ai-model">
-            <strong>{AI_USE_LABEL[use].title}</strong>
-            <small class="muted">{AI_USE_LABEL[use].hint}</small>
+            <strong>{AI_USE_NAME[use]}</strong>
+            <small class="muted">{AI_USE_HINT[use]}</small>
             <div class="inline">
               <label class="field">
                 <span>模型</span>
@@ -771,13 +773,16 @@ function AiCard(props: { base: string; initial: Record<AiUse, AiChoice> }) {
         class="button secondary block"
         disabled={busy}
         onClick={async () => {
-          // Only what changed, so 群操作记录 names just that.
           const ai = Object.fromEntries(
-            AI_USES.filter(
-              (u) => pick[u].model !== props.initial[u].model || pick[u].effort !== props.initial[u].effort,
-            ).map((u) => [u, pick[u]]),
+            AI_USES.filter((u) => pick[u].model !== stored[u].model || pick[u].effort !== stored[u].effort).map((u) => [
+              u,
+              pick[u],
+            ]),
           );
-          if (await run(() => api(`${props.base}/settings`, { ai }))) setSaved(true);
+          if (await run(() => api(`${props.base}/settings`, { ai }))) {
+            setStored(pick);
+            setSaved(true);
+          }
         }}
       >
         {saved ? "已保存" : "保存"}

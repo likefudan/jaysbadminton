@@ -39,7 +39,7 @@ export async function aiChoices(env: Env): Promise<Record<AiUse, AiChoice>> {
       effort: effort && AI_EFFORTS.includes(effort) ? effort : AI_DEFAULTS[u].effort,
     };
   };
-  return { photo: pick("photo"), notes: pick("notes") };
+  return Object.fromEntries(AI_USES.map((u) => [u, pick(u)])) as Record<AiUse, AiChoice>;
 }
 
 /**
@@ -114,7 +114,7 @@ function responsesReader(apiKey: string, model: string, effort: AiEffort): Reade
       const res = await fetch(`${AZURE_HOST}/openai/v1/responses`, {
         method: "POST",
         headers: { "api-key": apiKey, "content-type": "application/json" },
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(CALL_MS),
         body: JSON.stringify({
           model,
           max_output_tokens: req.maxTokens,
@@ -149,6 +149,9 @@ function responsesReader(apiKey: string, model: string, effort: AiEffort): Reade
   };
 }
 
+/** Per call: the pick and the fallback together stay under a minute and a half of 识别中…. */
+const CALL_MS = 45_000;
+
 /** The model the pick falls back to: quick and never down when the others are. */
 const FALLBACK: AiChoice = { model: "claude-sonnet-5-5", effort: "low" };
 
@@ -157,7 +160,7 @@ async function readers(env: Env, use: AiUse): Promise<Reader[]> {
   const apiKey = env.AZURE_FOUNDRY_API_KEY;
   if (!apiKey) return [];
   // No retry inside a call: the fallback is the retry.
-  const claude = new Anthropic({ apiKey, baseURL: `${AZURE_HOST}/anthropic`, timeout: 60_000, maxRetries: 0 });
+  const claude = new Anthropic({ apiKey, baseURL: `${AZURE_HOST}/anthropic`, timeout: CALL_MS, maxRetries: 0 });
   const reader = ({ model, effort }: AiChoice) =>
     isClaude(model) ? claudeReader(`azure ${model}`, claude, model, effort) : responsesReader(apiKey, model, effort);
   const pick = (await aiChoices(env))[use];
