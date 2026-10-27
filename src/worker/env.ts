@@ -34,6 +34,10 @@ export interface Env {
   SITE_ID?: string;
   /** The site's name until the Owner sets one in 设置; Jay's 羽毛球 when missing. */
   SITE_NAME?: string;
+  /** Who sponsors the site's AI (拍照登记, release notes), thanked in every page's footer; no line
+   *  while missing. SPONSOR_URL is the link on the name. Set in wrangler.jsonc, or per site in sites.json. */
+  SPONSOR_NAME?: string;
+  SPONSOR_URL?: string;
   /** "production" or "staging" (the test site); missing in tests, which count as production. */
   ENVIRONMENT?: string;
   /** "1" turns on the 组织者 features (staging and local dev); "0" or missing keeps them off. */

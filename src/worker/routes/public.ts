@@ -21,6 +21,7 @@ publicRoutes.get("/site", async (c) =>
     theme: await siteTheme(c.env),
     staging: isStaging(c.env),
     turnstileSiteKey: turnstileSiteKey(c.env),
+    sponsor: c.env.SPONSOR_NAME ? { name: c.env.SPONSOR_NAME, url: c.env.SPONSOR_URL || null } : null,
   }),
 );
 

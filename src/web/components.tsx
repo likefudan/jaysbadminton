@@ -2,11 +2,11 @@ import type { AccessibleInputHTMLAttributes, ComponentChildren, HTMLInputTypeAtt
 import { useEffect, useState } from "preact/hooks";
 import type { Loaded } from "./hooks";
 import { AppearanceButton, AppearanceSheet } from "./Appearance";
-import { useSiteTitle, useStaging } from "./site";
+import { useSiteTitle, useSponsor, useStaging } from "./site";
 import { DeveloperSwitch } from "./DeveloperTools";
 import { GoogleAccount } from "./GoogleAccount";
 import { useLocation } from "preact-iso";
-import { isAdminPath, t, tm } from "./i18n";
+import { isAdminPath, t, tm, tx } from "./i18n";
 import { LangSwitch } from "./LangSwitch";
 import { useMemberSession } from "./hooks";
 
@@ -20,6 +20,7 @@ export function Page(props: {
 }) {
   const site = useSiteTitle();
   const staging = useStaging();
+  const sponsor = useSponsor();
   const [looks, setLooks] = useState(false);
   const { path } = useLocation();
   const admin = isAdminPath(path);
@@ -61,6 +62,20 @@ export function Page(props: {
         <a href="/privacy">{t("隐私政策")}</a>
         <span aria-hidden="true">·</span>
         <a href="/terms">{t("使用条款")}</a>
+        {sponsor && (
+          <p class="sponsor">
+            <span aria-hidden="true">♥ </span>
+            {tx("AI 服务由 {name} 赞助", {
+              name: sponsor.url ? (
+                <a href={sponsor.url} target="_blank" rel="noopener">
+                  {sponsor.name}
+                </a>
+              ) : (
+                sponsor.name
+              ),
+            })}
+          </p>
+        )}
       </footer>
     </div>
   );

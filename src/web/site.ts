@@ -36,15 +36,24 @@ let loading: Promise<void> | null = null;
 let staging = false;
 const stagingListeners = new Set<(s: boolean) => void>();
 
+// Who sponsors the AI, thanked in the footer: null until /api/public/site answers, or when no one does.
+export type Sponsor = { name: string; url: string | null };
+let sponsor: Sponsor | null = null;
+const sponsorListeners = new Set<(s: Sponsor | null) => void>();
+
 // Cloudflare Turnstile's site key: undefined until /api/public/site answers, null while it is off.
 let turnstileKey: string | null | undefined;
 const turnstileListeners = new Set<(k: string | null) => void>();
 
 function load() {
   if (!loading)
-    loading = api<{ title: string; theme: string; staging?: boolean; turnstileSiteKey?: string | null }>(
-      "/api/public/site",
-    )
+    loading = api<{
+      title: string;
+      theme: string;
+      staging?: boolean;
+      turnstileSiteKey?: string | null;
+      sponsor?: Sponsor | null;
+    }>("/api/public/site")
       .then((r) => {
         turnstileKey = r.turnstileSiteKey ?? null;
         turnstileListeners.forEach((l) => l(turnstileKey!));
@@ -58,6 +67,8 @@ function load() {
             icon.removeAttribute("sizes");
           });
         stagingListeners.forEach((l) => l(staging));
+        sponsor = r.sponsor ?? null;
+        sponsorListeners.forEach((l) => l(sponsor));
       })
       .catch(() => {
         // Let the forms submit anyway: the server says so if it needed a token.
@@ -86,6 +97,17 @@ export function useStaging(): boolean {
     stagingListeners.add(setS);
     load();
     return () => void stagingListeners.delete(setS);
+  }, []);
+  return s;
+}
+
+/** The AI sponsor to thank in the footer, or null. */
+export function useSponsor(): Sponsor | null {
+  const [s, setS] = useState(sponsor);
+  useEffect(() => {
+    sponsorListeners.add(setS);
+    load();
+    return () => void sponsorListeners.delete(setS);
   }, []);
   return s;
 }

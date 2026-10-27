@@ -31,6 +31,14 @@ const config = {
   vars: { ...base.vars, SITE_ORIGIN: `https://${site.domain}`, SITE_ID: id, SITE_NAME: site.name },
   routes: [{ pattern: site.domain, custom_domain: true }],
 };
+// The AI sponsor thanked in the footer is production's unless the site lists its own: "sponsor": null for
+// none, or { "name": …, "url": … }.
+if ("sponsor" in site) {
+  delete config.vars.SPONSOR_NAME;
+  delete config.vars.SPONSOR_URL;
+  if (site.sponsor?.name) config.vars.SPONSOR_NAME = site.sponsor.name;
+  if (site.sponsor?.url) config.vars.SPONSOR_URL = site.sponsor.url;
+}
 writeFileSync(`wrangler.${id}.json`, JSON.stringify(config, null, 2));
 // The smoke test and the release notice in the later CI steps check this site.
 if (process.env.GITHUB_ENV) appendFileSync(process.env.GITHUB_ENV, `SITE_ORIGIN=https://${site.domain}\n`);
