@@ -2,7 +2,8 @@
 -- used, so the admin event page can show how many photos were read, the tokens and an estimated
 -- price. Kept for good (queue_photos goes after 7 days). Failed calls count too: they cost tokens.
 -- request groups the calls of one photo (the pick, then the fallback when the pick failed).
--- event_id is NULL for uses that aren't about an event (the release notice's 发版说明).
+-- event_id is NULL for uses that aren't about an event (the release notice's 发版说明), and once the
+-- event is deleted for good (the rows stay: the tokens were spent all the same).
 CREATE TABLE ai_usage (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   request       TEXT NOT NULL,

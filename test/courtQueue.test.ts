@@ -538,6 +538,9 @@ describe("拍照登记", () => {
     expect(more.photos).toBe(5);
     expect(more.cost).toBeCloseTo(u.cost, 9);
     expect(more.rows.find((r: any) => r.model === "gpt-6.1-sol").cost).toBeNull();
+    // Nothing priced at all: no price rather than $0.
+    await env.DB.prepare("DELETE FROM ai_usage WHERE model != 'gpt-6.1-sol'").run();
+    expect(await page()).toMatchObject({ photos: 1, tokens: 1100, cost: null });
   });
 
   it("forgets photos after 7 days", async () => {

@@ -194,24 +194,19 @@ export async function askAi(env: Env, use: AiUse, req: AiRequest, opts: { eventI
     const spent = (t: Tokens) => {
       tokens = t;
     };
+    // A call that times out or errors before Azure reports usage is written with 0 tokens.
+    const log = (ok: boolean) =>
+      logUsage(env, { request, use, eventId: opts.eventId, choice: r.choice, fallback: i > 0, tokens, ok });
     try {
       const answer = await r.read(req, spent);
-      await logUsage(env, { request, use, eventId: opts.eventId, choice: r.choice, fallback: i > 0, tokens, ok: true });
+      await log(true);
       return answer;
     } catch (err) {
       console.error(
         `ai ${use} (${r.name}):`,
         err instanceof Anthropic.APIError ? `${err.status} ${err.message}` : err instanceof Error ? err.message : err,
       );
-      await logUsage(env, {
-        request,
-        use,
-        eventId: opts.eventId,
-        choice: r.choice,
-        fallback: i > 0,
-        tokens,
-        ok: false,
-      });
+      await log(false);
     }
   }
   return undefined;
@@ -255,20 +250,27 @@ async function logUsage(
 
 /** 拍照登记用量 for the admin event page; null when nobody has sent a photo. */
 export async function photoUsage(env: Env, eventId: number): Promise<PhotoUsage | null> {
-  const totals = await env.DB.prepare(
-    `SELECT COUNT(*) AS photos, COALESCE(SUM(ok = 0), 0) AS failed FROM
-       (SELECT request, MAX(ok) AS ok FROM ai_usage WHERE event_id = ? AND use = 'photo' GROUP BY request)`,
-  )
-    .bind(eventId)
-    .first<{ photos: number; failed: number }>();
+  const [totalsRes, byModel] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT COUNT(*) AS photos, COALESCE(SUM(ok = 0), 0) AS failed FROM
+         (SELECT request, MAX(ok) AS ok FROM ai_usage WHERE event_id = ? AND use = 'photo' GROUP BY request)`,
+    ).bind(eventId),
+    env.DB.prepare(
+      `SELECT model, effort, fallback, COUNT(*) AS calls, SUM(input_tokens) AS input, SUM(output_tokens) AS output
+         FROM ai_usage WHERE event_id = ? AND use = 'photo'
+         GROUP BY model, effort, fallback ORDER BY fallback, calls DESC, model`,
+    ).bind(eventId),
+  ]);
+  const totals = totalsRes!.results[0] as { photos: number; failed: number } | undefined;
   if (!totals?.photos) return null;
-  const { results } = await env.DB.prepare(
-    `SELECT model, effort, fallback, COUNT(*) AS calls, SUM(input_tokens) AS input, SUM(output_tokens) AS output
-       FROM ai_usage WHERE event_id = ? AND use = 'photo'
-       GROUP BY model, effort, fallback ORDER BY fallback, calls DESC, model`,
-  )
-    .bind(eventId)
-    .all<{ model: string; effort: string; fallback: number; calls: number; input: number; output: number }>();
+  const results = byModel!.results as {
+    model: string;
+    effort: string;
+    fallback: number;
+    calls: number;
+    input: number;
+    output: number;
+  }[];
   const rows = results.map((r) => ({
     model: r.model,
     effort: r.effort,
@@ -282,7 +284,7 @@ export async function photoUsage(env: Env, eventId: number): Promise<PhotoUsage 
     photos: totals.photos,
     failed: totals.failed,
     tokens: rows.reduce((n, r) => n + r.input + r.output, 0),
-    cost: rows.reduce((n, r) => n + (r.cost ?? 0), 0),
+    cost: rows.some((r) => r.cost !== null) ? rows.reduce((n, r) => n + (r.cost ?? 0), 0) : null,
     rows,
   };
 }

@@ -575,8 +575,9 @@ const dollars = (n: number) => (n > 0 && n < 0.01 ? "< $0.01" : `$${n.toFixed(2)
  */
 function PhotoUsageCard(props: { u: PhotoUsage }) {
   const u = props.u;
-  const priced = [...new Set(u.rows.map((r) => r.model))].filter((m) => AI_PRICES[m]);
-  const unpriced = [...new Set(u.rows.filter((r) => r.cost === null).map((r) => r.model))];
+  const models = (cost: boolean) => [...new Set(u.rows.filter((r) => (r.cost !== null) === cost).map((r) => r.model))];
+  const priced = models(true).filter((m) => AI_PRICES[m]);
+  const unpriced = models(false);
   return (
     <Card title="拍照登记用量">
       <div class="usage-tiles">
@@ -589,8 +590,8 @@ function PhotoUsageCard(props: { u: PhotoUsage }) {
           <span>token</span>
         </div>
         <div>
-          <b>≈ {dollars(u.cost)}</b>
-          <span>估价</span>
+          <b>{u.cost === null ? "—" : `≈ ${dollars(u.cost)}`}</b>
+          <span>{u.cost !== null && unpriced.length > 0 ? "估价（不全）" : "估价"}</span>
         </div>
       </div>
       {u.rows.map((r) => (

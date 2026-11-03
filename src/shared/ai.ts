@@ -50,7 +50,7 @@ export interface PhotoUsage {
   /** Photos no model could read. */
   failed: number;
   tokens: number;
-  /** US$, summed over the models that have a price. */
-  cost: number;
+  /** US$, summed over the models that have a price; null when none has one. */
+  cost: number | null;
   rows: AiUsageRow[];
 }

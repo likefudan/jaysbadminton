@@ -150,8 +150,12 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
 
 /** The admin page's view of an event; `viewer` is whoever is looking (their member id). */
 export async function detail(env: Env, e: EventRow, viewer: string | null): Promise<EventDetail> {
-  const list = await roster(env, e.id);
-  const [payee, manager] = await Promise.all([eventPayee(env.DB, e), eventManager(env.DB, e)]);
+  const [list, payee, manager, usage] = await Promise.all([
+    roster(env, e.id),
+    eventPayee(env.DB, e),
+    eventManager(env.DB, e),
+    photoUsage(env, e.id),
+  ]);
   const payeeLabel = await payeeName(env.DB, payee);
   const managerLabel = manager === payee ? payeeLabel : await payeeName(env.DB, manager);
   return {
@@ -162,7 +166,7 @@ export async function detail(env: Env, e: EventRow, viewer: string | null): Prom
     deletable: isDeletable(e),
     payee: { id: payee, name: payeeLabel, isMe: !!payee && payee === viewer },
     manager: { id: manager, name: managerLabel, isMe: !!manager && manager === viewer },
-    photoUsage: await photoUsage(env, e.id),
+    photoUsage: usage,
   };
 }
 
@@ -185,7 +189,8 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     env.DB.prepare("DELETE FROM settlements WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
     ...deleteQueue(env, e.id),
-    env.DB.prepare("DELETE FROM ai_usage WHERE event_id = ?").bind(e.id),
+    // The tokens were spent all the same: the usage stays, just no longer tied to an event.
+    env.DB.prepare("UPDATE ai_usage SET event_id = NULL WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM calories WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM calorie_uploads WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
