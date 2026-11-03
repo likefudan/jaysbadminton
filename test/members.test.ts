@@ -347,8 +347,18 @@ describe("default appearance", () => {
 describe("reset all data", () => {
   it("needs the phrase and the password, then returns the site to first-time setup", async () => {
     const ctx = await setUpAdmin();
-    await approveMember(ctx, "Alice");
-    await createTestEvent(ctx, { joinSelf: true });
+    const alice = await approveMember(ctx, "Alice");
+    const e = await createTestEvent(ctx, { joinSelf: true });
+    // Rows hanging off the event that the reset must clear first (court queue, calories, AI usage).
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO queue_photos (event_id, member_id, image, created_at) VALUES (?, ?, x'ffd8', '2026-11-03T00:00:00Z')",
+      ).bind(e.id, alice.id),
+      env.DB.prepare(
+        `INSERT INTO ai_usage (request, use, event_id, model, effort, input_tokens, output_tokens, ok, created_at)
+         VALUES ('r1', 'photo', ?, 'claude-fable-5-1', 'low', 1, 1, 1, '2026-11-03T00:00:00Z')`,
+      ).bind(e.id),
+    ]);
     expect(
       (await ctx.admin.call(`${ctx.base}/settings/reset`, { confirm: "清空", password: "initial-password" })).status,
     ).toBe(400);

@@ -40,6 +40,7 @@ function models(answer: object, down: string[] = []) {
     if (req.url === `${HOST}/openai/v1/responses`)
       return Response.json({
         status: "completed",
+        usage: { input_tokens: 40, output_tokens: 12 },
         output: [
           { type: "reasoning", content: [] },
           { type: "message", content: [{ type: "output_text", text: JSON.stringify(answer) }] },
@@ -135,6 +136,38 @@ describe("AI 模型", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("writes each call and its tokens to ai_usage, the failed pick too", async () => {
+    models({ ok: true }, ["claude-fable-5-1"]);
+    await askAi(AZURE, "photo", { text: "hi", schema: SCHEMA, maxTokens: 100 });
+    const { results } = await env.DB.prepare(
+      "SELECT request, use, event_id, model, effort, fallback, input_tokens, output_tokens, ok FROM ai_usage ORDER BY id",
+    ).all<any>();
+    expect(results.map(({ request, ...r }) => r)).toEqual([
+      // Azure's 500 says nothing about tokens.
+      {
+        use: "photo",
+        event_id: null,
+        model: "claude-fable-5-1",
+        effort: "low",
+        fallback: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        ok: 0,
+      },
+      {
+        use: "photo",
+        event_id: null,
+        model: "claude-sonnet-5-5",
+        effort: "low",
+        fallback: 1,
+        input_tokens: 10,
+        output_tokens: 5,
+        ok: 1,
+      },
+    ]);
+    expect(results[0].request).toBe(results[1].request);
+  });
+
   it("writes release notes with the model picked for them", async () => {
     await env.DB.prepare(
       "INSERT INTO settings (key, value) VALUES ('ai_notes_model', 'gpt-6.1-sol'), ('ai_notes_effort', 'low')",
@@ -147,6 +180,14 @@ describe("AI 模型", () => {
       more: 0,
     });
     expect(calls.map((c) => [c.url, c.body.model])).toEqual([[`${HOST}/openai/v1/responses`, "gpt-6.1-sol"]]);
+    // The Responses API's usage is kept too.
+    expect(await env.DB.prepare("SELECT use, model, input_tokens, output_tokens, ok FROM ai_usage").first()).toEqual({
+      use: "notes",
+      model: "gpt-6.1-sol",
+      input_tokens: 40,
+      output_tokens: 12,
+      ok: 1,
+    });
   });
 
   it("says when there is no Azure key", async () => {

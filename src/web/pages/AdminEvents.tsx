@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import { AI_PRICES, type PhotoUsage } from "../../shared/ai";
 import { QUEUE_DEFAULT_ROUND_MIN, QUEUE_ROUND_MAX, QUEUE_ROUND_MIN } from "../../shared/courtQueue";
 import { AddressInput } from "../AddressInput";
 import { CourtCombo } from "../CourtCombo";
@@ -542,6 +543,8 @@ function EventAdminBody(props: {
         ))}
       </Card>
 
+      {e.photoUsage && <PhotoUsageCard u={e.photoUsage} />}
+
       <Billing base={props.base} e={e} onChange={props.onChange} />
 
       {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
@@ -560,6 +563,62 @@ function EventAdminBody(props: {
 
       {e.deletable && isOwner && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
     </>
+  );
+}
+
+const count = (n: number) => n.toLocaleString("en-US");
+const dollars = (n: number) => (n > 0 && n < 0.01 ? "< $0.01" : `$${n.toFixed(2)}`);
+
+/**
+ * 拍照登记用量 (Ke Li, 2026-11-03): photos read, tokens and an estimated price, for the Owner, admins
+ * and the event's organizer to see. Only a number to know: nobody is charged for it.
+ */
+function PhotoUsageCard(props: { u: PhotoUsage }) {
+  const u = props.u;
+  const models = (cost: boolean) => [...new Set(u.rows.filter((r) => (r.cost !== null) === cost).map((r) => r.model))];
+  const priced = models(true).filter((m) => AI_PRICES[m]);
+  const unpriced = models(false);
+  return (
+    <Card title="拍照登记用量">
+      <div class="usage-tiles">
+        <div>
+          <b>{count(u.photos)}</b>
+          <span>张照片</span>
+        </div>
+        <div>
+          <b>{count(u.tokens)}</b>
+          <span>token</span>
+        </div>
+        <div>
+          <b>{u.cost === null ? "—" : `≈ ${dollars(u.cost)}`}</b>
+          <span>{u.cost !== null && unpriced.length > 0 ? "估价（不全）" : "估价"}</span>
+        </div>
+      </div>
+      {u.rows.map((r) => (
+        <div class="usage-row" key={`${r.model} ${r.effort} ${r.fallback}`}>
+          <span>
+            {r.model} · {r.fallback ? "备用" : r.effort}
+          </span>
+          <span>{count(r.calls)} 张</span>
+          <span class="muted">
+            {count(r.input)} 入 / {count(r.output)} 出
+          </span>
+          <span>{r.cost === null ? "—" : dollars(r.cost)}</span>
+        </div>
+      ))}
+      <p class="muted small">
+        {u.failed > 0 && `其中 ${u.failed} 张识别失败（也计入用量）。`}
+        {priced.length > 0 &&
+          `按 Anthropic 公开价估算：${priced
+            .map((m) => {
+              const p = AI_PRICES[m]!;
+              return `${p.name} 每百万 token 输入 $${p.input}、输出 $${p.output}`;
+            })
+            .join("；")}。`}
+        {unpriced.length > 0 && `${unpriced.join("、")} 没有价格，只算了 token。`}
+        实际账单以 Azure 为准。
+      </p>
+    </Card>
   );
 }
 

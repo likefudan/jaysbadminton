@@ -57,10 +57,18 @@ describe("从数据库永久删除", () => {
     expect(res.data.error.message).toBe("只能删除已收齐归档或已取消的活动");
 
     await ctx.admin.call(`${ctx.base}/events/${e.id}/cancel`, {});
+    // 拍照登记用量: the tokens were spent all the same, so the rows stay, no longer tied to it.
+    await env.DB.prepare(
+      `INSERT INTO ai_usage (request, use, event_id, model, effort, input_tokens, output_tokens, ok, created_at)
+       VALUES ('r1', 'photo', ?, 'claude-fable-5-1', 'low', 10, 5, 1, '2026-11-03T00:00:00Z')`,
+    )
+      .bind(e.id)
+      .run();
     expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/delete`, { password: "initial-password" })).status).toBe(
       200,
     );
     expect(await count("events")).toBe(0);
+    expect(await count("ai_usage WHERE event_id IS NULL AND input_tokens = 10")).toBe(1);
   });
 
   it("refuses an event that still has unpaid bills, even once it is over", async () => {
