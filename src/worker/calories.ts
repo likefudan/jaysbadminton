@@ -136,12 +136,14 @@ export async function myCalories(env: Env, m: MemberRow): Promise<MyCalories> {
     .bind(m.id)
     .all<{ code: string; date: string; title: string; location: string; kcal: number }>();
   const thisYear = results.filter((r) => r.date.startsWith(year));
+  const shortcut = await shortcutSetting(env);
   return {
     year: Number(year),
     yearKcal: thisYear.reduce((t, r) => t + r.kcal, 0),
     yearCount: thisYear.length,
     board: m.calorie_board === 1,
     events: results,
+    shortcut: { url: shortcut.url, outdated: shortcutOutdated(m.calorie_shortcut_v, shortcut.version) },
   };
 }
 

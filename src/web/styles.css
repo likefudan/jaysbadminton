@@ -4604,6 +4604,9 @@ ul.audit li:first-child {
   font-size: 13px;
   text-decoration: none;
 }
+.set-value .set-new {
+  color: var(--accent);
+}
 .link-button.kcal-update {
   margin: 4px 0 0;
   color: var(--accent);

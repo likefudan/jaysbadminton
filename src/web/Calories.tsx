@@ -3,8 +3,8 @@ import { createPortal } from "preact/compat";
 import { SHORTCUT_NAME } from "../shared/calories";
 import type { CalorieStart, MyCalories, MyEvent } from "../shared/types";
 import { api } from "./api";
-import { Card, Load, SectionTitle, useAction } from "./components";
-import { useApi } from "./hooks";
+import { Card, Load, SectionTitle, SettingRow, useAction } from "./components";
+import type { Loaded } from "./hooks";
 import { isIos } from "./Install";
 import { fmtDate, t, tx } from "./i18n";
 
@@ -126,14 +126,18 @@ export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => vo
   );
 }
 
-/** The first 读取: install the Shortcut once, then come back and read. Also for updating it to a newer version. */
+/**
+ * The first 读取: install the Shortcut once, then come back and read. Also for updating it to a newer
+ * version, and (without window and onRead) for 个人信息 → 卡路里快捷指令, to install it again any time.
+ */
 function CalorieGuide(props: {
-  window: string;
+  window?: string;
   install: string;
   update: boolean;
-  onRead: () => void;
+  onRead?: () => void;
   onClose: () => void;
 }) {
+  const read = props.onRead;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
     addEventListener("keydown", onKey);
@@ -153,9 +157,13 @@ function CalorieGuide(props: {
         <p class="kcal-intro">
           {props.update
             ? t("快捷指令有新版本，读得更快。请重新安装一次，替换掉旧的。")
-            : t(
-                "网页读不到苹果「健康」的数据，要借助一个快捷指令，只需要装一次。打球时要戴 Apple Watch，「健康」里才有活动能量。",
-              )}
+            : read
+              ? t(
+                  "网页读不到苹果「健康」的数据，要借助一个快捷指令，只需要装一次。打球时要戴 Apple Watch，「健康」里才有活动能量。",
+                )
+              : t(
+                  "网页读不到苹果「健康」的数据，要借助一个快捷指令。不小心删掉了，随时可以在这里重新安装。打球时要戴 Apple Watch，「健康」里才有活动能量。",
+                )}
         </p>
         <ol class="kcal-steps">
           <li>
@@ -165,34 +173,52 @@ function CalorieGuide(props: {
               <small>
                 {props.update
                   ? t("在 iPhone 上打开，问到同名的快捷指令时选「替换」")
-                  : t("在 iPhone 上打开，点「添加快捷指令」")}
+                  : read
+                    ? t("在 iPhone 上打开，点「添加快捷指令」")
+                    : t("在 iPhone 上打开，点「添加快捷指令」；问到同名的就选「替换」")}
               </small>
             </span>
           </li>
           <li>
             <span class="n">2</span>
-            <span>
-              {t("回到这里点「开始读取」")}
-              <small>{t("第一次会问能不能读取「活动能量」，选允许")}</small>
-            </span>
+            {read ? (
+              <span>
+                {t("回到这里点「开始读取」")}
+                <small>{t("第一次会问能不能读取「活动能量」，选允许")}</small>
+              </span>
+            ) : (
+              <span>
+                {t("打完球后，在活动卡片上点「读取」")}
+                <small>{t("第一次会问能不能读取「活动能量」，选允许")}</small>
+              </span>
+            )}
           </li>
         </ol>
         {props.install ? (
-          <a class="button block secondary" href={props.install} target="_blank" rel="noreferrer">
+          <a
+            class={read ? "button block secondary" : "button block"}
+            href={props.install}
+            target="_blank"
+            rel="noreferrer"
+          >
             {t("安装快捷指令")}
           </a>
         ) : (
           <p class="muted small">{t("安装链接还在准备中。")}</p>
         )}
-        <button type="button" class="button block" onClick={props.onRead}>
-          {t("已安装，开始读取")}
-        </button>
+        {read && (
+          <button type="button" class="button block" onClick={read}>
+            {t("已安装，开始读取")}
+          </button>
+        )}
         <p class="kcal-privacy">
           <FlameIcon size={16} />
           <span>
-            {t("只读这场活动时间段（{time}，含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。", {
-              time: props.window,
-            })}
+            {props.window
+              ? t("只读这场活动时间段（{time}，含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。", {
+                  time: props.window,
+                })
+              : t("每次只读一场活动时间段（含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。")}
           </span>
         </p>
       </div>
@@ -202,12 +228,41 @@ function CalorieGuide(props: {
 }
 
 /** 我的卡路里 on 个人信息: this year at a glance, every event read, and the 卡路里榜 choice. */
-export function MyCaloriesCard(props: { base: string }) {
-  const [res, reload] = useApi<MyCalories>(`${props.base}/calories`);
+export function MyCaloriesCard(props: { base: string; result: Loaded<MyCalories>; reload: () => void }) {
   return (
-    <Load result={res}>
-      {(c) => (c.events.length === 0 && !c.board ? null : <CaloriesCard c={c} base={props.base} onChange={reload} />)}
+    <Load result={props.result}>
+      {(c) =>
+        c.events.length === 0 && !c.board ? null : <CaloriesCard c={c} base={props.base} onChange={props.reload} />
+      }
     </Load>
+  );
+}
+
+/** The flame drawn in lines, like the other icons in the settings list. */
+const FlameOutline = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <path d="M12 3c.6 3.2-1.2 5-2.8 6.8C7.8 11.3 6.5 13 6.5 15.5a5.5 5.5 0 0 0 11 0c0-2.5-1.2-4.4-2.6-5.9-.3 1.5-1 2.5-2.1 3 .6-3.6-.2-7-.8-9.6z" />
+  </svg>
+);
+
+/**
+ * 个人信息 → 卡路里快捷指令, there for good on iPhone and iPad: whoever deleted the Shortcut (or never
+ * got to 读取 yet) can install it again without waiting for an event card to offer it.
+ */
+export function ShortcutRow(props: { shortcut: MyCalories["shortcut"] | null }) {
+  const [open, setOpen] = useState(false);
+  const s = props.shortcut;
+  if (!s?.url || !isIos()) return null;
+  return (
+    <>
+      <SettingRow
+        icon={<FlameOutline />}
+        label={t("卡路里快捷指令")}
+        value={s.outdated ? <span class="set-new">{t("有新版本")}</span> : undefined}
+        onClick={() => setOpen(true)}
+      />
+      {open && <CalorieGuide install={s.url} update={s.outdated} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
