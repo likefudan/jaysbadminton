@@ -40,3 +40,9 @@ export function checkPassword(raw: string): string | null {
   if (raw.length < PASSWORD_MIN) return `密码至少 ${PASSWORD_MIN} 位`;
   return null;
 }
+
+/**
+ * 入群不需要审核: a bot that gets past Turnstile could otherwise fill the member list, so after this
+ * many automatic joins in a day, newcomers wait in 待审核 again until the day has passed.
+ */
+export const MAX_AUTO_JOINS_PER_DAY = 20;

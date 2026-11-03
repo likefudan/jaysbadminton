@@ -9,8 +9,9 @@ import { HttpError, badRequest, readJson, str } from "../http";
 import { checkEmail } from "../../shared/rules";
 import { isStaging, siteTheme, siteTitle } from "../site";
 import { leaderboard } from "../stats";
-import { assertPendingRoom, createMember } from "../members";
-import { sendApplicationNotice, sendLinkRecovery } from "../approvalEmail";
+import { createMember } from "../members";
+import { sendLinkRecovery } from "../approvalEmail";
+import { applyToJoin, autoJoinEnabled } from "../joining";
 import { turnstileSiteKey, verifyTurnstile } from "../turnstile";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
@@ -21,6 +22,8 @@ publicRoutes.get("/site", async (c) =>
     theme: await siteTheme(c.env),
     staging: isStaging(c.env),
     turnstileSiteKey: turnstileSiteKey(c.env),
+    // 入群不需要审核: the join pages leave out 「审核通过后」.
+    autoJoin: await autoJoinEnabled(c.env),
     sponsor: c.env.SPONSOR_NAME ? { name: c.env.SPONSOR_NAME, url: c.env.SPONSOR_URL || null } : null,
   }),
 );
@@ -68,23 +71,16 @@ publicRoutes.post("/join", async (c) => {
   // Honeypot: real people never see this field, bots fill it in.
   if (str(body.website)) return c.json({ ok: true });
   await verifyTurnstile(c.env, c.req.raw, str(body.turnstileToken), "join");
-  await assertPendingRoom(c.env);
   // 用邮箱注册: the link is emailed on approval, so the address must be typed twice and match.
   const email = str(body.email).trim();
   if (email.toLowerCase() !== str(body.emailConfirm).trim().toLowerCase()) throw badRequest("两次输入的邮箱不一致");
-  const m = await createMember(c.env, {
+  const { member, approved, emailStatus } = await applyToJoin(c.env, {
     username: str(body.username),
     wechatNickname: str(body.wechatNickname),
     message: str(body.message),
     email,
-    status: "pending",
   });
-  try {
-    await sendApplicationNotice(c.env, m);
-  } catch {
-    /* The admin queue remains authoritative if Telegram is unavailable. */
-  }
-  return c.json({ ok: true, id: m.id });
+  return c.json({ ok: true, id: member.id, approved, emailStatus });
 });
 
 /**

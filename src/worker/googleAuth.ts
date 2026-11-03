@@ -1,12 +1,12 @@
 import { developerMember, endDeveloperSession } from "./developer";
-import { sendApplicationNotice } from "./approvalEmail";
+import { applyToJoin } from "./joining";
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Env } from "./env";
 import { now } from "./db";
 import { randomToken, sha256, timingSafeEqual } from "./lib/crypto";
-import { assertPendingRoom, createMember, emailTaken, memberByToken, type MemberRow } from "./members";
+import { emailTaken, memberByToken, type MemberRow } from "./members";
 import { HttpError, readJson, str } from "./http";
 import { memberRole, organizersEnabled } from "./organizers";
 
@@ -220,27 +220,21 @@ googleRoutes.post("/register", async (c) => {
   if (existing) throw new HttpError(409, "already_registered", "此 Google 账号已关联成员，请返回我的页面");
   const body = await readJson(c.req.raw);
   if (await emailTaken(c.env, session.email)) throw googleEmailTaken();
-  await assertPendingRoom(c.env);
   // A deleted member keeps their history but lets go of the Google account, so it can apply anew.
   await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL")
     .bind(session.google_sub)
     .run();
-  // Like 申请加入: the Owner approves every newcomer before they can sign up for anything.
-  // Same two names as 申请加入 (用户名 for the roster, 微信名 for the admin), plus an optional note.
-  const m = await createMember(c.env, {
+  // Like 申请加入: the Owner or an admin approves every newcomer before they can sign up for
+  // anything, unless 入群不需要审核 is on. Same two names as 申请加入 (用户名 for the roster, 微信名
+  // for the admin), plus an optional note.
+  const { member, approved } = await applyToJoin(c.env, {
     username: str(body.username),
     wechatNickname: str(body.wechatNickname),
     message: str(body.message),
-    status: "pending",
     googleSub: session.google_sub,
     googleEmail: session.email,
   });
-  try {
-    await sendApplicationNotice(c.env, m);
-  } catch {
-    /* The admin queue remains authoritative if Telegram is unavailable. */
-  }
-  return c.json({ id: m.id, pending: true });
+  return c.json({ id: member.id, pending: !approved });
 });
 googleRoutes.post("/link", async (c) => {
   const session = await googleSession(c);

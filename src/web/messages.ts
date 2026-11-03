@@ -340,6 +340,23 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   推送通知: { tw: "推播通知", en: "Notifications" },
   "提交中…": { tw: "提交中…", en: "Submitting…" },
   提交入群申请: { tw: "提交入群申請", en: "Ask to join" },
+  "提交后就能报名活动。": {
+    tw: "提交後就能報名活動。",
+    en: "You can sign up for events as soon as you submit.",
+  },
+  "提交后，专属链接会发到你的邮箱。": {
+    tw: "提交後，專屬連結會發到你的電子郵件。",
+    en: "Once you submit, your personal link will be sent to your email.",
+  },
+  你已入群: { tw: "你已入群", en: "You're in the group" },
+  "你的专属链接已经发到 {email}。以后报名、查看账单都用这个链接。": {
+    tw: "你的專屬連結已經發到 {email}。以後報名、查看帳單都用這個連結。",
+    en: "Your personal link has been sent to {email}. Use it to sign up for events and see your bills.",
+  },
+  "邮件暂时没有发出去。请稍后在「登录 / 注册」页点「找回我的专属链接」，或者联系群主。": {
+    tw: "郵件暫時沒有發出去。請稍後在「登入 / 註冊」頁點「找回我的專屬連結」，或者聯絡群主。",
+    en: 'We couldn\'t send the email just now. Tap "Get my personal link again" on the Sign in page later, or contact the group owner.',
+  },
   "提交后需要审核，通过后才能报名活动。": {
     tw: "提交後需要審核，通過後才能報名活動。",
     en: "Your request will be reviewed; you can sign up for events once it's approved.",
