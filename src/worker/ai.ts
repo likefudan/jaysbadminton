@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { AI_EFFORTS, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../shared/ai";
+import { AI_EFFORTS, AI_USES, type AiChoice, type AiEffort, type AiUse, aiCost, type PhotoUsage } from "../shared/ai";
 import { getSettings } from "./db";
 import type { Env } from "./env";
 
@@ -69,9 +69,17 @@ export interface AiRequest {
   maxTokens: number;
 }
 
+/** What a call used, as Azure reports it. */
+interface Tokens {
+  input: number;
+  output: number;
+}
+
 interface Reader {
   name: string;
-  read: (req: AiRequest) => Promise<unknown>;
+  choice: AiChoice;
+  /** `spent` hears the tokens as soon as Azure reports them, also when the answer can't be used. */
+  read: (req: AiRequest, spent: (t: Tokens) => void) => Promise<unknown>;
 }
 
 const isClaude = (model: string) => model.startsWith("claude-");
@@ -79,7 +87,8 @@ const isClaude = (model: string) => model.startsWith("claude-");
 function claudeReader(name: string, client: Anthropic, model: string, effort: AiEffort): Reader {
   return {
     name,
-    async read(req) {
+    choice: { model, effort },
+    async read(req, spent) {
       const response = await client.messages.create({
         model,
         max_tokens: req.maxTokens,
@@ -101,6 +110,7 @@ function claudeReader(name: string, client: Anthropic, model: string, effort: Ai
         ],
         output_config: { effort, format: { type: "json_schema", schema: req.schema } },
       });
+      spent({ input: response.usage.input_tokens, output: response.usage.output_tokens });
       if (response.stop_reason !== "end_turn") throw new Error(`stopped with ${response.stop_reason}`);
       return JSON.parse(response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(""));
     },
@@ -110,7 +120,8 @@ function claudeReader(name: string, client: Anthropic, model: string, effort: Ai
 function responsesReader(apiKey: string, model: string, effort: AiEffort): Reader {
   return {
     name: `azure ${model}`,
-    async read(req) {
+    choice: { model, effort },
+    async read(req, spent) {
       const res = await fetch(`${AZURE_HOST}/openai/v1/responses`, {
         method: "POST",
         headers: { "api-key": apiKey, "content-type": "application/json" },
@@ -135,7 +146,9 @@ function responsesReader(apiKey: string, model: string, effort: AiEffort): Reade
         status?: string;
         error?: { message?: string } | null;
         output?: { type: string; content?: { type: string; text?: string }[] }[];
+        usage?: { input_tokens?: number; output_tokens?: number };
       } | null;
+      if (body?.usage) spent({ input: body.usage.input_tokens ?? 0, output: body.usage.output_tokens ?? 0 });
       if (!res.ok) throw new Error(`HTTP ${res.status} ${body?.error?.message ?? ""}`);
       if (body?.status !== "completed") throw new Error(`status ${body?.status}`);
       const text = (body.output ?? [])
@@ -169,17 +182,107 @@ async function readers(env: Env, use: AiUse): Promise<Reader[]> {
 
 export const aiEnabled = (env: Env) => !!env.AZURE_FOUNDRY_API_KEY;
 
-/** The first answer any reader gives, parsed; undefined when none could (each failure logged). */
-export async function askAi(env: Env, use: AiUse, req: AiRequest): Promise<unknown> {
-  for (const r of await readers(env, use)) {
+/**
+ * The first answer any reader gives, parsed; undefined when none could (each failure logged).
+ * Every call is written to ai_usage with its tokens (拍照登记用量), under `eventId` when given.
+ */
+export async function askAi(env: Env, use: AiUse, req: AiRequest, opts: { eventId?: number } = {}): Promise<unknown> {
+  const request = crypto.randomUUID();
+  const list = await readers(env, use);
+  for (const [i, r] of list.entries()) {
+    let tokens: Tokens = { input: 0, output: 0 };
+    const spent = (t: Tokens) => {
+      tokens = t;
+    };
     try {
-      return await r.read(req);
+      const answer = await r.read(req, spent);
+      await logUsage(env, { request, use, eventId: opts.eventId, choice: r.choice, fallback: i > 0, tokens, ok: true });
+      return answer;
     } catch (err) {
       console.error(
         `ai ${use} (${r.name}):`,
         err instanceof Anthropic.APIError ? `${err.status} ${err.message}` : err instanceof Error ? err.message : err,
       );
+      await logUsage(env, {
+        request,
+        use,
+        eventId: opts.eventId,
+        choice: r.choice,
+        fallback: i > 0,
+        tokens,
+        ok: false,
+      });
     }
   }
   return undefined;
+}
+
+/** One call into ai_usage; a failure to write it is logged and never fails the call itself. */
+async function logUsage(
+  env: Env,
+  u: {
+    request: string;
+    use: AiUse;
+    eventId?: number;
+    choice: AiChoice;
+    fallback: boolean;
+    tokens: Tokens;
+    ok: boolean;
+  },
+) {
+  try {
+    await env.DB.prepare(
+      `INSERT INTO ai_usage (request, use, event_id, model, effort, fallback, input_tokens, output_tokens, ok, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(
+        u.request,
+        u.use,
+        u.eventId ?? null,
+        u.choice.model,
+        u.choice.effort,
+        u.fallback ? 1 : 0,
+        u.tokens.input,
+        u.tokens.output,
+        u.ok ? 1 : 0,
+        new Date().toISOString(),
+      )
+      .run();
+  } catch (err) {
+    console.error("ai usage not saved:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** 拍照登记用量 for the admin event page; null when nobody has sent a photo. */
+export async function photoUsage(env: Env, eventId: number): Promise<PhotoUsage | null> {
+  const totals = await env.DB.prepare(
+    `SELECT COUNT(*) AS photos, COALESCE(SUM(ok = 0), 0) AS failed FROM
+       (SELECT request, MAX(ok) AS ok FROM ai_usage WHERE event_id = ? AND use = 'photo' GROUP BY request)`,
+  )
+    .bind(eventId)
+    .first<{ photos: number; failed: number }>();
+  if (!totals?.photos) return null;
+  const { results } = await env.DB.prepare(
+    `SELECT model, effort, fallback, COUNT(*) AS calls, SUM(input_tokens) AS input, SUM(output_tokens) AS output
+       FROM ai_usage WHERE event_id = ? AND use = 'photo'
+       GROUP BY model, effort, fallback ORDER BY fallback, calls DESC, model`,
+  )
+    .bind(eventId)
+    .all<{ model: string; effort: string; fallback: number; calls: number; input: number; output: number }>();
+  const rows = results.map((r) => ({
+    model: r.model,
+    effort: r.effort,
+    fallback: r.fallback === 1,
+    calls: r.calls,
+    input: r.input,
+    output: r.output,
+    cost: aiCost(r.model, r.input, r.output),
+  }));
+  return {
+    photos: totals.photos,
+    failed: totals.failed,
+    tokens: rows.reduce((n, r) => n + r.input + r.output, 0),
+    cost: rows.reduce((n, r) => n + (r.cost ?? 0), 0),
+    rows,
+  };
 }

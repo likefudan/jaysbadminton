@@ -460,6 +460,86 @@ describe("拍照登记", () => {
     expect(((await res.json()) as any).error.message).toBe("照片没有识别出来，请重拍一张或手动填写");
   });
 
+  it("shows the photos' tokens and an estimated price on the admin event page (拍照登记用量)", async () => {
+    const { ctx, alice, e, q } = await scenario();
+    const page = async () => (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.photoUsage;
+    expect(await page()).toBeNull();
+    await anon.call(`${alice.base}${q}/accounts`, { username: "Peggy", password: "1" });
+    // Two photos read by the pick; a third the pick fails on and Sonnet reads.
+    model({ ours: [], unreadable_courts: [] });
+    expect((await withKey(`${alice.base}${q}/photo`, { image })).status).toBe(200);
+    expect((await withKey(`${alice.base}${q}/photo`, { image })).status).toBe(200);
+    vi.restoreAllMocks();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const body = JSON.parse(String(init?.body ?? (await (input as Request).text())));
+      if (body.model === "claude-fable-5-1")
+        return Response.json({
+          id: "msg_1",
+          type: "message",
+          role: "assistant",
+          model: body.model,
+          content: [{ type: "text", text: "{" }],
+          stop_reason: "max_tokens",
+          stop_sequence: null,
+          usage: { input_tokens: 2800, output_tokens: 1000 },
+        });
+      return Response.json({
+        id: "msg_2",
+        type: "message",
+        role: "assistant",
+        model: body.model,
+        content: [{ type: "text", text: JSON.stringify({ ours: [], unreadable_courts: [] }) }],
+        stop_reason: "end_turn",
+        stop_sequence: null,
+        usage: { input_tokens: 2700, output_tokens: 200 },
+      });
+    });
+    expect((await withKey(`${alice.base}${q}/photo`, { image })).status).toBe(200);
+    // A fourth nobody can read: it still counts, with what was spent.
+    vi.restoreAllMocks();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ type: "error", error: { type: "api_error", message: "down" } }, { status: 500 }),
+    );
+    expect((await withKey(`${alice.base}${q}/photo`, { image })).status).toBe(502);
+    vi.restoreAllMocks();
+
+    const u = await page();
+    expect(u).toMatchObject({ photos: 4, failed: 1, tokens: 2 * 3100 + 3800 + 2900 });
+    expect(u.rows).toEqual([
+      {
+        model: "claude-fable-5-1",
+        effort: "low",
+        fallback: false,
+        calls: 4,
+        input: 3 * 2800,
+        output: 2 * 300 + 1000,
+        cost: (3 * 2800 * 10 + 1600 * 50) / 1e6,
+      },
+      {
+        model: "claude-sonnet-5-5",
+        effort: "low",
+        fallback: true,
+        calls: 2,
+        input: 2700,
+        output: 200,
+        cost: (2700 * 2 + 200 * 10) / 1e6,
+      },
+    ]);
+    expect(u.cost).toBeCloseTo(0.164 + 0.0074, 6);
+
+    // A model without a price counts its tokens, not into the price.
+    await env.DB.prepare(
+      `INSERT INTO ai_usage (request, use, event_id, model, effort, input_tokens, output_tokens, ok, created_at)
+       VALUES ('r9', 'photo', ?, 'gpt-6.1-sol', 'low', 1000, 100, 1, '2026-11-03T00:00:00Z')`,
+    )
+      .bind(e.id)
+      .run();
+    const more = await page();
+    expect(more.photos).toBe(5);
+    expect(more.cost).toBeCloseTo(u.cost, 9);
+    expect(more.rows.find((r: any) => r.model === "gpt-6.1-sol").cost).toBeNull();
+  });
+
   it("forgets photos after 7 days", async () => {
     const { e, alice } = await scenario();
     const member = alice.id;

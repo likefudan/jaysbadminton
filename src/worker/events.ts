@@ -9,6 +9,7 @@ import {
 } from "../shared/types";
 import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
 import { getSettings, now, setSetting } from "./db";
+import { photoUsage } from "./ai";
 import { syncDeadline } from "./deadlines";
 import { codeOf, eventNumberBase, nextEventNumber, parsePaymentCode } from "./paymentCode";
 import type { Env } from "./env";
@@ -161,6 +162,7 @@ export async function detail(env: Env, e: EventRow, viewer: string | null): Prom
     deletable: isDeletable(e),
     payee: { id: payee, name: payeeLabel, isMe: !!payee && payee === viewer },
     manager: { id: manager, name: managerLabel, isMe: !!manager && manager === viewer },
+    photoUsage: await photoUsage(env, e.id),
   };
 }
 
@@ -183,6 +185,7 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     env.DB.prepare("DELETE FROM settlements WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM registrations WHERE event_id = ?").bind(e.id),
     ...deleteQueue(env, e.id),
+    env.DB.prepare("DELETE FROM ai_usage WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM calories WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM calorie_uploads WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),

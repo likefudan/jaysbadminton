@@ -166,12 +166,17 @@ export async function readCourtPhoto(env: Env, e: EventRow, memberId: string, bo
     .bind(e.id, memberId, image, ts)
     .first<{ id: number }>();
 
-  const raw = await askAi(env, "photo", {
-    text: prompt(accounts),
-    image: body.image as string,
-    schema: SCHEMA,
-    maxTokens: 16000,
-  });
+  const raw = await askAi(
+    env,
+    "photo",
+    {
+      text: prompt(accounts),
+      image: body.image as string,
+      schema: SCHEMA,
+      maxTokens: 16000,
+    },
+    { eventId: e.id },
+  );
   if (raw === undefined) throw failed();
   const result = toPhotoResult(raw, accounts);
   await env.DB.prepare("UPDATE queue_photos SET result = ? WHERE id = ?").bind(JSON.stringify(result), saved!.id).run();

@@ -1,3 +1,4 @@
+import type { PhotoUsage } from "./ai";
 import type { QueueInfo } from "./courtQueue";
 export type MemberStatus = "pending" | "active" | "inactive";
 
@@ -198,6 +199,8 @@ export interface EventDetail extends EventSummary {
   payee: { id: string | null; name: string; isMe: boolean };
   /** 负责人: who runs it, by name (the Owner's included). */
   manager: { id: string | null; name: string; isMe: boolean };
+  /** 拍照登记用量: photos read, tokens and an estimated price; null when no photo was sent. */
+  photoUsage: PhotoUsage | null;
 }
 
 /** 操作记录: one change to an event, newest first on the admin page. */
