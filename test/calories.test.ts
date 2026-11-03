@@ -71,6 +71,9 @@ describe("卡路里", () => {
       version: SHORTCUT_VERSION,
     });
     expect(await card(alice.base, e.id)).toMatchObject({ kcalInstall: SHORTCUT_INSTALL_URL });
+    // 个人信息 always offers the install link, also before any event can be read.
+    const mine = async () => (await anon.call(`${alice.base}/calories`)).data.shortcut;
+    expect(await mine()).toEqual({ url: SHORTCUT_INSTALL_URL, outdated: false });
     const next = (await anon.call(`${alice.base}/events/${e.id}/calories`, {})).data;
     await anon.call(next.upload.replace(ORIGIN, ""), { kcal: 410, v: SHORTCUT_VERSION });
 
@@ -80,6 +83,7 @@ describe("卡路里", () => {
     expect((await set({ url, version: 0 })).status).toBe(400);
     expect((await set({ url, version: SHORTCUT_VERSION + 1 })).status).toBe(200);
     expect(await card(alice.base, e.id)).toMatchObject({ kcalInstall: url, kcalUpdate: true });
+    expect(await mine()).toEqual({ url, outdated: true });
     // Not offered 读取, no link.
     expect(await card(alice.base, (await createTestEvent(ctx)).id)).toMatchObject({ kcalInstall: "" });
   });

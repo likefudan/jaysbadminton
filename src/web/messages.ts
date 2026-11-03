@@ -639,6 +639,25 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "安装链接还在准备中。": { tw: "安裝連結還在準備中。", en: "The install link isn't ready yet." },
   "已安装，开始读取": { tw: "已安裝，開始讀取", en: "Added it. Start reading" },
+  卡路里快捷指令: { tw: "卡路里捷徑", en: "Calories shortcut" },
+  有新版本: { tw: "有新版本", en: "New version" },
+  "网页读不到苹果「健康」的数据，要借助一个快捷指令。不小心删掉了，随时可以在这里重新安装。打球时要戴 Apple Watch，「健康」里才有活动能量。":
+    {
+      tw: "網頁讀不到蘋果「健康」的資料，要借助一個捷徑。不小心刪掉了，隨時可以在這裡重新安裝。打球時要戴 Apple Watch，「健康」裡才有活動能量。",
+      en: "Web pages can't read Apple Health, so a shortcut does it. If you deleted it, you can install it again here any time. Wear an Apple Watch while you play: that's what records active energy in Health.",
+    },
+  "在 iPhone 上打开，点「添加快捷指令」；问到同名的就选「替换」": {
+    tw: "在 iPhone 上打開，點「加入捷徑」；問到同名的就選「取代」",
+    en: 'Open it on your iPhone and tap "Add Shortcut". If it asks about one with the same name, tap "Replace"',
+  },
+  "打完球后，在活动卡片上点「读取」": {
+    tw: "打完球後，在活動卡片上點「讀取」",
+    en: 'After you play, tap "Read" on the event card',
+  },
+  "每次只读一场活动时间段（含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。": {
+    tw: "每次只讀一場活動時間段（含開始前 10 分鐘熱身）的活動能量，只存一個總數，只有你自己看得到。",
+    en: "Each time, only the active energy during one event (plus 10 minutes of warm-up before it) is read, and only the total is kept. Only you can see it.",
+  },
   "只读这场活动时间段（{time}，含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。": {
     tw: "只讀這場活動時間段（{time}，含開始前 10 分鐘熱身）的活動能量，只存一個總數，只有你自己看得到。",
     en: "Only the active energy during this event ({time}, plus 10 minutes of warm-up before it) is read, and only the total is kept. Only you can see it.",

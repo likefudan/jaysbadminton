@@ -3,8 +3,8 @@ import { expect, test } from "@playwright/test";
 /** 我的统计 on the 个人信息 page, with a fixed history so the numbers are known. */
 test("the member picks a range and the spending chart and figures follow", async ({ page }) => {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date());
-  const daysAgo = (n: number) =>
-    new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(Date.now() - n * 86400e3));
+  // Counted in calendar days from today's date, so the hour lost or gained at a DST change can't shift it.
+  const daysAgo = (n: number) => new Date(Date.parse(`${today}T12:00:00Z`) - n * 86400e3).toISOString().slice(0, 10);
   const entry = (date: string, cents: number, attended = true) => ({
     date,
     title: "",

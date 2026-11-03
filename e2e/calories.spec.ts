@@ -35,7 +35,7 @@ const ev = (id: number, o: object) => ({
 });
 
 /** 我的活动 and 个人信息 for Ke, with one event to read and one already read; the Shortcut call is caught. */
-export async function calorieMocks(page: Page, opts: { board?: boolean; update?: boolean } = {}) {
+export async function calorieMocks(page: Page, opts: { board?: boolean; update?: boolean; empty?: boolean } = {}) {
   let board = opts.board ?? false;
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false, hasMember: false } }));
   await page.route("**/api/m/tok/me", (route) =>
@@ -78,10 +78,16 @@ export async function calorieMocks(page: Page, opts: { board?: boolean; update?:
         yearKcal: 8640,
         yearCount: 21,
         board,
-        events: [
-          { code: "E1", date: "2030-10-13", title: "", location: "Synergy", kcal: 432 },
-          { code: "E9", date: "2030-10-06", title: "", location: "Synergy", kcal: 386 },
-        ],
+        events: opts.empty
+          ? []
+          : [
+              { code: "E1", date: "2030-10-13", title: "", location: "Synergy", kcal: 432 },
+              { code: "E9", date: "2030-10-06", title: "", location: "Synergy", kcal: 386 },
+            ],
+        shortcut: {
+          url: "https://www.icloud.com/shortcuts/909be1bdeb324b88a0caca0b0031aa11",
+          outdated: opts.update ?? false,
+        },
       },
     }),
   );
@@ -148,6 +154,39 @@ test.describe("on iPhone", () => {
   });
 });
 
+test.describe("on iPhone, 个人信息", () => {
+  test.use({ userAgent: IPHONE });
+
+  test("always has 卡路里快捷指令, to install the Shortcut again after deleting it", async ({ page }) => {
+    // Nothing read yet and off the board: 我的卡路里 is hidden, the row is still there.
+    await calorieMocks(page, { empty: true });
+    await page.goto("/m/tok/profile");
+    await expect(page.locator(".kcal-card")).toHaveCount(0);
+    const row = page.getByRole("button", { name: "卡路里快捷指令" });
+    await expect(row).not.toContainText("有新版本");
+    await row.click();
+    const sheet = page.getByRole("dialog", { name: "读取卡路里" });
+    await expect(sheet).toContainText("随时可以在这里重新安装");
+    await expect(sheet).toContainText("在活动卡片上点「读取」");
+    await expect(sheet.getByRole("link", { name: "安装快捷指令" })).toHaveAttribute(
+      "href",
+      "https://www.icloud.com/shortcuts/909be1bdeb324b88a0caca0b0031aa11",
+    );
+    await expect(sheet.getByRole("button", { name: "已安装，开始读取" })).toHaveCount(0);
+    await sheet.getByRole("button", { name: "关闭" }).click();
+    await expect(sheet).toBeHidden();
+  });
+
+  test("says 有新版本 when theirs is older", async ({ page }) => {
+    await calorieMocks(page, { update: true });
+    await page.goto("/m/tok/profile");
+    const row = page.getByRole("button", { name: /卡路里快捷指令/ });
+    await expect(row).toContainText("有新版本");
+    await row.click();
+    await expect(page.getByRole("dialog", { name: "读取卡路里" })).toContainText("请重新安装一次");
+  });
+});
+
 test("not on iPhone, a number read shows but there's no 读取", async ({ page }) => {
   await calorieMocks(page);
   await page.goto("/m/tok");
@@ -169,6 +208,8 @@ test("个人信息 shows this year's calories and the 卡路里榜 switch", asyn
   await card.locator(".switch-card").click();
   expect((await saved).postDataJSON()).toEqual({ on: true });
   await expect(sw).toBeChecked();
+  // The Shortcut only runs on iPhone and iPad.
+  await expect(page.getByRole("button", { name: /卡路里快捷指令/ })).toHaveCount(0);
 });
 
 test("个人信息 deletes one event's calories or all of them, after asking", async ({ page }) => {

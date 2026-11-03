@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { toPacific } from "../shared/time";
-import type { ActivityDay, MeResponse, MemberProfile } from "../shared/types";
+import type { ActivityDay, MeResponse, MemberProfile, MyCalories } from "../shared/types";
 import { checkUsername } from "../shared/rules";
 import { api } from "./api";
 import { Card, Field, SettingRow, useAction } from "./components";
+import { ShortcutRow } from "./Calories";
 import { InstallRow } from "./Install";
 import { PushRow } from "./Push";
 import { fmtDate, fmtDay, month, t, tk, tx } from "./i18n";
@@ -236,6 +237,8 @@ export function ProfileSettings(props: {
   profile: MemberProfile | null;
   base: string;
   home: string;
+  /** 卡路里快捷指令 (null while it loads). */
+  shortcut: MyCalories["shortcut"] | null;
   onChange: () => void;
 }) {
   const p = props.profile;
@@ -267,6 +270,7 @@ export function ProfileSettings(props: {
       )}
       <InstallRow home={props.home} />
       <PushRow base={props.base} home={props.home} memberId={props.me.id} />
+      <ShortcutRow shortcut={props.shortcut} />
     </section>
   );
 }

@@ -4,6 +4,7 @@ import type {
   GuestChoice,
   MeResponse,
   MemberProfile,
+  MyCalories,
   MyEvent,
   MyEventsResponse,
   PaymentStatus,
@@ -99,6 +100,7 @@ export function MemberProfilePage(props: { token?: string }) {
   const home = props.token ? `/m/${props.token}` : "/me";
   const [me, reloadMe] = useApi<MeResponse>(`${base}/me`);
   const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
+  const [calories, reloadCalories] = useApi<MyCalories>(`${base}/calories`);
   return (
     <Load result={me}>
       {(m) => (
@@ -106,7 +108,7 @@ export function MemberProfilePage(props: { token?: string }) {
           <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
           <Load result={profile}>{(p) => <ProfileHero profile={p} />}</Load>
           <MyStatsCard base={base} />
-          <MyCaloriesCard base={base} />
+          <MyCaloriesCard base={base} result={calories} reload={reloadCalories} />
           {profile.state === "ok" && (
             <>
               <SectionTitle>{t("活动记录")}</SectionTitle>
@@ -122,6 +124,7 @@ export function MemberProfilePage(props: { token?: string }) {
             profile={profile.state === "ok" ? profile.data : null}
             base={base}
             home={home}
+            shortcut={calories.state === "ok" ? calories.data.shortcut : null}
             onChange={() => {
               reloadProfile();
               reloadMe();
