@@ -9,6 +9,7 @@ import { useLocation } from "preact-iso";
 import { isAdminPath, t, tm, tx } from "./i18n";
 import { LangSwitch } from "./LangSwitch";
 import { useMemberSession } from "./hooks";
+import { inWeChat, WeChatBanner, WeChatSheet } from "./WeChat";
 
 export function Page(props: {
   title: string;
@@ -45,6 +46,7 @@ export function Page(props: {
           <AppearanceButton onClick={() => setLooks(true)} />
         </div>
       </header>
+      {!admin && <SignedOutWeChatBanner />}
       {looks && <AppearanceSheet onClose={() => setLooks(false)} />}
       <main>
         {props.bare ? (
@@ -299,10 +301,28 @@ const SIGN_IN_PAGES = /^\/(me|login|join|recover|m)(\/|$)/;
 
 /** Signed out: one 登录 / 注册 for the whole site, in the top bar (Ke Li: at the top, never on a card). */
 function TopSignIn() {
+  const [steps, setSteps] = useState(false);
   if (useMemberSession() !== "none") return null;
+  // In WeChat, Google sign-in fails: show how to get to Safari / the browser first (Ke Li).
+  const onClick = (e: MouseEvent) => {
+    if (!inWeChat()) return;
+    e.preventDefault();
+    e.stopPropagation(); // the router follows links from the document and ignores preventDefault
+    setSteps(true);
+  };
   return (
-    <a class="profile-switch signin-pill" href="/me">
-      {t("登录 / 注册")}
-    </a>
+    <>
+      <a class="profile-switch signin-pill" href="/me" onClick={onClick}>
+        {t("登录 / 注册")}
+      </a>
+      {steps && <WeChatSheet onClose={() => setSteps(false)} />}
+    </>
   );
+}
+
+/** Signed out in WeChat: the strip saying to open the page in Safari / the browser. */
+function SignedOutWeChatBanner() {
+  const signedOut = useMemberSession() === "none";
+  if (!signedOut || !inWeChat()) return null;
+  return <WeChatBanner />;
 }

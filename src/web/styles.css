@@ -4723,3 +4723,55 @@ ul.audit li:first-child {
 .usage-row > span:nth-child(even) {
   text-align: right;
 }
+
+/* 微信里打开: the strip under the top bar and the 「⋯」 chip inside it (WeChat.tsx). */
+.wechat-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0 4px;
+  padding: 11px 12px 11px 14px;
+  border: 1px solid var(--acc-line);
+  border-radius: var(--radius-sm);
+  background: var(--acc-soft);
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.wechat-banner > div {
+  flex: 1;
+}
+.wechat-banner strong {
+  color: var(--acc-ink);
+}
+.wechat-banner-close {
+  flex: none;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wechat-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 20px;
+  margin: 0 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  vertical-align: -4px;
+}
+.wechat-more svg {
+  width: 16px;
+  height: 16px;
+}
+.sheet-lead {
+  margin: 4px 0 6px;
+  color: var(--text-2);
+}

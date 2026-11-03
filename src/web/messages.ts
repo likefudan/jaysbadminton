@@ -291,10 +291,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "微信裡無法加入。用瀏覽器開啟這一頁，就可以加入主畫面了。",
     en: "WeChat can't add it. Open this page in a browser to add it to your Home Screen.",
   },
-  "微信里可能无法使用 Google 登录：请点右上角「···」选择「在浏览器打开」，或者用下面的邮箱注册。": {
-    tw: "微信裡可能無法使用 Google 登入：請點右上角「···」選擇「在瀏覽器開啟」，或者用下面的電子郵件註冊。",
-    en: 'Google sign-in may not work inside WeChat. Tap "···" at the top right and choose "Open in Browser", or register by email below.',
-  },
   "微信里打不开日历的话，点右上角「···」选择「在浏览器中打开」。": {
     tw: "微信裡打不開日曆的話，點右上角「···」選擇「在瀏覽器中開啟」。",
     en: 'If the calendar won\'t open in WeChat, tap "···" at the top right and choose "Open in Browser".',
@@ -546,6 +542,27 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "退出 Google 登录": { tw: "退出 Google 登入", en: "Sign out of Google" },
   "退出失败，请重试": { tw: "退出失敗，請重試", en: "Couldn't sign out. Please try again." },
   退出登录: { tw: "退出登入", en: "Sign out" },
+  "微信里不能用 Google 登录": { tw: "微信裡不能用 Google 登入", en: "Google sign-in doesn't work in WeChat" },
+  "点右上角 {more}，选「在 Safari 中打开」": {
+    tw: "點右上角 {more}，選「在 Safari 中開啟」",
+    en: 'Tap {more} at the top right and choose "Open in Safari"',
+  },
+  "点右上角 {more}，选「在浏览器打开」": {
+    tw: "點右上角 {more}，選「在瀏覽器開啟」",
+    en: 'Tap {more} at the top right and choose "Open in Browser"',
+  },
+  "用 Safari 登录": { tw: "用 Safari 登入", en: "Sign in with Safari" },
+  用浏览器登录: { tw: "用瀏覽器登入", en: "Sign in with your browser" },
+  "微信里不能用 Google 登录，请换到 Safari：": {
+    tw: "微信裡不能用 Google 登入，請換到 Safari：",
+    en: "Google sign-in doesn't work in WeChat. Switch to Safari:",
+  },
+  "微信里不能用 Google 登录，请换到浏览器：": {
+    tw: "微信裡不能用 Google 登入，請換到瀏覽器：",
+    en: "Google sign-in doesn't work in WeChat. Switch to your browser:",
+  },
+  "在 Safari 里点「登录 / 注册」": { tw: "在 Safari 裡點「登入 / 註冊」", en: 'In Safari, tap "Sign in / Register"' },
+  "在浏览器里点「登录 / 注册」": { tw: "在瀏覽器裡點「登入 / 註冊」", en: 'In the browser, tap "Sign in / Register"' },
   "选「在 Safari 中打开」": { tw: "選「在 Safari 中開啟」", en: 'Choose "Open in Safari"' },
   "选「在浏览器打开」": { tw: "選「在瀏覽器開啟」", en: 'Choose "Open in Browser"' },
   邮箱: { tw: "電子郵件", en: "Email" },

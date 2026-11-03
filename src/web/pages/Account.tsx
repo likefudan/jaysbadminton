@@ -6,6 +6,7 @@ import { api } from "../api";
 import { ApplicationFields } from "../ApplicationFields";
 import { Card, Field, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
+import { inWeChat, WeChatSheet } from "../WeChat";
 import { Member, MemberProfilePage } from "./Member";
 import { t, tk, tm } from "../i18n";
 
@@ -94,13 +95,13 @@ export function GoogleLink(props: { token: string }) {
 /** /me/profile: 个人信息 for the Google-signed-in member (the sign-in steps otherwise, as on /me). */
 export const AccountProfile = () => <Account page="profile" />;
 
-const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
-
 /** 登录 / 注册: the one way in for everyone — Google, or email (the link comes by email). */
 function SignIn(props: { googleEnabled: boolean }) {
   const staging = useStaging();
   const code = ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""];
   const error = code && t(code);
+  // WeChat can't do Google sign-in: the button shows how to get to Safari / the browser instead.
+  const [steps, setSteps] = useState(false);
   return (
     <Page title={t("登录 / 注册")} subtitle={t("已经是成员就登录；新朋友在这里申请入群，审核通过后就能报名。")}>
       {error && (
@@ -111,12 +112,11 @@ function SignIn(props: { googleEnabled: boolean }) {
       {props.googleEnabled && (
         <Card title={t("用 Google 账号")}>
           <p>{t("第一次用 Google 登录时填写申请，审核通过后用同一个账号登录即可。")}</p>
-          {inWeChat() && (
-            <p class="hint">
-              {t("微信里可能无法使用 Google 登录：请点右上角「···」选择「在浏览器打开」，或者用下面的邮箱注册。")}
-            </p>
-          )}
-          <button type="button" class="button block" onClick={() => window.location.assign("/api/auth/google")}>
+          <button
+            type="button"
+            class="button block"
+            onClick={() => (inWeChat() ? setSteps(true) : window.location.assign("/api/auth/google"))}
+          >
             {t("用 Google 登录 / 注册")}
           </button>
           <p class="muted small">{t("仅使用 Google 账号身份、邮箱和头像，不读取你的 Gmail 邮件。")}</p>
@@ -129,6 +129,7 @@ function SignIn(props: { googleEnabled: boolean }) {
         </a>
       </Card>
       {staging && <DeveloperLogin />}
+      {steps && <WeChatSheet onClose={() => setSteps(false)} />}
       <p class="center">
         <a href="/recover">{t("已经是成员？找回我的专属链接")}</a>
       </p>

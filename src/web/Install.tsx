@@ -176,7 +176,7 @@ export function InstallRow(props: { home: string }) {
   );
 }
 
-const ShareIcon = () => (
+export const ShareIcon = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
     <path
       d="M12 3v12M8 7l4-4 4 4M6 11H5v10h14V11h-1"
@@ -194,7 +194,7 @@ const AddIcon = () => (
     <path d="M12 8.5v7M8.5 12h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
   </svg>
 );
-const MoreIcon = () => (
+export const MoreIcon = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
     <circle cx="5.5" cy="12" r="1.8" fill="currentColor" />
     <circle cx="12" cy="12" r="1.8" fill="currentColor" />
@@ -202,7 +202,7 @@ const MoreIcon = () => (
   </svg>
 );
 
-const CheckIcon = () => (
+export const CheckIcon = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
     <path
       d="M5 12.5l4.5 4.5L19 7.5"
