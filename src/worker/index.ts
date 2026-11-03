@@ -31,16 +31,38 @@ import { purgeCourtPhotos } from "./courtPhoto";
 import { sendReleaseNotices } from "./releaseNotice";
 import { saveUpload } from "./calories";
 
+// A site with its own icon colour (sites.json "icon") gets its icons from public/site-icons/<colour>/,
+// under the usual names, so the home-screen app, tab, share card and link previews all match.
+// site-config.mjs routes the files in that folder through the Worker, and only on such a site.
+const SITE_ICON_FILES = [
+  "/favicon.svg",
+  "/icon.svg",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/icon-maskable-512.png",
+  "/apple-touch-icon.png",
+  "/og-image.jpg",
+];
+
 const app = new Hono<{ Bindings: Env }>();
 
 app.use("*", async (c, next) => {
   await next();
-  // Member and admin links carry secret tokens in the path; keep them out of caches.
-  c.header("Cache-Control", "no-store");
+  // Member and admin links carry secret tokens in the path; keep them out of caches. The icons have none.
+  c.header("Cache-Control", SITE_ICON_FILES.includes(c.req.path) ? "public, max-age=3600" : "no-store");
   // Same as public/_headers, now that the Worker also serves the home and event pages.
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) c.header(name, value);
   if (isStaging(c.env)) c.header("X-Robots-Tag", "noindex, nofollow");
 });
+
+// The icons in this site's colour, when it has its own.
+for (const file of SITE_ICON_FILES)
+  app.get(file, async (c) => {
+    const icon = c.env.SITE_ICON;
+    const path = icon && /^[a-z0-9-]+$/.test(icon) ? `/site-icons/${icon}${file}` : file;
+    const res = await c.env.ASSETS.fetch(new Request(new URL(path, c.req.url)));
+    return new Response(res.body, res);
+  });
 
 // Proves the Worker can reach the migrated database; says nothing about the group itself.
 app.get("/api/health", async (c) => {

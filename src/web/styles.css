@@ -3660,6 +3660,20 @@ p.center a {
   color: #c5afff;
   background: #34264c;
 }
+/* An extra site with blue icons (sites.json "icon": "blue"): the top-bar logo matches them. */
+.logo.logo-blue {
+  color: #3f74b8;
+  background: #e3edfa;
+}
+[data-mode="dark"] .logo.logo-blue {
+  color: #9cc4f2;
+  background: #1f3047;
+}
+[data-style="aurora"] .logo.logo-blue {
+  color: #ffffff;
+  background: linear-gradient(135deg, #8db8ec, #4a7fc4);
+  box-shadow: 0 4px 14px rgba(74, 127, 196, 0.4);
+}
 .developer-tools {
   position: fixed;
   left: max(16px, env(safe-area-inset-left));

@@ -21,6 +21,8 @@ publicRoutes.get("/site", async (c) =>
     title: await siteTitle(c.env),
     theme: await siteTheme(c.env),
     staging: isStaging(c.env),
+    // The site's own icon colour (sites.json "icon"), for the logo in the top bar.
+    icon: c.env.SITE_ICON || null,
     turnstileSiteKey: turnstileSiteKey(c.env),
     // 入群不需要审核: the join pages leave out 「审核通过后」.
     autoJoin: await autoJoinEnabled(c.env),

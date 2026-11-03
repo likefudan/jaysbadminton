@@ -36,6 +36,10 @@ let loading: Promise<void> | null = null;
 let staging = false;
 const stagingListeners = new Set<(s: boolean) => void>();
 
+// The site's own icon colour (sites.json "icon"), e.g. "blue"; null on production's coral.
+let icon: string | null = null;
+const iconListeners = new Set<(i: string | null) => void>();
+
 // Who sponsors the AI, thanked in the footer: null until /api/public/site answers, or when no one does.
 export type Sponsor = { name: string; url: string | null };
 let sponsor: Sponsor | null = null;
@@ -55,6 +59,7 @@ function load() {
       title: string;
       theme: string;
       staging?: boolean;
+      icon?: string | null;
       turnstileSiteKey?: string | null;
       sponsor?: Sponsor | null;
       autoJoin?: boolean;
@@ -72,6 +77,8 @@ function load() {
             icon.removeAttribute("sizes");
           });
         stagingListeners.forEach((l) => l(staging));
+        icon = r.icon ?? null;
+        iconListeners.forEach((l) => l(icon));
         sponsor = r.sponsor ?? null;
         sponsorListeners.forEach((l) => l(sponsor));
         autoJoin = !!r.autoJoin;
@@ -106,6 +113,18 @@ export function useStaging(): boolean {
     return () => void stagingListeners.delete(setS);
   }, []);
   return s;
+}
+
+/** The site's own icon colour for the top-bar logo, e.g. "blue"; null for the usual one. */
+export function useSiteIcon(): string | null {
+  const [i, setI] = useState(icon);
+  useEffect(() => {
+    iconListeners.add(setI);
+    load();
+    setI(icon);
+    return () => void iconListeners.delete(setI);
+  }, []);
+  return i;
 }
 
 /** Whether 入群不需要审核 is on: 申请加入 then makes a member at once. */
