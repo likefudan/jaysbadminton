@@ -108,7 +108,7 @@ async function setUp(page: Page, ev = event) {
   return posts;
 }
 
-test("draws our courts, playing then queued, with the names on the two halves", async ({ page }) => {
+test("draws our courts, playing then queued, one account per quarter", async ({ page }) => {
   await setUp(page);
   const cq = page.locator(".cq");
   await expect(cq.locator(".cq-sub").first()).toHaveText("在打 · 5 片");
@@ -118,8 +118,12 @@ test("draws our courts, playing then queued, with the names on the two halves", 
   // Playing by court number; 7 is nearly up and shows yellow.
   await expect(tiles.locator(".cq-court-head b")).toHaveText(["1号", "4号", "5号", "7号", "16号", "6号", "8号"]);
   await expect(tiles.nth(3)).toHaveClass(/soon/);
-  await expect(tiles.nth(3).locator(".cq-half").first()).toHaveText("MarkCoco");
-  await expect(tiles.nth(3).locator(".cq-half").nth(1)).toHaveText("BenYixing");
+  // Four quarters: the first two accounts face each other down the left, then top right, bottom right.
+  await expect(tiles.nth(3).locator(".cq-q")).toHaveText(["Mark", "Coco", "Ben", "Yixing"]);
+  await expect(tiles.nth(3).locator(".cq-q.ours")).toHaveCount(4);
+  // Two accounts hold half the court, across the net; the other two quarters are striped.
+  await expect(tiles.nth(4).locator(".cq-q")).toHaveText(["Wenxi", "", "Am", ""]);
+  await expect(tiles.nth(4).locator(".cq-q:not(.ours)")).toHaveCount(2);
   await expect(tiles.nth(6).locator(".cq-court-head small")).toHaveText("第2组 ≈49分");
   await expect(cq.locator(".cq-head")).toContainText("Arthur 更新于");
   await page.screenshot({ path: test.info().outputPath("court-queue-card.png") });

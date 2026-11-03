@@ -34,6 +34,8 @@
   --ok: #3f8f5c;
   --ok-dot: #4f9a69;
   --ok-soft: rgba(79, 154, 105, 0.13);
+  --cq-stripe-a: #e6e1d9;
+  --cq-stripe-b: #cfc8be;
   --warn: #a65a14;
   --warn-dot: #e09a2d;
   --warn-soft: rgba(224, 154, 45, 0.15);
@@ -70,6 +72,8 @@
   --ok: #7cc495;
   --ok-dot: #6dbb88;
   --ok-soft: rgba(109, 187, 136, 0.15);
+  --cq-stripe-a: #2f2b27;
+  --cq-stripe-b: #4a443d;
   --warn: #f2b562;
   --warn-dot: #e8a640;
   --warn-soft: rgba(224, 154, 45, 0.14);
@@ -129,6 +133,8 @@
 
 /* ---- 极光 ---- */
 [data-style="aurora"] {
+  --cq-stripe-a: rgba(22, 20, 31, 0.04);
+  --cq-stripe-b: rgba(22, 20, 31, 0.13);
   --font:
     "Geist Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", sans-serif;
@@ -163,6 +169,8 @@
   --ok-soft: rgba(63, 174, 132, 0.14);
 }
 [data-style="aurora"][data-mode="dark"] {
+  --cq-stripe-a: rgba(255, 255, 255, 0.04);
+  --cq-stripe-b: rgba(255, 255, 255, 0.14);
   --bg: #08080e;
   --surface: rgba(255, 255, 255, 0.05);
   --surface-raised: rgba(32, 32, 44, 0.94);
@@ -3956,49 +3964,72 @@ ul.audit li:first-child {
   color: var(--warn);
 }
 .cq-block {
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
   aspect-ratio: 1 / 1.35;
   border-radius: 8px;
   overflow: hidden;
-  background: var(--surface-2);
 }
-.cq-court.play .cq-block {
+/* A quarter without one of our accounts: someone else's or empty, the screen doesn't say (Ke Li). */
+.cq-q {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 1px;
+  background: repeating-linear-gradient(135deg, var(--cq-stripe-a) 0 5px, var(--cq-stripe-b) 5px 10px);
+}
+.cq-court.play .cq-q.ours {
   background: var(--ok-dot);
 }
-.cq-court.soon .cq-block {
+.cq-court.soon .cq-q.ours {
   background: var(--warn-dot);
 }
+.cq-court.queue .cq-q.ours {
+  background: var(--surface-2);
+}
+.cq-net,
+.cq-mid {
+  position: absolute;
+  pointer-events: none;
+}
 .cq-net {
+  left: 0;
+  right: 0;
+  top: 50%;
+  margin-top: -1px;
   border-top: 2px dashed rgba(255, 255, 255, 0.95);
+}
+.cq-mid {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-left: 1px solid rgba(255, 255, 255, 0.75);
 }
 /* The muted text colour stays visible on the grey block in both light and dark mode. */
 .cq-court.queue .cq-net {
   border-top-color: var(--muted);
 }
-.cq-half {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-width: 0;
-  padding: 2px;
+.cq-court.queue .cq-mid {
+  border-left-color: var(--muted);
 }
-.cq-half span {
+/* A quarter is narrow on a phone (four courts a row): tight chips so five-letter names still fit. */
+.cq-q span {
   max-width: 100%;
-  padding: 1px 4px;
+  padding: 1px 2px;
+  letter-spacing: -0.2px;
   border-radius: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
   color: #fff;
   background: rgba(0, 0, 0, 0.22);
 }
-.cq-court.queue .cq-half span {
+.cq-court.queue .cq-q span {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -4037,6 +4068,10 @@ ul.audit li:first-child {
 }
 .cq-legend i.queue {
   background: var(--surface-2);
+  border: 1px solid var(--muted);
+}
+.cq-legend i.other {
+  background: repeating-linear-gradient(135deg, var(--cq-stripe-a) 0 3px, var(--cq-stripe-b) 3px 6px);
   border: 1px solid var(--muted);
 }
 .cq-tip {
@@ -4095,8 +4130,14 @@ ul.audit li:first-child {
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
-.cq-court.picked .cq-block {
+/* Over the quarters, which would hide an inset shadow on the block itself. */
+.cq-court.picked .cq-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   box-shadow: inset 0 0 0 3px var(--danger);
+  pointer-events: none;
 }
 .cq-sheet {
   max-height: 92vh;

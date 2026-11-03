@@ -194,6 +194,10 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
             <i class="queue" />
             {t("排队")}
           </span>
+          <span>
+            <i class="other" />
+            {t("不是我们")}
+          </span>
           <span class="cq-tip">{t("点场可修改")}</span>
           {q.manage && (
             <button type="button" class="text-button cq-pick-start" onClick={() => setPicked(new Set())}>
@@ -221,7 +225,23 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
   );
 }
 
-/** One court: a block with a dashed net across it; the group's names split over the two halves. */
+/**
+ * Where each of our accounts stands on a court, as quarters: top-left, top-right, bottom-left,
+ * bottom-right. One account a quarter (Ke Li): the first two face each other across the net down
+ * the left side, the third takes the top right, the fourth the bottom right. Quarters without one
+ * of our accounts are someone else's or empty; the hall's screen doesn't say which, so they are
+ * drawn alike (striped).
+ */
+const QUARTER_ORDER = [0, 2, 1, 3] as const;
+export const quarters = (names: string[]): (string | null)[] => {
+  const out: (string | null)[] = [null, null, null, null];
+  names.slice(0, 4).forEach((n, i) => {
+    out[QUARTER_ORDER[i] ?? 3] = n;
+  });
+  return out;
+};
+
+/** One court: four quarters with a dashed net across the middle; our accounts fill theirs. */
 function CourtTile(props: {
   c: QueueCourt;
   tone: "play" | "soon" | "queue";
@@ -231,14 +251,6 @@ function CourtTile(props: {
   onOpen: () => void;
 }) {
   const choosing = props.picked !== undefined;
-  const names = props.c.accounts;
-  const half = (xs: string[]) => (
-    <div class="cq-half">
-      {xs.map((n) => (
-        <span key={n}>{n}</span>
-      ))}
-    </div>
-  );
   return (
     <button
       type="button"
@@ -252,9 +264,13 @@ function CourtTile(props: {
         {choosing && <i class="cq-check" aria-hidden="true" />}
       </span>
       <span class="cq-block">
-        {half(names.filter((_, i) => i % 2 === 0))}
+        {quarters(props.c.accounts).map((n, i) => (
+          <span key={i} class={`cq-q${n ? " ours" : ""}`}>
+            {n && <span>{n}</span>}
+          </span>
+        ))}
         <i class="cq-net" />
-        {half(names.filter((_, i) => i % 2 === 1))}
+        <i class="cq-mid" />
       </span>
     </button>
   );
