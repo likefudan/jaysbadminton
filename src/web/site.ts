@@ -41,6 +41,10 @@ export type Sponsor = { name: string; url: string | null };
 let sponsor: Sponsor | null = null;
 const sponsorListeners = new Set<(s: Sponsor | null) => void>();
 
+// 入群不需要审核: while on, the join pages don't promise a review.
+let autoJoin = false;
+const autoJoinListeners = new Set<(on: boolean) => void>();
+
 // Cloudflare Turnstile's site key: undefined until /api/public/site answers, null while it is off.
 let turnstileKey: string | null | undefined;
 const turnstileListeners = new Set<(k: string | null) => void>();
@@ -53,6 +57,7 @@ function load() {
       staging?: boolean;
       turnstileSiteKey?: string | null;
       sponsor?: Sponsor | null;
+      autoJoin?: boolean;
     }>("/api/public/site")
       .then((r) => {
         turnstileKey = r.turnstileSiteKey ?? null;
@@ -69,6 +74,8 @@ function load() {
         stagingListeners.forEach((l) => l(staging));
         sponsor = r.sponsor ?? null;
         sponsorListeners.forEach((l) => l(sponsor));
+        autoJoin = !!r.autoJoin;
+        autoJoinListeners.forEach((l) => l(autoJoin));
       })
       .catch(() => {
         // Let the forms submit anyway: the server says so if it needed a token.
@@ -99,6 +106,18 @@ export function useStaging(): boolean {
     return () => void stagingListeners.delete(setS);
   }, []);
   return s;
+}
+
+/** Whether 入群不需要审核 is on: 申请加入 then makes a member at once. */
+export function useAutoJoin(): boolean {
+  const [on, setOn] = useState(autoJoin);
+  useEffect(() => {
+    autoJoinListeners.add(setOn);
+    load();
+    setOn(autoJoin);
+    return () => void autoJoinListeners.delete(setOn);
+  }, []);
+  return on;
 }
 
 /** The AI sponsor to thank in the footer, or null. */

@@ -202,6 +202,10 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "📮 Gmail forwarding confirmation\n{content}\n\nEnter the confirmation code above in Gmail's settings, or open the confirmation link in it.",
   },
   新成员申请待审核: { tw: "新成員申請待審核", en: "New member application to review" },
+  "新成员已入群（入群不需要审核）": {
+    tw: "新成員已入群（入群不需要審核）",
+    en: "New member joined (no approval needed)",
+  },
   "用户名：{name}": { tw: "使用者名稱：{name}", en: "Username: {name}" },
   "微信名：{name}": { tw: "微信名：{name}", en: "WeChat name: {name}" },
   "Google 邮箱：{email}": { tw: "Google 信箱：{email}", en: "Google email: {email}" },
@@ -210,6 +214,10 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   "请在管理页「待审核」处理。": {
     tw: "請在管理頁「待審核」處理。",
     en: "Please handle it under 待审核 on the admin page.",
+  },
+  "不认识的话，可以在管理页「成员」里停用。": {
+    tw: "不認識的話，可以在管理頁「成員」裡停用。",
+    en: "If you don't know them, you can deactivate them under Members on the admin page.",
   },
   "{site}的 TOKEN_KEY（{origin}）：": {
     tw: "{site}的 TOKEN_KEY（{origin}）：",

@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { AI_EFFORTS, AI_USE_NAME, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
 import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
-import { checkPassword } from "../../shared/rules";
+import { MAX_AUTO_JOINS_PER_DAY, checkPassword } from "../../shared/rules";
 import type { LinkResponse, RevokeImpact } from "../../shared/types";
 import { formatInstantZh } from "../../shared/time";
 import { STYLES, type ThemeId } from "../../shared/themes";
@@ -503,6 +503,7 @@ function ResetAll(props: { base: string }) {
 interface GeneralSettings {
   siteTitle: string;
   showLeaderboard: boolean;
+  autoJoin: boolean;
   friendCap: number;
   pastEventDays: number;
   calorieReadDays: number;
@@ -522,6 +523,7 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
   return (
     <>
       <PublicPageCard base={props.base} initial={props.initial} />
+      <JoinCard base={props.base} initial={props.initial} />
       <SignupCard base={props.base} initial={props.initial} />
       <DaysCard base={props.base} initial={props.initial} />
       <ShortcutCard base={props.base} initial={props.initial} />
@@ -580,6 +582,39 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
       </label>
       {error && <p class="error">{error}</p>}
       <p class="muted small">首页和活动页对所有人公开：只显示活动时间、地点和报名人数，不显示名单和收款情况。</p>
+    </Card>
+  );
+}
+
+/** 入群不需要审核 (Ke Li 2026-11-03): 申请加入 lets people straight in; the Owner and admins switch it. */
+function JoinCard(props: { base: string; initial: GeneralSettings }) {
+  const [on, setOn] = useState(props.initial.autoJoin);
+  const { busy, error, run } = useAction();
+  async function toggle(v: boolean) {
+    setOn(v);
+    if (!(await run(() => api(`${props.base}/settings`, { autoJoin: v })))) setOn(!v);
+  }
+  return (
+    <Card title="入群设置">
+      <label class="switch-card plain">
+        <span>
+          <strong>入群不需要审核</strong>
+          <small>打开后，申请加入的人直接成为成员，不用在「待审核」里通过</small>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          aria-checked={on}
+          checked={on}
+          disabled={busy}
+          onChange={(e) => toggle((e.target as HTMLInputElement).checked)}
+        />
+      </label>
+      {error && <p class="error">{error}</p>}
+      <p class="muted small">
+        仍然要通过人机验证，一个邮箱只能注册一次。一天内自动入群满 {MAX_AUTO_JOINS_PER_DAY}{" "}
+        人后，其余的申请会回到「待审核」。
+      </p>
     </Card>
   );
 }

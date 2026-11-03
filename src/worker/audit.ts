@@ -49,7 +49,7 @@ export type AuditAction =
   | "collected";
 
 /** Who did it, as stored: the admin page's caller. */
-export const actorId = (actor: Actor): string => actor.memberId ?? OWNER;
+export const actorId = (actor: Pick<Actor, "memberId">): string => actor.memberId ?? OWNER;
 
 /** The longest detail kept. */
 export const DETAIL_MAX = 500;
@@ -154,6 +154,7 @@ export const money = (cents: number) => `$${dollars(cents)}`;
  */
 export type GroupAction =
   | "approve"
+  | "auto_join"
   | "reject"
   | "note"
   | "link_regen"
@@ -172,7 +173,7 @@ export type GroupAction =
 /** Records one group action after it has happened; like record(), a failure is logged, never thrown. */
 export async function groupAudit(
   env: Env,
-  actor: Actor,
+  actor: Pick<Actor, "memberId">,
   action: GroupAction,
   targetId: string | null,
   detail: string,

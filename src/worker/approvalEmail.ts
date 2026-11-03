@@ -5,11 +5,14 @@ import { memberLink, requireMember, revealMemberToken, type MemberRow } from "./
 import { type BotLang, bt } from "./botLang";
 import { escapeHtml, sendToAdmins, sendToOwner } from "./telegram";
 
-/** 新成员申请: to the Owner and every admin (Ke Li 2026-10-15); sent once anyone got it. */
-export async function sendApplicationNotice(env: Env, m: MemberRow): Promise<boolean> {
+/**
+ * 新成员申请: to the Owner and every admin (Ke Li 2026-10-15); sent once anyone got it. `joined`:
+ * 入群不需要审核 already let them in, so the notice says so instead of asking for a review.
+ */
+export async function sendApplicationNotice(env: Env, m: MemberRow, joined = false): Promise<boolean> {
   const text = (l: BotLang) => {
     const lines = [
-      bt(l, "新成员申请待审核"),
+      bt(l, joined ? "新成员已入群（入群不需要审核）" : "新成员申请待审核"),
       bt(l, "用户名：{name}", { name: m.username }),
       bt(l, "微信名：{name}", { name: m.wechat_nickname }),
       m.google_email
@@ -18,7 +21,7 @@ export async function sendApplicationNotice(env: Env, m: MemberRow): Promise<boo
           ? bt(l, "邮箱：{email}", { email: m.email })
           : "",
       m.application_message ? bt(l, "留言：{message}", { message: m.application_message }) : "",
-      bt(l, "请在管理页「待审核」处理。"),
+      bt(l, joined ? "不认识的话，可以在管理页「成员」里停用。" : "请在管理页「待审核」处理。"),
     ];
     return escapeHtml(lines.filter(Boolean).join("\n"));
   };

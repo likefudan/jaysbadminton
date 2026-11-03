@@ -1,4 +1,4 @@
-import { useStaging } from "../site";
+import { useAutoJoin, useStaging } from "../site";
 import { DeveloperLogin } from "../DeveloperTools";
 import { useState } from "preact/hooks";
 import { checkMessage, checkNickname, checkUsername } from "../../shared/rules";
@@ -172,6 +172,7 @@ function Profile(props: { email: string; onDone: () => void }) {
   const [message, setMessage] = useState("");
   const [oldLink, setOldLink] = useState(sessionStorage.getItem("google-link-member") ?? "");
   const [linkExisting, setLinkExisting] = useState(!!oldLink);
+  const autoJoin = useAutoJoin();
   const { busy, error, run } = useAction();
   async function submit(e: Event) {
     e.preventDefault();
@@ -221,7 +222,9 @@ function Profile(props: { email: string; onDone: () => void }) {
                 message={message}
                 setMessage={setMessage}
               />
-              <p class="muted small">{t("提交后需要审核，通过后才能报名活动。")}</p>
+              <p class="muted small">
+                {autoJoin ? t("提交后就能报名活动。") : t("提交后需要审核，通过后才能报名活动。")}
+              </p>
             </>
           )}
           {error && (
