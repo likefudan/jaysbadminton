@@ -778,6 +778,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   在打: { tw: "在打", en: "Playing" },
   "{n} 分钟内到时间": { tw: "{n} 分鐘內到時間", en: "Up within {n} min" },
   排队: { tw: "排隊", en: "Queued" },
+  不是我们: { tw: "不是我們", en: "Not ours" },
   点场可修改: { tw: "點場可修改", en: "Tap to edit" },
   选择: { tw: "選擇", en: "Select" },
   "已选 {n} 个": { tw: "已選 {n} 個", en: "{n} selected" },
