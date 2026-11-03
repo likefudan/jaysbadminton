@@ -829,7 +829,7 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
                 </span>
                 <span class="muted small">
                   {t("{name} 提供", { name: a.addedBy })}
-                  {(a.mine || props.e.runByMe) && (
+                  {(a.mine || props.e.runByMe || props.q.manage) && (
                     <button type="button" class="text-button" disabled={busy} onClick={() => remove(a.id, a.username)}>
                       {t("删除")}
                     </button>

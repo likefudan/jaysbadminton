@@ -158,10 +158,10 @@ export async function addAccounts(
   return { added: fresh.length, skipped };
 }
 
-/** Taken off by whoever added it, or by whoever runs the event. */
-export async function removeAccount(env: Env, e: EventRow, memberId: string, runs: boolean, id: number) {
+/** Taken off by whoever added it, or by the Owner, an admin or whoever runs the event (`anyone`). */
+export async function removeAccount(env: Env, e: EventRow, memberId: string, anyone: boolean, id: number) {
   const res = await env.DB.prepare("DELETE FROM queue_accounts WHERE id = ? AND event_id = ? AND (member_id = ? OR ?)")
-    .bind(id, e.id, memberId, runs ? 1 : 0)
+    .bind(id, e.id, memberId, anyone ? 1 : 0)
     .run();
   if (!res.meta.changes) throw badRequest("只能删除自己填的账号");
 }

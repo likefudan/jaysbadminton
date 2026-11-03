@@ -460,7 +460,8 @@ memberRoutes.post("/:token/events/:id/queue/accounts/clear", async (c) => {
 
 memberRoutes.post("/:token/events/:id/queue/accounts/:aid/remove", async (c) => {
   const { e, m, runs } = await queueEventFor(c, c.req.param("id"));
-  await removeAccount(c.env, e, m.id, runs, Number(c.req.param("aid")));
+  // Anyone's account: the Owner, admins and whoever runs this event (Ke Li).
+  await removeAccount(c.env, e, m.id, runs || managesQueue(c.env, m), Number(c.req.param("aid")));
   return c.json({ ok: true });
 });
 

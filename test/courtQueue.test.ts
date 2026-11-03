@@ -149,6 +149,38 @@ describe("球场排队", () => {
     expect((await anon.call(`${bob.base}${q}/accounts/${markId}/remove`, {})).status).toBe(400);
     expect((await anon.call(`${alice.base}${q}/accounts/${markId}/remove`, {})).status).toBe(200);
     expect((await card(alice.base))!.queue.accounts.map((a: any) => a.username)).toEqual(["Coco"]);
+
+    // An organizer who doesn't run this event still can't; an admin can remove anyone's.
+    const cocoId = seen.accounts[1].id;
+    const asBob = async (path: string, body?: unknown) => {
+      const res = await request(`${bob.base}${path}`, "", body);
+      return { status: res.status, data: (await res.json()) as any };
+    };
+    await appoint(bob.id, "bob", "organizer");
+    expect((await asBob(`${q}/accounts/${cocoId}/remove`, {})).status).toBe(400);
+    await appoint(bob.id, "bob", "admin");
+    expect((await asBob(`/events/${e.id}`)).data.event.queue.manage).toBe(true);
+    expect((await asBob(`${q}/accounts/${cocoId}/remove`, {})).status).toBe(200);
+    expect((await card(alice.base))!.queue.accounts).toHaveLength(0);
+  });
+
+  it("lets the organizer who runs the event remove anyone's account", async () => {
+    const { ctx, alice, bob } = await scenario();
+    await appoint(bob.id, "bob", "organizer");
+    const e = await createTestEvent(ctx, { queueRoundMin: 45 });
+    await env.DB.prepare("UPDATE events SET manager_id = ? WHERE id = ?").bind(bob.id, e.id).run();
+    const q = `/events/${e.id}/queue`;
+    await anon.call(`${alice.base}/events/${e.id}/signup`, { friends: [] });
+    await anon.call(`${alice.base}${q}/accounts`, { username: "Mark", password: "1" });
+    const asBob = async (path: string, body?: unknown) => {
+      const res = await request(`${bob.base}${path}`, "", body);
+      return { status: res.status, data: (await res.json()) as any };
+    };
+    const bobCard = (await asBob(`/events/${e.id}`)).data.event;
+    expect(bobCard.runByMe).toBe(true);
+    expect(bobCard.queue.manage).toBe(false);
+    const id = bobCard.queue.accounts[0].id;
+    expect((await asBob(`${q}/accounts/${id}/remove`, {})).status).toBe(200);
   });
 
   it("enters, corrects and removes courts, counting from now", async () => {

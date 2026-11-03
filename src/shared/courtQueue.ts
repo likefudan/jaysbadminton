@@ -50,7 +50,7 @@ export interface QueueInfo {
   roundMin: number;
   /** 拍照登记 is available (the site has a key for the model that reads the photo). */
   photo: boolean;
-  /** 批量删除 / 清空账号: the viewer is the Owner or an admin, who may clear several courts or all accounts at once. */
+  /** 批量删除 / 清空账号 / deleting anyone's account: the viewer is the Owner or an admin. */
   manage: boolean;
   accounts: QueueAccount[];
   courts: QueueCourt[];
