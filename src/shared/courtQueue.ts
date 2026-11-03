@@ -75,6 +75,23 @@ export function courtPhase(c: Pick<QueueCourt, "startsAt" | "endsAt">, now: numb
 }
 
 /**
+ * An entry on the card that a new look at the same court takes the place of (the server does the
+ * same when it saves): the group playing there when the new one is playing, or the same group
+ * (any account in common) still waiting there when the new one is queued.
+ */
+export function replacedBy(
+  old: Pick<QueueCourt, "court" | "startsAt" | "endsAt" | "accounts">,
+  next: { court: number; position: number; accounts: string[] },
+  now: number,
+): boolean {
+  if (old.court !== next.court) return false;
+  const phase = courtPhase(old, now).phase;
+  if (next.position === 0) return phase === "playing";
+  const names = new Set(next.accounts.map((a) => a.toLowerCase()));
+  return phase === "queued" && old.accounts.some((a) => names.has(a.toLowerCase()));
+}
+
+/**
  * The wait for the k-th group in a court's queue, from the screen: the group on court finishes
  * its Minutes Left, then each of the k-1 groups ahead plays a full round.
  */

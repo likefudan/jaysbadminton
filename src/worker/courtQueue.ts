@@ -183,6 +183,13 @@ function int(v: unknown, min: number, max: number, message: string): number {
  * time left while playing, or the wait until a queued group gets on (the form works that out from
  * the screen when a court is first entered). A queued group's round then runs roundMin minutes.
  * The group must be accounts shared on the event.
+ *
+ * The entry replaces what it makes out of date on the same court (a newer look at the hall's
+ * screen wins): a court has one group playing, so a playing entry takes the place of any other
+ * group playing there (including a queued group whose time has come); and a group waits in a
+ * court's queue once, so a queued entry takes the place of the same group (any account in common)
+ * still queued there. Without this, 拍照登记 or a second 登记 of a court already on the card added
+ * it again (9号 twice under 在打).
  */
 export async function saveCourt(env: Env, e: EventRow, memberId: string, body: Record<string, unknown>) {
   const court = int(body.court, 1, QUEUE_COURT_MAX, "请选择场号");
@@ -206,27 +213,42 @@ export async function saveCourt(env: Env, e: EventRow, memberId: string, body: R
   const at = (min: number) => new Date(Date.parse(ts) + min * 60_000).toISOString();
   const startsAt = position === 0 ? null : at(minutes);
   const endsAt = position === 0 ? at(minutes) : at(minutes + e.queue_round_min!);
-  if (body.id !== undefined && body.id !== null) {
-    const id = int(body.id, 1, Number.MAX_SAFE_INTEGER, "找不到这条记录");
-    const res = await env.DB.prepare(
-      `UPDATE queue_courts SET court = ?, position = ?, starts_at = ?, ends_at = ?, accounts = ?, updated_at = ?, updated_by = ?
-       WHERE id = ? AND event_id = ?`,
-    )
-      .bind(court, position, startsAt, endsAt, accounts, ts, memberId, id, e.id)
-      .run();
-    if (!res.meta.changes) throw new HttpError(404, "not_found", "这条记录已经被删掉了");
-    return;
+  const editing = body.id !== undefined && body.id !== null;
+  const id = editing ? int(body.id, 1, Number.MAX_SAFE_INTEGER, "找不到这条记录") : 0;
+  if (editing) {
+    const found = await env.DB.prepare("SELECT 1 FROM queue_courts WHERE id = ? AND event_id = ?")
+      .bind(id, e.id)
+      .first();
+    if (!found) throw new HttpError(404, "not_found", "这条记录已经被删掉了");
+  } else {
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM queue_courts WHERE event_id = ?")
+      .bind(e.id)
+      .first<{ n: number }>();
+    if ((n?.n ?? 0) >= COURTS_MAX) throw badRequest("登记的球场太多了，请先删掉打完的");
   }
-  const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM queue_courts WHERE event_id = ?")
-    .bind(e.id)
-    .first<{ n: number }>();
-  if ((n?.n ?? 0) >= COURTS_MAX) throw badRequest("登记的球场太多了，请先删掉打完的");
-  await env.DB.prepare(
-    `INSERT INTO queue_courts (event_id, court, position, starts_at, ends_at, accounts, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(e.id, court, position, startsAt, endsAt, accounts, ts, memberId, ts, memberId)
-    .run();
+  // Run together with the write, so two phones entering the same court at once still leave one.
+  const replaced =
+    position === 0
+      ? env.DB.prepare(
+          `DELETE FROM queue_courts WHERE event_id = ? AND court = ? AND id != ? AND ends_at > ?
+             AND (starts_at IS NULL OR starts_at <= ?)`,
+        ).bind(e.id, court, id, ts, ts)
+      : env.DB.prepare(
+          `DELETE FROM queue_courts WHERE event_id = ? AND court = ? AND id != ? AND starts_at > ?
+             AND EXISTS (SELECT 1 FROM json_each(queue_courts.accounts) j
+                         WHERE lower(j.value) IN (SELECT lower(value) FROM json_each(?)))`,
+        ).bind(e.id, court, id, ts, accounts);
+  const write = editing
+    ? env.DB.prepare(
+        `UPDATE queue_courts SET court = ?, position = ?, starts_at = ?, ends_at = ?, accounts = ?, updated_at = ?, updated_by = ?
+         WHERE id = ? AND event_id = ?`,
+      ).bind(court, position, startsAt, endsAt, accounts, ts, memberId, id, e.id)
+    : env.DB.prepare(
+        `INSERT INTO queue_courts (event_id, court, position, starts_at, ends_at, accounts, created_at, created_by, updated_at, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(e.id, court, position, startsAt, endsAt, accounts, ts, memberId, ts, memberId);
+  const [, res] = await env.DB.batch([replaced, write]);
+  if (editing && !res!.meta.changes) throw new HttpError(404, "not_found", "这条记录已经被删掉了");
 }
 
 /** Anyone on the event may take a court off: the list is everyone's to keep current. */

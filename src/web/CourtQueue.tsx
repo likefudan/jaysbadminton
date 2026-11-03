@@ -14,6 +14,7 @@ import {
   parseAccountList,
   type QueueInfo,
   queueWait,
+  replacedBy,
 } from "../shared/courtQueue";
 import { toPacific } from "../shared/time";
 import type { MyEvent } from "../shared/types";
@@ -338,8 +339,8 @@ function CourtSheet(props: {
     setNoMinutes(p.minutesLeft === null);
     setPicked(p.accounts.map((a) => a.username));
     setUnsure(p.accounts.filter((a) => a.uncertain).map((a) => a.username));
-    const same = props.q.courts.find(
-      (x) => x.court === p.court && x.position === p.position && courtPhase(x, props.now).phase !== "done",
+    const same = props.q.courts.find((x) =>
+      replacedBy(x, { court: p.court, position: p.position, accounts: p.accounts.map((a) => a.username) }, props.now),
     );
     setEntryId(same?.id ?? null);
   }
