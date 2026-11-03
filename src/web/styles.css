@@ -4386,6 +4386,19 @@ ul.audit li:first-child {
   max-height: none;
   object-fit: contain;
 }
+.cq-found-list {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+.cq-found-list .chip.cq-skipped {
+  background: transparent;
+  border-style: dashed;
+  color: var(--muted);
+  box-shadow: none;
+}
+.cq-found-list .chip.cq-skipped .cq-found-name {
+  text-decoration: line-through;
+}
 .cq-found-list .chip.cq-done:not(.on) {
   color: var(--muted);
 }

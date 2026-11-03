@@ -897,6 +897,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "找到 {n} 片場，請注意逐個核對後儲存",
     en: "Found {n} courts. Please check each one before saving",
   },
+  "跳过 {n}号": { tw: "跳過 {n}號", en: "Skip court {n}" },
   "找到 1 片场，请注意核对后保存": {
     tw: "找到 1 片場，請注意核對後儲存",
     en: "Found 1 court. Please check it before saving",

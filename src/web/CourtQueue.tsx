@@ -318,6 +318,7 @@ function CourtSheet(props: {
   const [photo, setPhoto] = useState<{ url: string; result: PhotoResult } | null>(null);
   const [at, setAt] = useState(0);
   const [saved, setSaved] = useState<number[]>([]);
+  const [skipped, setSkipped] = useState<number[]>([]);
   const [unsure, setUnsure] = useState<string[]>([]);
   const [noMinutes, setNoMinutes] = useState(false);
   // A court read from the photo that is already on the card is saved as a change to that entry.
@@ -352,7 +353,25 @@ function CourtSheet(props: {
   function read(url: string, result: PhotoResult) {
     setPhoto({ url, result });
     setSaved([]);
+    setSkipped([]);
     if (result.courts.length > 0) fill(result.courts[0]!, 0);
+  }
+  /**
+   * ✕ on a court read from the photo (Ke Li: someone else's account read as ours): it isn't saved.
+   * Tapping a skipped court brings it back and shows it; skipping the one shown moves to the next.
+   */
+  function skip(k: number) {
+    const found = photo!.result.courts;
+    if (skipped.includes(k)) {
+      setSkipped(skipped.filter((x) => x !== k));
+      return fill(found[k]!, k);
+    }
+    const sk = [...skipped, k];
+    setSkipped(sk);
+    if (k !== at) return;
+    const next = found.findIndex((_, j) => !saved.includes(j) && !sk.includes(j));
+    if (next < 0) return props.onDone();
+    fill(found[next]!, next);
   }
   async function save() {
     if (fromScreen && wait === null) return setMissing(true);
@@ -366,7 +385,7 @@ function CourtSheet(props: {
     if (!(await run(() => api(path, body)))) return;
     const found = photo?.result.courts ?? [];
     const done = [...saved, at];
-    const next = found.findIndex((_, k) => !done.includes(k));
+    const next = found.findIndex((_, k) => !done.includes(k) && !skipped.includes(k));
     if (!photo || next < 0) return props.onDone();
     setSaved(done);
     fill(found[next]!, next);
@@ -403,7 +422,9 @@ function CourtSheet(props: {
           result={photo.result}
           at={at}
           saved={saved}
+          skipped={skipped}
           onPick={(k) => fill(photo.result.courts[k]!, k)}
+          onSkip={skip}
         />
       )}
       <div class="cq-row">
@@ -551,7 +572,9 @@ function PhotoFound(props: {
   result: PhotoResult;
   at: number;
   saved: number[];
+  skipped: number[];
   onPick: (k: number) => void;
+  onSkip: (k: number) => void;
 }) {
   const [big, setBig] = useState(false);
   const found = props.result.courts;
@@ -571,17 +594,35 @@ function PhotoFound(props: {
           </p>
           {found.length > 1 && (
             <div class="chips cq-found-list">
-              {found.map((p, k) => (
-                <button
-                  type="button"
-                  key={`${p.court}:${p.position}`}
-                  class={`chip${k === props.at ? " on" : ""}${props.saved.includes(k) ? " cq-done" : ""}`}
-                  onClick={() => props.onPick(k)}
-                >
-                  {props.saved.includes(k) ? "✓ " : ""}
-                  {t("{n}号", { n: p.court })} · {p.position === 0 ? t("在打") : t("排第 {k} 组", { k: p.position })}
-                </button>
-              ))}
+              {found.map((p, k) => {
+                const done = props.saved.includes(k);
+                const skip = props.skipped.includes(k);
+                return (
+                  <span class="chip-wrap" key={`${p.court}:${p.position}`}>
+                    <button
+                      type="button"
+                      class={`chip${k === props.at && !skip ? " on" : ""}${done ? " cq-done" : ""}${skip ? " cq-skipped" : ""}`}
+                      onClick={() => (skip ? props.onSkip(k) : props.onPick(k))}
+                    >
+                      {done ? "✓ " : ""}
+                      <span class="cq-found-name">
+                        {t("{n}号", { n: p.court })} ·{" "}
+                        {p.position === 0 ? t("在打") : t("排第 {k} 组", { k: p.position })}
+                      </span>
+                    </button>
+                    {!done && !skip && (
+                      <button
+                        type="button"
+                        class="chip-remove"
+                        aria-label={t("跳过 {n}号", { n: p.court })}
+                        onClick={() => props.onSkip(k)}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
             </div>
           )}
         </>
