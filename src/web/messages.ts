@@ -766,6 +766,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   还剩几分钟: { tw: "還剩幾分鐘", en: "Minutes left" },
   "排{k}": { tw: "排{k}", en: "Q{k}" },
   正在打的还剩几分钟: { tw: "正在打的還剩幾分鐘", en: "Current group: min left" },
+  请填写正在打的还剩几分钟: { tw: "請填寫正在打的還剩幾分鐘", en: "Enter the current group's minutes left" },
   还要等几分钟: { tw: "還要等幾分鐘", en: "Minutes to wait" },
   "{n} 号场": { tw: "{n} 號場", en: "Court {n}" },
   登记球场: { tw: "登記球場", en: "Add court" },
