@@ -356,6 +356,23 @@ function CourtSheet(props: {
     setSkipped([]);
     if (result.courts.length > 0) fill(result.courts[0]!, 0);
   }
+  /**
+   * ✕ on a court read from the photo (Ke Li: someone else's account read as ours): it isn't saved.
+   * Tapping a skipped court brings it back and shows it; skipping the one shown moves to the next.
+   */
+  function skip(k: number) {
+    const found = photo!.result.courts;
+    if (skipped.includes(k)) {
+      setSkipped(skipped.filter((x) => x !== k));
+      return fill(found[k]!, k);
+    }
+    const sk = [...skipped, k];
+    setSkipped(sk);
+    if (k !== at) return;
+    const next = found.findIndex((_, j) => !saved.includes(j) && !sk.includes(j));
+    if (next < 0) return props.onDone();
+    fill(found[next]!, next);
+  }
   async function save() {
     if (fromScreen && wait === null) return setMissing(true);
     const body = {
@@ -407,15 +424,7 @@ function CourtSheet(props: {
           saved={saved}
           skipped={skipped}
           onPick={(k) => fill(photo.result.courts[k]!, k)}
-          onSkip={(k) => {
-            const sk = skipped.includes(k) ? skipped.filter((x) => x !== k) : [...skipped, k];
-            setSkipped(sk);
-            if (!sk.includes(k)) return fill(photo.result.courts[k]!, k);
-            if (k !== at) return;
-            const next = photo.result.courts.findIndex((_, j) => !saved.includes(j) && !sk.includes(j));
-            if (next < 0) return props.onDone();
-            fill(photo.result.courts[next]!, next);
-          }}
+          onSkip={skip}
         />
       )}
       <div class="cq-row">
@@ -597,12 +606,17 @@ function PhotoFound(props: {
                     >
                       {done ? "✓ " : ""}
                       <span class="cq-found-name">
-                        {t("{n}号", { n: p.court })} · {p.position === 0 ? t("在打") : t("排第 {k} 组", { k: p.position })}
+                        {t("{n}号", { n: p.court })} ·{" "}
+                        {p.position === 0 ? t("在打") : t("排第 {k} 组", { k: p.position })}
                       </span>
-                      {skip ? <span class="cq-skip-tag">{t("已跳过")}</span> : null}
                     </button>
                     {!done && !skip && (
-                      <button type="button" class="chip-remove" aria-label={t("跳过")} onClick={() => props.onSkip(k)}>
+                      <button
+                        type="button"
+                        class="chip-remove"
+                        aria-label={t("跳过 {n}号", { n: p.court })}
+                        onClick={() => props.onSkip(k)}
+                      >
                         ✕
                       </button>
                     )}
@@ -611,7 +625,6 @@ function PhotoFound(props: {
               })}
             </div>
           )}
-          {props.skipped.length > 0 && <p class="muted small">{t("跳过的不会保存，点一下可以恢复。")}</p>}
         </>
       )}
       {props.result.unreadable.length > 0 && (

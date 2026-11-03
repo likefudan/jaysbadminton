@@ -482,3 +482,86 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
     body: { court: 12, position: 1, minutes: 10, accounts: ["Chris", "Weicheng"] },
   });
 });
+
+test("拍照登记: ✕ skips a court read wrongly, it isn't saved, and a tap brings it back", async ({ page }) => {
+  const posts = await setUp(page);
+  const group = (n: number, position: number, minutesLeft: number, accounts: string[]) => ({
+    court: n,
+    position,
+    minutesLeft,
+    accounts: accounts.map((username) => ({ username, uncertain: false })),
+  });
+  await page.route("**/api/m/tok/events/9/queue/photo", (route) =>
+    route.fulfill({
+      json: {
+        courts: [
+          group(16, 0, 25, ["Wenxi", "Am"]),
+          group(5, 0, 16, ["Mark", "Ben"]),
+          group(12, 1, 30, ["Chris", "Weicheng"]),
+        ],
+        unreadable: [],
+      },
+    }),
+  );
+  await page.getByRole("button", { name: "＋ 登记球场" }).click();
+  const sheet = page.getByRole("dialog");
+  const courtNo = sheet.getByRole("spinbutton", { name: "场号" });
+  const chips = sheet.locator(".cq-found-list .chip");
+  await sheet.locator(".cq-photo input[type=file]").setInputFiles("e2e/fixtures/queue-screen.jpg");
+  await expect(courtNo).toHaveValue("16");
+  await expect(sheet.locator(".cq-found-list .chip-remove")).toHaveCount(3);
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: test.info().outputPath(`skip-group-before-${scheme}.png`) });
+  }
+
+  // Skipping one that isn't shown: struck through, no ✕, the form stays on 16.
+  await sheet.getByRole("button", { name: "跳过 5号" }).click();
+  await expect(chips.nth(1)).toHaveClass(/cq-skipped/);
+  await expect(chips.nth(1)).toHaveText("5号 · 在打");
+  await expect(sheet.getByRole("button", { name: "跳过 5号" })).toHaveCount(0);
+  await expect(courtNo).toHaveValue("16");
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: test.info().outputPath(`skip-group-after-${scheme}.png`) });
+  }
+
+  // A tap brings it back and shows it; skipping the one shown moves on to the next left.
+  await chips.nth(1).click();
+  await expect(chips.nth(1)).not.toHaveClass(/cq-skipped/);
+  await expect(courtNo).toHaveValue("5");
+  await sheet.getByRole("button", { name: "跳过 5号" }).click();
+  await expect(courtNo).toHaveValue("16");
+
+  // Saving 16 goes to 12, past the skipped 5; saving 12 closes the sheet. 5 is never sent.
+  const before = posts.length;
+  await sheet.getByRole("button", { name: "保存" }).click();
+  await expect(courtNo).toHaveValue("12");
+  await sheet.getByRole("button", { name: "保存" }).click();
+  await expect(sheet).toBeHidden();
+  const sent = posts.slice(before).map((p) => (p.body as { court: number }).court);
+  expect(sent).toEqual([16, 12]);
+});
+
+test("拍照登记: skipping every court left closes the sheet", async ({ page }) => {
+  const posts = await setUp(page);
+  const one = (n: number) => ({
+    court: n,
+    position: 0,
+    minutesLeft: 20,
+    accounts: [{ username: "Mark", uncertain: false }],
+  });
+  await page.route("**/api/m/tok/events/9/queue/photo", (route) =>
+    route.fulfill({ json: { courts: [one(5), one(6)], unreadable: [] } }),
+  );
+  await page.getByRole("button", { name: "＋ 登记球场" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.locator(".cq-photo input[type=file]").setInputFiles("e2e/fixtures/queue-screen.jpg");
+  await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("5");
+  const before = posts.length;
+  await sheet.getByRole("button", { name: "跳过 5号" }).click();
+  await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("6");
+  await sheet.getByRole("button", { name: "跳过 6号" }).click();
+  await expect(sheet).toBeHidden();
+  expect(posts.length).toBe(before);
+});

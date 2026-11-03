@@ -4399,10 +4399,6 @@ ul.audit li:first-child {
 .cq-found-list .chip.cq-skipped .cq-found-name {
   text-decoration: line-through;
 }
-.cq-skip-tag {
-  margin-left: 6px;
-  font-size: 12px;
-}
 .cq-found-list .chip.cq-done:not(.on) {
   color: var(--muted);
 }
