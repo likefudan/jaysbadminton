@@ -4,7 +4,7 @@
 // command for the site takes --config wrangler.<id>.json.
 // Usage: node scripts/site-config.mjs <id>
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const id = process.argv[2];
 const site = JSON.parse(readFileSync("sites.json", "utf8")).find((s) => s.id === id);
@@ -38,6 +38,17 @@ if ("sponsor" in site) {
   delete config.vars.SPONSOR_URL;
   if (site.sponsor?.name) config.vars.SPONSOR_NAME = site.sponsor.name;
   if (site.sponsor?.url) config.vars.SPONSOR_URL = site.sponsor.url;
+}
+// Its own icon colour, "icon": "blue": the Worker serves the icons in public/site-icons/blue/ under the
+// usual names (scripts/site-icons.cjs makes them), so those paths go through the Worker first.
+if (site.icon) {
+  if (!/^[a-z0-9-]+$/.test(site.icon)) throw new Error(`site ${id}: bad icon ${site.icon}`);
+  const files = readdirSync(`src/web/public/site-icons/${site.icon}`);
+  config.vars.SITE_ICON = site.icon;
+  config.assets = {
+    ...config.assets,
+    run_worker_first: [...config.assets.run_worker_first, ...files.map((f) => `/${f}`)],
+  };
 }
 writeFileSync(`wrangler.${id}.json`, JSON.stringify(config, null, 2));
 // The smoke test and the release notice in the later CI steps check this site.

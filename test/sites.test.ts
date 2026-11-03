@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/worker/index";
 import { siteTitle } from "../src/worker/site";
 import { botToken, saveBotToken, telegramStatus } from "../src/worker/telegram";
+import type { Env } from "../src/worker/env";
 import { ORIGIN } from "./helpers";
 
 /** An extra site from sites.json: its own name, and no bot token in the GitHub secrets. */
@@ -27,6 +28,39 @@ describe("each site names itself", () => {
     await waitOnExecutionContext(ctx);
     expect(res.headers.get("Content-Type")).toBe("application/manifest+json");
     expect(await res.json()).toEqual({ name: "SBBC 羽毛球", short_name: "羽毛球", icons: [] });
+  });
+});
+
+describe("a site's own icon colour", () => {
+  const assets = {
+    fetch: async (req: Request) =>
+      new Response(new URL(req.url).pathname, { headers: { "Content-Type": "text/plain" } }),
+  } as unknown as Fetcher;
+  const get = async (path: string, e: Env) => {
+    const ctx = createExecutionContext();
+    const res = await worker.fetch(new Request(`${ORIGIN}${path}`), { ...e, ASSETS: assets }, ctx);
+    await waitOnExecutionContext(ctx);
+    return res;
+  };
+
+  it("serves the blue icons under the usual names on a blue site", async () => {
+    const blue = { ...site, SITE_ICON: "blue" };
+    for (const file of ["/favicon.svg", "/icon.svg", "/icon-192.png", "/apple-touch-icon.png", "/og-image.jpg"]) {
+      const res = await get(file, blue);
+      expect(await res.text()).toBe(`/site-icons/blue${file}`);
+      expect(res.headers.get("Cache-Control")).toBe("public, max-age=3600");
+    }
+  });
+
+  it("keeps the usual icons elsewhere", async () => {
+    expect(await (await get("/icon-512.png", site)).text()).toBe("/icon-512.png");
+  });
+
+  it("tells the pages, for the top-bar logo", async () => {
+    expect(await (await get("/api/public/site", { ...site, SITE_ICON: "blue" })).json()).toMatchObject({
+      icon: "blue",
+    });
+    expect(await (await get("/api/public/site", site)).json()).toMatchObject({ icon: null });
   });
 });
 

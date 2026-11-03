@@ -38,6 +38,9 @@ export interface Env {
    *  while missing. SPONSOR_URL is the link on the name. Set in wrangler.jsonc, or per site in sites.json. */
   SPONSOR_NAME?: string;
   SPONSOR_URL?: string;
+  /** The site's own icon colour: its icons come from public/site-icons/<SITE_ICON>/ (sites.json "icon");
+   *  production's coral ones while missing. */
+  SITE_ICON?: string;
   /** "production" or "staging" (the test site); missing in tests, which count as production. */
   ENVIRONMENT?: string;
   /** "1" turns on the 组织者 features (staging and local dev); "0" or missing keeps them off. */

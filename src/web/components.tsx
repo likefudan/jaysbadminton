@@ -2,7 +2,7 @@ import type { AccessibleInputHTMLAttributes, ComponentChildren, HTMLInputTypeAtt
 import { useEffect, useState } from "preact/hooks";
 import type { Loaded } from "./hooks";
 import { AppearanceButton, AppearanceSheet } from "./Appearance";
-import { useSiteTitle, useSponsor, useStaging } from "./site";
+import { useSiteIcon, useSiteTitle, useSponsor, useStaging } from "./site";
 import { DeveloperSwitch } from "./DeveloperTools";
 import { GoogleAccount } from "./GoogleAccount";
 import { useLocation } from "preact-iso";
@@ -20,6 +20,7 @@ export function Page(props: {
 }) {
   const site = useSiteTitle();
   const staging = useStaging();
+  const icon = useSiteIcon();
   const sponsor = useSponsor();
   const [looks, setLooks] = useState(false);
   const { path } = useLocation();
@@ -32,7 +33,7 @@ export function Page(props: {
       {staging && <div class="env-banner">{t("测试环境 · 数据和正式网站分开，请不要转发这里的链接")}</div>}
       <header class="topbar">
         <a href="/" class="brand">
-          <span class={staging ? "logo logo-staging" : "logo"}>
+          <span class={staging ? "logo logo-staging" : icon ? `logo logo-${icon}` : "logo"}>
             <BridgeMark />
           </span>
           <span class="brand-name">{site}</span>
