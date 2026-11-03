@@ -289,6 +289,34 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   expect(posts.at(-1)?.body).toEqual({ court: 52, position: 3, minutes: 100, accounts: ["Chris"] });
 });
 
+test("a queued group with no minutes typed waits for the group playing on that court", async ({ page }) => {
+  const posts = await setUp(page);
+  await page.getByRole("button", { name: "＋ 登记球场" }).click();
+  const sheet = page.getByRole("dialog");
+  // 4号 is on the card, playing with about 44 minutes left.
+  await sheet.getByRole("spinbutton", { name: "场号" }).fill("4");
+  await sheet.getByRole("button", { name: "排第 1 组" }).click();
+  const box = sheet.getByRole("spinbutton", { name: "正在打的还剩几分钟" });
+  await expect(box).toHaveValue("");
+  const left = Number(await box.getAttribute("placeholder"));
+  expect(left).toBeGreaterThanOrEqual(43);
+  expect(left).toBeLessThanOrEqual(44);
+  await expect(sheet).toContainText(`大约 ${left} 分钟后上场`);
+  await sheet.getByRole("button", { name: "Chris" }).click();
+  await sheet.getByRole("button", { name: "保存" }).click();
+  await expect.poll(() => posts.at(-1)?.body).toEqual({ court: 4, position: 1, minutes: left, accounts: ["Chris"] });
+
+  // A court not on the card: the time on the screen has to be typed.
+  await page.getByRole("button", { name: "＋ 登记球场" }).click();
+  await sheet.getByRole("spinbutton", { name: "场号" }).fill("30");
+  await sheet.getByRole("button", { name: "排第 1 组" }).click();
+  await sheet.getByRole("button", { name: "Chris" }).click();
+  const before = posts.length;
+  await sheet.getByRole("button", { name: "保存" }).click();
+  await expect(sheet).toContainText("请填写正在打的还剩几分钟");
+  expect(posts).toHaveLength(before);
+});
+
 test("hall accounts: everyone's are listed, yours can be removed, and more added", async ({ page }) => {
   const posts = await setUp(page);
   await page.getByRole("button", { name: "球馆账号（18）" }).click();

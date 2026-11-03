@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { courtPhase, parseAccountList, queueWait } from "../src/shared/courtQueue";
+import { courtLeft, courtPhase, parseAccountList, queueWait, replacedBy } from "../src/shared/courtQueue";
 import { purgeCourtPhotos, toPhotoResult } from "../src/worker/courtPhoto";
 import worker from "../src/worker/index";
 import { Client, ORIGIN, appoint, approveMember, googleCookie, createTestEvent, request, setUpAdmin } from "./helpers";
@@ -202,6 +202,51 @@ describe("球场排队", () => {
     expect((await bad({ accounts: ["Mark"], minutes: 0 })).status).toBe(400);
   });
 
+  it("a court entered again replaces the old entry instead of showing it twice", async () => {
+    const { e, alice, q, card } = await scenario(45);
+    for (const username of ["TLi", "Jay", "Xiaoh", "Ryen", "Sail"])
+      await anon.call(`${alice.base}${q}/accounts`, { username, password: "1" });
+    const save = (body: object) => anon.call(`${alice.base}${q}/courts`, body);
+    const rows = async () =>
+      ((await card(alice.base))!.queue.courts as any[]).map((c) => [c.court, c.position, c.accounts]);
+
+    // 9 entered as playing twice (a second phone, or 拍照登记 again): one entry, the newer one.
+    await save({ court: 9, position: 0, minutes: 28, accounts: ["TLi", "Jay"] });
+    expect((await save({ court: 9, position: 0, minutes: 27, accounts: ["tli", "jay"] })).status).toBe(200);
+    let courts = (await card(alice.base))!.queue.courts;
+    expect(courts).toHaveLength(1);
+    expect(minutesFrom(courts[0].endsAt)).toBe(27);
+
+    // A queued group whose time has come counts as playing: entering the court as playing replaces it.
+    await env.DB.prepare("DELETE FROM queue_courts WHERE event_id = ?").bind(e.id).run();
+    await save({ court: 9, position: 1, minutes: 5, accounts: ["TLi", "Jay"] });
+    const past = new Date(Date.now() - 60_000).toISOString();
+    await env.DB.prepare("UPDATE queue_courts SET starts_at = ? WHERE event_id = ?").bind(past, e.id).run();
+    await save({ court: 9, position: 0, minutes: 40, accounts: ["Sail"] });
+    expect(await rows()).toEqual([[9, 0, ["Sail"]]]);
+
+    // The same group queued again on 8 (moved up from 第2组 to 第1组) replaces its old place;
+    // another group in the same queue, a group on another court, and the group on court stay.
+    await save({ court: 8, position: 0, minutes: 20, accounts: ["Jay"] });
+    await save({ court: 8, position: 2, minutes: 60, accounts: ["Xiaoh", "Ryen"] });
+    await save({ court: 8, position: 1, minutes: 20, accounts: ["TLi"] });
+    await save({ court: 7, position: 1, minutes: 20, accounts: ["Xiaoh", "Ryen"] });
+    await save({ court: 8, position: 1, minutes: 15, accounts: ["Xiaoh", "Ryen"] });
+    expect(await rows()).toEqual([
+      [7, 1, ["Xiaoh", "Ryen"]],
+      [8, 0, ["Jay"]],
+      [8, 1, ["TLi"]],
+      [8, 1, ["Xiaoh", "Ryen"]],
+      [9, 0, ["Sail"]],
+    ]);
+
+    // Moving an entry onto a court works the same way, and the moved entry keeps its id.
+    const seven = (await card(alice.base))!.queue.courts.find((c: any) => c.court === 7);
+    await save({ id: seven.id, court: 9, position: 0, minutes: 30, accounts: ["Xiaoh", "Ryen"] });
+    courts = (await card(alice.base))!.queue.courts;
+    expect(courts.filter((c: any) => c.court === 9).map((c: any) => c.id)).toEqual([seven.id]);
+  });
+
   it("批量删除 is for the Owner and admins: ticked courts go, playing or queued, on this event only", async () => {
     const { ctx, e, alice, bob, q, card } = await scenario();
     await anon.call(`${alice.base}${q}/accounts`, { username: "Mark", password: "1" });
@@ -316,6 +361,34 @@ describe("courtPhase / queueWait", () => {
     expect(courtPhase(c, now)).toEqual({ phase: "queued", minutes: 49 });
     expect(courtPhase(c, now + 50 * 60_000)).toEqual({ phase: "playing", minutes: 44 });
     expect(courtPhase(c, now + 94 * 60_000)).toEqual({ phase: "done" });
+  });
+
+  it("replacedBy: the group playing, or the same group still waiting, on the same court", () => {
+    const at = Date.parse("2026-11-02T20:00:00Z");
+    const iso = (min: number) => new Date(at + min * 60_000).toISOString();
+    const playing = { court: 9, startsAt: null, endsAt: iso(20), accounts: ["TLi", "Jay"] };
+    const queued = { court: 8, startsAt: iso(10), endsAt: iso(55), accounts: ["Xiaoh", "Ryen"] };
+    expect(replacedBy(playing, { court: 9, position: 0, accounts: ["Sail"] }, at)).toBe(true);
+    expect(replacedBy(playing, { court: 9, position: 1, accounts: ["TLi"] }, at)).toBe(false);
+    expect(replacedBy(playing, { court: 7, position: 0, accounts: ["TLi"] }, at)).toBe(false);
+    expect(replacedBy(queued, { court: 8, position: 1, accounts: ["xiaoh"] }, at)).toBe(true);
+    expect(replacedBy(queued, { court: 8, position: 1, accounts: ["Sail"] }, at)).toBe(false);
+    expect(replacedBy(queued, { court: 8, position: 0, accounts: ["Sail"] }, at + 15 * 60_000)).toBe(true);
+    expect(replacedBy(playing, { court: 9, position: 0, accounts: ["Sail"] }, at + 30 * 60_000)).toBe(false);
+  });
+
+  it("courtLeft: minutes left for the group playing on a court, for a queued group's wait", () => {
+    const at = Date.parse("2026-11-02T20:00:00Z");
+    const iso = (min: number) => new Date(at + min * 60_000).toISOString();
+    const courts = [
+      { court: 2, startsAt: iso(5), endsAt: iso(50) },
+      { court: 2, startsAt: null, endsAt: iso(26) },
+      { court: 3, startsAt: iso(-10), endsAt: iso(35) },
+    ];
+    expect(courtLeft(courts, 2, at)).toBe(26);
+    expect(courtLeft(courts, 3, at)).toBe(35);
+    expect(courtLeft(courts, 4, at)).toBeNull();
+    expect(courtLeft(courts, 2, at + 30 * 60_000)).toBe(20);
   });
 
   it("estimates the wait from the screen", () => {

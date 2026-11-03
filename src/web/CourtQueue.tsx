@@ -2,6 +2,7 @@ import { createPortal } from "preact/compat";
 import { useEffect, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import {
+  courtLeft,
   courtPhase,
   PHOTO_MAX_SIDE,
   type PhotoCourt,
@@ -14,6 +15,7 @@ import {
   parseAccountList,
   type QueueInfo,
   queueWait,
+  replacedBy,
 } from "../shared/courtQueue";
 import { toPacific } from "../shared/time";
 import type { MyEvent } from "../shared/types";
@@ -320,11 +322,15 @@ function CourtSheet(props: {
   const [noMinutes, setNoMinutes] = useState(false);
   // A court read from the photo that is already on the card is saved as a change to that entry.
   const [entryId, setEntryId] = useState<number | null>(null);
+  const [missing, setMissing] = useState(false);
   const { busy, error, run } = useAction();
   const path = `${props.base}/events/${props.e.id}/queue/courts`;
-  const n = Number(minutes);
   const fromScreen = !c && position > 0;
-  const wait = fromScreen && minutes !== "" ? queueWait(n, position, props.q.roundMin) : null;
+  // A new queued group with the box left empty: the group playing on that court (if it is on the
+  // card) has this long left, so the wait counts from it, not from 0.
+  const playingLeft = fromScreen ? courtLeft(props.q.courts, Number(court), props.now) : null;
+  const n = minutes === "" && playingLeft !== null ? playingLeft : Number(minutes);
+  const wait = fromScreen && (minutes !== "" || playingLeft !== null) ? queueWait(n, position, props.q.roundMin) : null;
 
   function toggle(name: string) {
     if (picked.includes(name)) setPicked(picked.filter((x) => x !== name));
@@ -338,8 +344,8 @@ function CourtSheet(props: {
     setNoMinutes(p.minutesLeft === null);
     setPicked(p.accounts.map((a) => a.username));
     setUnsure(p.accounts.filter((a) => a.uncertain).map((a) => a.username));
-    const same = props.q.courts.find(
-      (x) => x.court === p.court && x.position === p.position && courtPhase(x, props.now).phase !== "done",
+    const same = props.q.courts.find((x) =>
+      replacedBy(x, { court: p.court, position: p.position, accounts: p.accounts.map((a) => a.username) }, props.now),
     );
     setEntryId(same?.id ?? null);
   }
@@ -349,6 +355,7 @@ function CourtSheet(props: {
     if (result.courts.length > 0) fill(result.courts[0]!, 0);
   }
   async function save() {
+    if (fromScreen && wait === null) return setMissing(true);
     const body = {
       id: c?.id ?? entryId ?? undefined,
       court: Number(court),
@@ -427,8 +434,12 @@ function CourtSheet(props: {
             inputMode="numeric"
             min={0}
             value={minutes}
+            placeholder={playingLeft !== null ? String(playingLeft) : undefined}
             aria-label={label}
-            onInput={(ev) => setMinutes((ev.target as HTMLInputElement).value)}
+            onInput={(ev) => {
+              setMinutes((ev.target as HTMLInputElement).value);
+              setMissing(false);
+            }}
           />
           <span>{t("分钟")}</span>
         </label>
@@ -440,9 +451,13 @@ function CourtSheet(props: {
           step={1}
           value={n || 0}
           aria-label={label}
-          onInput={(ev) => setMinutes((ev.target as HTMLInputElement).value)}
+          onInput={(ev) => {
+            setMinutes((ev.target as HTMLInputElement).value);
+            setMissing(false);
+          }}
         />
       </div>
+      {missing && minutes === "" && <p class="error">{t("请填写正在打的还剩几分钟")}</p>}
       {noMinutes && minutes === "" && <p class="cq-unsure-note small">{t("照片上没读出剩余时间，请看屏幕填写。")}</p>}
       <p class="muted small">
         {wait !== null
