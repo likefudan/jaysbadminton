@@ -74,6 +74,16 @@ export function courtPhase(c: Pick<QueueCourt, "startsAt" | "endsAt">, now: numb
   return { phase: "done" };
 }
 
+/** Minutes left for the group playing on `court` now, from the card; null when none is entered. */
+export function courtLeft(courts: Pick<QueueCourt, "court" | "startsAt" | "endsAt">[], court: number, now: number) {
+  for (const c of courts) {
+    if (c.court !== court) continue;
+    const p = courtPhase(c, now);
+    if (p.phase === "playing") return p.minutes;
+  }
+  return null;
+}
+
 /**
  * An entry on the card that a new look at the same court takes the place of (the server does the
  * same when it saves): the group playing there when the new one is playing, or the same group

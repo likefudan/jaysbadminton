@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { courtPhase, parseAccountList, queueWait, replacedBy } from "../src/shared/courtQueue";
+import { courtLeft, courtPhase, parseAccountList, queueWait, replacedBy } from "../src/shared/courtQueue";
 import { purgeCourtPhotos, toPhotoResult } from "../src/worker/courtPhoto";
 import worker from "../src/worker/index";
 import { Client, ORIGIN, appoint, approveMember, googleCookie, createTestEvent, request, setUpAdmin } from "./helpers";
@@ -375,6 +375,20 @@ describe("courtPhase / queueWait", () => {
     expect(replacedBy(queued, { court: 8, position: 1, accounts: ["Sail"] }, at)).toBe(false);
     expect(replacedBy(queued, { court: 8, position: 0, accounts: ["Sail"] }, at + 15 * 60_000)).toBe(true);
     expect(replacedBy(playing, { court: 9, position: 0, accounts: ["Sail"] }, at + 30 * 60_000)).toBe(false);
+  });
+
+  it("courtLeft: minutes left for the group playing on a court, for a queued group's wait", () => {
+    const at = Date.parse("2026-11-02T20:00:00Z");
+    const iso = (min: number) => new Date(at + min * 60_000).toISOString();
+    const courts = [
+      { court: 2, startsAt: iso(5), endsAt: iso(50) },
+      { court: 2, startsAt: null, endsAt: iso(26) },
+      { court: 3, startsAt: iso(-10), endsAt: iso(35) },
+    ];
+    expect(courtLeft(courts, 2, at)).toBe(26);
+    expect(courtLeft(courts, 3, at)).toBe(35);
+    expect(courtLeft(courts, 4, at)).toBeNull();
+    expect(courtLeft(courts, 2, at + 30 * 60_000)).toBe(20);
   });
 
   it("estimates the wait from the screen", () => {
