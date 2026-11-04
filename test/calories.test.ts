@@ -209,4 +209,40 @@ describe("卡路里", () => {
     expect(await board()).toEqual([]);
     expect((await anon.call(`${bob.base}/calories`)).data.yearKcal).toBe(500);
   });
+
+  it("deletes the event picked, not another year's event with the same code", async () => {
+    const { ctx, alice, e } = await scene();
+    // A year earlier, the same day: the same code (1006 in 2026 and in 2027).
+    const old = await createTestEvent(ctx);
+    await anon.call(`${alice.base}/events/${old.id}/signup`, { friends: [] });
+    const { code } = (await env.DB.prepare("SELECT code FROM events WHERE id = ?")
+      .bind(e.id)
+      .first<{ code: string }>())!;
+    await env.DB.prepare("UPDATE events SET code = ? WHERE id = ?").bind(code, old.id).run();
+    for (const [id, kcal] of [
+      [old.id, 300],
+      [e.id, 500],
+    ] as const) {
+      await env.DB.prepare("INSERT INTO calories (event_id, member_id, kcal, recorded_at) VALUES (?, ?, ?, ?)")
+        .bind(id, alice.id, kcal, new Date().toISOString())
+        .run();
+    }
+    await env.DB.prepare("UPDATE events SET start_at = ? WHERE id = ?")
+      .bind(new Date(Date.now() - 365 * 86400_000).toISOString(), old.id)
+      .run();
+    const kcalOf = async () =>
+      (await anon.call(`${alice.base}/calories`)).data.events.map((x: { kcal: number }) => x.kcal);
+    expect((await anon.call(`${alice.base}/calories`)).data.events.map((x: { id: number }) => x.id)).toEqual([
+      e.id,
+      old.id,
+    ]);
+    await anon.call(`${alice.base}/calories/delete`, { id: old.id });
+    expect(await kcalOf()).toEqual([500]);
+    // An older page sends the code: the latest event with it that has a number.
+    await env.DB.prepare("INSERT INTO calories (event_id, member_id, kcal, recorded_at) VALUES (?, ?, ?, ?)")
+      .bind(old.id, alice.id, 300, new Date().toISOString())
+      .run();
+    await anon.call(`${alice.base}/calories/delete`, { code });
+    expect(await kcalOf()).toEqual([300]);
+  });
 });

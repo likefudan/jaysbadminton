@@ -499,10 +499,12 @@ memberRoutes.post("/:token/events/:id/calories", async (c) => {
 
 memberRoutes.get("/:token/calories", async (c) => c.json(await myCalories(c.env, c.get("member"))));
 
-// Deleting: one event's number ({code}) or all of them ({all: true}).
+// Deleting: one event's number ({id}, or {code} from an older page) or all of them ({all: true}).
 memberRoutes.post("/:token/calories/delete", async (c) => {
   const body = await readJson(c.req.raw);
-  if (typeof body.code === "string") await deleteCalories(c.env, c.get("member"), body.code);
+  if (Number.isSafeInteger(body.id) && (body.id as number) > 0)
+    await deleteCalories(c.env, c.get("member"), { id: body.id as number });
+  else if (typeof body.code === "string") await deleteCalories(c.env, c.get("member"), { code: body.code });
   else if (body.all === true) await deleteCalories(c.env, c.get("member"));
   else throw badRequest("要删除哪一场？");
   return c.json({ ok: true });

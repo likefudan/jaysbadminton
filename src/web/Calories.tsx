@@ -280,7 +280,7 @@ function CaloriesCard(props: { c: MyCalories; base: string; onChange: () => void
       ? t("删除 {date} 这场的卡路里记录（{n} 千卡）？", { date: fmtDate(e.date, true), n: kcalText(e.kcal) })
       : t("删除你全部 {n} 场的卡路里记录？删除后不能恢复，排行榜上也不会再有。", { n: c.events.length });
     if (!confirm(ask)) return;
-    if (await run(() => api(`${props.base}/calories/delete`, e ? { code: e.code } : { all: true }))) props.onChange();
+    if (await run(() => api(`${props.base}/calories/delete`, e ? { id: e.id } : { all: true }))) props.onChange();
   }
   const year = String(c.year);
   return (
@@ -316,7 +316,7 @@ function CaloriesCard(props: { c: MyCalories; base: string; onChange: () => void
             <table>
               <tbody>
                 {c.events.map((e) => (
-                  <tr key={e.code}>
+                  <tr key={e.id}>
                     <td>
                       <a href={`/e/${e.code}`}>{fmtDate(e.date, !e.date.startsWith(year))}</a>
                     </td>
