@@ -42,7 +42,16 @@ export function checkPassword(raw: string): string | null {
 }
 
 /**
- * 入群不需要审核: a bot that gets past Turnstile could otherwise fill the member list, so after this
- * many automatic joins in a day, newcomers wait in 待审核 again until the day has passed.
+ * 入群不需要审核: a bot could otherwise fill the member list, so after this many automatic joins in a
+ * day, newcomers wait in 待审核 again until the day has passed. The Owner and admins set the number
+ * in 设置 (Ke Li 2026-11-04), 1–999.
  */
-export const MAX_AUTO_JOINS_PER_DAY = 20;
+export const DEFAULT_AUTO_JOINS_PER_DAY = 20;
+export const MAX_AUTO_JOINS_PER_DAY = 999;
+
+/** The 每天最多自动通过 number as typed: an error, or null when it is a whole number 1–999. */
+export function checkAutoJoinCap(n: number): string | null {
+  return Number.isInteger(n) && n >= 1 && n <= MAX_AUTO_JOINS_PER_DAY
+    ? null
+    : `每天最多自动通过的人数请填 1–${MAX_AUTO_JOINS_PER_DAY}`;
+}

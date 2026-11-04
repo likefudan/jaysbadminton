@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { AI_EFFORTS, AI_USE_NAME, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
 import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
-import { MAX_AUTO_JOINS_PER_DAY, checkPassword } from "../../shared/rules";
+import { MAX_AUTO_JOINS_PER_DAY, checkAutoJoinCap, checkPassword } from "../../shared/rules";
 import type { LinkResponse, RevokeImpact } from "../../shared/types";
 import { formatInstantZh } from "../../shared/time";
 import { STYLES, type ThemeId } from "../../shared/themes";
@@ -504,6 +504,7 @@ interface GeneralSettings {
   siteTitle: string;
   showLeaderboard: boolean;
   autoJoin: boolean;
+  autoJoinCap: number;
   friendCap: number;
   pastEventDays: number;
   calorieReadDays: number;
@@ -587,7 +588,15 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
 /** 入群不需要审核 (Ke Li 2026-11-03): 申请加入 lets people straight in; the Owner and admins switch it. */
 function JoinCard(props: { base: string; initial: GeneralSettings }) {
   const [on, setOn] = useState(props.initial.autoJoin);
-  const { busy, error, run } = useAction();
+  const [cap, setCap] = useState(String(props.initial.autoJoinCap));
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run, setError } = useAction();
+  async function saveCap() {
+    const n = Number(cap);
+    const err = cap.trim() === "" ? checkAutoJoinCap(Number.NaN) : checkAutoJoinCap(n);
+    if (err) return setError(err);
+    if (await run(() => api(`${props.base}/settings`, { autoJoinCap: n }))) setSaved(true);
+  }
   async function toggle(v: boolean) {
     setOn(v);
     if (!(await run(() => api(`${props.base}/settings`, { autoJoin: v })))) setOn(!v);
@@ -608,8 +617,24 @@ function JoinCard(props: { base: string; initial: GeneralSettings }) {
           onChange={(e) => toggle((e.target as HTMLInputElement).checked)}
         />
       </label>
+      {on && (
+        <>
+          <Field
+            label="每天最多自动通过几人"
+            type="number"
+            value={cap}
+            onInput={(v) => {
+              setCap(v);
+              setSaved(false);
+            }}
+            hint={`1–${MAX_AUTO_JOINS_PER_DAY}，超过的申请回到「待审核」`}
+          />
+          <button type="button" class="button secondary block" disabled={busy} onClick={saveCap}>
+            {saved ? "已保存" : "保存"}
+          </button>
+        </>
+      )}
       {error && <p class="error">{error}</p>}
-      <p class="muted small">每天最多自动通过 {MAX_AUTO_JOINS_PER_DAY} 人。</p>
     </Card>
   );
 }
