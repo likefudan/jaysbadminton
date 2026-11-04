@@ -6,18 +6,19 @@ import { getSettings } from "../db";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
-import { appNames, isStaging, siteTheme, siteTitle } from "../site";
+import { appNames, isStaging, siteTheme } from "../site";
 import { leaderboard } from "../stats";
 import { createMember } from "../members";
 import { autoJoinEnabled } from "../joining";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
-publicRoutes.get("/site", async (c) =>
-  c.json({
-    title: await siteTitle(c.env),
+publicRoutes.get("/site", async (c) => {
+  const { names, title } = await appNames(c.env);
+  return c.json({
+    title,
     // 桌面图标名称 as set, by language: the page picks the visitor's (iPhone offers it when adding).
-    appNames: (await appNames(c.env)).names,
+    appNames: names,
     theme: await siteTheme(c.env),
     staging: isStaging(c.env),
     // The site's own icon colour (sites.json "icon"), for the logo in the top bar.
@@ -25,8 +26,8 @@ publicRoutes.get("/site", async (c) =>
     // 入群不需要审核: the join pages leave out 「审核通过后」.
     autoJoin: await autoJoinEnabled(c.env),
     sponsor: c.env.SPONSOR_NAME ? { name: c.env.SPONSOR_NAME, url: c.env.SPONSOR_URL || null } : null,
-  }),
-);
+  });
+});
 
 publicRoutes.get("/home", async (c) => {
   const current = await c.env.DB.prepare(

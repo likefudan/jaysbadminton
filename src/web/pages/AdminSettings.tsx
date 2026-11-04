@@ -647,9 +647,11 @@ function AppNamesCard(props: { base: string; initial: AppNames; siteTitle: strin
     const v = Object.fromEntries(SITE_LANGS.map((l) => [l, names[l].trim()])) as AppNames;
     if (SITE_LANGS.some((l) => [...v[l]].length > APP_NAME_MAX))
       return setError(t("桌面图标名称最多 {n} 个字", { n: APP_NAME_MAX }));
-    if (await run(() => api(`${props.base}/settings`, { appNames: v }))) {
+    // Only what changed here, so a name another admin saved meanwhile stays.
+    const changed = Object.fromEntries(SITE_LANGS.filter((l) => v[l] !== props.initial[l]).map((l) => [l, v[l]]));
+    if (await run(() => api(`${props.base}/settings`, { appNames: changed }))) {
       setSaved(true);
-      setAppNames(v);
+      setAppNames({ ...props.initial, ...changed });
     }
   }
   return (

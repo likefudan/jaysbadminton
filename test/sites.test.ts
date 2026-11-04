@@ -60,6 +60,7 @@ describe("each site names itself", () => {
     // A language left out keeps its name.
     expect((await call({ appNames: { en: "South Bay" } })).status).toBe(200);
     expect((await call()).data.appNames).toEqual({ "zh-CN": "南湾羽球", "zh-TW": "", en: "South Bay" });
+    expect((await call({ appNames: "SBBC" })).status).toBe(400);
     // All cleared, the icon carries the site title again.
     expect((await call({ appNames: { "zh-CN": "", en: "" } })).status).toBe(200);
     expect((await manifest("?lang=en")).short_name).toBe("SBBC 羽毛球");
