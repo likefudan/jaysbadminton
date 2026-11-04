@@ -42,7 +42,7 @@ export function Page(props: {
         <div class="topbar-actions">
           {!admin && !SIGN_IN_PAGES.test(path) && <TopSignIn />}
           <GoogleAccount />
-          {!admin && <LangSwitch />}
+          <LangSwitch />
           <AppearanceButton onClick={() => setLooks(true)} />
         </div>
       </header>

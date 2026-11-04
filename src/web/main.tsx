@@ -1,5 +1,5 @@
 import { Fragment, render, type ComponentChildren } from "preact";
-import { LocationProvider, Route, Router, useLocation } from "preact-iso";
+import { LocationProvider, Route, Router } from "preact-iso";
 import { Admin } from "./pages/Admin";
 import { EventPage } from "./pages/EventPage";
 import { AdminSetup } from "./pages/AdminSetup";
@@ -9,15 +9,14 @@ import { Account, AccountProfile } from "./pages/Account";
 import { Privacy, Terms } from "./pages/Legal";
 import { NotFound } from "./pages/NotFound";
 import { PullToRefresh } from "./PullToRefresh";
-import { isAdminPath, useActiveLang } from "./i18n";
+import { useActiveLang } from "./i18n";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "./styles.css";
 
-/** Renders the page in the chosen language (admin pages in Simplified), afresh when it changes. */
+/** Renders the page in the chosen language, afresh when it changes. */
 function Localized(props: { children: ComponentChildren }) {
-  const { path } = useLocation();
-  const lang = useActiveLang(isAdminPath(path));
+  const lang = useActiveLang();
   return <Fragment key={lang}>{props.children}</Fragment>;
 }
 

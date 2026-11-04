@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-/** 简 / 繁 / EN in the top bar: member and public pages switch, admin pages stay 简体. */
+/** 简 / 繁 / EN in the top bar: every page switches, the admin pages included. */
 async function member(page: Page) {
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }),
@@ -55,12 +55,14 @@ test("a phone set to Traditional Chinese starts in 繁體", async ({ browser }) 
   await context.close();
 });
 
-test("admin pages stay in Simplified Chinese with no switch", async ({ page }) => {
+test("admin pages follow the chosen language too", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("lang", "en"));
-  await page.goto("/");
-  await expect(page.getByRole("link", { name: "Sign in / Register" })).toBeVisible();
   await page.goto("/admin");
-  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
-  await expect(page.getByRole("button", { name: /^(语言|Language)/ })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "隐私政策" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("heading", { name: "First-time setup" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Privacy Policy" })).toBeVisible();
+
+  await pick(page, "繁體中文");
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
+  await expect(page.getByRole("heading", { name: "首次設定" })).toBeVisible();
 });

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { AddressSuggestion } from "../shared/types";
 import { api } from "./api";
+import { t } from "./i18n";
 
 const newSession = () =>
   typeof crypto.randomUUID === "function" ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now();
@@ -76,10 +77,13 @@ export function AddressInput(props: {
 
   return (
     <label class="field suggest">
-      <span>地址{searching && <em class="searching">搜索中…</em>}</span>
+      <span>
+        {t("地址")}
+        {searching && <em class="searching">{t("搜索中…")}</em>}
+      </span>
       <input
         value={props.value}
-        placeholder="输入地址或球馆名，会自动联想"
+        placeholder={t("输入地址或球馆名，会自动联想")}
         autocomplete="street-address"
         onInput={(e) => {
           typed.current = true;

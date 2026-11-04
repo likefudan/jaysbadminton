@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { api } from "../api";
 import { Card, Field, Load, useAction } from "../components";
 import { type Loaded, useApi } from "../hooks";
+import { t, tx } from "../i18n";
 
 export interface TelegramStatus {
   botReady: boolean;
@@ -57,14 +58,14 @@ export function TelegramCard(props: {
   }
   async function unlink() {
     const warn = props.organizer
-      ? "断开后，你负责的活动的提醒会改发给群主。继续吗？"
-      : "断开后不再收到任何通知。继续吗？";
+      ? t("断开后，你负责的活动的提醒会改发给群主。继续吗？")
+      : t("断开后不再收到任何通知。继续吗？");
     if (!confirm(warn)) return;
     if (await run(() => api(`${props.base}/telegram/disconnect`, {}))) reload();
   }
 
   return (
-    <Card title={props.organizer ? "我的 Telegram" : "Telegram 通知"}>
+    <Card title={props.organizer ? t("我的 Telegram") : t("Telegram 通知")}>
       <Load result={status}>
         {(s) =>
           !s.botReady || changingBot ? (
@@ -80,51 +81,59 @@ export function TelegramCard(props: {
             ) : (
               <p class="muted">
                 {s.botInSettings
-                  ? "还没有配置机器人，请群主在设置里填上机器人的 token。"
-                  : "还没有配置机器人。请网站维护者在 GitHub secret 里加上 TELEGRAM_BOT_TOKEN 并重新部署。"}
+                  ? t("还没有配置机器人，请群主在设置里填上机器人的 token。")
+                  : t("还没有配置机器人。请网站维护者在 GitHub secret 里加上 TELEGRAM_BOT_TOKEN 并重新部署。")}
               </p>
             )
           ) : (
             <>
               {s.connected ? (
                 <p>
-                  ✓ 已连接：<strong>{s.chatName}</strong>
-                  {s.botUsername && <span class="muted small">（机器人 @{s.botUsername}）</span>}
+                  {tx("✓ 已连接：{strong}{x}", {
+                    strong: <strong>{s.chatName}</strong>,
+                    x: s.botUsername && (
+                      <span class="muted small">{t("（机器人 @{bot}）", { bot: s.botUsername })}</span>
+                    ),
+                  })}
                 </p>
               ) : (
                 <p class="muted">
-                  还没有连接。点下面的按钮会打开 Telegram，在机器人对话里点「Start / 开始」即可。
+                  {t("还没有连接。点下面的按钮会打开 Telegram，在机器人对话里点「Start / 开始」即可。")}
                   {props.organizer
-                    ? `连接后，你负责的活动的报名截止、结算和收款提醒${props.admin ? "，以及新成员的入群申请" : ""}会发到这里；没连接时活动的提醒发给群主。`
+                    ? t("连接后，你负责的活动的报名截止、结算和收款提醒{x}会发到这里；没连接时活动的提醒发给群主。", {
+                        x: props.admin ? t("，以及新成员的入群申请") : "",
+                      })
                     : s.organizers
-                      ? "你负责的活动的提醒和账单通知、组织者活动的抄送（发起、结算完成、收齐），以及入群申请等全群的通知发到连接的这个账号。"
-                      : "所有提醒和账单通知只发给连接的这一个账号。"}
+                      ? t(
+                          "你负责的活动的提醒和账单通知、组织者活动的抄送（发起、结算完成、收齐），以及入群申请等全群的通知发到连接的这个账号。",
+                        )
+                      : t("所有提醒和账单通知只发给连接的这一个账号。")}
                 </p>
               )}
-              {waiting && <p class="hint">等待你在 Telegram 里点 Start…（10 分钟内有效）</p>}
+              {waiting && <p class="hint">{t("等待你在 Telegram 里点 Start…（10 分钟内有效）")}</p>}
               {error && <p class="error">{error}</p>}
-              {sent && <p class="muted small">已发送，请在 Telegram 里查看。</p>}
+              {sent && <p class="muted small">{t("已发送，请在 Telegram 里查看。")}</p>}
               <button
                 type="button"
                 class={`button block ${s.connected ? "secondary" : ""}`}
                 disabled={busy}
                 onClick={connect}
               >
-                {s.connected ? "换一个 Telegram 账号" : "连接 Telegram"}
+                {s.connected ? t("换一个 Telegram 账号") : t("连接 Telegram")}
               </button>
               {s.connected && (
                 <>
                   <button type="button" class="button secondary block" disabled={busy} onClick={test}>
-                    发送测试消息
+                    {t("发送测试消息")}
                   </button>
                   <button type="button" class="link-button" disabled={busy} onClick={unlink}>
-                    断开连接
+                    {t("断开连接")}
                   </button>
                 </>
               )}
               {s.botInSettings && !props.organizer && (
                 <button type="button" class="link-button" disabled={busy} onClick={() => setChangingBot(true)}>
-                  更换机器人
+                  {t("更换机器人")}
                 </button>
               )}
             </>
@@ -140,19 +149,20 @@ function BotTokenForm(props: { base: string; replacing: boolean; onSaved: () => 
   const [token, setToken] = useState("");
   const { busy, error, run } = useAction();
   async function save() {
-    if (props.replacing && !confirm("换成新机器人后，群主和组织者都要重新连接 Telegram。继续吗？")) return;
+    if (props.replacing && !confirm(t("换成新机器人后，群主和组织者都要重新连接 Telegram。继续吗？"))) return;
     if (await run(() => api(`${props.base}/settings/telegram-bot`, { token }))) props.onSaved();
   }
   return (
     <>
       <p class="muted">
-        在 Telegram 里找 @BotFather，发送 /newbot 建一个机器人，把它给的 token
-        粘贴到这里。之后群主和组织者各自连接这个机器人接收通知。
+        {t(
+          "在 Telegram 里找 @BotFather，发送 /newbot 建一个机器人，把它给的 token 粘贴到这里。之后群主和组织者各自连接这个机器人接收通知。",
+        )}
       </p>
-      <Field label="机器人 token" value={token} onInput={setToken} verbatim autocomplete="off" />
+      <Field label={t("机器人 token")} value={token} onInput={setToken} verbatim autocomplete="off" />
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy || !token.trim()} onClick={save}>
-        保存机器人
+        {t("保存机器人")}
       </button>
     </>
   );
@@ -184,7 +194,7 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
   }
 
   return (
-    <Card title="提醒设置">
+    <Card title={t("提醒设置")}>
       <label class="check">
         <input
           type="checkbox"
@@ -194,11 +204,11 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
             setSaved(false);
           }}
         />
-        报名截止前提醒
+        {t("报名截止前提醒")}
       </label>
       {enabled && (
         <Field
-          label="截止前几小时提醒"
+          label={t("截止前几小时提醒")}
           type="number"
           value={hours}
           onInput={(v) => {
@@ -208,7 +218,7 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
         />
       )}
       <label class="field">
-        <span>账单提醒时间（太平洋时间）</span>
+        <span>{t("账单提醒时间（太平洋时间）")}</span>
         <select
           value={dunning}
           onChange={(e) => {
@@ -222,7 +232,7 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
             </option>
           ))}
         </select>
-        <small class="muted">Finalize 24 小时后每天这时发，直到收齐。</small>
+        <small class="muted">{t("Finalize 24 小时后每天这时发，直到收齐。")}</small>
       </label>
       <label class="check">
         <input
@@ -233,11 +243,11 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
             setSaved(false);
           }}
         />
-        每周一发送健康简报
+        {t("每周一发送健康简报")}
       </label>
       {error && <p class="error">{error}</p>}
       <button type="button" class="button secondary block" disabled={busy} onClick={save}>
-        {saved ? "已保存" : "保存"}
+        {saved ? t("已保存") : t("保存")}
       </button>
     </Card>
   );
