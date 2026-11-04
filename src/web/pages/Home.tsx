@@ -161,10 +161,7 @@ function Leaders(props: { board: Leaderboard }) {
           )}
         </div>
       )}
-      {tab === "streak" && <p class="muted small swipe-note">{t("连续参加的活动场数，取消的活动不算。")}</p>}
-      {tab === "calories" && (
-        <p class="muted small swipe-note">{t("今年从 iPhone「健康」读取的活动能量，自愿加入（在个人信息里打开）。")}</p>
-      )}
+      {tab === "calories" && <p class="muted small swipe-note">{t("在「个人信息」里加入")}</p>}
     </>
   );
 }

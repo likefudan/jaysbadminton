@@ -122,9 +122,6 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           {t("球馆账号（{n}）", { n: q.accounts.length })}
         </button>
       </div>
-      {shown.length === 0 && (
-        <p class="muted small">{t("还没有登记球场。在球馆电脑上排好后，点「登记球场」填进来。")}</p>
-      )}
       {playing.length > 0 && (
         <>
           <p class="cq-sub">{t("在打 · {n} 片", { n: playing.length })}</p>

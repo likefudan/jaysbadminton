@@ -2834,9 +2834,25 @@ a.ev-meta {
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
-.manual p.small {
-  margin: 0 0 4px;
-  color: var(--muted);
+.manual summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.manual summary::-webkit-details-marker {
+  display: none;
+}
+.manual summary::after {
+  content: "›";
+  color: var(--faint);
+  transition: transform 0.2s;
+}
+.manual[open] summary::after {
+  transform: rotate(90deg);
 }
 .manual dl {
   font-size: 14px;

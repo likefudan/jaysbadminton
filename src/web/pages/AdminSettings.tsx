@@ -551,7 +551,6 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
           setTitle(v);
           setSaved(false);
         }}
-        hint="显示在每个页面顶部和浏览器标签上"
       />
       <button
         type="button"
@@ -581,7 +580,6 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
         />
       </label>
       {error && <p class="error">{error}</p>}
-      <p class="muted small">首页和活动页对所有人公开：只显示活动时间、地点和报名人数，不显示名单和收款情况。</p>
     </Card>
   );
 }
@@ -611,10 +609,7 @@ function JoinCard(props: { base: string; initial: GeneralSettings }) {
         />
       </label>
       {error && <p class="error">{error}</p>}
-      <p class="muted small">
-        仍然要通过人机验证，一个邮箱只能注册一次。一天内自动入群满 {MAX_AUTO_JOINS_PER_DAY}{" "}
-        人后，其余的申请会回到「待审核」。
-      </p>
+      <p class="muted small">每天最多自动通过 {MAX_AUTO_JOINS_PER_DAY} 人。</p>
     </Card>
   );
 }
@@ -665,7 +660,6 @@ function DaysCard(props: { base: string; initial: GeneralSettings }) {
           setPast(v);
           setSaved(false);
         }}
-        hint="群主和管理员新建活动时可以选已经开始的时间，最早这么多天前"
       />
       <Field
         label="活动开始后多少天内可以读取卡路里"
@@ -799,9 +793,7 @@ function AiCard(props: { base: string; initial: Record<AiUse, AiChoice> }) {
           </div>
         );
       })}
-      <p class="muted small">
-        选项是 Azure 上已经部署好的模型。选的模型出错或超时，会自动改用 Azure 上的 claude-sonnet-5-5。
-      </p>
+      <p class="muted small">出错时自动改用 claude-sonnet-5-5。</p>
       {error && <p class="error">{error}</p>}
       <button
         type="button"
@@ -960,7 +952,7 @@ function ThemeCard(props: { base: string }) {
         </div>
       ))}
       <p class="muted small">
-        所有人默认看到的样子。每个人也可以点右上角的 ◐ 换成自己喜欢的，只对他自己的手机生效。
+        成员可以点右上角 ◐ 自己换。
         {a.mine && "（你自己选了别的外观，所以这里换了你看不到变化。）"}
       </p>
       {error && <p class="error">{error}</p>}

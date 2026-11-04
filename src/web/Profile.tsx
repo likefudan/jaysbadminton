@@ -323,7 +323,7 @@ function EmailForm(props: {
     <form onSubmit={save}>
       {props.fromGoogle && <p class="muted small">{t("现在用的是 Google 账号的邮箱。")}</p>}
       <Field label={t("邮箱")} type="email" value={value} onInput={setValue} autocomplete="email" />
-      <p class="muted small">{t("留空保存会改回 Google 账号的邮箱（如果有）。")}</p>
+      <p class="muted small">{t("留空则用 Google 邮箱")}</p>
       {error && <p class="error">{error}</p>}
       <div class="inline">
         <button type="submit" class="button" disabled={busy}>

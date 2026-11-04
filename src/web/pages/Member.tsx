@@ -305,17 +305,10 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         )}
         {e.queue && <CourtQueue base={props.base} e={e} onChange={props.onChange} />}
         {friendsOnly && !editing && e.runByMe && (
-          <p class="muted">
-            {t("你本人没有报名；名单上有挂在你名下的 {n} 个朋友，费用算在你的账单上。", { n: nFriends })}
-          </p>
+          <p class="muted">{t("{n} 个朋友的费用算在你账上", { n: nFriends })}</p>
         )}
         {friendsOnly && !editing && !e.runByMe && (
-          <p class="muted">
-            {t("你本人没有报名；{adder}在你名下加了 {n} 个朋友，费用算在你的账单上。", {
-              adder,
-              n: nFriends,
-            })}
-          </p>
+          <p class="muted">{t("{adder}在你名下加了 {n} 个朋友，费用算在你账上", { adder, n: nFriends })}</p>
         )}
         {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">{t("你没有报名这次活动。")}</p>}
         {e.canEdit && editing && (
@@ -390,7 +383,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
           </>
         )}
         {!e.canEdit && e.status === "closed" && (signedUp || friendsOnly) && !brought && (
-          <p class="muted small">{t("报名已截止，需要修改请联系{name}。费用会在活动后公布。", { name: runner })}</p>
+          <p class="muted small">{t("修改请联系{name}", { name: runner })}</p>
         )}
         {e.payment && <PaymentBox p={e.payment} />}
         {/* Last on the card, under its own line (Ke Li): it comes after the game, the bill included. */}
