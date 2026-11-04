@@ -452,6 +452,7 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
   await expect(sheet.getByPlaceholder("场号")).toBeVisible();
   await expect(sheet).not.toContainText("拍排队屏幕");
   await expect(sheet.locator(".cq-minutes-box")).toContainText("剩余");
+  await page.waitForTimeout(400); // let the sheet finish sliding in before the screenshots
   await page.screenshot({ path: test.info().outputPath("court-sheet-light.png") });
   await page.emulateMedia({ colorScheme: "dark" });
   await page.screenshot({ path: test.info().outputPath("court-sheet-dark.png") });

@@ -4341,8 +4341,11 @@ ul.audit li:first-child {
   font-weight: 600;
   text-align: center;
 }
-.cq-minutes-box > span {
-  font-size: 13px;
+/* 场号's placeholder and 剩余/分钟 in the minutes box: one size (Ke Li). */
+.cq-minutes-box > span,
+.cq-row .cq-combo input::placeholder {
+  font-size: 15px;
+  font-weight: 400;
   color: var(--muted);
 }
 .cq-slider {
