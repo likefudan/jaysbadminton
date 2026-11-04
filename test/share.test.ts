@@ -57,6 +57,7 @@ describe("加入日历", () => {
     status: "open",
     headcount: 8,
     queueRoundMin: null,
+    noDeadline: false,
   };
   const entry = calendarEntry(e, "https://jaysbadminton.llmat.dev");
 

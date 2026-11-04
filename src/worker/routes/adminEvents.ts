@@ -182,6 +182,7 @@ adminEventRoutes.get("/events/defaults", async (c) => {
     "last_end_time",
     "last_location",
     "last_deadline_offset_min",
+    "last_no_deadline",
   ]);
   const offset = Number(s.last_deadline_offset_min ?? 1440);
   const { results } = await c.env.DB.prepare(
@@ -198,6 +199,7 @@ adminEventRoutes.get("/events/defaults", async (c) => {
     address: results.find((r) => r.name === s.last_location)?.address ?? "",
     deadlineDays: Math.floor(offset / 1440),
     deadlineHours: Math.floor((offset % 1440) / 60),
+    deadlineOn: s.last_no_deadline !== "1",
     locations: results,
     friendCap: await friendCap(c.env),
   });
@@ -231,6 +233,7 @@ adminEventRoutes.post("/events", async (c) => {
     queueRoundMin: cleanRoundMin(b.queueRoundMin),
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
+    noDeadline: b.noDeadline === true,
     pastDays: can(actor.role, "group") ? await pastEventDays(c.env) : undefined,
   });
   await audit(c.env, e.id, actorId(actor), "create", `创建活动（${e.date} ${e.location}）`);
@@ -497,7 +500,10 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
     // The deadline moves with the start, keeping its lead time: the usual offset, or whatever
     // 重新开放报名 set (which may run past the start), so a title or venue fix changes nothing.
     // Like reopen, never past the end, or the event would stay open (and unsettleable) after it.
-    deadline = new Date(Date.parse(e.deadline_at) + Date.parse(startAt) - Date.parse(e.start_at)).toISOString();
+    // Without a deadline of its own (报名截止时间 off), it stays open until the (new) end.
+    deadline = e.no_deadline
+      ? endAt
+      : new Date(Date.parse(e.deadline_at) + Date.parse(startAt) - Date.parse(e.start_at)).toISOString();
     if (deadline > endAt) deadline = endAt;
     if (deadline <= now()) status = "closed";
   }
@@ -577,8 +583,8 @@ function editChanges(a: EventRow, b: EventRow): string[] {
     ["排队系统", queueLabel(a), queueLabel(b)],
   ];
   const out = fields.filter(([, x, y]) => x !== y).map(([k, x, y]) => `${k} ${x} → ${y}`);
-  // An open event's deadline moves with the start.
-  if (a.deadline_at !== b.deadline_at)
+  // An open event's deadline moves with the start (one without a deadline just follows the end).
+  if (a.deadline_at !== b.deadline_at && !b.no_deadline)
     out.push(`报名截止 ${formatInstantZh(a.deadline_at)} → ${formatInstantZh(b.deadline_at)}`);
   if (a.status !== b.status && b.status === "closed") out.push("新的截止时间已过，报名截止");
   return out;
@@ -597,7 +603,8 @@ adminEventRoutes.post("/events/:id/reopen", async (c) => {
   if (deadline <= now()) throw badRequest("新的截止时间必须晚于现在");
   if (deadline > e.end_at) throw badRequest("截止时间最晚只能到活动结束");
   const res = await c.env.DB.prepare(
-    "UPDATE events SET status = 'open', deadline_at = ? WHERE id = ? AND status = 'closed'",
+    // Reopened with a deadline of its own, so it shows and is reminded like any other.
+    "UPDATE events SET status = 'open', deadline_at = ?, no_deadline = 0 WHERE id = ? AND status = 'closed'",
   )
     .bind(deadline, e.id)
     .run();

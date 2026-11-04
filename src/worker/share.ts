@@ -29,7 +29,7 @@ export async function eventMeta(env: Env, code: string): Promise<ShareMeta | nul
   const [e] = await summaries(env, [row]);
   const date = formatDateZh(e!.date);
   const parts = [`${e!.startTime}–${e!.endTime}`, e!.location, `已报名 ${e!.headcount} 人`];
-  if (e!.status === "open") parts.push(`报名截止 ${formatInstantZh(e!.deadlineAt)}`);
+  if (e!.status === "open" && !e!.noDeadline) parts.push(`报名截止 ${formatInstantZh(e!.deadlineAt)}`);
   if (e!.status === "cancelled") parts.unshift("已取消");
   return {
     title: `${e!.title ? `${e!.title} · ` : ""}${date} 羽毛球 · ${await siteTitle(env)}`,

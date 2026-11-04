@@ -114,7 +114,7 @@ export const TABLES = {
           STATUS_ZH[e.status as EventStatus] ?? e.status,
           e.signed,
           ["finalized", "settled"].includes(e.status) ? e.came : "",
-          at(e.deadline_at),
+          e.no_deadline ? "" : at(e.deadline_at), // 报名截止时间 off: none of its own
           at(e.finalized_at),
           at(e.settled_at),
           person(e.manager_name),

@@ -160,6 +160,21 @@ describe("scheduled notifications", () => {
     ).toBe("closed");
   });
 
+  it("sends no reminder for an event without a deadline, and posts the roster when it ends", async () => {
+    const ctx = await setUpAdmin();
+    await connectChat();
+    const e = await createTestEvent(ctx, { joinSelf: true, noDeadline: true });
+    await env.DB.prepare("UPDATE events SET created_at = '2000-01-01T00:00:00.000Z'").run();
+    const end = new Date(e.deadlineAt).getTime();
+    await runScheduled(env, new Date(end - 3600_000));
+    expect(sent()).toEqual([]);
+    await env.DB.prepare("UPDATE events SET status = 'closed'").run();
+    await runScheduled(env, new Date(end + 600_000));
+    // The roster first (the 结算 reminder for an ended event may follow, as usual).
+    expect(sent()[0]).toContain("报名已截止，共 1 人");
+    expect(sent().join()).not.toContain("报名还剩");
+  });
+
   it("skips the reminder when the event was created inside the window, or reminders are off", async () => {
     const ctx = await setUpAdmin();
     await connectChat();

@@ -392,10 +392,9 @@ async function sendBatch(env: Env, keys: VapidKeys, endpoint?: string): Promise<
 export async function pushNewEvent(env: Env, e: EventRow, creatorId: string | null): Promise<boolean> {
   try {
     const manager = await eventManager(env.DB, e);
-    const deadline = toPacific(e.deadline_at);
     const msg: PushMessage = {
       title: `${await payeeName(env.DB, manager)} 发起了新活动`,
-      body: `${when(e)}\n${venue(e)}\n报名截止：${formatDateZh(deadline.date)} ${deadline.time}`,
+      body: `${when(e)}\n${venue(e)}${e.no_deadline ? "" : `\n报名截止：${formatDateZh(toPacific(e.deadline_at).date)} ${toPacific(e.deadline_at).time}`}`,
       url: `/e/${e.code}`,
       tag: `event-${e.id}`,
     };

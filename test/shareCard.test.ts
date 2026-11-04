@@ -15,6 +15,7 @@ const event: EventSummary = {
   status: "open",
   headcount: 8,
   queueRoundMin: null,
+  noDeadline: false,
 };
 
 describe("分享名片 text", () => {

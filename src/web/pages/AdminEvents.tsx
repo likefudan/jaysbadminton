@@ -167,6 +167,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
   const [notes, setNotes] = useState("");
   const [days, setDays] = useState(d.deadlineDays);
   const [hours, setHours] = useState(d.deadlineHours);
+  const [deadlineOn, setDeadlineOn] = useState(d.deadlineOn);
   const [joinSelf, setJoinSelf] = useState(true);
   const [title, setTitle] = useState("");
   // 排队系统 goes with the hall: the remembered venue brings its setting along.
@@ -192,6 +193,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
       queueRoundMin: queueOn ? Number(roundMin) : null,
       deadlineDays: days,
       deadlineHours: hours,
+      noDeadline: !deadlineOn,
       joinSelf,
     };
     const r = await run(() => api<EventDetail>(`${props.base}/events`, body));
@@ -237,29 +239,48 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
         />
         <NotesField value={notes} onInput={setNotes} />
         <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
-        <div class="field">
-          <span>{t("报名截止：活动开始前")}</span>
-        </div>
-        <div class="inline">
-          <label class="field">
-            <select value={days} onChange={(e) => setDays(Number((e.target as HTMLSelectElement).value))}>
-              {Array.from({ length: 15 }, (_, i) => (
-                <option key={i} value={i}>
-                  {t("{n} 天", { n: i })}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label class="field">
-            <select value={hours} onChange={(e) => setHours(Number((e.target as HTMLSelectElement).value))}>
-              {Array.from({ length: 24 }, (_, i) => (
-                <option key={i} value={i}>
-                  {t("{n} 小时", { n: i })}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <label class={`switch-card ${deadlineOn ? "on" : ""}`}>
+          <span>
+            <strong>{t("报名截止时间")}</strong>
+            <small>
+              {deadlineOn ? t("到截止时间就不能再报名") : t("不设截止：活动结束前都能报名（Finalize 后就不能了）")}
+            </small>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            aria-checked={deadlineOn}
+            checked={deadlineOn}
+            onChange={(e) => setDeadlineOn((e.target as HTMLInputElement).checked)}
+          />
+        </label>
+        {deadlineOn && (
+          <>
+            <div class="field">
+              <span>{t("活动开始前")}</span>
+            </div>
+            <div class="inline">
+              <label class="field">
+                <select value={days} onChange={(e) => setDays(Number((e.target as HTMLSelectElement).value))}>
+                  {Array.from({ length: 15 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {t("{n} 天", { n: i })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label class="field">
+                <select value={hours} onChange={(e) => setHours(Number((e.target as HTMLSelectElement).value))}>
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {t("{n} 小时", { n: i })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </>
+        )}
         {error && <p class="error">{error}</p>}
         <button type="submit" class="button block" disabled={busy || !date}>
           {t("创建活动")}
