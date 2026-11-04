@@ -234,8 +234,14 @@ adminRoutes.post("/:token/members/:id/note", async (c) => {
   return c.json({ ok: true });
 });
 
+/** Members with Google bound have no 专属链接 (Ke Li 2026-11-04): none to show or make. */
+const noLinkForGoogle = (m: { google_sub: string | null }) => {
+  if (m.google_sub) throw badRequest("这位成员已绑定 Google 账号，不再使用专属链接");
+};
+
 adminRoutes.get("/:token/members/:id/link", async (c) => {
   const m = await target(c);
+  noLinkForGoogle(m);
   return c.json<LinkResponse>({ link: memberLink(origin(c.req.url), await revealMemberToken(c.env, m)) });
 });
 
@@ -243,6 +249,7 @@ adminRoutes.post("/:token/members/:id/regenerate", async (c) => {
   const m = await target(c);
   // Disabled members may need a (new) link to pay what they owe; deleted ones never get one.
   if (m.status === "pending" || m.deleted_at) throw badRequest("只能给正常或已停用的成员生成链接");
+  noLinkForGoogle(m);
   const token = await issueMemberToken(c.env, m.id);
   await groupAudit(c.env, c.get("actor"), "link_regen", m.id, `重新生成 ${m.username} 的专属链接`);
   return c.json<LinkResponse>({ link: memberLink(origin(c.req.url), token) });
@@ -390,7 +397,7 @@ adminRoutes.post("/:token/members/:id/reactivate", async (c) => {
       m.id,
       `恢复 ${m.username}${isStaff(m.role) ? `（同时撤销${ROLE_TITLE[m.role as "admin"] ?? "组织者"}身份）` : ""}`,
     );
-  const link = m.token_enc ? null : memberLink(origin(c.req.url), await issueMemberToken(c.env, m.id));
+  const link = m.token_enc || m.google_sub ? null : memberLink(origin(c.req.url), await issueMemberToken(c.env, m.id));
   return c.json({ ok: true, link });
 });
 
@@ -498,7 +505,10 @@ adminRoutes.post("/:token/settings/google/bind", async (c) => {
   await c.env.DB.prepare("UPDATE members SET google_sub = NULL WHERE google_sub = ? AND deleted_at IS NOT NULL")
     .bind(session.google_sub)
     .run();
-  await c.env.DB.prepare("UPDATE members SET google_sub = ?, google_email = ? WHERE id = ? AND google_sub IS NULL")
+  // Bound to Google, the member link (if the Owner had one) goes, as for everyone.
+  await c.env.DB.prepare(
+    "UPDATE members SET google_sub = ?, google_email = ?, token_hash = NULL, token_enc = NULL WHERE id = ? AND google_sub IS NULL",
+  )
     .bind(session.google_sub, session.email, owner.id)
     .run();
   return c.json({ ok: true });

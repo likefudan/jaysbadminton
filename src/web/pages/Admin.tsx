@@ -287,7 +287,6 @@ function Pending(props: { base: string; list: MemberSummary[]; readOnly: boolean
               <h2>已通过 {issued.name}</h2>
               <p>对方是用 Google（{issued.googleEmail}）申请的，不用发链接：用这个 Google 账号登录网站就能报名。</p>
               <p role="status">{approvalEmailMessage(issued.emailStatus)}</p>
-              <p class="muted small">需要备用链接的话，可以在「成员」里生成。</p>
             </>
           )}
           <button type="button" class="button secondary block" onClick={() => setIssued(null)}>
@@ -542,14 +541,17 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
                     重试审核邮件
                   </button>
                 )}
-                {m.hasLink && (
+                {/* Bound to Google: no 专属链接 to show or make (Ke Li 2026-11-04). */}
+                {!m.googleEmail && m.hasLink && (
                   <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
                     链接
                   </button>
                 )}
-                <button type="button" class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
-                  {m.hasLink ? "重新生成" : "生成备用链接"}
-                </button>
+                {!m.googleEmail && (
+                  <button type="button" class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
+                    {m.hasLink ? "重新生成" : "生成备用链接"}
+                  </button>
+                )}
                 {props.data.organizers?.canManage && !m.isOwner && !m.isOrganizer && !m.isAdmin && (
                   <button type="button" class="button secondary" disabled={busy} onClick={() => appoint(m)}>
                     设为组织者
@@ -614,7 +616,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
                 </div>
                 {!readOnly && (
                   <div class="actions">
-                    {m.hasLink ? (
+                    {m.googleEmail ? null : m.hasLink ? (
                       <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
                         链接
                       </button>
