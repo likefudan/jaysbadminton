@@ -630,8 +630,11 @@ async function record(
   return "review";
 }
 
-const eventLabel = (date: string, code: string) =>
-  formatDateZh(date) + (code.length > 4 ? ` 第${code.charCodeAt(4) - 64}场` : "");
+/** 「10月6日 周二 第2场」: the letter at the end of the code (1006B, 27-1006B) is the day's second event. */
+export const eventLabel = (date: string, code: string) => {
+  const letter = /[A-Z]$/.exec(code)?.[0];
+  return formatDateZh(date) + (letter ? ` 第${letter.charCodeAt(0) - 64}场` : "");
+};
 
 const ROW_FILTER = {
   open: ["i.state = 'open'", "ORDER BY i.received_at DESC LIMIT 200"],
