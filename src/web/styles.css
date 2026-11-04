@@ -1025,26 +1025,67 @@ table.bills td:last-child {
 .pay-row .row {
   border-top: 0;
 }
+.pay-name {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pay-name > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pay-status {
+  flex: none;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.pay-status.paid {
+  color: var(--ok);
+}
 .pay-status.unpaid {
   color: var(--muted);
 }
 .pay-status.partial,
-.refund {
+.refund,
+.row .who small.refund {
   color: var(--danger);
 }
+/* One line per payment: how · when (the payer is cut with … when too long), then amount and 撤销. */
 .receipts {
   list-style: none;
-  margin: 0 0 10px;
-  padding: 0 0 0 10px;
-  border-left: 2px solid var(--border);
+  margin: -4px 0 8px;
+  padding: 0;
   font-size: 13px;
   color: var(--muted);
 }
 .receipts li {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 2px 0;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+}
+.receipt-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  white-space: pre;
+}
+.receipt-how {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.receipt-when {
+  flex: none;
+}
+.receipt-amount {
+  flex: none;
+  color: var(--text-2);
+}
+.receipts .undo {
+  flex: none;
+  margin: 0;
 }
 .undo {
   margin-left: 8px;

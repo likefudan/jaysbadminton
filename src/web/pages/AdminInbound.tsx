@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { dollars } from "../../shared/settle";
-import { formatInstantZh } from "../../shared/time";
+import { formatInstantZh, toPacific } from "../../shared/time";
 import type { InboundResponse, InboundRow, OpenPayment, Receipt, RefundRow } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, Load, useAction } from "../components";
@@ -298,6 +298,13 @@ function Refunds(props: { base: string; list: RefundRow[]; onDone: () => void })
   );
 }
 
+/** "11/4 00:44" in Pacific time; the full date with weekday is in the row's tooltip. */
+function shortInstant(iso: string): string {
+  const p = toPacific(iso);
+  const [, m, d] = p.date.split("-");
+  return `${Number(m)}/${Number(d)} ${p.time}`;
+}
+
 export function ReceiptList(props: {
   receipts: Receipt[];
   onRemove?: (r: Receipt) => void;
@@ -306,28 +313,30 @@ export function ReceiptList(props: {
   busy?: boolean;
 }) {
   if (props.receipts.length === 0) return null;
+  // One line per payment: how · when on the left (cut with … if too long), amount and 撤销 on the right.
   return (
     <ul class="receipts">
-      {props.receipts.map((r, i) => (
+      {props.receipts.map((r) => (
         <li key={r.id}>
-          <span>
-            第 {i + 1} 笔 ·{" "}
-            {r.method === "venmo"
-              ? `Venmo${r.payerName ? `（${r.payerName}）` : ""}`
-              : r.method === "refund"
-                ? "退款"
-                : "手动标记"}{" "}
-            · {formatInstantZh(r.receivedAt)}
-            {r.elsewhere && ` · 钱在 ${r.elsewhere} 的账户`}
+          <span class="receipt-info" title={formatInstantZh(r.receivedAt)}>
+            <span class="receipt-how">
+              {r.method === "venmo"
+                ? `Venmo${r.payerName ? ` · ${r.payerName}` : ""}`
+                : r.method === "refund"
+                  ? "退款"
+                  : "手动标记"}
+              {r.elsewhere && ` · 钱在 ${r.elsewhere} 的账户`}
+            </span>
+            <span class="receipt-when"> · {shortInstant(r.receivedAt)}</span>
           </span>
-          <span>
+          <span class="receipt-amount">
             {r.amountCents < 0 ? `−$${dollars(-r.amountCents)}` : `$${dollars(r.amountCents)}`}
-            {props.onRemove && (props.canRemove?.(r) ?? true) && (
-              <button type="button" class="undo" disabled={props.busy} onClick={() => props.onRemove!(r)}>
-                撤销
-              </button>
-            )}
           </span>
+          {props.onRemove && (props.canRemove?.(r) ?? true) && (
+            <button type="button" class="undo" disabled={props.busy} onClick={() => props.onRemove!(r)}>
+              撤销
+            </button>
+          )}
         </li>
       ))}
     </ul>

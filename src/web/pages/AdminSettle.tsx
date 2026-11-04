@@ -138,18 +138,26 @@ export function PaymentsBoard(props: { base: string; e: EventDetail; view: Settl
           <div class="pay-row" key={p.id}>
             <div class="row">
               <div class="who">
-                {p.memberName}
-                {p.isPayee && <span class="badge">{v.payeeIsMe ? "我" : "收款人"}</span>}
-                <small>
-                  应付 ${dollars(p.amountDueCents)} · {p.paymentCode}
-                </small>
-                <small class={`pay-status ${p.status}`}>
-                  {p.status === "unpaid" && "未付"}
-                  {p.status === "partial" &&
-                    `部分付款 · 已收 $${dollars(p.amountPaidCents)}，还差 $${dollars(p.amountDueCents - p.amountPaidCents)}`}
-                  {p.status === "paid" &&
-                    (p.refundCents > 0 ? `已付 · 多付 $${dollars(p.refundCents)}，需要退款` : "已付")}
-                </small>
+                <div class="pay-name">
+                  <span>
+                    {p.memberName}
+                    {p.isPayee && <span class="badge">{v.payeeIsMe ? "我" : "收款人"}</span>}
+                  </span>
+                  <span class={`pay-status ${p.status}`}>
+                    {p.status === "paid"
+                      ? `✓ 已付 $${dollars(p.amountDueCents)}`
+                      : p.status === "partial"
+                        ? `部分付款 $${dollars(p.amountPaidCents)} / $${dollars(p.amountDueCents)}`
+                        : `未付 $${dollars(p.amountDueCents)}`}
+                  </span>
+                </div>
+                <small>{p.paymentCode}</small>
+                {p.status === "partial" && (
+                  <small class="refund">还差 ${dollars(p.amountDueCents - p.amountPaidCents)}</small>
+                )}
+                {p.status === "paid" && p.refundCents > 0 && (
+                  <small class="refund">多付 ${dollars(p.refundCents)}，需要退款</small>
+                )}
               </div>
               {!settled && !p.isPayee && p.status !== "paid" && (
                 <div class="actions">
