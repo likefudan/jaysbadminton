@@ -3682,6 +3682,21 @@ p.center a {
   background: linear-gradient(135deg, #8db8ec, #4a7fc4);
   box-shadow: 0 4px 14px rgba(74, 127, 196, 0.4);
 }
+
+/* An extra site with green icons (sites.json "icon": "green"). */
+.logo.logo-green {
+  color: #2f8a52;
+  background: #e2f4e8;
+}
+[data-mode="dark"] .logo.logo-green {
+  color: #95dbaa;
+  background: #1c3a27;
+}
+[data-style="aurora"] .logo.logo-green {
+  color: #ffffff;
+  background: linear-gradient(135deg, #8fd0a2, #46a066);
+  box-shadow: 0 4px 14px rgba(70, 160, 102, 0.4);
+}
 .developer-tools {
   position: fixed;
   left: max(16px, env(safe-area-inset-left));
