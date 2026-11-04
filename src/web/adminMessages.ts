@@ -322,6 +322,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "已撤销，还有 {n} 场在收款": { tw: "已撤銷，還有 {n} 場在收款", en: "Removed; {n} event(s) still collecting" },
   "＋ 新建活动": { tw: "＋ 新建活動", en: "＋ New event" },
   负责人: { tw: "負責人", en: "Run by" },
+  所有负责人: { tw: "所有負責人", en: "Everyone" },
   "群主（{name}）": { tw: "群主（{name}）", en: "Owner ({name})" },
   "{name}（已卸任）": { tw: "{name}（已卸任）", en: "{name} (stepped down)" },
   进行中: { tw: "進行中", en: "Current" },
@@ -834,7 +835,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "Venmo 收款邮件自动对账：编号和名字对上的自动记到这个人的账上：付够了标记已付，不够的显示「部分付款」等补付，多付的列在「需要退款」里；备注里没有本群付款编号的收款直接忽略，不会出现在这里。":
     {
       tw: "Venmo 收款郵件自動對帳：編號和名字對上的自動記到這個人的帳上：付夠了標記已付，不夠的顯示「部分付款」等補付，多付的列在「需要退款」裡；備註裡沒有本群付款編號的收款直接忽略，不會出現在這裡。",
-      en: 'Venmo payment emails are matched automatically: when the code and name match, the payment goes to that person\'s bill. Paid in full is marked paid, short shows "Partly paid" until topped up, and overpaid is listed under "Refunds due". Payments without this group\'s payment code in the note are ignored and don\'t show here.',
+      en: 'Venmo payment emails are matched automatically: when the code and name match, the payment goes to that person\'s bill. Paid in full is marked paid, short shows "Part paid" until topped up, and overpaid is listed under "Refunds due". Payments without this group\'s payment code in the note are ignored and don\'t show here.',
     },
   "已忽略 ({n})": { tw: "已忽略 ({n})", en: "Ignored ({n})" },
   "忽略错了可以移回待确认，再关联到账单；不需要的可以删除。": {
@@ -1259,10 +1260,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   我: { tw: "我", en: "Me" },
   收款人: { tw: "收款人", en: "Payee" },
   "✓ 已付 {dollars}": { tw: "✓ 已付 {dollars}", en: "✓ Paid {dollars}" },
-  "部分付款 {dollars} / {dollars2}": {
-    tw: "部分付款 {dollars} / {dollars2}",
-    en: "Partly paid {dollars} / {dollars2}",
-  },
+  "部分付款 {dollars} / {dollars2}": { tw: "部分付款 {dollars} / {dollars2}", en: "Part paid {dollars} / {dollars2}" },
   "未付 {dollars}": { tw: "未付 {dollars}", en: "Unpaid {dollars}" },
   "还差 {amount}": { tw: "還差 {amount}", en: "{amount} still due" },
   "多付 {amount}，需要退款": { tw: "多付 {amount}，需要退款", en: "Overpaid {amount}; refund due" },

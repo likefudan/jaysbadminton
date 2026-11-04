@@ -55,14 +55,15 @@ test("a phone set to Traditional Chinese starts in 繁體", async ({ browser }) 
   await context.close();
 });
 
+// Fresh site: first-time setup; after the flows tests: the admin sign-in page.
 test("admin pages follow the chosen language too", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("lang", "en"));
   await page.goto("/admin");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(page.getByRole("heading", { name: "First-time setup" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /^(First-time setup|Admin)$/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "Privacy Policy" })).toBeVisible();
 
   await pick(page, "繁體中文");
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
-  await expect(page.getByRole("heading", { name: "首次設定" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /^(首次設定|管理頁)$/ })).toBeVisible();
 });

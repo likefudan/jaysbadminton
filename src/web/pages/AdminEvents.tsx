@@ -92,7 +92,7 @@ export function EventsTab(props: {
         <label class="field">
           <span>{t("负责人")}</span>
           <select value={manager} onChange={(e) => setManager((e.target as HTMLSelectElement).value)}>
-            <option value="">{t("全部")}</option>
+            <option value="">{t("所有负责人")}</option>
             {owner && <option value={owner.id}>{t("群主（{name}）", { name: owner.username })}</option>}
             {props.organizers!.list.map((o) => (
               <option key={o.id} value={o.id}>
