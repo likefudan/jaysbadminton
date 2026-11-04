@@ -255,31 +255,31 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
           />
         </label>
         {deadlineOn && (
-          <div class="field">
-            <span>{t("活动开始前")}</span>
-          </div>
-        )}
-        {deadlineOn && (
-          <div class="inline">
-            <label class="field">
-              <select value={days} onChange={(e) => setDays(Number((e.target as HTMLSelectElement).value))}>
-                {Array.from({ length: 15 }, (_, i) => (
-                  <option key={i} value={i}>
-                    {t("{n} 天", { n: i })}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label class="field">
-              <select value={hours} onChange={(e) => setHours(Number((e.target as HTMLSelectElement).value))}>
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>
-                    {t("{n} 小时", { n: i })}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <>
+            <div class="field">
+              <span>{t("活动开始前")}</span>
+            </div>
+            <div class="inline">
+              <label class="field">
+                <select value={days} onChange={(e) => setDays(Number((e.target as HTMLSelectElement).value))}>
+                  {Array.from({ length: 15 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {t("{n} 天", { n: i })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label class="field">
+                <select value={hours} onChange={(e) => setHours(Number((e.target as HTMLSelectElement).value))}>
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {t("{n} 小时", { n: i })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </>
         )}
         {error && <p class="error">{error}</p>}
         <button type="submit" class="button block" disabled={busy || !date}>

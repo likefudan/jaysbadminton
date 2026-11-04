@@ -2,6 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { env } from "cloudflare:workers";
 import worker from "../src/worker/index";
 import { describe, expect, it } from "vitest";
+import { pacificToUtc } from "../src/shared/time";
 import { Client, approveMember, billingScenario, createTestEvent, futureDate, setUpAdmin, tokenOf } from "./helpers";
 
 const anon = new Client();
@@ -99,7 +100,7 @@ describe("报名截止时间 off (no deadline)", () => {
     const e = await createTestEvent(ctx, { date, noDeadline: true, deadlineDays: 2, deadlineHours: 3 });
     expect(e.noDeadline).toBe(true);
     expect(e.status).toBe("open");
-    const end = Date.parse(`${date}T21:00:00-07:00`) + (date >= "2026-11-01" ? 3600_000 : 0);
+    const end = Date.parse(pacificToUtc(date, "21:00"));
     expect(Date.parse(e.deadlineAt)).toBe(end);
     // The switch and the lead time both come back as last left.
     const d = (await ctx.admin.call(`${ctx.base}/events/defaults`)).data;

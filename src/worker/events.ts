@@ -280,6 +280,9 @@ export function validateEventInput(i: CreateEventInput): {
   const started = !!i.pastDays && i.pastDays > 0 && startAt <= ts;
   if (deadlineAt <= ts && !started)
     throw badRequest(i.noDeadline ? "这个活动已经结束了" : "按这个提前量算出的截止时间已经过了，请调整");
+  // Without a deadline, an event already under way would otherwise get past the check above: making
+  // one that has started stays for 群主 and 管理员 (pastDays), created closed as before.
+  if (startAt <= ts && !started) throw badRequest("这个活动已经开始了");
   if (started && Date.parse(ts) - Date.parse(startAt) > i.pastDays! * 86400_000)
     throw badRequest(`已经开始的活动最多补建 ${i.pastDays} 天内的`);
   return { startAt, endAt, deadlineAt, offsetMin, started };
