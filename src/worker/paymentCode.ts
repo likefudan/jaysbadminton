@@ -65,5 +65,11 @@ export function nextEventNumber(date: string, taken: Set<string>): string | null
 /** "2026-10-07" → "jbm20261007": the number of the first event created for that date. */
 export const eventNumberBase = (date: string) => `jbm${date.replace(/-/g, "")}`;
 
-/** The public event code for a number: month and day, plus the letter in capitals ("1007", "1007B"). */
+/** The old public event code for a number: month and day, plus the letter in capitals ("1007", "1007B"). */
 export const codeOf = (eventNumber: string) => eventNumber.slice(7, 11) + eventNumber.slice(11).toUpperCase();
+
+/**
+ * The public event code (the /e/ link) of events created since 2026-11-04: the year's last two
+ * digits, then codeOf ("26-1007", "26-1007B"), so it never comes round again the next year.
+ */
+export const yearCodeOf = (eventNumber: string) => `${eventNumber.slice(5, 7)}-${codeOf(eventNumber)}`;

@@ -11,7 +11,7 @@ import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
 import { getSettings, now, setSetting } from "./db";
 import { photoUsage } from "./ai";
 import { syncDeadline } from "./deadlines";
-import { codeOf, eventNumberBase, nextEventNumber, parsePaymentCode } from "./paymentCode";
+import { eventNumberBase, yearCodeOf, nextEventNumber, parsePaymentCode } from "./paymentCode";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 import { eventManager, eventPayee, lastKey, ownerId } from "./organizers";
@@ -379,13 +379,16 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<{ 
     const number = nextEventNumber(input.date, taken);
     if (!number) throw badRequest("同一天的活动太多了");
     try {
+      // The link's code: year, month and day (26-1105, 26-1105B). Before 2026-11-04 it was month
+      // and day only (1006), which comes round again every year, so new events carry the year (Ke
+      // Li 2026-11-04). Links already sent out stay as they are.
       const res = await env.DB.prepare(
         `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, queue_round_min, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       )
         .bind(
           number,
-          codeOf(number),
+          yearCodeOf(number),
           input.date,
           v.startAt,
           v.endAt,

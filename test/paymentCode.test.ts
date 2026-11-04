@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { codeName, codeOf, nextEventNumber, noteName, parsePaymentCode, paymentCode } from "../src/worker/paymentCode";
+import {
+  codeName,
+  codeOf,
+  nextEventNumber,
+  yearCodeOf,
+  noteName,
+  parsePaymentCode,
+  paymentCode,
+} from "../src/worker/paymentCode";
 
 describe("payment codes", () => {
   it("builds lowercase notes with pinyin names", () => {
@@ -51,5 +59,17 @@ describe("payment codes", () => {
     expect(nextEventNumber("2026-10-07", full)).toBeNull();
     expect(codeOf("jbm20261007")).toBe("1007");
     expect(codeOf("jbm20261007b")).toBe("1007B");
+    expect(yearCodeOf("jbm20271007")).toBe("27-1007");
+    expect(yearCodeOf("jbm20271007b")).toBe("27-1007B");
+  });
+});
+
+describe("eventLabel", () => {
+  it("names the day's second event by the letter, with or without the year in the code", async () => {
+    const { eventLabel } = await import("../src/worker/inbound");
+    expect(eventLabel("2026-10-06", "1006")).not.toContain("场");
+    expect(eventLabel("2026-10-06", "1006B")).toContain("第2场");
+    expect(eventLabel("2026-11-05", "26-1105")).not.toContain("场");
+    expect(eventLabel("2026-11-05", "26-1105C")).toContain("第3场");
   });
 });

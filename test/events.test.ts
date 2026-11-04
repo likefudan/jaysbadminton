@@ -15,7 +15,8 @@ describe("creating events", () => {
     const ctx = await setUpAdmin();
     const date = futureDate(7);
     const e = await createTestEvent(ctx, { date, deadlineDays: 1, deadlineHours: 2 });
-    expect(e.code).toBe(date.slice(5, 7) + date.slice(8));
+    // Year, month and day: month and day alone came round again every year.
+    expect(e.code).toBe(`${date.slice(2, 4)}-${date.slice(5, 7)}${date.slice(8)}`);
     expect(Date.parse(e.deadlineAt)).toBe(
       Date.parse(`${date}T19:00:00-07:00`) - 26 * 3600_000 + (date >= "2026-11-01" ? 3600_000 : 0),
     );
