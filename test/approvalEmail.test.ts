@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMember } from "../src/worker/members";
-import { sendApprovalEmail, sendApplicationNotice, sendLinkRecovery } from "../src/worker/approvalEmail";
-import { Client, approveMember, googleJoin, linkMember, setUpAdmin, tokenOf } from "./helpers";
+import { sendApprovalEmail, sendApplicationNotice } from "../src/worker/approvalEmail";
+import { Client, googleJoin, linkMember, setUpAdmin, tokenOf } from "./helpers";
 
 const bindings = () => ({
   ...env,
@@ -107,53 +107,13 @@ describe("用邮箱注册 (members from before 2026-11-04)", () => {
     expect(mail!.text).toContain("垃圾邮件");
   });
 
-  it("找回专属链接 mails members at most once an hour and tells nobody who is a member", async () => {
-    const ctx = await setUpAdmin();
-    const alice = await approveMember(ctx, "Alice");
-    const { email } = (await env.DB.prepare("SELECT email FROM members WHERE id = ?")
-      .bind(alice.id)
-      .first<{ email: string }>())!;
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id: "e" }));
-
-    await sendLinkRecovery(bindings(), "nobody@example.com");
+  it("找回专属链接 is off: nothing is mailed, whoever asks (Ke Li 2026-11-04)", async () => {
+    await setUpAdmin();
+    await linkMember("Alice", "Alice", "alice@example.com");
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const res = await new Client().call("/api/public/recover-link", { email: "alice@example.com" });
+    expect(res.status).toBe(410);
+    expect(res.data.error.message).toBe("专属链接已停止找回，请用 Google 登录");
     expect(fetchMock).not.toHaveBeenCalled();
-    await sendLinkRecovery(bindings(), ` ${email.toUpperCase()} `);
-    await sendLinkRecovery(bindings(), email); // within the hour: nothing more
-    expect(sentTo(fetchMock)).toHaveLength(1);
-    expect(sentTo(fetchMock)[0]!.text).toContain(alice.base.replace("/api/m/", "https://badminton.test/m/"));
-
-    await env.DB.prepare("UPDATE members SET link_resent_at = ? WHERE id = ?")
-      .bind(new Date(Date.now() - 3601_000).toISOString(), alice.id)
-      .run();
-    await sendLinkRecovery(bindings(), email);
-    expect(sentTo(fetchMock)).toHaveLength(2);
-
-    // The endpoint answers the same either way.
-    const anon = new Client();
-    expect(await anon.call("/api/public/recover-link", { email: "nobody@example.com" })).toEqual({
-      status: 200,
-      data: { ok: true },
-    });
-    expect(await anon.call("/api/public/recover-link", { email })).toEqual({ status: 200, data: { ok: true } });
-    expect((await anon.call("/api/public/recover-link", { email: "nope" })).status).toBe(400);
-  });
-
-  it("a Google member who asks for a link is told to sign in with Google; pending applicants get nothing", async () => {
-    const g = await member();
-    const p = await createMember(env, {
-      username: "Pat",
-      wechatNickname: "Pat",
-      status: "pending",
-      email: "pat@example.com",
-    });
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id: "e" }));
-    await sendLinkRecovery(bindings(), "pat@example.com");
-    expect(fetchMock).not.toHaveBeenCalled();
-    await sendLinkRecovery(bindings(), "Alice@Gmail.com");
-    const [mail] = sentTo(fetchMock);
-    expect(mail).toMatchObject({ to: ["Alice@Gmail.com"], subject: "如何登录羽毛球群网站" });
-    expect(mail!.text).toContain("https://badminton.test/login");
-    expect(mail!.text).not.toContain("/m/");
-    expect(p.id).not.toBe(g.id);
   });
 });

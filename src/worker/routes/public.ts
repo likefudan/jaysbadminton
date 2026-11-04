@@ -5,14 +5,11 @@ import { summaries, type EventRow } from "../events";
 import { getSettings } from "../db";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
-import { HttpError, badRequest, readJson, str } from "../http";
-import { checkEmail } from "../../shared/rules";
+import { HttpError, readJson, str } from "../http";
 import { isStaging, siteTheme, siteTitle } from "../site";
 import { leaderboard } from "../stats";
 import { createMember } from "../members";
-import { sendLinkRecovery } from "../approvalEmail";
 import { autoJoinEnabled } from "../joining";
-import { turnstileSiteKey, verifyTurnstile } from "../turnstile";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
@@ -23,7 +20,6 @@ publicRoutes.get("/site", async (c) =>
     staging: isStaging(c.env),
     // The site's own icon colour (sites.json "icon"), for the logo in the top bar.
     icon: c.env.SITE_ICON || null,
-    turnstileSiteKey: turnstileSiteKey(c.env),
     // 入群不需要审核: the join pages leave out 「审核通过后」.
     autoJoin: await autoJoinEnabled(c.env),
     sponsor: c.env.SPONSOR_NAME ? { name: c.env.SPONSOR_NAME, url: c.env.SPONSOR_URL || null } : null,
@@ -76,23 +72,9 @@ publicRoutes.post("/join", () => {
   throw new HttpError(410, "google_only", "新成员请用 Google 登录申请入群");
 });
 
-/**
- * 找回我的专属链接. Always the same answer, whether or not the address belongs to a member, so it
- * can't be used to find out who is in the group; at most one email an hour per member.
- */
-publicRoutes.post("/recover-link", async (c) => {
-  const body = await readJson(c.req.raw);
-  if (str(body.website)) return c.json({ ok: true });
-  await verifyTurnstile(c.env, c.req.raw, str(body.turnstileToken), "recover_link");
-  const err = checkEmail(str(body.email));
-  if (err) throw badRequest(err);
-  try {
-    await sendLinkRecovery(c.env, str(body.email));
-  } catch (err) {
-    // Same answer either way: an error only for members' addresses would tell who is one.
-    console.error("link recovery failed:", err);
-  }
-  return c.json({ ok: true });
+/** 找回我的专属链接 is off too (Ke Li 2026-11-04): 专属链接 are going away, so none is mailed out again. */
+publicRoutes.post("/recover-link", () => {
+  throw new HttpError(410, "google_only", "专属链接已停止找回，请用 Google 登录");
 });
 
 /** First-time setup: only available while no admin link exists. */

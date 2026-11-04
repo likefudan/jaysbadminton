@@ -126,9 +126,6 @@ function SignIn(props: { googleEnabled: boolean }) {
       )}
       {staging && <DeveloperLogin />}
       {steps && <WeChatSheet onClose={() => setSteps(false)} />}
-      <p class="center">
-        <a href="/recover">{t("已经是成员？找回我的专属链接")}</a>
-      </p>
     </Page>
   );
 }

@@ -116,6 +116,12 @@ test("a newcomer finds Google only; an old email applicant still gets their link
   await expect(page.getByText(/邮件服务尚未配置/)).toBeVisible(); // the test server has no Resend key
   memberPath = pathOf(await page.locator("code.link").first().innerText());
   expect(memberPath).toMatch(/^\/m\/[\w-]{20,}$/);
+
+  // 成员: the Owner sees who still has no Google account bound (the Owner is left out).
+  await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
+  const google = page.locator(".card", { has: page.getByRole("heading", { name: "还没用 Google 登录（1）" }) });
+  await expect(google.locator(".google-missing")).toHaveText("小明");
+  await expect(google).toContainText("现在还有 1 个专属链接有效。");
 });
 
 test("the Owner creates an event and is signed up for it", async ({ page }) => {
@@ -248,7 +254,10 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
 
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
-  await page.getByRole("button", { name: "小明", exact: true }).click();
+  await page
+    .locator(".card", { has: page.getByRole("heading", { name: /^成员（/ }) })
+    .getByRole("button", { name: "小明", exact: true })
+    .click();
   const detail = page.locator(".card.profile");
   await expect(detail.locator(".profile-info")).toContainText("xm@example.com");
   await expect(detail.locator(".heatmap-grid .upcoming")).toHaveCount(1);

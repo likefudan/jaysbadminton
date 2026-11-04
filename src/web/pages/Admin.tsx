@@ -323,6 +323,32 @@ function Pending(props: { base: string; list: MemberSummary[]; readOnly: boolean
 }
 
 /**
+ * 还没用 Google 登录: 专属链接 are on their way out (Ke Li 2026-11-04), so the Owner and admins see
+ * who still has no Google account bound. The Owner gets in with the admin link and is left out.
+ */
+function GoogleProgress(props: { data: MembersResponse }) {
+  const missing = props.data.active.filter((m) => !m.isOwner && !m.googleEmail);
+  const inactive = props.data.inactive.filter((m) => !m.googleEmail).length;
+  const links = [...props.data.active, ...props.data.inactive].filter((m) => m.hasLink).length;
+  return (
+    <Card title={missing.length ? `还没用 Google 登录（${missing.length}）` : "Google 登录"}>
+      {missing.length === 0 ? (
+        <p>✓ 所有成员都已绑定 Google 账号。</p>
+      ) : (
+        <>
+          <p class="google-missing">
+            {missing.map((m) => (m.adminNote ? `${m.username}（${m.adminNote}）` : m.username)).join("、")}
+          </p>
+          <p class="muted small">他们打开自己的专属链接，在个人信息里点「绑定 Google 账号」就行。</p>
+        </>
+      )}
+      {inactive > 0 && <p class="muted small">另有 {inactive} 个已停用的成员没有绑定 Google。</p>}
+      <p class="muted small">{links ? `现在还有 ${links} 个专属链接有效。` : "已经没有有效的专属链接。"}</p>
+    </Card>
+  );
+}
+
+/**
  * 成员: the Owner and admins manage it; organizers see the same lists read-only (no links, notes,
  * appointing or 停用). Admins leave the Owner's and admins' rows alone (access.ts memberTarget).
  */
@@ -501,6 +527,7 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
           onRevoke={(o) => revoke({ ...o, admin: o.role === "admin" })}
         />
       )}
+      <GoogleProgress data={props.data} />
       <Card title={`成员（${props.data.active.length}）`}>
         {emailMessage && <p role="status">{emailMessage}</p>}
         {error && <p class="error">{error}</p>}
