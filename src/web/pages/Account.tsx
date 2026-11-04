@@ -95,7 +95,7 @@ export function GoogleLink(props: { token: string }) {
 /** /me/profile: 个人信息 for the Google-signed-in member (the sign-in steps otherwise, as on /me). */
 export const AccountProfile = () => <Account page="profile" />;
 
-/** 登录 / 注册: the one way in for everyone — Google, or email (the link comes by email). */
+/** 登录 / 注册: Google is the one way in for new members; old members may still use their /m/ link. */
 function SignIn(props: { googleEnabled: boolean }) {
   const staging = useStaging();
   const code = ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""];
@@ -109,9 +109,9 @@ function SignIn(props: { googleEnabled: boolean }) {
           {error}
         </p>
       )}
-      {props.googleEnabled && (
-        <Card title={t("用 Google 账号")}>
-          <p>{t("第一次用 Google 登录时填写申请，审核通过后用同一个账号登录即可。")}</p>
+      {/* New members join with Google only; 用邮箱注册 (a /m/ link by email) is gone (Ke Li 2026-11-04). */}
+      {props.googleEnabled ? (
+        <Card>
           <button
             type="button"
             class="button block"
@@ -121,13 +121,9 @@ function SignIn(props: { googleEnabled: boolean }) {
           </button>
           <p class="muted small">{t("仅使用 Google 账号身份、邮箱和头像，不读取你的 Gmail 邮件。")}</p>
         </Card>
+      ) : (
+        <p class="hint">{t("网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。")}</p>
       )}
-      <Card title={t("用邮箱注册")}>
-        <p>{t("审核通过后，专属链接会发到你的邮箱，以后用这个链接登录（在微信里也能直接打开）。")}</p>
-        <a class="button block" href="/join">
-          {t("用邮箱注册")}
-        </a>
-      </Card>
       {staging && <DeveloperLogin />}
       {steps && <WeChatSheet onClose={() => setSteps(false)} />}
       <p class="center">

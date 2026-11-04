@@ -58,14 +58,17 @@ test("a signed-in account confirms the original member link before showing its a
   expect(await page.evaluate(() => sessionStorage.getItem("google-link-member"))).toBeNull();
 });
 
-test("登录 / 注册 offers email alone when Google is not configured", async ({ page }) => {
+test("登录 / 注册 has no email sign-up: Google only for new members, even before it is configured", async ({
+  page,
+}) => {
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }),
   );
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "登录 / 注册", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "用 Google 登录 / 注册" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "用邮箱注册" })).toHaveAttribute("href", "/join");
+  await expect(page.getByRole("link", { name: "用邮箱注册" })).toHaveCount(0);
+  await expect(page.getByText("网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。")).toBeVisible();
 });
 
 test("a member who lost their link asks for it again", async ({ page }) => {

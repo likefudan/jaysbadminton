@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMember } from "../src/worker/members";
 import { sendApprovalEmail, sendApplicationNotice, sendLinkRecovery } from "../src/worker/approvalEmail";
-import { Client, approveMember, joinBody, setUpAdmin, tokenOf } from "./helpers";
+import { Client, approveMember, googleJoin, linkMember, setUpAdmin, tokenOf } from "./helpers";
 
 const bindings = () => ({
   ...env,
@@ -75,33 +75,23 @@ it("notifies the bound administrator of the username, WeChat name, Google email 
   expect(message.text).toContain("留言：小明介绍的");
 });
 
-describe("用邮箱注册", () => {
+describe("用邮箱注册 (members from before 2026-11-04)", () => {
   const sentTo = (fetchMock: { mock: { calls: unknown[][] } }) =>
     fetchMock.mock.calls.map(
       (c) => JSON.parse(String((c[1] as RequestInit).body)) as { to: string[]; subject: string; text: string },
     );
 
-  it("join needs the same email twice and one person per email", async () => {
-    const anon = new Client();
-    const body = joinBody("Alice", "Alice微信");
-    expect((await anon.call("/api/public/join", { ...body, emailConfirm: "other@example.com" })).status).toBe(400);
-    expect((await anon.call("/api/public/join", { ...body, email: "", emailConfirm: "" })).status).toBe(400);
-    expect((await anon.call("/api/public/join", { ...body, email: "nope", emailConfirm: "nope" })).status).toBe(400);
-    expect((await anon.call("/api/public/join", body)).status).toBe(200);
-    const again = await anon.call("/api/public/join", {
-      ...body,
-      username: "Alice2",
-      email: body.email.toUpperCase(),
-      emailConfirm: body.email,
-    });
+  it("one person per email: the address of an old link member can't be used again", async () => {
+    await linkMember("Alice", "Alice微信", "alice@example.com");
+    expect((await linkMember("Bob", "Bob", "nope").catch((e) => e)).status).toBe(400);
+    const again = await googleJoin("Alice2", "a", { email: "ALICE@example.com" });
     expect(again.status).toBe(409);
-    expect(again.data.error.code).toBe("email_taken");
   });
 
-  it("approving mails the member their own link and shows the admin the address", async () => {
+  it("approving an old email applicant mails them their own link and shows the admin the address", async () => {
     const ctx = await setUpAdmin();
-    const body = joinBody("Alice", "Alice微信");
-    const { data: joined } = await new Client().call("/api/public/join", body);
+    const body = { email: "alice@example.com" };
+    const joined = await linkMember("Alice", "Alice微信", body.email);
     const { data: pending } = await ctx.admin.call(`${ctx.base}/members`);
     expect(pending.pending.find((m: { id: string }) => m.id === joined.id).email).toBe(body.email);
     // The test worker has no Resend key: approval still works and says so.

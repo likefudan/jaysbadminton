@@ -232,14 +232,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "審核通過後會向你的 Google 電子郵件傳送通知，請留意收件匣和垃圾郵件。",
     en: "We'll email your Google address once you're approved. Keep an eye on your inbox and spam folder.",
   },
-  "审核通过后，专属链接会发到你的邮箱。": {
-    tw: "審核通過後，專屬連結會發到你的電子郵件。",
-    en: "Once approved, your personal link will be sent to your email.",
-  },
-  "审核通过后，专属链接会发到你的邮箱，以后用这个链接登录（在微信里也能直接打开）。": {
-    tw: "審核通過後，專屬連結會發到你的電子郵件，以後用這個連結登入（在微信裡也能直接開啟）。",
-    en: "Once approved, your personal link is emailed to you. Use it to sign in from then on (it opens in WeChat too).",
-  },
   少一个: { tw: "少一個", en: "One fewer" },
   已付清: { tw: "已付清", en: "Paid" },
   "已付清，谢谢！": { tw: "已付清，謝謝！", en: "Paid in full. Thank you!" },
@@ -334,25 +326,12 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "报名截止 {time}": { tw: "報名截止 {time}", en: "Sign-up closes {time}" },
   推送通知: { tw: "推播通知", en: "Notifications" },
-  "提交中…": { tw: "提交中…", en: "Submitting…" },
   提交入群申请: { tw: "提交入群申請", en: "Ask to join" },
   "提交后就能报名活动。": {
     tw: "提交後就能報名活動。",
     en: "You can sign up for events as soon as you submit.",
   },
-  "提交后，专属链接会发到你的邮箱。": {
-    tw: "提交後，專屬連結會發到你的電子郵件。",
-    en: "Once you submit, your personal link will be sent to your email.",
-  },
   你已入群: { tw: "你已入群", en: "You're in the group" },
-  "你的专属链接已经发到 {email}。以后报名、查看账单都用这个链接。": {
-    tw: "你的專屬連結已經發到 {email}。以後報名、查看帳單都用這個連結。",
-    en: "Your personal link has been sent to {email}. Use it to sign up for events and see your bills.",
-  },
-  "邮件暂时没有发出去。请稍后在「登录 / 注册」页点「找回我的专属链接」，或者联系群主。": {
-    tw: "郵件暫時沒有發出去。請稍後在「登入 / 註冊」頁點「找回我的專屬連結」，或者聯絡群主。",
-    en: 'We couldn\'t send the email just now. Tap "Get my personal link again" on the Sign in page later, or contact the group owner.',
-  },
   "提交后需要审核，通过后才能报名活动。": {
     tw: "提交後需要審核，通過後才能報名活動。",
     en: "Your request will be reviewed; you can sign up for events once it's approved.",
@@ -403,10 +382,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "正在连接…": { tw: "正在連線…", en: "Connecting…" },
   "正在退出…": { tw: "正在退出…", en: "Signing out…" },
   比如谁介绍你来的: { tw: "比如誰介紹你來的", en: "For example, who invited you" },
-  "没收到的话，请看一下垃圾邮件文件夹；也可以在「登录 / 注册」页点「找回我的专属链接」。": {
-    tw: "沒收到的話，請看一下垃圾郵件資料夾；也可以在「登入 / 註冊」頁點「找回我的專屬連結」。",
-    en: 'If it doesn\'t arrive, check your spam folder, or tap "Get my personal link again" on the Sign in page.',
-  },
   活动热力图: { tw: "活動熱力圖", en: "Activity map" },
   活动记录: { tw: "活動記錄", en: "Activity" },
   浅色: { tw: "淺色", en: "Light" },
@@ -428,12 +403,14 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "点微信右上角的「⋯」": { tw: "點微信右上角的「⋯」", en: 'Tap "⋯" at the top right of WeChat' },
   "球 {amount}": { tw: "球 {amount}", en: "shuttles {amount}" },
+  "新成员请用 Google 登录申请入群": {
+    tw: "新成員請用 Google 登入申請入群",
+    en: "New members join by signing in with Google",
+  },
   "用 Google 登录 / 注册": { tw: "用 Google 登入 / 註冊", en: "Sign in / register with Google" },
-  "用 Google 账号": { tw: "用 Google 帳號", en: "With Google" },
   "用 Venmo 付 {amount}": { tw: "用 Venmo 付 {amount}", en: "Pay {amount} with Venmo" },
   用户名: { tw: "使用者名稱", en: "Username" },
   用浏览器打开: { tw: "用瀏覽器開啟", en: "Open in a browser" },
-  用邮箱注册: { tw: "用電子郵件註冊", en: "Register by email" },
   申请加入: { tw: "申請加入", en: "Ask to join" },
   申请已提交: { tw: "申請已提交", en: "Request sent" },
   "留空保存会改回 Google 账号的邮箱（如果有）。": {
@@ -456,10 +433,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   确认报名: { tw: "確認報名", en: "Confirm sign-up" },
   "确认绑定，进入我的活动": { tw: "確認綁定，進入我的活動", en: "Link and go to My events" },
-  "第一次用 Google 登录时填写申请，审核通过后用同一个账号登录即可。": {
-    tw: "第一次用 Google 登入時填寫申請，審核通過後用同一個帳號登入即可。",
-    en: "The first time you sign in with Google, fill in a request to join. Once approved, sign in with the same account.",
-  },
   管理页: { tw: "管理頁", en: "Admin" },
   "组织：{name}": { tw: "組織：{name}", en: "Organizer: {name}" },
   "场地：{courts} 号": { tw: "場地：{courts} 號", en: "Courts: {courts}" },
@@ -481,10 +454,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "网络连接失败，请检查网络后重试": {
     tw: "網路連線失敗，請檢查網路後重試",
     en: "Network error. Check your connection and try again.",
-  },
-  "审核通过后，你的专属链接会发到 {email}。以后报名、查看账单都用这个链接。": {
-    tw: "審核通過後，你的專屬連結會發到 {email}。以後報名、查看帳單都用這個連結。",
-    en: "Once you're approved, your personal link will be sent to {email}. Use it to sign up and see your bills from then on.",
   },
   "审核通过后，用这个 Google 账号登录就能报名活动、查看账单。": {
     tw: "審核通過後，用這個 Google 帳號登入就能報名活動、查看帳單。",

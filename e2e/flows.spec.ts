@@ -87,21 +87,24 @@ test("the Owner sets up the site and the payment details", async ({ page }) => {
   await expect(shortcut.getByRole("button", { name: "已保存" })).toBeVisible();
 });
 
-test("a newcomer registers with email and the Owner approves them", async ({ page }) => {
+test("a newcomer finds Google only; an old email applicant still gets their link", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "登录 / 注册" }).click();
-  await page.getByRole("link", { name: "用邮箱注册" }).click();
-  await field(page, "用户名").fill("小明");
-  await field(page, "微信名").fill("xiaoming");
-  await page.getByLabel("给群主的留言（选填）").fill("小王介绍的");
-  await field(page, "邮箱").fill("ming.reg@example.com");
-  await field(page, "再输一次邮箱").fill("ming.reg@exampel.com");
-  await page.getByRole("button", { name: "提交申请" }).click();
-  await expect(page.getByText("两次输入的邮箱不一致")).toBeVisible();
-  await field(page, "再输一次邮箱").fill("Ming.Reg@example.com");
-  await page.getByRole("button", { name: "提交申请" }).click();
-  await expect(page.getByRole("heading", { name: "申请已提交" })).toBeVisible();
-  await expect(page.locator("main")).toContainText("ming.reg@example.com");
+  await expect(page.getByRole("heading", { name: "登录 / 注册", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "用邮箱注册" })).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("第一次用 Google 登录时填写申请");
+  // The old /join page now lands on 登录 / 注册 too.
+  await page.goto("/join");
+  await expect(page.getByRole("heading", { name: "登录 / 注册", exact: true })).toBeVisible();
+
+  // 用邮箱注册 is gone for newcomers (Ke Li 2026-11-04), but applications sent by email before then
+  // still wait in 待审核, and approving one still makes them a /m/ link.
+  const seq = "(SELECT value FROM settings WHERE key = 'next_member_seq')";
+  const sql =
+    "UPDATE settings SET value = CAST(value AS INTEGER) + 1 WHERE key = 'next_member_seq'; " +
+    "INSERT INTO members (id, username, wechat_nickname, status, requested_at, application_message, email) " +
+    `VALUES ('M' || printf('%03d', ${seq}), '小明', 'xiaoming', 'pending', '${new Date().toISOString()}', '小王介绍的', 'ming.reg@example.com')`;
+  execSync(`npx wrangler d1 execute DB --local --persist-to .wrangler/e2e --command "${sql}"`, { stdio: "ignore" });
 
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "待审核" }).click();
@@ -538,18 +541,19 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   browser,
 }) => {
   page.on("dialog", (d) => void d.accept());
-  // A newcomer applies; what they read no longer says only the Owner reviews it.
-  const visitor = await browser.newPage();
-  await visitor.goto("/join");
+  // A newcomer applies with Google (the only way in); what they read no longer says only the Owner reviews it.
+  const hongCookie = googleSession("google-hong", "hong@gmail.com");
+  const visitorContext = await browser.newContext({ baseURL });
+  await visitorContext.addCookies([{ name: "jb_member", value: hongCookie, url: baseURL! }]);
+  const visitor = await visitorContext.newPage();
+  await visitor.goto("/me");
   await field(visitor, "用户名").fill("小红");
   await field(visitor, "微信名").fill("xiaohong");
-  await field(visitor, "邮箱").fill("hong@example.com");
-  await field(visitor, "再输一次邮箱").fill("hong@example.com");
-  await visitor.getByRole("button", { name: "提交申请" }).click();
+  await visitor.getByRole("button", { name: "提交入群申请" }).click();
   await expect(visitor.getByRole("heading", { name: "申请已提交" })).toBeVisible();
-  await expect(visitor.locator("main")).toContainText("审核通过后，你的专属链接会发到 hong@example.com");
+  await expect(visitor.locator("main")).toContainText("审核通过后，用这个 Google 账号登录就能报名活动");
   await expect(visitor.locator("main")).not.toContainText("群主");
-  await visitor.close();
+  await visitorContext.close();
 
   // The organizer 小明 becomes an admin and signs in with Google.
   await openAdmin(page);
@@ -579,7 +583,7 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   // 待审核: he approves 小红.
   await tabs.getByRole("button", { name: /待审核/ }).click();
   await page.locator(".row", { hasText: "小红" }).getByRole("button", { name: "通过" }).click();
-  await expect(page.getByText("小红 的专属链接")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "已通过 小红" })).toBeVisible();
   await page.getByRole("button", { name: "完成" }).click();
 
   // 成员: nothing on the Owner's row or his own; he can 停用 小红 but only the Owner deletes her.

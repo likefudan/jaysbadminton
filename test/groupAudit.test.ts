@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { Client, appoint, approveMember, createTestEvent, GOOGLE, joinBody, request, setUpAdmin } from "./helpers";
+import { appoint, approveMember, createTestEvent, GOOGLE, googleJoin, request, setUpAdmin } from "./helpers";
 
 /** 管理员 PR 5: 群操作记录 (admin-role.zh.md §7). */
 
@@ -29,9 +29,9 @@ async function scenario() {
 describe("群操作记录", () => {
   it("records member actions by name, whoever did them", async () => {
     const { bob, owner, asAdmin, log } = await scenario();
-    const { data: joined } = await new Client().call("/api/public/join", joinBody("Dan", "dan_wx"));
+    const { data: joined } = await googleJoin("Dan", "dan_wx");
     expect((await asAdmin(`/members/${joined.id}/approve`, {})).status).toBe(200);
-    const { data: other } = await new Client().call("/api/public/join", joinBody("Eve", "eve_wx"));
+    const { data: other } = await googleJoin("Eve", "eve_wx");
     expect((await asAdmin(`/members/${other.id}/reject`, {})).status).toBe(200);
     await asAdmin(`/members/${bob.id}/note`, { note: "周六队长" });
     await asAdmin(`/members/${bob.id}/note`, { note: "周六队长" }); // unchanged: nothing recorded

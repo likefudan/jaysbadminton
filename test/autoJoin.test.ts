@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { sendApplicationNotice } from "../src/worker/approvalEmail";
 import { createMember } from "../src/worker/members";
 import { MAX_AUTO_JOINS_PER_DAY } from "../src/shared/rules";
-import { Client, GOOGLE, appoint, approveMember, googleCookie, joinBody, request, setUpAdmin } from "./helpers";
+import { Client, GOOGLE, appoint, approveMember, googleJoin, request, setUpAdmin } from "./helpers";
 
 /** 入群不需要审核 (Ke Li 2026-11-03). */
 
@@ -19,32 +19,34 @@ describe("入群不需要审核", () => {
     const ctx = await setUpAdmin();
     expect((await ctx.admin.call(`${ctx.base}/settings`)).data.autoJoin).toBe(false);
     expect((await new Client().call("/api/public/site")).data.autoJoin).toBe(false);
-    const { data } = await new Client().call("/api/public/join", joinBody("Dan", "dan_wx"));
-    expect(data.approved).toBe(false);
+    const { data } = await googleJoin("Dan", "dan_wx");
+    expect(data.pending).toBe(true);
     expect((await memberRow(data.id)).status).toBe("pending");
   });
 
-  it("lets email applicants straight in, with a link of their own, and logs it", async () => {
+  it("lets Google applicants straight in, with no /m/ link, and logs it", async () => {
     const ctx = await setUpAdmin();
     expect((await ctx.admin.call(`${ctx.base}/settings`, { autoJoin: true })).status).toBe(200);
     expect((await ctx.admin.call(`${ctx.base}/settings`)).data.autoJoin).toBe(true);
     expect((await new Client().call("/api/public/site")).data.autoJoin).toBe(true);
 
-    const body = joinBody("Dan", "dan_wx");
-    const { status, data } = await new Client().call("/api/public/join", body);
+    const { status, data, cookie } = await googleJoin("Dan", "dan_wx", { email: "dan@gmail.com" });
     expect(status).toBe(200);
-    // The test worker has no Resend key, so the welcome email reports that.
-    expect(data).toMatchObject({ approved: true, emailStatus: "not_configured" });
+    expect(data.pending).toBe(false);
     const row = await memberRow(data.id);
     expect(row.status).toBe("active");
     expect(row.approved_at).toBeTruthy();
-    expect(row.token_enc).toBeTruthy();
+    expect(row.token_enc).toBeNull();
+    expect((await json(await request("/api/auth/session", cookie))).data).toMatchObject({
+      hasMember: true,
+      pending: false,
+    });
+    expect((await json(await request("/api/m/session/me", cookie))).status).toBe(200);
     const { data: members } = await ctx.admin.call(`${ctx.base}/members`);
     expect(members.pending).toEqual([]);
 
     // One email is still one member.
-    const again = await new Client().call("/api/public/join", { ...joinBody("Dan2", "dan2_wx"), ...pick(body) });
-    expect(again.status).toBe(409);
+    expect((await googleJoin("Dan2", "dan2_wx", { email: "dan@gmail.com" })).status).toBe(409);
 
     const { data: log } = await ctx.admin.call(`${ctx.base}/group-audit`);
     expect(log.entries.map((e: any) => [e.action, e.actor, e.detail])).toEqual(
@@ -55,22 +57,9 @@ describe("入群不需要审核", () => {
     );
 
     await ctx.admin.call(`${ctx.base}/settings`, { autoJoin: false });
-    const { data: later } = await new Client().call("/api/public/join", joinBody("Eve", "eve_wx"));
-    expect(later.approved).toBe(false);
+    const { data: later } = await googleJoin("Eve", "eve_wx");
+    expect(later.pending).toBe(true);
     expect((await memberRow(later.id)).status).toBe("pending");
-  });
-
-  it("lets Google applicants straight in", async () => {
-    await setUpAdmin();
-    await db.prepare("INSERT INTO settings (key, value) VALUES ('auto_join', '1')").run();
-    const cookie = await googleCookie("google-dan", "dan@gmail.com");
-    const reg = await json(await request("/api/auth/register", cookie, { username: "Dan", wechatNickname: "dan_wx" }));
-    expect(reg).toMatchObject({ status: 200, data: { pending: false } });
-    expect((await json(await request("/api/auth/session", cookie))).data).toMatchObject({
-      hasMember: true,
-      pending: false,
-    });
-    expect((await json(await request("/api/m/session/me", cookie))).status).toBe(200);
   });
 
   it("falls back to 待审核 after a day's worth of automatic joins", async () => {
@@ -86,8 +75,8 @@ describe("入群不需要审核", () => {
           .bind(at),
       ),
     );
-    const { data } = await new Client().call("/api/public/join", joinBody("Dan", "dan_wx"));
-    expect(data.approved).toBe(false);
+    const { data } = await googleJoin("Dan", "dan_wx");
+    expect(data.pending).toBe(true);
     expect((await memberRow(data.id)).status).toBe("pending");
 
     // A day later there is room again.
@@ -95,8 +84,8 @@ describe("入群不需要审核", () => {
       .prepare("UPDATE group_audit SET at = ?")
       .bind(new Date(Date.now() - 86401_000).toISOString())
       .run();
-    const { data: next } = await new Client().call("/api/public/join", joinBody("Eve", "eve_wx"));
-    expect(next.approved).toBe(true);
+    const { data: next } = await googleJoin("Eve", "eve_wx");
+    expect(next.pending).toBe(false);
   });
 
   it("admins may switch it; organizers may not", async () => {
@@ -128,5 +117,3 @@ describe("入群不需要审核", () => {
     expect(text).not.toContain("待审核」处理");
   });
 });
-
-const pick = (b: { email: string; emailConfirm: string }) => ({ email: b.email, emailConfirm: b.emailConfirm });

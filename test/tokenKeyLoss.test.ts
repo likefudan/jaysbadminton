@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { currentAdminToken } from "../src/worker/auth";
 import { encryptToken } from "../src/worker/lib/crypto";
-import { Client, joinBody, setUpAdmin } from "./helpers";
+import { Client, linkMember, setUpAdmin } from "./helpers";
 
 /** What the database holds after TOKEN_KEY was replaced: values encrypted under another key. */
 const underOldKey = () => encryptToken("some-old-secret", "the-key-that-was-lost");
@@ -33,10 +33,7 @@ describe("after TOKEN_KEY was replaced", () => {
 
   it("a member's link says to make a new one, and 找回 answers like for anyone else", async () => {
     const ctx = await setUpAdmin();
-    const { data: joined } = await new Client().call(
-      "/api/public/join",
-      joinBody("Alice", "Alice", { email: "alice@example.com", emailConfirm: "alice@example.com" }),
-    );
+    const joined = await linkMember("Alice", "Alice", "alice@example.com");
     await ctx.admin.call(`${ctx.base}/members/${joined.id}/approve`, {});
     await env.DB.prepare("UPDATE members SET token_enc = ? WHERE id = ?")
       .bind(await underOldKey(), joined.id)

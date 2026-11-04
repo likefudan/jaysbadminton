@@ -1,9 +1,10 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/worker/index";
-import { joinBody } from "./helpers";
 
 const ORIGIN = "https://jaysbadminton.test";
+/** 找回我的专属链接 is the one public form left (申请加入 is Google only since 2026-11-04). */
+const recover = (extra: Record<string, unknown> = {}) => ({ email: "nobody@example.com", ...extra });
 const bindings = (extra: Record<string, unknown> = {}) => ({
   ...env,
   SITE_ORIGIN: ORIGIN,
@@ -35,7 +36,7 @@ function siteverify(answer: Record<string, unknown> | "down" = {}) {
     used.add(form.get("response")!);
     return Response.json({
       success: ok,
-      action: "join",
+      action: "recover_link",
       hostname: "jaysbadminton.test",
       "error-codes": ok ? [] : ["invalid-input-response"],
       ...(ok ? answer : {}),
@@ -51,7 +52,7 @@ describe("Turnstile on the public forms", () => {
     const off = await request("/api/public/site", undefined, { TURNSTILE_SECRET: undefined });
     expect(((await off.json()) as any).turnstileSiteKey).toBeNull();
     const spy = vi.spyOn(globalThis, "fetch");
-    const res = await request("/api/public/join", joinBody("Offline", "o"), { TURNSTILE_SECRET: undefined });
+    const res = await request("/api/public/recover-link", recover(), { TURNSTILE_SECRET: undefined });
     expect(res.status).toBe(200);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -61,39 +62,35 @@ describe("Turnstile on the public forms", () => {
     expect(((await res.json()) as any).turnstileSiteKey).toBe("test-site-key");
   });
 
-  it("lets a join through with a passing token, sending the secret and the visitor's IP", async () => {
+  it("lets 找回链接 through with a passing token, sending the secret and the visitor's IP", async () => {
     const seen = siteverify();
-    const res = await request("/api/public/join", joinBody("Human", "h", { turnstileToken: "good" }));
+    const res = await request("/api/public/recover-link", recover({ turnstileToken: "good" }));
     expect(res.status).toBe(200);
     expect(seen[0]!.get("secret")).toBe("test-turnstile-secret");
     expect(seen[0]!.get("remoteip")).toBe("203.0.113.7");
   });
 
-  it("refuses a join with no token, a bad one or a replayed one, and creates nobody", async () => {
+  it("refuses 找回链接 with no token, a bad one or a replayed one", async () => {
     siteverify();
-    expect((await request("/api/public/join", joinBody("NoToken", "n"))).status).toBe(403);
-    expect((await request("/api/public/join", joinBody("BadToken", "b", { turnstileToken: "bad" }))).status).toBe(403);
-    expect((await request("/api/public/join", joinBody("First", "f", { turnstileToken: "good" }))).status).toBe(200);
-    const replay = await request("/api/public/join", joinBody("Replay", "r", { turnstileToken: "good" }));
+    expect((await request("/api/public/recover-link", recover())).status).toBe(403);
+    expect((await request("/api/public/recover-link", recover({ turnstileToken: "bad" }))).status).toBe(403);
+    expect((await request("/api/public/recover-link", recover({ turnstileToken: "good" }))).status).toBe(200);
+    const replay = await request("/api/public/recover-link", recover({ turnstileToken: "good" }));
     expect(replay.status).toBe(403);
     expect(((await replay.json()) as any).error.code).toBe("turnstile_failed");
-    const names = await env.DB.prepare(
-      "SELECT username FROM members WHERE username IN ('NoToken', 'BadToken', 'Replay')",
-    ).all();
-    expect(names.results).toEqual([]);
   });
 
   it("refuses a token solved for another form or on another site", async () => {
-    siteverify({ action: "recover_link" });
-    expect((await request("/api/public/join", joinBody("Wrong", "w", { turnstileToken: "good" }))).status).toBe(403);
+    siteverify({ action: "join" });
+    expect((await request("/api/public/recover-link", recover({ turnstileToken: "good" }))).status).toBe(403);
     vi.restoreAllMocks();
     siteverify({ hostname: "localhost" });
-    expect((await request("/api/public/join", joinBody("Local", "l", { turnstileToken: "good" }))).status).toBe(403);
+    expect((await request("/api/public/recover-link", recover({ turnstileToken: "good" }))).status).toBe(403);
   });
 
   it("refuses when Siteverify can't be reached", async () => {
     siteverify("down");
-    expect((await request("/api/public/join", joinBody("Down", "d", { turnstileToken: "good" }))).status).toBe(403);
+    expect((await request("/api/public/recover-link", recover({ turnstileToken: "good" }))).status).toBe(403);
   });
 
   it("checks 找回链接 with its own action", async () => {
@@ -105,7 +102,7 @@ describe("Turnstile on the public forms", () => {
 
   it("still drops a filled-in honeypot without asking Siteverify", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
-    const res = await request("/api/public/join", joinBody("Bot", "b", { website: "spam.example" }));
+    const res = await request("/api/public/recover-link", recover({ website: "spam.example" }));
     expect(res.status).toBe(200);
     expect(spy).not.toHaveBeenCalled();
   });

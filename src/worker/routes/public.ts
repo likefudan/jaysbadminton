@@ -11,7 +11,7 @@ import { isStaging, siteTheme, siteTitle } from "../site";
 import { leaderboard } from "../stats";
 import { createMember } from "../members";
 import { sendLinkRecovery } from "../approvalEmail";
-import { applyToJoin, autoJoinEnabled } from "../joining";
+import { autoJoinEnabled } from "../joining";
 import { turnstileSiteKey, verifyTurnstile } from "../turnstile";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
@@ -68,21 +68,12 @@ publicRoutes.get("/events/:code/calendar.ics", async (c) => {
   });
 });
 
-publicRoutes.post("/join", async (c) => {
-  const body = await readJson(c.req.raw);
-  // Honeypot: real people never see this field, bots fill it in.
-  if (str(body.website)) return c.json({ ok: true });
-  await verifyTurnstile(c.env, c.req.raw, str(body.turnstileToken), "join");
-  // 用邮箱注册: the link is emailed on approval, so the address must be typed twice and match.
-  const email = str(body.email).trim();
-  if (email.toLowerCase() !== str(body.emailConfirm).trim().toLowerCase()) throw badRequest("两次输入的邮箱不一致");
-  const { member, approved, emailStatus } = await applyToJoin(c.env, {
-    username: str(body.username),
-    wechatNickname: str(body.wechatNickname),
-    message: str(body.message),
-    email,
-  });
-  return c.json({ ok: true, id: member.id, approved, emailStatus });
+/**
+ * 用邮箱注册 is gone (Ke Li 2026-11-04): new members join with Google only, so nobody new gets a
+ * /m/ link. Members who already have one keep it, and 找回我的专属链接 still mails it to them.
+ */
+publicRoutes.post("/join", () => {
+  throw new HttpError(410, "google_only", "新成员请用 Google 登录申请入群");
 });
 
 /**

@@ -50,7 +50,7 @@ const LANGUAGE = { "zh-CN": "zh-cn", "zh-TW": "zh-tw", en: "en" } as const;
  * request body; `check()` gives the message to show while it isn't solved yet (null when it is, or
  * when Turnstile is off); `reset()` after every submission, since a token works once.
  */
-export function useTurnstile(action: "join" | "recover_link") {
+export function useTurnstile(action: "recover_link") {
   const siteKey = useTurnstileSiteKey();
   const box = useRef<HTMLDivElement>(null);
   const id = useRef<string | null>(null);
