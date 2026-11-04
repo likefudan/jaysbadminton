@@ -81,8 +81,8 @@ export async function calorieMocks(page: Page, opts: { board?: boolean; update?:
         events: opts.empty
           ? []
           : [
-              { code: "E1", date: "2030-10-13", title: "", location: "Synergy", kcal: 432 },
-              { code: "E9", date: "2030-10-06", title: "", location: "Synergy", kcal: 386 },
+              { id: 1, code: "E1", date: "2030-10-13", title: "", location: "Synergy", kcal: 432 },
+              { id: 9, code: "E9", date: "2030-10-06", title: "", location: "Synergy", kcal: 386 },
             ],
         shortcut: {
           url: "https://www.icloud.com/shortcuts/909be1bdeb324b88a0caca0b0031aa11",
@@ -224,7 +224,7 @@ test("个人信息 deletes one event's calories or all of them, after asking", a
   });
   let sent = page.waitForRequest("**/api/m/tok/calories/delete");
   await card.getByRole("button", { name: "删除这场的卡路里记录" }).first().click();
-  expect((await sent).postDataJSON()).toEqual({ code: "E1" });
+  expect((await sent).postDataJSON()).toEqual({ id: 1 });
   sent = page.waitForRequest("**/api/m/tok/calories/delete");
   await card.getByRole("button", { name: "删除我的全部卡路里记录" }).click();
   expect((await sent).postDataJSON()).toEqual({ all: true });

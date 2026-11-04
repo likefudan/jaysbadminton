@@ -15,7 +15,7 @@ const CONTACT = "likefudan@gmail.com";
 
 export const PRIVACY: Record<Lang, LegalDoc> = {
   "zh-CN": {
-    updated: "最后更新：2026 年 10 月 21 日",
+    updated: "最后更新：2026 年 11 月 4 日",
     sections: [
       {
         h: "这个网站是谁的",
@@ -28,7 +28,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         h: "我们收集的信息",
         body: [
           [
-            "申请入群：你填写的用户名、微信名和给群主的留言（选填）；用邮箱注册时还有你的邮箱。",
+            "申请入群：你填写的用户名、微信名和给群主的留言（选填）；以前用邮箱注册的成员还有邮箱。",
             "Google 登录：Google 账号编号、邮箱和头像链接。网站只请求最基本的登录信息，读不到你的 Gmail 邮件、通讯录、云端硬盘或其他 Google 数据。",
             "活动记录：报名和取消、带的朋友（人数和你填的名字）、出勤、应付金额和付款状态。",
             "付款通知：活动的收款人把 Venmo 收款通知邮件转发给网站，网站从中读出付款人名字、金额、备注和时间，用来自动对账，并保存邮件文字供收款人核对。付款人可能不是成员，例如替别人付款的人。Zelle 付款由收款人手动标记。网站碰不到你的银行或 Venmo 账户，也不保存卡号或密码。",
@@ -56,7 +56,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           ],
           "网站靠以下服务运行，它们只在提供服务所需的范围内处理数据：",
           [
-            "Cloudflare：网站托管、数据库、接收转发的付款邮件，以及申请和找回链接时的人机验证（Turnstile）。Cloudflare 会记录 IP 地址等访问日志。",
+            "Cloudflare：网站托管、数据库和接收转发的付款邮件。Cloudflare 会记录 IP 地址等访问日志。",
             "Google：Google 登录。",
             "Resend：发送审核结果和专属链接邮件。",
             "Telegram：给群主和组织者发活动通知，内容包括成员名字和金额。",
@@ -95,7 +95,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
     ],
   },
   "zh-TW": {
-    updated: "最後更新：2026 年 10 月 21 日",
+    updated: "最後更新：2026 年 11 月 4 日",
     sections: [
       {
         h: "這個網站是誰的",
@@ -108,7 +108,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         h: "我們收集的資訊",
         body: [
           [
-            "申請入群：你填寫的使用者名稱、微信名和給群主的留言（選填）；用電子郵件註冊時還有你的電子郵件。",
+            "申請入群：你填寫的使用者名稱、微信名和給群主的留言（選填）；以前用電子郵件註冊的成員還有電子郵件。",
             "Google 登入：Google 帳號編號、電子郵件和頭像連結。網站只請求最基本的登入資訊，讀不到你的 Gmail 郵件、聯絡人、雲端硬碟或其他 Google 資料。",
             "活動記錄：報名和取消、帶的朋友（人數和你填的名字）、出席、應付金額和付款狀態。",
             "付款通知：活動的收款人把 Venmo 收款通知郵件轉寄給網站，網站從中讀出付款人名字、金額、備註和時間，用來自動對帳，並保存郵件文字供收款人核對。付款人可能不是成員，例如替別人付款的人。Zelle 付款由收款人手動標記。網站碰不到你的銀行或 Venmo 帳戶，也不保存卡號或密碼。",
@@ -136,7 +136,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           ],
           "網站靠以下服務運作，它們只在提供服務所需的範圍內處理資料：",
           [
-            "Cloudflare：網站託管、資料庫、接收轉寄的付款郵件，以及申請和找回連結時的人機驗證（Turnstile）。Cloudflare 會記錄 IP 位址等存取日誌。",
+            "Cloudflare：網站託管、資料庫和接收轉寄的付款郵件。Cloudflare 會記錄 IP 位址等存取日誌。",
             "Google：Google 登入。",
             "Resend：寄送審核結果和專屬連結郵件。",
             "Telegram：給群主和組織者傳送活動通知，內容包括成員名字和金額。",
@@ -175,7 +175,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
     ],
   },
   en: {
-    updated: "Last updated: October 21, 2026",
+    updated: "Last updated: November 4, 2026",
     sections: [
       {
         h: "Who runs this site",
@@ -188,7 +188,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         h: "Information we collect",
         body: [
           [
-            "When you apply to join: the username, WeChat name and optional note to the group owner that you enter, plus your email address if you sign up by email.",
+            "When you apply to join: the username, WeChat name and optional note to the group owner that you enter, plus the email address of members who signed up by email before.",
             "When you sign in with Google: your Google account ID, email address and profile photo link. The site asks only for basic sign-in information and cannot read your Gmail, contacts, Drive or any other Google data.",
             "Event records: sign-ups and cancellations, friends you bring (how many, and any names you enter), attendance, amounts owed and payment status.",
             "Payment notices: an event's payee forwards their Venmo payment notification emails to the site, which reads the payer's name, the amount, the note and the time to match payments automatically, and keeps the email text so the payee can check it. A payer may not be a member, for example someone paying on another person's behalf. Zelle payments are marked by hand by the payee. The site never touches your bank or Venmo account and stores no card numbers or passwords.",
@@ -216,7 +216,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           ],
           "The site runs on these services, which handle data only as needed to provide their service:",
           [
-            "Cloudflare: hosting, the database, receiving forwarded payment emails, and the human check (Turnstile) on the join and recover-link forms. Cloudflare keeps access logs such as IP addresses.",
+            "Cloudflare: hosting, the database and receiving forwarded payment emails. Cloudflare keeps access logs such as IP addresses.",
             "Google: Google sign-in.",
             "Resend: sending application-result and personal-link emails.",
             "Telegram: event notifications to the group owner and organizers, which include member names and amounts.",

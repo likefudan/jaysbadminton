@@ -130,11 +130,11 @@ export async function saveUpload(env: Env, code: string, raw: unknown, version?:
 export async function myCalories(env: Env, m: MemberRow): Promise<MyCalories> {
   const year = toPacific(new Date()).date.slice(0, 4);
   const { results } = await env.DB.prepare(
-    `SELECT e.code, e.date, e.title, e.location, c.kcal FROM calories c JOIN events e ON e.id = c.event_id
+    `SELECT e.id, e.code, e.date, e.title, e.location, c.kcal FROM calories c JOIN events e ON e.id = c.event_id
      WHERE c.member_id = ? AND e.status != 'cancelled' ORDER BY e.start_at DESC`,
   )
     .bind(m.id)
-    .all<{ code: string; date: string; title: string; location: string; kcal: number }>();
+    .all<{ id: number; code: string; date: string; title: string; location: string; kcal: number }>();
   const thisYear = results.filter((r) => r.date.startsWith(year));
   const shortcut = await shortcutSetting(env);
   return {
@@ -147,17 +147,28 @@ export async function myCalories(env: Env, m: MemberRow): Promise<MyCalories> {
   };
 }
 
-/** Deletes their 卡路里 for one event (by its code), or all of it when no code is given. */
-export async function deleteCalories(env: Env, m: MemberRow, code?: string): Promise<void> {
-  if (code === undefined) {
+/**
+ * Deletes their 卡路里 for one event, or all of it when none is given. The event is its id; a page
+ * from before ids were sent names it by code, which repeats from year to year (1006 in 2026 and in
+ * 2027), so that means the latest event with the code that they have a number for.
+ */
+export async function deleteCalories(env: Env, m: MemberRow, event?: { id: number } | { code: string }): Promise<void> {
+  if (event === undefined) {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM calories WHERE member_id = ?").bind(m.id),
       env.DB.prepare("DELETE FROM calorie_uploads WHERE member_id = ?").bind(m.id),
     ]);
     return;
   }
-  await env.DB.prepare("DELETE FROM calories WHERE member_id = ? AND event_id = (SELECT id FROM events WHERE code = ?)")
-    .bind(m.id, code)
+  if ("id" in event) {
+    await env.DB.prepare("DELETE FROM calories WHERE member_id = ? AND event_id = ?").bind(m.id, event.id).run();
+    return;
+  }
+  await env.DB.prepare(
+    `DELETE FROM calories WHERE member_id = ?1 AND event_id = (SELECT e.id FROM events e JOIN calories c
+       ON c.event_id = e.id AND c.member_id = ?1 WHERE e.code = ?2 ORDER BY e.start_at DESC LIMIT 1)`,
+  )
+    .bind(m.id, event.code)
     .run();
 }
 

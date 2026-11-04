@@ -281,7 +281,7 @@ export interface MyCalories {
   /** On the 卡路里榜. */
   board: boolean;
   /** Every event read, newest first. */
-  events: { code: string; date: string; title: string; location: string; kcal: number }[];
+  events: { id: number; code: string; date: string; title: string; location: string; kcal: number }[];
   /** 个人信息 → 卡路里快捷指令: the install link (empty when none is set), and whether theirs is an older version. */
   shortcut: { url: string; outdated: boolean };
 }
