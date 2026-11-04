@@ -1,1 +1,4 @@
-[{ "id": "sbbc", "domain": "sbbc.llmat.dev", "name": "SBBC 羽毛球", "icon": "blue" }]
+[
+  { "id": "sbbc", "domain": "sbbc.llmat.dev", "name": "SBBC 羽毛球", "icon": "blue" },
+  { "id": "bewithyou", "domain": "bewithyou.llmat.dev", "name": "Be With You 羽毛球" }
+]
