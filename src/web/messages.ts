@@ -785,6 +785,8 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "删除这组排队（不排了）？": { tw: "刪除這組排隊（不排了）？", en: "Remove this queue spot (no longer waiting)?" },
   还剩几分钟: { tw: "還剩幾分鐘", en: "Minutes left" },
+  剩余: { tw: "剩餘", en: "Left" },
+  等待: { tw: "等待", en: "Wait" },
   "排{k}": { tw: "排{k}", en: "Q{k}" },
   正在打的还剩几分钟: { tw: "正在打的還剩幾分鐘", en: "Current group: min left" },
   请填写正在打的还剩几分钟: { tw: "請填寫正在打的還剩幾分鐘", en: "Enter the current group's minutes left" },
@@ -884,10 +886,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   搜索账号: { tw: "搜尋帳號", en: "Search accounts" },
   "📷 拍照登记": { tw: "📷 拍照登記", en: "📷 Read from photo" },
   "识别中…": { tw: "辨識中…", en: "Reading…" },
-  "拍排队屏幕，自动填好场号、时间和账号": {
-    tw: "拍排隊螢幕，自動填好場號、時間和帳號",
-    en: "Snap the queue screen to fill this in",
-  },
   "这张照片打不开，请重新拍一张": {
     tw: "這張照片打不開，請重新拍一張",
     en: "Couldn't open this photo. Please take another",

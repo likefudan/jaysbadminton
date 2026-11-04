@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from "preact/hooks";
 export function CourtCombo(props: {
   id: string;
   label: string;
+  /** The label only for screen readers; the placeholder says it. */
+  labelHidden?: boolean;
   placeholder: string;
   toggleLabel: string;
   value: string;
@@ -40,7 +42,7 @@ export function CourtCombo(props: {
   const shown = typed && narrowed.some((n) => String(n) !== typed) ? narrowed : all;
   return (
     <div class="cq-court-no">
-      <label for={props.id} class="sheet-label">
+      <label for={props.id} class={props.labelHidden ? "sr-only" : "sheet-label"}>
         {props.label}
       </label>
       <div class="cq-combo">
