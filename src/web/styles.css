@@ -4832,3 +4832,8 @@ ul.audit li:first-child {
   margin: 4px 0 6px;
   color: var(--text-2);
 }
+
+/* 桌面图标名称: room between the notes and the fields and button. */
+.app-names p {
+  margin-bottom: 14px;
+}

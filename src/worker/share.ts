@@ -1,7 +1,7 @@
 import { formatDateZh, formatInstantZh } from "../shared/time";
 import type { Env } from "./env";
 import { summaries, type EventRow } from "./events";
-import { isStaging, siteTitle } from "./site";
+import { appNames, isStaging, siteTitle } from "./site";
 
 /**
  * Link previews. WeChat, iMessage and Telegram read the page's <title>, description and og:*
@@ -39,7 +39,13 @@ export async function eventMeta(env: Env, code: string): Promise<ShareMeta | nul
 }
 
 /** Rewrites the app's index.html with the given preview tags. */
-export function withShareMeta(page: Response, meta: ShareMeta, origin: string, staging = false): Response {
+export function withShareMeta(
+  page: Response,
+  meta: ShareMeta,
+  origin: string,
+  staging = false,
+  appTitle?: string,
+): Response {
   if (staging) meta = { ...meta, title: `【测试】${meta.title}` };
   const set = (value: string) => ({
     element(el: Element) {
@@ -47,7 +53,10 @@ export function withShareMeta(page: Response, meta: ShareMeta, origin: string, s
     },
   });
   const image = `${origin}/og-image.jpg`;
-  return new HTMLRewriter()
+  // iPhone's 添加到主屏幕 offers this as the icon's name: the site's 桌面图标名称, not the page's title.
+  const rewriter = new HTMLRewriter();
+  if (appTitle) rewriter.on('meta[name="apple-mobile-web-app-title"]', set(appTitle));
+  return rewriter
     .on("title", {
       element(el) {
         el.setInnerContent(meta.title);
@@ -73,5 +82,5 @@ export async function sharePage(env: Env, request: Request, meta: ShareMeta | nu
   // No conditional headers: a 304 would hand back a cached page without these tags.
   const page = await env.ASSETS.fetch(new Request(`${url.origin}/`));
   if (!meta || !page.ok || !(page.headers.get("content-type") ?? "").includes("text/html")) return page;
-  return withShareMeta(page, meta, env.SITE_ORIGIN, isStaging(env));
+  return withShareMeta(page, meta, env.SITE_ORIGIN, isStaging(env), (await appNames(env))["zh-CN"]);
 }

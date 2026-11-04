@@ -76,7 +76,7 @@ import {
   savePaymentProfile,
 } from "../payees";
 import { quietBills } from "../health";
-import { SITE_TITLE_MAX, siteTheme, siteTitle } from "../site";
+import { SITE_TITLE_MAX, appNameKey, appNamesSet, siteTheme, siteTitle } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
 import {
@@ -110,7 +110,7 @@ import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
 import { MODEL_RE, aiChoices, aiSettingKey, azureDeployments } from "../ai";
 import { AI_EFFORTS, AI_USES, AI_USE_NAME, type AiEffort } from "../../shared/ai";
 import { autoJoinCap, autoJoinEnabled } from "../joining";
-import { checkAutoJoinCap } from "../../shared/rules";
+import { APP_NAME_LANGS, APP_NAME_MAX, checkAutoJoinCap } from "../../shared/rules";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -763,6 +763,8 @@ adminEventRoutes.get("/settings", async (c) => {
     calorieShortcut: await shortcutSetting(c.env),
     ...payment,
     siteTitle: await siteTitle(c.env),
+    // Empty until set: the icon then carries Simplified's name, or the site title.
+    appNames: await appNamesSet(c.env),
     theme: await siteTheme(c.env),
     showLeaderboard: (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard !== "0",
     autoJoin: await autoJoinEnabled(c.env),
@@ -840,6 +842,14 @@ adminEventRoutes.post("/settings", async (c) => {
     if ([...t].length > SITE_TITLE_MAX) throw badRequest(`网站标题最多 ${SITE_TITLE_MAX} 个字`);
     writes.push(setSetting(c.env.DB, "site_title", t));
     said.push(`网站标题「${t}」`);
+  }
+  if (b.appNames !== undefined) {
+    const o = (b.appNames ?? {}) as Record<string, unknown>;
+    const names = APP_NAME_LANGS.map((l) => [l, str(o[l]).trim()] as const);
+    if (names.some(([, t]) => [...t].length > APP_NAME_MAX)) throw badRequest(`桌面图标名称最多 ${APP_NAME_MAX} 个字`);
+    for (const [l, t] of names) writes.push(setSetting(c.env.DB, appNameKey(l), t));
+    const shown = names.filter(([, t]) => t).map(([, t]) => `「${t}」`);
+    said.push(shown.length ? `桌面图标名称 ${shown.join(" ")}` : "桌面图标名称改回网站标题");
   }
   if (b.showLeaderboard !== undefined) {
     writes.push(setSetting(c.env.DB, "show_leaderboard", b.showLeaderboard === false ? "0" : "1"));

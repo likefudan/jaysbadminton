@@ -6,7 +6,7 @@ import { getSettings } from "../db";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
-import { isStaging, siteTheme, siteTitle } from "../site";
+import { appNames, isStaging, siteTheme, siteTitle } from "../site";
 import { leaderboard } from "../stats";
 import { createMember } from "../members";
 import { autoJoinEnabled } from "../joining";
@@ -16,6 +16,8 @@ export const publicRoutes = new Hono<{ Bindings: Env }>();
 publicRoutes.get("/site", async (c) =>
   c.json({
     title: await siteTitle(c.env),
+    // 桌面图标名称 by language, which iPhone offers when a page is added to the home screen.
+    appNames: await appNames(c.env),
     theme: await siteTheme(c.env),
     staging: isStaging(c.env),
     // The site's own icon colour (sites.json "icon"), for the logo in the top bar.

@@ -46,6 +46,13 @@ export function checkPassword(raw: string): string | null {
  * day, newcomers wait in 待审核 again until the day has passed. The Owner and admins set the number
  * in 设置 (Ke Li 2026-11-04), 1–999.
  */
+/** 桌面图标名称: about what a launcher fits under an icon (Android shows ~12 letters or ~6 汉字). */
+export const APP_NAME_MAX = 12;
+/** 桌面图标名称 comes in each language the site speaks; the visitor's language picks one. */
+export const APP_NAME_LANGS = ["zh-CN", "zh-TW", "en"] as const;
+export type AppNameLang = (typeof APP_NAME_LANGS)[number];
+export type AppNames = Record<AppNameLang, string>;
+
 export const DEFAULT_AUTO_JOINS_PER_DAY = 20;
 export const MAX_AUTO_JOINS_PER_DAY = 999;
 

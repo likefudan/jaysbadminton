@@ -1,7 +1,14 @@
 import { useState } from "preact/hooks";
 import { AI_EFFORTS, AI_USE_NAME, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
 import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
-import { MAX_AUTO_JOINS_PER_DAY, checkAutoJoinCap, checkPassword } from "../../shared/rules";
+import {
+  APP_NAME_LANGS,
+  APP_NAME_MAX,
+  type AppNames,
+  MAX_AUTO_JOINS_PER_DAY,
+  checkAutoJoinCap,
+  checkPassword,
+} from "../../shared/rules";
 import type { LinkResponse, RevokeImpact } from "../../shared/types";
 import { STYLES, type ThemeId } from "../../shared/themes";
 import { api } from "../api";
@@ -9,11 +16,11 @@ import { Card, Field, LinkCard, Load, useAction } from "../components";
 import { signOutGoogle } from "../GoogleAccount";
 import { revokeSummary } from "../organizers";
 import { type Loaded, useApi } from "../hooks";
-import { setSiteTheme, setSiteTitle, useAppearance } from "../site";
+import { setAppNames, setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
 import { RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
-import { t, tk, tx, fmtInstant } from "../i18n";
+import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
 
 /** 设置: the admin page's settings tab, one card per setting. */
 export function Settings(props: { base: string; viaGoogle: boolean }) {
@@ -21,7 +28,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
   const [newAdmin, setNewAdmin] = useState("");
-  const [sub, setSub] = useState<"sheets" | null>(null);
+  const [sub, setSub] = useState<"sheets" | "appNames" | null>(null);
   const pw = useAction();
   const link = useAction();
   // Shared by the Telegram card and 使用指南's checklist.
@@ -47,6 +54,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
     location.reload();
   }
 
+  if (sub === "appNames") return <AppNamesPage base={props.base} back={() => setSub(null)} />;
   if (sub === "sheets") {
     return (
       <>
@@ -62,7 +70,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
     <>
       <ThemeCard base={props.base} />
       <PaymentCard base={props.base} />
-      <FriendCap base={props.base} />
+      <FriendCap base={props.base} openAppNames={() => setSub("appNames")} />
       <TelegramCard base={props.base} status={telegram} reload={reloadTelegram} />
       <RemindersCard base={props.base} />
       <ExportCard base={props.base} />
@@ -171,8 +179,9 @@ export function AdminRoleSettings(props: { base: string }) {
   const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
   const p = profile.state === "ok" ? profile.data : null;
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
-  const [sub, setSub] = useState<"sheets" | null>(null);
+  const [sub, setSub] = useState<"sheets" | "appNames" | null>(null);
 
+  if (sub === "appNames") return <AppNamesPage base={props.base} back={() => setSub(null)} />;
   if (sub === "sheets") {
     return (
       <>
@@ -195,7 +204,7 @@ export function AdminRoleSettings(props: { base: string }) {
       <ForwardingCard profile={p} />
       <TelegramCard base={props.base} organizer admin status={telegram} reload={reloadTelegram} />
       <ThemeCard base={props.base} />
-      <FriendCap base={props.base} />
+      <FriendCap base={props.base} openAppNames={() => setSub("appNames")} />
       <RemindersCard base={props.base} />
       <ExportCard base={props.base} />
       <Card>
@@ -517,6 +526,7 @@ function ResetAll(props: { base: string }) {
 
 interface GeneralSettings {
   siteTitle: string;
+  appNames: AppNames;
   showLeaderboard: boolean;
   autoJoin: boolean;
   autoJoinCap: number;
@@ -530,15 +540,17 @@ interface GeneralSettings {
   zelleAccount: string;
 }
 
-function FriendCap(props: { base: string }) {
+function FriendCap(props: { base: string; openAppNames: () => void }) {
   const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
-  return <Load result={s}>{(v) => <GeneralForm base={props.base} initial={v} />}</Load>;
+  return (
+    <Load result={s}>{(v) => <GeneralForm base={props.base} initial={v} openAppNames={props.openAppNames} />}</Load>
+  );
 }
 
-function GeneralForm(props: { base: string; initial: GeneralSettings }) {
+function GeneralForm(props: { base: string; initial: GeneralSettings; openAppNames: () => void }) {
   return (
     <>
-      <PublicPageCard base={props.base} initial={props.initial} />
+      <PublicPageCard base={props.base} initial={props.initial} openAppNames={props.openAppNames} />
       <JoinCard base={props.base} initial={props.initial} />
       <SignupCard base={props.base} initial={props.initial} />
       <DaysCard base={props.base} initial={props.initial} />
@@ -549,7 +561,7 @@ function GeneralForm(props: { base: string; initial: GeneralSettings }) {
 }
 
 /** 公共页面: what anyone with the site address sees. */
-function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
+function PublicPageCard(props: { base: string; initial: GeneralSettings; openAppNames: () => void }) {
   const [title, setTitle] = useState(props.initial.siteTitle);
   const [board, setBoard] = useState(props.initial.showLeaderboard);
   const [saved, setSaved] = useState(false);
@@ -581,6 +593,13 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
       >
         {saved ? t("已保存") : t("保存标题")}
       </button>
+      <button type="button" class="menu-row" onClick={props.openAppNames}>
+        <span>
+          <strong>{t("桌面图标名称")}</strong>
+          <small>{props.initial.appNames["zh-CN"] || title.trim()}</small>
+        </span>
+        <span class="chevron">›</span>
+      </button>
       <label class="switch-card plain">
         <span>
           <strong>{t("展示排行榜")}</strong>
@@ -596,6 +615,70 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings }) {
         />
       </label>
       {error && <p class="error">{error}</p>}
+    </Card>
+  );
+}
+
+/**
+ * 桌面图标名称 (Ke Li 2026-11-04), its own page under 设置: the name under the home-screen icon in each
+ * language. Android won't let anyone rename it and iPhone only while adding, so the Owner or an admin
+ * picks short ones here. The visitor's language picks the name; one not set uses Simplified's, then
+ * the site title.
+ */
+function AppNamesPage(props: { base: string; back: () => void }) {
+  const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
+  return (
+    <>
+      <button type="button" class="back" onClick={props.back}>
+        {t("‹ 设置")}
+      </button>
+      <Load result={s}>{(v) => <AppNamesCard base={props.base} initial={v.appNames} siteTitle={v.siteTitle} />}</Load>
+    </>
+  );
+}
+
+function AppNamesCard(props: { base: string; initial: AppNames; siteTitle: string }) {
+  const [names, setNames] = useState(props.initial);
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run, setError } = useAction();
+  const simplified = names["zh-CN"].trim();
+  async function save() {
+    const v = Object.fromEntries(APP_NAME_LANGS.map((l) => [l, names[l].trim()])) as AppNames;
+    if (APP_NAME_LANGS.some((l) => [...v[l]].length > APP_NAME_MAX))
+      return setError(t("桌面图标名称最多 {n} 个字", { n: APP_NAME_MAX }));
+    if (await run(() => api(`${props.base}/settings`, { appNames: v }))) {
+      setSaved(true);
+      const fallback = v["zh-CN"] || props.siteTitle;
+      setAppNames(Object.fromEntries(APP_NAME_LANGS.map((l) => [l, v[l] || fallback])) as AppNames);
+    }
+  }
+  return (
+    <Card title={t("桌面图标名称")} class="app-names">
+      <p class="muted">{t("添加到手机桌面后图标下面的名字。安卓添加时和添加后都不能改，苹果只能在添加时改一次。")}</p>
+      {APP_NAME_LANGS.map((l) => (
+        <label class="field" key={l}>
+          <span>{LANGS.find((x) => x.id === l)?.name}</span>
+          <input
+            type="text"
+            value={names[l]}
+            placeholder={l === "zh-CN" ? props.siteTitle : simplified || props.siteTitle}
+            onInput={(e) => {
+              setNames({ ...names, [l]: (e.target as HTMLInputElement).value });
+              setSaved(false);
+            }}
+          />
+        </label>
+      ))}
+      <p class="muted small">
+        {t(
+          "每个最多 {n} 个字（约 6 个汉字），太长桌面上会显示不全。按访客选的语言显示；没填的语言用简体中文的名字，简体也没填就用网站标题。已经添加的图标要删掉重新添加才会变。",
+          { n: APP_NAME_MAX },
+        )}
+      </p>
+      {error && <p class="error">{error}</p>}
+      <button type="button" class="button block" disabled={busy} onClick={save}>
+        {saved ? t("已保存") : t("保存")}
+      </button>
     </Card>
   );
 }
