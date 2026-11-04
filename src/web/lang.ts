@@ -1,3 +1,4 @@
+import { type SiteLang, isSiteLang } from "../shared/rules";
 import { formatDateZh, toPacific } from "../shared/time";
 import { MESSAGES } from "./messages";
 
@@ -9,7 +10,7 @@ import { MESSAGES } from "./messages";
  * Nothing here needs preact or the DOM types (tests type-check it with the Worker's); the hooks
  * and tx() are in i18n.ts, which is what the pages import.
  */
-export type Lang = "zh-CN" | "zh-TW" | "en";
+export type Lang = SiteLang;
 
 export const LANGS: { id: Lang; name: string }[] = [
   { id: "zh-CN", name: "简体中文" },
@@ -25,7 +26,7 @@ const g = globalThis as {
   navigator?: { languages?: readonly string[]; language?: string };
   document?: { documentElement: { lang: string } };
 };
-export const isLang = (s: string | null): s is Lang => s === "zh-CN" || s === "zh-TW" || s === "en";
+export const isLang = isSiteLang;
 
 /**
  * Before anyone picks: Traditional Chinese for a phone set to it, otherwise Simplified. Phones set to

@@ -1,6 +1,7 @@
 import { formatDateZh, formatInstantZh } from "../shared/time";
 import type { Env } from "./env";
 import { summaries, type EventRow } from "./events";
+import { appNameFor } from "../shared/rules";
 import { appNames, isStaging, siteTitle } from "./site";
 
 /**
@@ -82,5 +83,7 @@ export async function sharePage(env: Env, request: Request, meta: ShareMeta | nu
   // No conditional headers: a 304 would hand back a cached page without these tags.
   const page = await env.ASSETS.fetch(new Request(`${url.origin}/`));
   if (!meta || !page.ok || !(page.headers.get("content-type") ?? "").includes("text/html")) return page;
-  return withShareMeta(page, meta, env.SITE_ORIGIN, isStaging(env), (await appNames(env))["zh-CN"]);
+  // Simplified until the page runs: it then switches to the visitor's language.
+  const { names, title } = await appNames(env);
+  return withShareMeta(page, meta, env.SITE_ORIGIN, isStaging(env), appNameFor(names, "zh-CN", title));
 }

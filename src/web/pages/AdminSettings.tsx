@@ -2,8 +2,9 @@ import { useState } from "preact/hooks";
 import { AI_EFFORTS, AI_USE_NAME, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
 import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
 import {
-  APP_NAME_LANGS,
   APP_NAME_MAX,
+  SITE_LANGS,
+  appNameFor,
   type AppNames,
   MAX_AUTO_JOINS_PER_DAY,
   checkAutoJoinCap,
@@ -20,7 +21,7 @@ import { setAppNames, setSiteTheme, setSiteTitle, useAppearance } from "../site"
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
 import { RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
-import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
+import { LANGS, currentLang, t, tk, tx, fmtInstant } from "../i18n";
 
 /** 设置: the admin page's settings tab, one card per setting. */
 export function Settings(props: { base: string; viaGoogle: boolean }) {
@@ -596,7 +597,7 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings; openApp
       <button type="button" class="menu-row" onClick={props.openAppNames}>
         <span>
           <strong>{t("桌面图标名称")}</strong>
-          <small>{props.initial.appNames["zh-CN"] || title.trim()}</small>
+          <small>{appNameFor(props.initial.appNames, currentLang(), title.trim())}</small>
         </span>
         <span class="chevron">›</span>
       </button>
@@ -643,19 +644,18 @@ function AppNamesCard(props: { base: string; initial: AppNames; siteTitle: strin
   const { busy, error, run, setError } = useAction();
   const simplified = names["zh-CN"].trim();
   async function save() {
-    const v = Object.fromEntries(APP_NAME_LANGS.map((l) => [l, names[l].trim()])) as AppNames;
-    if (APP_NAME_LANGS.some((l) => [...v[l]].length > APP_NAME_MAX))
+    const v = Object.fromEntries(SITE_LANGS.map((l) => [l, names[l].trim()])) as AppNames;
+    if (SITE_LANGS.some((l) => [...v[l]].length > APP_NAME_MAX))
       return setError(t("桌面图标名称最多 {n} 个字", { n: APP_NAME_MAX }));
     if (await run(() => api(`${props.base}/settings`, { appNames: v }))) {
       setSaved(true);
-      const fallback = v["zh-CN"] || props.siteTitle;
-      setAppNames(Object.fromEntries(APP_NAME_LANGS.map((l) => [l, v[l] || fallback])) as AppNames);
+      setAppNames(v);
     }
   }
   return (
     <Card title={t("桌面图标名称")} class="app-names">
       <p class="muted">{t("添加到手机桌面后图标下面的名字。安卓添加时和添加后都不能改，苹果只能在添加时改一次。")}</p>
-      {APP_NAME_LANGS.map((l) => (
+      {SITE_LANGS.map((l) => (
         <label class="field" key={l}>
           <span>{LANGS.find((x) => x.id === l)?.name}</span>
           <input

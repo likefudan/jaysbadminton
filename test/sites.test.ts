@@ -53,9 +53,15 @@ describe("each site names itself", () => {
     expect((await manifest("?lang=xx")).short_name).toBe("南湾羽球");
     // iPhone reads them from the page.
     const pub = await worker.fetch(new Request(`${ORIGIN}/api/public/site`), site, createExecutionContext());
-    expect(await pub.json()).toMatchObject({ appNames: { "zh-CN": "南湾羽球", "zh-TW": "南湾羽球", en: "SBBC" } });
+    expect(await pub.json()).toMatchObject({
+      title: "SBBC 羽毛球",
+      appNames: { "zh-CN": "南湾羽球", "zh-TW": "", en: "SBBC" },
+    });
+    // A language left out keeps its name.
+    expect((await call({ appNames: { en: "South Bay" } })).status).toBe(200);
+    expect((await call()).data.appNames).toEqual({ "zh-CN": "南湾羽球", "zh-TW": "", en: "South Bay" });
     // All cleared, the icon carries the site title again.
-    expect((await call({ appNames: {} })).status).toBe(200);
+    expect((await call({ appNames: { "zh-CN": "", en: "" } })).status).toBe(200);
     expect((await manifest("?lang=en")).short_name).toBe("SBBC 羽毛球");
   });
 });

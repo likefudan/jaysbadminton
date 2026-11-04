@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { DEFAULT_THEME, isTheme, normalizeTheme, themeById, type ThemeId } from "../shared/themes";
-import type { AppNames } from "../shared/rules";
+import { type AppNames, appNameFor } from "../shared/rules";
 import { api } from "./api";
 import { chosenLang, listeners as langListeners } from "./lang";
 
@@ -148,12 +148,12 @@ try {
 function applyAppName() {
   if (typeof document === "undefined") return;
   const lang = chosenLang();
-  const name = appNames?.[lang] || current;
+  const name = appNameFor(appNames, lang, current);
   document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", name);
   document.querySelector('link[rel="manifest"]')?.setAttribute("href", `/manifest.webmanifest?lang=${lang}`);
 }
 
-/** The names as the site answers them (each language filled in), or null for the site title. */
+/** The names as set ("" for a language not set), as the site answers them. */
 export function setAppNames(names: AppNames | null) {
   appNames = names;
   write(APP_NAME_KEY, names ? JSON.stringify(names) : "");

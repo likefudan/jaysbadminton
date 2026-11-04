@@ -16,8 +16,8 @@ export const publicRoutes = new Hono<{ Bindings: Env }>();
 publicRoutes.get("/site", async (c) =>
   c.json({
     title: await siteTitle(c.env),
-    // 桌面图标名称 by language, which iPhone offers when a page is added to the home screen.
-    appNames: await appNames(c.env),
+    // 桌面图标名称 as set, by language: the page picks the visitor's (iPhone offers it when adding).
+    appNames: (await appNames(c.env)).names,
     theme: await siteTheme(c.env),
     staging: isStaging(c.env),
     // The site's own icon colour (sites.json "icon"), for the logo in the top bar.

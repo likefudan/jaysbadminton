@@ -41,18 +41,29 @@ export function checkPassword(raw: string): string | null {
   return null;
 }
 
+/** The languages the site speaks (the page's switch, and 桌面图标名称). */
+export const SITE_LANGS = ["zh-CN", "zh-TW", "en"] as const;
+export type SiteLang = (typeof SITE_LANGS)[number];
+export const isSiteLang = (s: string | null | undefined): s is SiteLang =>
+  (SITE_LANGS as readonly string[]).includes(s ?? "");
+
+/** 桌面图标名称: about what a launcher fits under an icon (Android shows ~12 letters or ~6 汉字). */
+export const APP_NAME_MAX = 12;
+/** 桌面图标名称 in each language, "" where not set. */
+export type AppNames = Record<SiteLang, string>;
+
+/**
+ * The name the icon gets in `lang` (Ke Li 2026-11-04): that language's 桌面图标名称, else
+ * Simplified's, else the site title.
+ */
+export const appNameFor = (names: AppNames | null, lang: SiteLang, siteTitle: string): string =>
+  names?.[lang] || names?.["zh-CN"] || siteTitle;
+
 /**
  * 入群不需要审核: a bot could otherwise fill the member list, so after this many automatic joins in a
  * day, newcomers wait in 待审核 again until the day has passed. The Owner and admins set the number
  * in 设置 (Ke Li 2026-11-04), 1–999.
  */
-/** 桌面图标名称: about what a launcher fits under an icon (Android shows ~12 letters or ~6 汉字). */
-export const APP_NAME_MAX = 12;
-/** 桌面图标名称 comes in each language the site speaks; the visitor's language picks one. */
-export const APP_NAME_LANGS = ["zh-CN", "zh-TW", "en"] as const;
-export type AppNameLang = (typeof APP_NAME_LANGS)[number];
-export type AppNames = Record<AppNameLang, string>;
-
 export const DEFAULT_AUTO_JOINS_PER_DAY = 20;
 export const MAX_AUTO_JOINS_PER_DAY = 999;
 
