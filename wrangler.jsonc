@@ -26,7 +26,7 @@
     "ENVIRONMENT": "production",
     "ORGANIZERS": "1",
     // Cloudflare Turnstile on 申请加入 / 找回链接 (src/worker/turnstile.ts); on once TURNSTILE_SECRET is set.
-    "TURNSTILE_SITE_KEY": "0x4AAAAAAFUb_oSOH6t9YmZL",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFyuj-ZPZ2QHn-sZ",
     "SPONSOR_NAME": "Z3 Enterprise",
     "SPONSOR_URL": "https://www.z3enterprise.com/"
   },
@@ -69,7 +69,7 @@
         "SITE_ORIGIN": "https://staging.jaysbadminton.llmat.dev",
         "ENVIRONMENT": "staging",
         "ORGANIZERS": "1",
-        "TURNSTILE_SITE_KEY": "0x4AAAAAAFUb_oSOH6t9YmZL",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAFyuj-ZPZ2QHn-sZ",
         "SPONSOR_NAME": "Z3 Enterprise",
         "SPONSOR_URL": "https://www.z3enterprise.com/"
       },
