@@ -91,6 +91,53 @@ describe("creating events", () => {
   });
 });
 
+describe("报名截止时间 off (no deadline)", () => {
+  it("keeps sign-up open until the end, follows edits of the end, and is remembered for next time", async () => {
+    const ctx = await setUpAdmin();
+    expect((await ctx.admin.call(`${ctx.base}/events/defaults`)).data.deadlineOn).toBe(true);
+    const date = futureDate(7);
+    const e = await createTestEvent(ctx, { date, noDeadline: true, deadlineDays: 2, deadlineHours: 3 });
+    expect(e.noDeadline).toBe(true);
+    expect(e.status).toBe("open");
+    const end = Date.parse(`${date}T21:00:00-07:00`) + (date >= "2026-11-01" ? 3600_000 : 0);
+    expect(Date.parse(e.deadlineAt)).toBe(end);
+    // The switch and the lead time both come back as last left.
+    const d = (await ctx.admin.call(`${ctx.base}/events/defaults`)).data;
+    expect(d).toMatchObject({ deadlineOn: false, deadlineDays: 2, deadlineHours: 3 });
+
+    // Ending later keeps sign-up open until the new end; the log doesn't list a deadline change.
+    const later = await ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+      date,
+      startTime: "19:00",
+      endTime: "22:00",
+      location: e.location,
+    });
+    expect(later.data).toMatchObject({ status: "open", noDeadline: true });
+    expect(Date.parse(later.data.deadlineAt)).toBe(end + 3600_000);
+    const { results } = await env.DB.prepare("SELECT detail FROM event_audit WHERE event_id = ? AND action = 'edit'")
+      .bind(e.id)
+      .all<{ detail: string }>();
+    expect(results.map((r) => r.detail).join()).not.toContain("报名截止");
+
+    // Reopened after closing early, it has a deadline of its own again.
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/close-now`, {});
+    await ctx.admin.call(`${ctx.base}/events/${e.id}/reopen`, { date, time: "20:30" });
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.noDeadline).toBe(false);
+
+    await createTestEvent(ctx, { date });
+    expect((await ctx.admin.call(`${ctx.base}/events/defaults`)).data.deadlineOn).toBe(true);
+  });
+
+  it("lets members sign up past where a deadline would have been", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx, { date: futureDate(1), noDeadline: true, deadlineDays: 3 });
+    const carol = await approveMember(ctx, "Carol");
+    expect((await anon.call(`${carol.base}/events/${e.id}/signup`, { friends: [] })).status).toBe(200);
+    const mine = (await anon.call(`${carol.base}/events`)).data.events[0];
+    expect(mine).toMatchObject({ id: e.id, noDeadline: true, status: "open" });
+  });
+});
+
 describe("the admin's event list", () => {
   it("shows 30 past events at first and more on request", async () => {
     const ctx = await setUpAdmin();

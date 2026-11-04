@@ -24,7 +24,7 @@ export function calendarEntry(e: EventSummary, origin: string): CalendarEntry {
     details: [
       `场馆：${e.location}`,
       ...(e.address ? [`地址：${e.address}`] : []),
-      `报名截止：${formatInstantZh(e.deadlineAt)}`,
+      ...(e.noDeadline ? [] : [`报名截止：${formatInstantZh(e.deadlineAt)}`]),
       url,
     ].join("\n"),
     url,

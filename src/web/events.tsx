@@ -129,7 +129,9 @@ export function EventInfo(props: {
           ))}
         {props.runBy && <div class="ev-meta">{props.runBy}</div>}
         {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
-        {e.status === "open" && <div class="ev-meta">{t("报名截止 {time}", { time: fmtInstant(e.deadlineAt) })}</div>}
+        {e.status === "open" && !e.noDeadline && (
+          <div class="ev-meta">{t("报名截止 {time}", { time: fmtInstant(e.deadlineAt) })}</div>
+        )}
         <div class="ev-foot">
           {props.showStatus !== false && badge ? <StatusPill cls={badge.cls} label={badge.label} /> : <span />}
           <span class="count">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</span>
@@ -179,7 +181,7 @@ export function EventHero(props: {
     <>
       <span class="hero-top">
         {props.status ? <StatusPill cls={props.status.cls} label={props.status.label} /> : <span />}
-        {e.status === "open" && <span>{t("截止 {time}", { time: deadlineText(e.deadlineAt) })}</span>}
+        {e.status === "open" && !e.noDeadline && <span>{t("截止 {time}", { time: deadlineText(e.deadlineAt) })}</span>}
         {props.action}
       </span>
       <span class="hero-date">

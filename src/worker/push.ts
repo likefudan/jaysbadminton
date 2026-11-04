@@ -395,7 +395,7 @@ export async function pushNewEvent(env: Env, e: EventRow, creatorId: string | nu
     const deadline = toPacific(e.deadline_at);
     const msg: PushMessage = {
       title: `${await payeeName(env.DB, manager)} 发起了新活动`,
-      body: `${when(e)}\n${venue(e)}\n报名截止：${formatDateZh(deadline.date)} ${deadline.time}`,
+      body: `${when(e)}\n${venue(e)}${e.no_deadline ? "" : `\n报名截止：${formatDateZh(deadline.date)} ${deadline.time}`}`,
       url: `/e/${e.code}`,
       tag: `event-${e.id}`,
     };

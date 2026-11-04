@@ -161,7 +161,8 @@ export interface EventSummary {
   notes?: string; // optional multiline activity notes
   queueRoundMin: number | null; // 球场排队: minutes per round, null when off
   title: string; // optional, e.g. "HappyTuesday 比赛"; "" when not set
-  deadlineAt: string; // UTC ISO
+  deadlineAt: string; // UTC ISO; the end time when noDeadline
+  noDeadline: boolean; // 报名截止时间 off: sign-up stays open until the event ends (shown without a deadline)
   status: EventStatus;
   headcount: number; // members + friends
 }
@@ -337,6 +338,7 @@ export interface EventDefaults {
   location: string;
   deadlineDays: number;
   deadlineHours: number;
+  deadlineOn: boolean; // 报名截止时间 switch, as last left
   address: string; // of the last venue
   locations: Venue[]; // recent venues, newest first
   friendCap: number;

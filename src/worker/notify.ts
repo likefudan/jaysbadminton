@@ -153,7 +153,8 @@ export async function runScheduled(env: Env, at: Date = new Date()): Promise<voi
 
 /** When 截止前提醒 is due (ms), or null when it is off or the event was created inside its window. */
 function reminderStart(e: EventRow, cfg: NotifySettings): number | null {
-  if (!cfg.reminderEnabled || cfg.reminderHours <= 0) return null;
+  // No deadline (报名截止时间 off): nothing to remind of; it just closes at the end.
+  if (!cfg.reminderEnabled || cfg.reminderHours <= 0 || e.no_deadline) return null;
   const windowStart = new Date(e.deadline_at).getTime() - cfg.reminderHours * 3600_000;
   return new Date(e.created_at).getTime() > windowStart ? null : windowStart;
 }

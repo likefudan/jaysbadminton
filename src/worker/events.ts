@@ -32,6 +32,8 @@ export interface EventRow {
   notes: string;
   deadline_at: string;
   deadline_offset_min: number;
+  /** 报名截止时间 off: no deadline of its own, deadline_at follows the end time. */
+  no_deadline: number;
   status: EventStatus;
   finalized_at: string | null;
   settled_at: string | null;
@@ -83,6 +85,7 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
     notes: e.notes,
     queueRoundMin: e.queue_round_min,
     deadlineAt: e.deadline_at,
+    noDeadline: !!e.no_deadline,
     status: liveStatus(e),
     headcount,
   };
@@ -240,6 +243,11 @@ export interface CreateEventInput {
   deadlineDays: number;
   deadlineHours: number;
   /**
+   * 报名截止时间 off (Ke Li 2026-11-04): no deadline, sign-up stays open until the event ends unless
+   * it is closed or finalized first. deadlineDays/deadlineHours are then only remembered for next time.
+   */
+  noDeadline?: boolean;
+  /**
    * 群主 and 管理员 may create an event that has already started up to this many days ago (to record
    * one after the fact, or to test something tied to its time, like 卡路里); left out, nobody may.
    * It is created closed, quietly: see createEvent.
@@ -267,10 +275,11 @@ export function validateEventInput(i: CreateEventInput): {
   // An end time earlier than the start means the session runs past midnight.
   if (endAt <= startAt) endAt = new Date(Date.parse(endAt) + 86400_000).toISOString();
   const offsetMin = days * 1440 + hours * 60;
-  const deadlineAt = new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
+  const deadlineAt = i.noDeadline ? endAt : new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
   const ts = now();
   const started = !!i.pastDays && i.pastDays > 0 && startAt <= ts;
-  if (deadlineAt <= ts && !started) throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
+  if (deadlineAt <= ts && !started)
+    throw badRequest(i.noDeadline ? "这个活动已经结束了" : "按这个提前量算出的截止时间已经过了，请调整");
   if (started && Date.parse(ts) - Date.parse(startAt) > i.pastDays! * 86400_000)
     throw badRequest(`已经开始的活动最多补建 ${i.pastDays} 天内的`);
   return { startAt, endAt, deadlineAt, offsetMin, started };
@@ -383,8 +392,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<{ 
       // and day only (1006), which comes round again every year, so new events carry the year (Ke
       // Li 2026-11-04). Links already sent out stay as they are.
       const res = await env.DB.prepare(
-        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, queue_round_min, deadline_at, deadline_offset_min, status, created_at, manager_id, payee_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, queue_round_min, deadline_at, deadline_offset_min, no_deadline, status, created_at, manager_id, payee_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       )
         .bind(
           number,
@@ -399,6 +408,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<{ 
           input.queueRoundMin ?? null,
           v.deadlineAt,
           v.offsetMin,
+          input.noDeadline ? 1 : 0,
           // Already started: closed from the start, with no 报名截止 notice for a deadline long gone.
           v.started ? "closed" : "open",
           ts,
@@ -428,6 +438,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<{ 
           setSetting(env.DB, key("last_end_time"), input.endTime),
           setSetting(env.DB, key("last_location"), location),
           setSetting(env.DB, key("last_deadline_offset_min"), String(v.offsetMin)),
+          setSetting(env.DB, key("last_no_deadline"), input.noDeadline ? "1" : "0"),
         ],
   );
   await syncDeadline(env, id);
