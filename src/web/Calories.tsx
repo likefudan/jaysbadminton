@@ -113,30 +113,16 @@ export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => vo
         </button>
       )}
       {error && <p class="error">{error}</p>}
-      {guide && (
-        <CalorieGuide
-          window={span}
-          install={e.kcalInstall}
-          update={update}
-          onRead={read}
-          onClose={() => setGuide(false)}
-        />
-      )}
+      {guide && <CalorieGuide install={e.kcalInstall} update={update} onRead={read} onClose={() => setGuide(false)} />}
     </div>
   );
 }
 
 /**
  * The first 读取: install the Shortcut once, then come back and read. Also for updating it to a newer
- * version, and (without window and onRead) for 个人信息 → 卡路里快捷指令, to install it again any time.
+ * version, and (without onRead) for 个人信息 → 卡路里快捷指令, to install it again any time.
  */
-function CalorieGuide(props: {
-  window?: string;
-  install: string;
-  update: boolean;
-  onRead?: () => void;
-  onClose: () => void;
-}) {
+function CalorieGuide(props: { install: string; update: boolean; onRead?: () => void; onClose: () => void }) {
   const read = props.onRead;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
@@ -157,13 +143,7 @@ function CalorieGuide(props: {
         <p class="kcal-intro">
           {props.update
             ? t("快捷指令有新版本，读得更快。请重新安装一次，替换掉旧的。")
-            : read
-              ? t(
-                  "网页读不到苹果「健康」的数据，要借助一个快捷指令，只需要装一次。打球时要戴 Apple Watch，「健康」里才有活动能量。",
-                )
-              : t(
-                  "网页读不到苹果「健康」的数据，要借助一个快捷指令。不小心删掉了，随时可以在这里重新安装。打球时要戴 Apple Watch，「健康」里才有活动能量。",
-                )}
+            : t("要戴 Apple Watch 打球，装一次快捷指令就行。")}
         </p>
         <ol class="kcal-steps">
           <li>
@@ -213,13 +193,7 @@ function CalorieGuide(props: {
         )}
         <p class="kcal-privacy">
           <FlameIcon size={16} />
-          <span>
-            {props.window
-              ? t("只读这场活动时间段（{time}，含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。", {
-                  time: props.window,
-                })
-              : t("每次只读一场活动时间段（含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。")}
-          </span>
+          <span>{t("只存总数，只有你看得到。")}</span>
         </p>
       </div>
     </div>,

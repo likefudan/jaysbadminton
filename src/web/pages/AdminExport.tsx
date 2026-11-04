@@ -19,7 +19,7 @@ const FILES = [
 export function ExportCard(props: { base: string }) {
   return (
     <Card title="导出数据">
-      <p class="muted small">下载 CSV，可以用 Excel、Numbers 或 Google 表格打开。金额是美元，时间是太平洋时间。</p>
+      <p class="muted small">金额为美元，时间为太平洋时间。</p>
       <div class="downloads">
         {FILES.map(([name, label]) => (
           <a key={name} class="button secondary" href={`${props.base}/export/${name}.csv`} download>

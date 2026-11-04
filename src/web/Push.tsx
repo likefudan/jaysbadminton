@@ -197,7 +197,7 @@ export function PushRow(props: { base: string; home: string; memberId: string })
       value={value}
       panel={() => (
         <>
-          <p>{t("有新活动开始报名、别人帮你改了报名、或者你的账单出来时，在这台设备上通知你。")}</p>
+          <p>{t("新活动、报名变动、账单出来时通知你。")}</p>
           {push.state === "ios-install" && (
             <p class="hint">
               {t(
@@ -224,12 +224,9 @@ export function PushRow(props: { base: string; home: string; memberId: string })
             </button>
           )}
           {push.state === "on" && (
-            <>
-              <p class="muted small">{t("这台设备已开启推送。其他设备需要分别开启。")}</p>
-              <button type="button" class="button secondary block" disabled={push.busy} onClick={push.disable}>
-                {t("关闭推送")}
-              </button>
-            </>
+            <button type="button" class="button secondary block" disabled={push.busy} onClick={push.disable}>
+              {t("关闭推送")}
+            </button>
           )}
           {push.error && <p class="error">{push.error}</p>}
         </>

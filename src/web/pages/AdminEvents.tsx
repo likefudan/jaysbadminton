@@ -470,8 +470,6 @@ function EventAdminBody(props: {
     <>
       <Card>
         <EventInfo e={e} />
-        <p class="muted small">公开活动页（发到微信群）：</p>
-        <code class="link">{publicLink}</code>
         <CopyButton text={publicLink} label="复制活动链接" />
       </Card>
 
@@ -698,9 +696,7 @@ function Transfer(props: {
       <p>
         负责人：{e.manager.name} · 收款人：{e.payee.name}
       </p>
-      {choices.length === 0 ? (
-        <p class="muted small">没有可以转给的人。先在「成员」里设一位组织者。</p>
-      ) : (
+      {choices.length > 0 && (
         <>
           <label class="field">
             <span>转给</span>
@@ -882,9 +878,6 @@ function MySignup(props: {
               报名
             </button>
           )}
-          {e.status === "closed" && (
-            <p class="muted small">报名已截止，你作为{props.title}仍可以修改自己的报名，直到结算。</p>
-          )}
         </>
       )}
     </Card>
@@ -923,7 +916,6 @@ function BookedCourts(props: { eb: string; e: EventDetail; onDone: () => void })
   const tooMany = courts.length > BOOKED_COURTS_MAX;
   return (
     <Card title="预定场地">
-      <p class="muted small">填上订到的场地编号。报名的人会在活动卡片上看到，活动开始前 10 分钟的推送里也会写上。</p>
       {/* One element either way: swapping it would move the box below and close its list. */}
       <div class="chips booked-courts">
         {courts.length ? (
@@ -986,9 +978,6 @@ function Reopen(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const { busy, error, run } = useAction();
   return (
     <Card title="重新开放报名">
-      <p class="muted small">
-        新的截止时间最晚可以到活动结束（{formatDateZh(props.e.date)} {props.e.endTime}）。
-      </p>
       <div class="inline">
         <Field label="截止日期" type="date" value={date} onInput={setDate} />
         <Field label="截止时间" type="time" value={time} onInput={setTime} />
@@ -1060,10 +1049,6 @@ function AddPeople(props: {
 
   return (
     <Card title="添加人员">
-      <p class="muted small">
-        临时来的非成员，请作为「朋友」挂在{props.payee.isMe ? "你自己" : `本场收款人 ${props.payee.name} `}
-        或某个成员名下，费用由这个人承担。群里的成员也可以用「选群友」挂在别人名下，由那个人付钱。
-      </p>
       <label class="field">
         <span>成员</span>
         <select
@@ -1191,11 +1176,6 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
       />
       <NotesField value={notes} onInput={setNotes} />
       <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
-      {props.e.status === "open" && (
-        <p class="muted small">
-          报名截止时间会跟着开始时间一起移动（间隔不变），但不晚于活动结束；如果已经过了，报名会立即截止。只改标题或地点不影响截止时间。
-        </p>
-      )}
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy} onClick={save}>
         保存修改

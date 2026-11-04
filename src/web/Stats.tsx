@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { dollars } from "../shared/settle";
-import { RANGES, bucketTitle, niceScale, summarize, type BucketUnit, type RangeId } from "../shared/spending";
+import { RANGES, bucketTitle, niceScale, summarize, type RangeId } from "../shared/spending";
 import type { MyStats } from "../shared/types";
 import { Card, Load, SectionTitle } from "./components";
 import { useApi } from "./hooks";
@@ -99,13 +99,11 @@ function SpendingCard(props: { stats: MyStats }) {
           </div>
         </div>
         <p class="spend-readout" aria-live="polite">
-          {shown ? (
+          {shown && (
             <>
               <strong>{dateText(bucketTitle(shown, sum.unit))}</strong> ·{" "}
               {t("花费 {amount} · 打球 {n} 次", { amount: `$${dollars(shown.cents)}`, n: shown.count })}
             </>
-          ) : (
-            <span class="muted">{t(SPEND_HINT[sum.unit], { range: t(RANGE_NAMES[range]) })}</span>
           )}
         </p>
         <div class="spend-chart">
@@ -168,11 +166,3 @@ function SpendingCard(props: { stats: MyStats }) {
     </>
   );
 }
-
-/** 最近 30 天每天的花费…, one sentence per column size so each language can word it its own way. */
-const SPEND_HINT: Record<BucketUnit, string> = {
-  day: tk("{range}每天的花费，点柱子看详情"),
-  week: tk("{range}每周的花费，点柱子看详情"),
-  month: tk("{range}每月的花费，点柱子看详情"),
-  year: tk("{range}每年的花费，点柱子看详情"),
-};

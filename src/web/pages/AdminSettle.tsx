@@ -49,7 +49,6 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
   const names = new Map(props.e.roster.map((r) => [r.memberId, r.memberName]));
   return (
     <Card title={finalized ? "费用（已 Finalize，可修改）" : "结算"}>
-      <p class="muted small">先在上面的名单里把没来的人标成「未出席」。</p>
       <Field label="场地总费用（美元）" type="text" value={court} onInput={setCourt} />
       <div class="inline">
         <Field label="用球个数" type="number" value={count} onInput={setCount} />

@@ -222,7 +222,7 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
             </option>
           ))}
         </select>
-        <small class="muted">Finalize 满 24 小时后，每天这个时间发一次收款汇总和每个人的账单提醒，直到收齐。</small>
+        <small class="muted">Finalize 24 小时后每天这时发，直到收齐。</small>
       </label>
       <label class="check">
         <input
@@ -235,10 +235,6 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
         />
         每周一发送健康简报
       </label>
-      <p class="muted small">
-        简报在账单提醒时间发送：上周收到多少 Venmo 邮件、自动记了几笔、还有多少没付清，以及邮件转发、定时任务、Google
-        表格同步是否正常。另外，Venmo 邮件读不懂、或者有欠款却好几天没收到任何 Venmo 邮件时，会立即提醒你。
-      </p>
       {error && <p class="error">{error}</p>}
       <button type="button" class="button secondary block" disabled={busy} onClick={save}>
         {saved ? "已保存" : "保存"}

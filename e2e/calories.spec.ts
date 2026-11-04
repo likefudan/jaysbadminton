@@ -131,7 +131,7 @@ test.describe("on iPhone", () => {
       "href",
       "https://www.icloud.com/shortcuts/909be1bdeb324b88a0caca0b0031aa11",
     );
-    await expect(sheet).toContainText("20:30–22:30");
+    await expect(sheet).toContainText("只存总数，只有你看得到。");
 
     // The page hands over to the Shortcuts app; catch where it goes.
     const cdp = await page.context().newCDPSession(page);
@@ -166,7 +166,7 @@ test.describe("on iPhone, 个人信息", () => {
     await expect(row).not.toContainText("有新版本");
     await row.click();
     const sheet = page.getByRole("dialog", { name: "读取卡路里" });
-    await expect(sheet).toContainText("随时可以在这里重新安装");
+    await expect(sheet).toContainText("装一次快捷指令就行");
     await expect(sheet).toContainText("在活动卡片上点「读取」");
     await expect(sheet.getByRole("link", { name: "安装快捷指令" })).toHaveAttribute(
       "href",

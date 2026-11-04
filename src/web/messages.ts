@@ -45,22 +45,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   上一页: { tw: "上一頁", en: "Previous" },
   下一页: { tw: "下一頁", en: "Next" },
   "{n} 人已报名": { tw: "{n} 人已報名", en: "{n} signed up" },
-  "{range}每周的花费，点柱子看详情": {
-    tw: "{range}每週的花費，點柱子看詳情",
-    en: "Weekly spending, {range}. Tap a bar for details.",
-  },
-  "{range}每天的花费，点柱子看详情": {
-    tw: "{range}每天的花費，點柱子看詳情",
-    en: "Daily spending, {range}. Tap a bar for details.",
-  },
-  "{range}每年的花费，点柱子看详情": {
-    tw: "{range}每年的花費，點柱子看詳情",
-    en: "Yearly spending, {range}. Tap a bar for details.",
-  },
-  "{range}每月的花费，点柱子看详情": {
-    tw: "{range}每月的花費，點柱子看詳情",
-    en: "Monthly spending, {range}. Tap a bar for details.",
-  },
   "{range}没有打球记录。": { tw: "{range}沒有打球記錄。", en: "No games played ({range})." },
   "{when}：花费 {amount}，打球 {n} 次": {
     tw: "{when}：花費 {amount}，打球 {n} 次",
@@ -115,14 +99,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "You overpaid by {amount}. {name} will refund you.",
   },
   "你好，{name}": { tw: "你好，{name}", en: "Hi, {name}" },
-  "你本人没有报名；{adder}在你名下加了 {n} 个朋友，费用算在你的账单上。": {
-    tw: "你本人沒有報名；{adder}在你名下加了 {n} 個朋友，費用算在你的帳單上。",
-    en: "You aren't signed up yourself; {adder} added {n} friend(s) under your name, and they're on your bill.",
-  },
-  "你本人没有报名；名单上有挂在你名下的 {n} 个朋友，费用算在你的账单上。": {
-    tw: "你本人沒有報名；名單上有掛在你名下的 {n} 個朋友，費用算在你的帳單上。",
-    en: "You aren't signed up yourself; {n} friend(s) under your name are on the list, and they're on your bill.",
-  },
   "你没有报名这次活动。": { tw: "你沒有報名這次活動。", en: "You didn't sign up for this event." },
   "你的入群申请正在等待审核，通过后就能报名。": {
     tw: "你的入群申請正在等待審核，通過後就能報名。",
@@ -208,10 +184,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Note name (only the group owner, admins and organizers see it)",
   },
   "备注名（只有群主能看到）": { tw: "備註名（只有群主能看到）", en: "Note name (only the group owner sees it)" },
-  "备注里一定要带上这个编号，系统才能自动确认你的付款。": {
-    tw: "備註裡一定要帶上這個編號，系統才能自動確認你的付款。",
-    en: "Be sure to put this code in the memo so your payment is confirmed automatically.",
-  },
   复制: { tw: "複製", en: "Copy" },
   复制链接: { tw: "複製連結", en: "Copy link" },
   外观: { tw: "外觀", en: "Appearance" },
@@ -248,10 +220,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "朋友已报名（请付款）": { tw: "朋友已報名（請付款）", en: "Friends in (please pay)" },
   已报名: { tw: "已報名", en: "Signed up" },
   "已报名，带 {n} 个朋友": { tw: "已報名，帶 {n} 個朋友", en: "Signed up, bringing {n} friend(s)" },
-  "已收到 {paid}，还差 {owed}。补付时备注用同一个编号即可。": {
-    tw: "已收到 {paid}，還差 {owed}。補付時備註用同一個編號即可。",
-    en: "Received {paid}; {owed} still to pay. Use the same code in the memo when you pay the rest.",
-  },
   "已有成员链接？关联原账号": { tw: "已有成員連結？關聯原帳號", en: "Already have a member link? Link your account" },
   "已登录 Google": { tw: "已登入 Google", en: "Signed in with Google" },
   "已登录 Google：{email}": { tw: "已登入 Google：{email}", en: "Signed in with Google: {email}" },
@@ -299,10 +267,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "手機上長按圖片即可儲存或轉發",
     en: "On a phone, press and hold the image to save or share it",
   },
-  "打不开链接时，可以手动转账：": {
-    tw: "打不開連結時，可以手動轉帳：",
-    en: "If the link won't open, you can pay by hand:",
-  },
   "打开「作为 Web App 打开」（如果有这个开关），点右上角的「添加」": {
     tw: "開啟「作為 Web App 開啟」（如果有這個開關），點右上角的「新增」",
     en: 'Turn on "Open as Web App" (if you see it), then tap "Add" at the top right',
@@ -319,10 +283,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "报名名单上显示的名字，不能和别人重复": {
     tw: "報名名單上顯示的名字，不能和別人重複",
     en: "The name shown on sign-up lists. It must be unique.",
-  },
-  "报名已截止，需要修改请联系{name}。费用会在活动后公布。": {
-    tw: "報名已截止，需要修改請聯絡{name}。費用會在活動後公佈。",
-    en: "Sign-up is closed. To make changes, contact {name}. Costs will be posted after the event.",
   },
   "报名截止 {time}": { tw: "報名截止 {time}", en: "Sign-up closes {time}" },
   推送通知: { tw: "推播通知", en: "Notifications" },
@@ -349,10 +309,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "最近 6 个月": { tw: "最近 6 個月", en: "past 6 months" },
   "最近 7 天": { tw: "最近 7 天", en: "past 7 days" },
   最长连续: { tw: "最長連續", en: "Streak" },
-  "有新活动开始报名、别人帮你改了报名、或者你的账单出来时，在这台设备上通知你。": {
-    tw: "有新活動開始報名、別人幫你改了報名、或者你的帳單出來時，在這臺裝置上通知你。",
-    en: "Get a notification on this device when a new event opens for sign-up, someone else changes your sign-up, or your bill is ready.",
-  },
   // 带群友: friends who are group members, and what someone brought sees.
   "朋友 {n}": { tw: "朋友 {n}", en: "Friend {n}" },
   群友: { tw: "群友", en: "Member" },
@@ -413,10 +369,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   用浏览器打开: { tw: "用瀏覽器開啟", en: "Open in a browser" },
   申请加入: { tw: "申請加入", en: "Ask to join" },
   申请已提交: { tw: "申請已提交", en: "Request sent" },
-  "留空保存会改回 Google 账号的邮箱（如果有）。": {
-    tw: "留空儲存會改回 Google 帳號的電子郵件（如果有）。",
-    en: "Saving it empty goes back to your Google email (if you have one).",
-  },
   "登录 / 注册": { tw: "登入 / 註冊", en: "Sign in / Register" },
   "登录后报名、查看活动和账单。": {
     tw: "登入後報名、查看活動和帳單。",
@@ -492,10 +444,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "這個瀏覽器沒能開啟推播，請換個瀏覽器再試",
     en: "This browser couldn't turn on notifications. Please try another browser.",
   },
-  "这台设备已开启推送。其他设备需要分别开启。": {
-    tw: "這臺裝置已開啟推播。其他裝置需要分別開啟。",
-    en: "Notifications are on for this device. Turn them on separately on other devices.",
-  },
   "这台设备的推送可能是别的成员开启的。改成推送给你以后，对方在这台设备上就收不到了。": {
     tw: "這臺裝置的推播可能是別的成員開啟的。改成推播給你以後，對方在這臺裝置上就收不到了。",
     en: "Notifications on this device may belong to another member. If you switch them to you, they'll stop getting them here.",
@@ -503,10 +451,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "进入自己的活动页面，报名其他组织者的活动": {
     tw: "進入自己的活動頁面，報名其他組織者的活動",
     en: "Go to your own events page to sign up for other organizers' events",
-  },
-  "连续参加的活动场数，取消的活动不算。": {
-    tw: "連續參加的活動場數，取消的活動不算。",
-    en: "Events attended in a row. Cancelled events don't count.",
   },
   "退出 Google 登录": { tw: "退出 Google 登入", en: "Sign out of Google" },
   "退出失败，请重试": { tw: "退出失敗，請重試", en: "Couldn't sign out. Please try again." },
@@ -586,10 +530,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   读取: { tw: "讀取", en: "Read" },
   重新读取: { tw: "重新讀取", en: "Read again" },
   读取卡路里: { tw: "讀取卡路里", en: "Read calories" },
-  "网页读不到苹果「健康」的数据，要借助一个快捷指令，只需要装一次。打球时要戴 Apple Watch，「健康」里才有活动能量。": {
-    tw: "網頁讀不到蘋果「健康」的資料，要借助一個捷徑，只需要裝一次。打球時要戴 Apple Watch，「健康」裡才有活動能量。",
-    en: "Web pages can't read Apple Health, so this uses a shortcut. You only need to add it once. Wear an Apple Watch while you play: that's what records active energy in Health.",
-  },
   "安装快捷指令「{name}」": { tw: "安裝捷徑「{name}」", en: 'Add the shortcut "{name}"' },
   "在 iPhone 上打开，点「添加快捷指令」": {
     tw: "在 iPhone 上打開，點「加入捷徑」",
@@ -627,11 +567,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "已安装，开始读取": { tw: "已安裝，開始讀取", en: "Added it. Start reading" },
   卡路里快捷指令: { tw: "卡路里捷徑", en: "Calories shortcut" },
   有新版本: { tw: "有新版本", en: "New version" },
-  "网页读不到苹果「健康」的数据，要借助一个快捷指令。不小心删掉了，随时可以在这里重新安装。打球时要戴 Apple Watch，「健康」里才有活动能量。":
-    {
-      tw: "網頁讀不到蘋果「健康」的資料，要借助一個捷徑。不小心刪掉了，隨時可以在這裡重新安裝。打球時要戴 Apple Watch，「健康」裡才有活動能量。",
-      en: "Web pages can't read Apple Health, so a shortcut does it. If you deleted it, you can install it again here any time. Wear an Apple Watch while you play: that's what records active energy in Health.",
-    },
   "在 iPhone 上打开，点「添加快捷指令」；问到同名的就选「替换」": {
     tw: "在 iPhone 上打開，點「加入捷徑」；問到同名的就選「取代」",
     en: 'Open it on your iPhone and tap "Add Shortcut". If it asks about one with the same name, tap "Replace"',
@@ -639,14 +574,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "打完球后，在活动卡片上点「读取」": {
     tw: "打完球後，在活動卡片上點「讀取」",
     en: 'After you play, tap "Read" on the event card',
-  },
-  "每次只读一场活动时间段（含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。": {
-    tw: "每次只讀一場活動時間段（含開始前 10 分鐘熱身）的活動能量，只存一個總數，只有你自己看得到。",
-    en: "Each time, only the active energy during one event (plus 10 minutes of warm-up before it) is read, and only the total is kept. Only you can see it.",
-  },
-  "只读这场活动时间段（{time}，含开始前 10 分钟热身）的活动能量，只存一个总数，只有你自己看得到。": {
-    tw: "只讀這場活動時間段（{time}，含開始前 10 分鐘熱身）的活動能量，只存一個總數，只有你自己看得到。",
-    en: "Only the active energy during this event ({time}, plus 10 minutes of warm-up before it) is read, and only the total is kept. Only you can see it.",
   },
   我的卡路里: { tw: "我的卡路里", en: "My calories" },
   "{year} 年": { tw: "{year} 年", en: "{year}" },
@@ -662,10 +589,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "查看全部 {n} 人": { tw: "查看全部 {n} 人", en: "Show all {n}" },
   收起: { tw: "收起", en: "Show less" },
   还没有人加入能量榜: { tw: "還沒有人加入能量榜", en: "Nobody has joined the Energy board yet" },
-  "今年从 iPhone「健康」读取的活动能量，自愿加入（在个人信息里打开）。": {
-    tw: "今年從 iPhone「健康」讀取的活動能量，自願加入（在個人資訊裡打開）。",
-    en: "Active energy read from Apple Health this year. Members join it themselves in Profile.",
-  },
   // Server messages a member can see.
   "活动开始后 {n} 天内，报名了这场的人才能读取卡路里": {
     tw: "活動開始後 {n} 天內，報名了這場的人才能讀取卡路里",
@@ -753,10 +676,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "{name} 更新于 {time}": { tw: "{name} 更新於 {time}", en: "Updated by {name} at {time}" },
   "＋ 登记球场": { tw: "＋ 登記球場", en: "＋ Add court" },
   "球馆账号（{n}）": { tw: "球館帳號（{n}）", en: "Venue accounts ({n})" },
-  "还没有登记球场。在球馆电脑上排好后，点「登记球场」填进来。": {
-    tw: "還沒有登記球場。在球館電腦上排好後，點「登記球場」填進來。",
-    en: 'No courts yet. After signing up on the venue\'s computer, tap "Add court" to enter it here.',
-  },
   "在打 · {n} 片": { tw: "在打 · {n} 片", en: "Playing · {n}" },
   "剩 {n} 分": { tw: "剩 {n} 分", en: "{n} min left" },
   "排队 · {n} 组": { tw: "排隊 · {n} 組", en: "Queued · {n}" },
@@ -939,4 +858,30 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "The photo couldn't be read. Take another, or fill it in by hand",
   },
   没有找到这个账号: { tw: "沒有找到這個帳號", en: "No matching account" },
+  "要戴 Apple Watch 打球，装一次快捷指令就行。": {
+    tw: "要戴 Apple Watch 打球，裝一次捷徑就行。",
+    en: "Wear an Apple Watch while you play, and add the shortcut once.",
+  },
+  "只存总数，只有你看得到。": {
+    tw: "只存總數，只有你看得到。",
+    en: "Only the total is saved, and only you can see it.",
+  },
+  "已收到 {paid}，还差 {owed}": { tw: "已收到 {paid}，還差 {owed}", en: "{paid} received, {owed} to go" },
+  "其他付款方式（Venmo 手动 / Zelle）": {
+    tw: "其他付款方式（Venmo 手動 / Zelle）",
+    en: "Other ways to pay (Venmo by hand / Zelle)",
+  },
+  "其他付款方式（Venmo 手动）": { tw: "其他付款方式（Venmo 手動）", en: "Other ways to pay (Venmo by hand)" },
+  "留空则用 Google 邮箱": { tw: "留空則用 Google 電子郵件", en: "Leave empty to use your Google email" },
+  "新活动、报名变动、账单出来时通知你。": {
+    tw: "新活動、報名變動、帳單出來時通知你。",
+    en: "Get notified about new events, sign-up changes and bills.",
+  },
+  "在「个人信息」里加入": { tw: "在「個人資訊」裡加入", en: "Join from Profile" },
+  "{n} 个朋友的费用算在你账上": { tw: "{n} 個朋友的費用算在你帳上", en: "You pay for {n} friend(s)" },
+  "{adder}在你名下加了 {n} 个朋友，费用算在你账上": {
+    tw: "{adder}在你名下加了 {n} 個朋友，費用算在你帳上",
+    en: "{adder} added {n} friend(s) under you; you pay for them",
+  },
+  "修改请联系{name}": { tw: "修改請聯絡{name}", en: "Contact {name} to make changes" },
 };

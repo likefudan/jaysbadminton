@@ -34,7 +34,7 @@ export function PaymentBox(props: { p: MyPayment }) {
       )}
       {p.status === "partial" && (
         <p class="hint">
-          {tx("已收到 {paid}，还差 {owed}。补付时备注用同一个编号即可。", {
+          {tx("已收到 {paid}，还差 {owed}", {
             paid: `$${dollars(p.paidCents)}`,
             owed: <strong>${dollars(owed)}</strong>,
           })}
@@ -57,9 +57,10 @@ export function PaymentBox(props: { p: MyPayment }) {
             <code>{p.code}</code>
             <CopyButton text={p.code} label={t("复制")} />
           </div>
-          <p class="muted small">{t("备注里一定要带上这个编号，系统才能自动确认你的付款。")}</p>
-          <div class="manual">
-            <p class="small">{t("打不开链接时，可以手动转账：")}</p>
+          <details class="manual">
+            <summary>
+              {p.zelleAccount ? t("其他付款方式（Venmo 手动 / Zelle）") : t("其他付款方式（Venmo 手动）")}
+            </summary>
             <dl>
               {p.venmoUsername && (
                 <>
@@ -80,7 +81,7 @@ export function PaymentBox(props: { p: MyPayment }) {
                 })}
               </p>
             )}
-          </div>
+          </details>
         </>
       )}
     </div>
