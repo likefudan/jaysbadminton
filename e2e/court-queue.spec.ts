@@ -199,10 +199,16 @@ const tile = (page: Page, n: number) =>
 test("选择 lets the Owner and admins tick courts, playing or queued, and delete them together", async ({ page }) => {
   // Players and organizers don't get it.
   await setUp(page);
-  await expect(page.locator(".cq-legend")).toContainText("点场可修改");
+  await expect(page.locator(".cq-legend")).toContainText("5 分钟内");
   await expect(page.locator(".cq-legend").getByRole("button", { name: "选择" })).toHaveCount(0);
 
   const posts = await setUp(page, { ...event, queue: { ...queue, manage: true } });
+  await expect(page.locator(".cq-legend")).not.toContainText("不是我们");
+  await page.locator(".cq-legend").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath("legend-light.png") });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({ path: test.info().outputPath("legend-dark.png") });
+  await page.emulateMedia({ colorScheme: "light" });
   await page.locator(".cq-legend").getByRole("button", { name: "选择" }).click();
   const bar = page.locator(".cq-pickbar");
   await expect(bar).toContainText("已选 0 个");
@@ -233,7 +239,7 @@ test("选择 lets the Owner and admins tick courts, playing or queued, and delet
     .toEqual({ url: "/api/m/tok/events/9/queue/courts/remove", body: { ids: [1, 6] } });
   // Done: back to the colour key.
   await expect(page.locator(".cq-pickbar")).toHaveCount(0);
-  await expect(page.locator(".cq-legend")).toContainText("点场可修改");
+  await expect(page.locator(".cq-legend")).toContainText("5 分钟内");
 
   // 取消 leaves without deleting.
   await page.locator(".cq-legend").getByRole("button", { name: "选择" }).click();
