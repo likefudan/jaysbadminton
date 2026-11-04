@@ -107,7 +107,7 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
   const setupOpen = useOpenOnce(s ? !(s.venmo && s.telegram) : undefined);
   const organizers = props.telegram.state === "ok" && props.telegram.data.organizers;
   const telegramBot = props.telegram.state === "ok" && props.telegram.data.botReady;
-  const join = `${location.origin}/login`; // 登录 / 注册: Google or email
+  const join = `${location.origin}/login`; // 登录 / 注册: Google
 
   return (
     <Card title="使用指南">
@@ -144,9 +144,8 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
             <b>外观</b>：网站标题和配色。
           </Step>
           <Step>
-            <b>邀请成员</b>：把网站首页发到微信群，大家点「登录 / 注册」，用 Google
-            账号或邮箱申请。在「待审核」里通过后：用 Google
-            申请的人直接登录就能报名；用邮箱注册的人会自动收到专属链接的邮件（没收到可以在成员列表重试，或者把链接私发给对方；成员自己也能在「找回我的专属链接」里再要一次）。
+            <b>邀请成员</b>：把网站首页发到微信群，大家点「登录 / 注册」，用 Google 账号申请（新成员只能用
+            Google）。在「待审核」里通过后，对方直接用 Google 登录就能报名。
             <div class="inline-copy">
               <code>{join}</code> <CopyButton text={join} label="复制" />
             </div>

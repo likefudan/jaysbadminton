@@ -1,6 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import worker from "../src/worker/index";
 import { sha256 } from "../src/worker/lib/crypto";
+import { createMember } from "../src/worker/members";
 
 export const ORIGIN = "https://jaysbadminton.test";
 
@@ -48,14 +49,36 @@ export function futureDate(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** A 用邮箱注册 body: the two names plus a fresh email, typed twice as the form requires. */
-export function joinBody(username: string, wechatNickname: string, extra: Record<string, unknown> = {}) {
-  const email = `${crypto.randomUUID().slice(0, 8)}@example.com`;
-  return { username, wechatNickname, email, emailConfirm: email, ...extra };
+/**
+ * 申请加入 the only way left: signed in with a fresh Google account (or the one given), then the
+ * application form. Answers like /api/auth/register: { id, pending } or an error.
+ */
+export async function googleJoin(
+  username: string,
+  wechatNickname: string,
+  extra: Record<string, unknown> & { email?: string } = {},
+) {
+  const { email = `${crypto.randomUUID().slice(0, 8)}@gmail.com`, ...body } = extra;
+  const cookie = await googleCookie(`google-${crypto.randomUUID()}`, email);
+  const res = await request("/api/auth/register", cookie, { username, wechatNickname, ...body });
+  return { status: res.status, data: (await res.json()) as any, cookie };
+}
+
+/**
+ * A member from before 2026-11-04 who registered by email and so has a /m/ link: new members join
+ * with Google only now, but these keep their links (and most tests drive members through them).
+ */
+export async function linkMember(username: string, wechatNickname = username, email?: string) {
+  return createMember(env, {
+    username,
+    wechatNickname,
+    status: "pending",
+    email: email ?? `${crypto.randomUUID().slice(0, 8)}@example.com`,
+  });
 }
 
 export async function approveMember(ctx: { admin: Client; base: string }, username: string) {
-  const { data: joined } = await new Client().call("/api/public/join", joinBody(username, username));
+  const joined = await linkMember(username);
   const { data } = await ctx.admin.call(`${ctx.base}/members/${joined.id}/approve`, {});
   return { id: joined.id as string, base: `/api/m/${tokenOf(data.link)}` };
 }

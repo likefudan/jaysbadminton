@@ -2,12 +2,12 @@ import type { Env } from "./env";
 import { HttpError } from "./http";
 
 /**
- * Cloudflare Turnstile (人机验证) on the public forms anyone can submit: 申请加入 and 找回我的专属链接.
+ * Cloudflare Turnstile (人机验证) on the public form anyone can submit: 找回我的专属链接 (申请加入 is Google only now).
  * The site key is a public var in wrangler.jsonc; the secret is pushed from the GitHub secret
  * TURNSTILE_SECRET on deploy. Until that secret is there (and in tests and local dev), the forms
  * show no widget and nothing is checked; once it is, every submission needs a passing token.
  */
-export type TurnstileAction = "join" | "recover_link";
+export type TurnstileAction = "recover_link";
 
 export const turnstileEnabled = (env: Env) => !!(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET);
 

@@ -2,7 +2,7 @@ import { MESSAGE_MAX } from "../shared/rules";
 import { Field } from "./components";
 import { t } from "./i18n";
 
-/** The application form, the same for 用邮箱注册 and the Google sign-up: two names and an optional note. */
+/** The Google sign-up's application form: two names and an optional note. */
 export function ApplicationFields(props: {
   username: string;
   setUsername: (v: string) => void;
