@@ -108,7 +108,8 @@ import { actorId, audit, auditRows, billOwner, friendName, groupAudit, money, re
 import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
 import { MODEL_RE, aiChoices, aiSettingKey, azureDeployments } from "../ai";
 import { AI_EFFORTS, AI_USES, AI_USE_NAME, type AiEffort } from "../../shared/ai";
-import { autoJoinEnabled } from "../joining";
+import { autoJoinCap, autoJoinEnabled } from "../joining";
+import { checkAutoJoinCap } from "../../shared/rules";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -749,6 +750,7 @@ adminEventRoutes.get("/settings", async (c) => {
     theme: await siteTheme(c.env),
     showLeaderboard: (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard !== "0",
     autoJoin: await autoJoinEnabled(c.env),
+    autoJoinCap: await autoJoinCap(c.env),
     ...(await notifySettings(c.env)),
     ai: await aiChoices(c.env),
   });
@@ -830,6 +832,13 @@ adminEventRoutes.post("/settings", async (c) => {
   if (b.autoJoin !== undefined) {
     writes.push(setSetting(c.env.DB, "auto_join", b.autoJoin === true ? "1" : "0"));
     said.push(`入群不需要审核 ${b.autoJoin === true ? "开" : "关"}`);
+  }
+  if (b.autoJoinCap !== undefined) {
+    const n = num(b.autoJoinCap);
+    const err = checkAutoJoinCap(n);
+    if (err) throw badRequest(err);
+    writes.push(setSetting(c.env.DB, "auto_join_cap", String(n)));
+    said.push(`每天最多自动通过 ${n} 人`);
   }
   if (b.theme !== undefined) {
     if (!isTheme(b.theme)) throw badRequest("没有这个配色");

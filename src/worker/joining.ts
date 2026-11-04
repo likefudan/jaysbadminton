@@ -3,7 +3,7 @@ import { groupAudit } from "./audit";
 import { getSettings } from "./db";
 import type { Env } from "./env";
 import { assertPendingRoom, createMember, type MemberRow } from "./members";
-import { MAX_AUTO_JOINS_PER_DAY } from "../shared/rules";
+import { DEFAULT_AUTO_JOINS_PER_DAY, checkAutoJoinCap } from "../shared/rules";
 import type { ApprovalEmailStatus } from "../shared/types";
 
 /**
@@ -14,13 +14,19 @@ export async function autoJoinEnabled(env: Env): Promise<boolean> {
   return (await getSettings(env.DB, ["auto_join"])).auto_join === "1";
 }
 
+/** 每天最多自动通过几人: the saved number, or 20 when none (or a broken one) is saved. */
+export async function autoJoinCap(env: Env): Promise<number> {
+  const n = Number((await getSettings(env.DB, ["auto_join_cap"])).auto_join_cap);
+  return checkAutoJoinCap(n) ? DEFAULT_AUTO_JOINS_PER_DAY : n;
+}
+
 async function autoJoinNow(env: Env): Promise<boolean> {
   if (!(await autoJoinEnabled(env))) return false;
   const since = new Date(Date.now() - 86400_000).toISOString();
   const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM group_audit WHERE action = 'auto_join' AND at > ?")
     .bind(since)
     .first<{ n: number }>();
-  return (row?.n ?? 0) < MAX_AUTO_JOINS_PER_DAY;
+  return (row?.n ?? 0) < (await autoJoinCap(env));
 }
 
 export interface JoinResult {

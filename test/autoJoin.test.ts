@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sendApplicationNotice } from "../src/worker/approvalEmail";
 import { createMember } from "../src/worker/members";
-import { MAX_AUTO_JOINS_PER_DAY } from "../src/shared/rules";
+import { DEFAULT_AUTO_JOINS_PER_DAY } from "../src/shared/rules";
 import { Client, GOOGLE, appoint, approveMember, googleJoin, request, setUpAdmin } from "./helpers";
 
 /** 入群不需要审核 (Ke Li 2026-11-03). */
@@ -67,7 +67,7 @@ describe("入群不需要审核", () => {
     await db.prepare("INSERT INTO settings (key, value) VALUES ('auto_join', '1')").run();
     const at = new Date().toISOString();
     await db.batch(
-      Array.from({ length: MAX_AUTO_JOINS_PER_DAY }, () =>
+      Array.from({ length: DEFAULT_AUTO_JOINS_PER_DAY }, () =>
         db
           .prepare(
             "INSERT INTO group_audit (actor_id, target_id, action, detail, at) VALUES ('X', 'X', 'auto_join', '', ?)",
@@ -86,6 +86,30 @@ describe("入群不需要审核", () => {
       .run();
     const { data: next } = await googleJoin("Eve", "eve_wx");
     expect(next.pending).toBe(false);
+  });
+
+  it("lets the Owner and admins set the daily cap, 1–999", async () => {
+    const ctx = await setUpAdmin();
+    const carol = await approveMember(ctx, "Carol");
+    const alice = await approveMember(ctx, "Alice");
+    const admin = await appoint(carol.id, "carol", "admin");
+    const org = await appoint(alice.id, "alice");
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.autoJoinCap).toBe(DEFAULT_AUTO_JOINS_PER_DAY);
+    for (const bad of [0, 1000, 2.5, "x", null])
+      expect((await ctx.admin.call(`${ctx.base}/settings`, { autoJoinCap: bad })).status).toBe(400);
+    expect((await ctx.admin.call(`${ctx.base}/settings`, { autoJoinCap: 999 })).status).toBe(200);
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.autoJoinCap).toBe(999);
+    expect((await request(`${GOOGLE}/settings`, org, { autoJoinCap: 5 })).status).toBe(403);
+    expect((await request(`${GOOGLE}/settings`, admin, { autoJoinCap: 1 })).status).toBe(200);
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.autoJoinCap).toBe(1);
+    const { data: log } = await ctx.admin.call(`${ctx.base}/group-audit`);
+    expect(log.entries.map((e: any) => e.detail)).toContain("修改设置：每天最多自动通过 1 人");
+
+    // With a cap of 1, the second newcomer of the day waits in 待审核.
+    await db.prepare("DELETE FROM group_audit WHERE action = 'auto_join'").run();
+    await ctx.admin.call(`${ctx.base}/settings`, { autoJoin: true });
+    expect((await googleJoin("Dan", "dan_wx")).data.pending).toBe(false);
+    expect((await googleJoin("Eve", "eve_wx")).data.pending).toBe(true);
   });
 
   it("admins may switch it; organizers may not", async () => {
