@@ -170,14 +170,17 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
   const [deadlineOn, setDeadlineOn] = useState(d.deadlineOn);
   const [joinSelf, setJoinSelf] = useState(true);
   const [title, setTitle] = useState("");
-  // 排队系统 goes with the hall: the remembered venue brings its setting along.
-  const lastQueue = d.locations.find((v) => v.name === d.location)?.queueRoundMin ?? null;
+  // 排队系统 and 无需收款 go with the venue: the remembered venue brings its settings along.
+  const lastVenue = d.locations.find((v) => v.name === d.location);
+  const lastQueue = lastVenue?.queueRoundMin ?? null;
   const [queueOn, setQueueOn] = useState(lastQueue !== null);
   const [roundMin, setRoundMin] = useState(String(lastQueue ?? QUEUE_DEFAULT_ROUND_MIN));
+  const [noFee, setNoFee] = useState(lastVenue?.noFee ?? false);
   const { busy, error, run } = useAction();
-  const venueQueue = (min: number | null) => {
-    setQueueOn(min !== null);
-    setRoundMin(String(min ?? QUEUE_DEFAULT_ROUND_MIN));
+  const knownVenue = (v: Venue) => {
+    setQueueOn(v.queueRoundMin !== null);
+    setRoundMin(String(v.queueRoundMin ?? QUEUE_DEFAULT_ROUND_MIN));
+    setNoFee(v.noFee);
   };
 
   async function submit(ev: Event) {
@@ -191,6 +194,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
       address,
       notes,
       queueRoundMin: queueOn ? Number(roundMin) : null,
+      noFee,
       deadlineDays: days,
       deadlineHours: hours,
       noDeadline: !deadlineOn,
@@ -235,9 +239,10 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
           address={address}
           onVenue={setLocation}
           onAddress={setAddress}
-          onQueue={venueQueue}
+          onKnown={knownVenue}
         />
         <NotesField value={notes} onInput={setNotes} />
+        <NoFeeField on={noFee} onOn={setNoFee} />
         <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
         <label class={`switch-card ${deadlineOn ? "on" : ""}`}>
           <span>
@@ -290,6 +295,28 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
         </button>
       </form>
     </Card>
+  );
+}
+
+/**
+ * 无需收款 (Ke Li 2026-11-04): for venues where everyone pays at the door. The event has no
+ * fees, bills or payments; it ends by hand or by itself an hour after its end time.
+ */
+function NoFeeField(props: { on: boolean; onOn: (on: boolean) => void }) {
+  return (
+    <label class={`switch-card ${props.on ? "on" : ""}`}>
+      <span>
+        <strong>{t("无需收款")}</strong>
+        <small>{t("大家到球场各付各的，活动结束后不用结算和收款")}</small>
+      </span>
+      <input
+        type="checkbox"
+        role="switch"
+        aria-checked={props.on}
+        checked={props.on}
+        onChange={(e) => props.onOn((e.target as HTMLInputElement).checked)}
+      />
+    </label>
   );
 }
 
@@ -356,14 +383,14 @@ function VenueFields(props: {
   address: string;
   onVenue: (v: string) => void;
   onAddress: (v: string) => void;
-  /** A recent venue was picked: set 排队系统 the way its last event had it. */
-  onQueue?: (roundMin: number | null) => void;
+  /** A recent venue was picked: set 排队系统 and 无需收款 the way its last event had them. */
+  onKnown?: (v: Venue) => void;
 }) {
   const [venues, setVenues] = useState(props.venues);
   const pick = (v: Venue) => {
     props.onVenue(v.name);
     props.onAddress(v.address);
-    props.onQueue?.(v.queueRoundMin);
+    props.onKnown?.(v);
   };
   // No confirmation: it only forgets a shortcut, and typing the venue again brings it back.
   async function forget(name: string) {
@@ -408,7 +435,7 @@ function VenueFields(props: {
           const known = props.venues.find((x) => x.name === v.trim());
           if (known) {
             props.onAddress(known.address);
-            props.onQueue?.(known.queueRoundMin);
+            props.onKnown?.(known);
           }
         }}
       />
@@ -537,7 +564,7 @@ function EventAdminBody(props: {
             </div>
             {editable && (
               <div class="actions">
-                {e.status !== "open" && (
+                {e.status !== "open" && !e.noFee && (
                   <button
                     type="button"
                     class={`toggle ${r.attended ? "" : "off"}`}
@@ -563,7 +590,11 @@ function EventAdminBody(props: {
 
       {e.photoUsage && <PhotoUsageCard u={e.photoUsage} />}
 
-      <Billing base={props.base} e={e} onChange={props.onChange} />
+      {e.noFee ? (
+        (e.status === "open" || e.status === "closed") && <EndNoFee eb={eb} e={e} onDone={props.onChange} />
+      ) : (
+        <Billing base={props.base} e={e} onChange={props.onChange} />
+      )}
 
       {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
 
@@ -723,7 +754,11 @@ function Transfer(props: {
   }
   return (
     <Card title={t("负责人")}>
-      <p>{t("负责人：{manager} · 收款人：{payee}", { manager: e.manager.name, payee: e.payee.name })}</p>
+      <p>
+        {e.noFee
+          ? t("负责人：{name}", { name: e.manager.name })
+          : t("负责人：{manager} · 收款人：{payee}", { manager: e.manager.name, payee: e.payee.name })}
+      </p>
       {choices.length > 0 && (
         <>
           <label class="field">
@@ -1139,6 +1174,31 @@ function AddPeople(props: {
   );
 }
 
+/**
+ * 无需收款: no 结算 card. It ends an hour after its end time by itself, or now with the button,
+ * and goes to history with nothing to collect.
+ */
+function EndNoFee(props: { eb: string; e: EventDetail; onDone: () => void }) {
+  const { busy, error, run } = useAction();
+  async function end() {
+    if (!confirm(t("结束后活动存进历史活动，名单不能再改。确定结束吗？"))) return;
+    if (await run(() => api(`${props.eb}/end`, {}))) props.onDone();
+  }
+  return (
+    <Card title={t("无需收款")}>
+      <p>
+        {t("大家在球场各付各的，这次活动不用结算。活动结束 1 小时后（{time}）会自动结束，存进历史活动。", {
+          time: fmtInstant(props.e.autoEndAt),
+        })}
+      </p>
+      {error && <p class="error">{error}</p>}
+      <button type="button" class="button block" disabled={busy} onClick={end}>
+        {t("现在结束活动")}
+      </button>
+    </Card>
+  );
+}
+
 function CloseNow(props: { eb: string; onDone: () => void }) {
   const { busy, error, run } = useAction();
   async function close() {
@@ -1167,6 +1227,9 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const [title, setTitle] = useState(props.e.title);
   const [queueOn, setQueueOn] = useState(props.e.queueRoundMin !== null);
   const [roundMin, setRoundMin] = useState(String(props.e.queueRoundMin ?? QUEUE_DEFAULT_ROUND_MIN));
+  const [noFee, setNoFee] = useState(props.e.noFee);
+  // 无需收款 can change only before Finalize (after it there are bills).
+  const feeOpen = props.e.status === "open" || props.e.status === "closed";
   const { busy, error, run } = useAction();
 
   if (!open) {
@@ -1192,6 +1255,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
           address,
           notes,
           queueRoundMin: queueOn ? Number(roundMin) : null,
+          ...(feeOpen ? { noFee } : {}),
         }),
       )
     ) {
@@ -1217,6 +1281,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
         onAddress={setAddress}
       />
       <NotesField value={notes} onInput={setNotes} />
+      {feeOpen && <NoFeeField on={noFee} onOn={setNoFee} />}
       <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy} onClick={save}>

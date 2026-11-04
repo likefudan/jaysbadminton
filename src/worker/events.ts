@@ -44,6 +44,8 @@ export interface EventRow {
   payee_id: string | null;
   /** 球场排队: minutes per round on the hall's courts; null when the event doesn't use it. */
   queue_round_min: number | null;
+  /** 无需收款: 1 when everyone pays the venue themselves; no fees, bills or payments. */
+  no_fee: number;
   /** 预定场地: JSON array of the hall's court numbers booked for it; read through bookedCourts. */
   booked_courts: string;
 }
@@ -61,6 +63,9 @@ interface RosterRow {
 }
 
 export const DEFAULT_FRIEND_CAP = 3;
+
+/** 无需收款: such an event ends by itself this long after its end time (Ke Li: one hour). */
+export const NO_FEE_END_AFTER_MS = 3600_000;
 
 export const friendLabel = (memberName: string, index: number, name: string | null) =>
   name?.trim() || `${memberName}的朋友${index}`;
@@ -84,6 +89,7 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
     title: e.title,
     notes: e.notes,
     queueRoundMin: e.queue_round_min,
+    noFee: e.no_fee === 1,
     deadlineAt: e.deadline_at,
     noDeadline: !!e.no_deadline,
     status: liveStatus(e),
@@ -167,6 +173,7 @@ export async function detail(env: Env, e: EventRow, viewer: string | null): Prom
     roster: list,
     dunningStopped: e.dunning_stopped === 1,
     deletable: isDeletable(e),
+    autoEndAt: new Date(Date.parse(e.end_at) + NO_FEE_END_AFTER_MS).toISOString(),
     payee: { id: payee, name: payeeLabel, isMe: !!payee && payee === viewer },
     manager: { id: manager, name: managerLabel, isMe: !!manager && manager === viewer },
     photoUsage: usage,
@@ -240,6 +247,8 @@ export interface CreateEventInput {
   notes?: string;
   /** 球场排队 on, with this many minutes per round; null or left out keeps it off. */
   queueRoundMin?: number | null;
+  /** 无需收款: everyone pays the venue themselves, so nothing is settled or collected. */
+  noFee?: boolean;
   deadlineDays: number;
   deadlineHours: number;
   /**
@@ -340,20 +349,22 @@ export function checkVenue(venue: string, address: string): void {
 
 /**
  * Remembers a venue for the 最近的场馆 list: its address, and whether its last event used the
- * 排队系统 (queuing goes with the hall).
+ * 排队系统 and 无需收款 (both go with the venue).
  */
 export function saveVenue(
   env: Env,
   venue: string,
   address: string,
   queueRoundMin: number | null,
+  noFee: boolean,
   ts: string,
 ): D1PreparedStatement {
   return env.DB.prepare(
-    `INSERT INTO locations (name, address, queue_round_min, last_used_at, use_count) VALUES (?, ?, ?, ?, 1)
+    `INSERT INTO locations (name, address, queue_round_min, no_fee, last_used_at, use_count) VALUES (?, ?, ?, ?, ?, 1)
      ON CONFLICT (name) DO UPDATE SET address = CASE WHEN excluded.address != '' THEN excluded.address ELSE address END,
-       queue_round_min = excluded.queue_round_min, last_used_at = excluded.last_used_at, use_count = use_count + 1`,
-  ).bind(venue, address, queueRoundMin, ts);
+       queue_round_min = excluded.queue_round_min, no_fee = excluded.no_fee, last_used_at = excluded.last_used_at,
+       use_count = use_count + 1`,
+  ).bind(venue, address, queueRoundMin, noFee ? 1 : 0, ts);
 }
 
 /** started: it had already started (pastDays), so it was made closed and is to be kept quiet. */
@@ -395,8 +406,8 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<{ 
       // and day only (1006), which comes round again every year, so new events carry the year (Ke
       // Li 2026-11-04). Links already sent out stay as they are.
       const res = await env.DB.prepare(
-        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, queue_round_min, deadline_at, deadline_offset_min, no_deadline, status, created_at, manager_id, payee_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        `INSERT INTO events (number, code, date, start_at, end_at, location, address, title, notes, queue_round_min, no_fee, deadline_at, deadline_offset_min, no_deadline, status, created_at, manager_id, payee_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       )
         .bind(
           number,
@@ -409,6 +420,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<{ 
           title,
           notes,
           input.queueRoundMin ?? null,
+          input.noFee ? 1 : 0,
           v.deadlineAt,
           v.offsetMin,
           input.noDeadline ? 1 : 0,
@@ -436,7 +448,7 @@ export async function createEvent(env: Env, input: CreateEventInput): Promise<{ 
           ).bind(id, v.deadlineAt, ts),
         ]
       : [
-          saveVenue(env, location, address, input.queueRoundMin ?? null, ts),
+          saveVenue(env, location, address, input.queueRoundMin ?? null, !!input.noFee, ts),
           setSetting(env.DB, key("last_start_time"), input.startTime),
           setSetting(env.DB, key("last_end_time"), input.endTime),
           setSetting(env.DB, key("last_location"), location),

@@ -268,7 +268,7 @@ export async function nextDeadlineAlarm(
  * nobody signed up for can't be finalized, so that one gets a single note suggesting 取消 instead.
  */
 async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
-  if (e.status !== "closed" || at.getTime() < new Date(e.end_at).getTime()) return;
+  if (e.status !== "closed" || e.no_fee || at.getTime() < new Date(e.end_at).getTime()) return;
   const p = toPacific(at);
   const hour = Number(p.time.slice(0, 2));
   if (hour >= 22 || hour < 8) return;

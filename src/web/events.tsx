@@ -1,5 +1,5 @@
 import type { EventStatus, EventSummary, MyEvent } from "../shared/types";
-import { STATUS_ZH } from "../shared/types";
+import { statusZh } from "../shared/types";
 import type { ComponentChildren } from "preact";
 import { toPacific } from "../shared/time";
 import { currentLang, fmtDate, fmtInstant, t, tx, weekdayOf } from "./i18n";
@@ -90,6 +90,17 @@ export function CourtsLine(props: { courts: number[] }) {
   return <div class="ev-meta ev-courts">{tx("场地：{courts} 号", { courts: <b>{list}</b> })}</div>;
 }
 
+/**
+ * How the court fee is paid (Ke Li 2026-11-04): 每人自付场地费 on a 无需收款 event; otherwise
+ * 活动后由组织者结算费用 until the bills are out (after that the card shows the bill).
+ */
+export function FeeLine(props: { e: { noFee: boolean; status: EventStatus } }) {
+  const e = props.e;
+  if (e.noFee) return <div class="ev-meta">{t("每人自付场地费")}</div>;
+  if (e.status === "open" || e.status === "closed") return <div class="ev-meta">{t("活动后由组织者结算费用")}</div>;
+  return null;
+}
+
 export function StatusPill(props: { cls: string; label: string }) {
   return (
     <span class={`status status-${props.cls}`}>
@@ -109,8 +120,7 @@ export function EventInfo(props: {
   runBy?: string;
 }) {
   const e = props.e;
-  const badge =
-    props.status ?? (props.publicView ? publicStatus(e.status) : { cls: e.status, label: t(STATUS_ZH[e.status]) });
+  const badge = props.status ?? (props.publicView ? publicStatus(e.status) : { cls: e.status, label: t(statusZh(e)) });
   return (
     <div class="event-info">
       <DateTile date={e.date} />

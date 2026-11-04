@@ -2,6 +2,7 @@ import { developerRoutes } from "./developer";
 import { Hono } from "hono";
 import type { Env } from "./env";
 import { closeExpired } from "./events";
+import { endDueNoFeeEvents } from "./noFee";
 import { syncAllDeadlines } from "./deadlines";
 export { DeadlineAlarm } from "./deadlines";
 export { PushSender } from "./push";
@@ -176,6 +177,7 @@ export default {
     }
     try {
       await closeExpired(env);
+      await endDueNoFeeEvents(env); // 无需收款 events an hour past their end go to history
       // Re-aims every open event's alarm, so events created before alarms existed (or whose
       // sync failed) still get theirs.
       await syncAllDeadlines(env);

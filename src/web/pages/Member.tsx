@@ -9,10 +9,10 @@ import type {
   MyEventsResponse,
   PaymentStatus,
 } from "../../shared/types";
-import { STATUS_ZH } from "../../shared/types";
+import { statusZh } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Load, Page, SectionTitle, useAction } from "../components";
-import { CourtsLine, EventHero, MiniEventCard, friendCount, mapLink, mineStatus, onCard } from "../events";
+import { CourtsLine, EventHero, FeeLine, MiniEventCard, friendCount, mapLink, mineStatus, onCard } from "../events";
 import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { Heatmap, ProfileHero, ProfileSettings } from "../Profile";
@@ -162,8 +162,10 @@ function MyEvents(props: { base: string }) {
   return (
     <Load result={res}>
       {(r) => {
-        const open = r.events.filter((e) => e.status === "open").sort(byTime);
-        const owing = r.events.filter((e) => e.status !== "open" && !settledForMe(e)).sort(byTime);
+        // 无需收款: nothing to pay, so after the deadline it stays up here until it ends.
+        const upcoming = (e: MyEvent) => e.status === "open" || (e.noFee && e.status === "closed");
+        const open = r.events.filter(upcoming).sort(byTime);
+        const owing = r.events.filter((e) => !upcoming(e) && !settledForMe(e)).sort(byTime);
         const settled = [
           ...r.events
             .filter(settledForMe)
@@ -197,11 +199,13 @@ function MyEvents(props: { base: string }) {
                     e={h}
                     line={
                       <>
-                        {h.paidBy
-                          ? t("{name} 已付清", { name: h.paidBy })
-                          : h.amountCents
-                            ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
-                            : t("没有费用")}
+                        {h.noFee
+                          ? t("每人自付场地费")
+                          : h.paidBy
+                            ? t("{name} 已付清", { name: h.paidBy })
+                            : h.amountCents
+                              ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
+                              : t("没有费用")}
                         {h.kcal != null && (
                           <span class="mini-kcal">
                             <FlameIcon size={12} />
@@ -243,7 +247,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
     mine ??
     (e.payment
       ? { ...BILL_STATUS[e.payment.status], label: t(BILL_STATUS[e.payment.status].label) }
-      : { cls: e.status, label: t(STATUS_ZH[e.status]) });
+      : { cls: e.status, label: t(statusZh(e)) });
   // Accent for the ones they're on until the bill comes (closed included, Ke Li), light accent for
   // ones they could join, plain for the rest (billed, cancelled, closed without them).
   const onIt = onCard(e);
@@ -297,6 +301,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
           </a>
         )}
         {e.courts?.length > 0 && <CourtsLine courts={e.courts} />}
+        <FeeLine e={e} />
         {e.organizer && <div class="ev-meta">{t("组织：{name}", { name: e.organizer })}</div>}
         {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
         {!e.roster?.length && <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>}
