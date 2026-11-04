@@ -21,9 +21,8 @@ export function useLang(): Lang {
 }
 
 /** Sets the language the page renders in (main.tsx, before rendering the page). */
-export function useActiveLang(admin: boolean): Lang {
-  const lang = useLang();
-  return activate(admin ? "zh-CN" : lang);
+export function useActiveLang(): Lang {
+  return activate(useLang());
 }
 
 /** Like t(), for placeholders that are elements (a <strong>, a link). */

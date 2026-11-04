@@ -15,11 +15,9 @@ const sources = import.meta.glob("../src/web/**/*.{ts,tsx}", {
 }) as Record<string, string>;
 
 const CALL = /\b(?:t|tx|tk)\(\s*"((?:[^"\\]|\\.)*)"/g;
-// Pages and parts only the Owner and organizers see stay Chinese (main.tsx renders /admin in 简体);
-// the language names and the 文A icon are the same in every language; the privacy policy and terms
-// carry all three languages in legalText.ts.
-const ADMIN_ONLY =
-  /pages\/Admin|DeveloperTools|AddressInput|organizers\.ts|messages\.ts|lang\.ts|site\.ts|LangSwitch|legalText\.ts/;
+// The language names and the 文A icon are the same in every language; the privacy policy and terms
+// carry all three languages in legalText.ts; site.ts holds only the default site name, a brand.
+const NOT_PAGES = /messages\.ts|adminMessages\.ts|lang\.ts|site\.ts|LangSwitch|legalText\.ts/;
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 afterEach(() => {
@@ -37,10 +35,10 @@ describe("translations", () => {
     expect(missing).toEqual([]);
   });
 
-  it("leaves no Chinese outside t() on the member and public pages", () => {
+  it("leaves no Chinese outside t() on any page, the admin pages included", () => {
     const left: string[] = [];
     for (const [file, src] of Object.entries(sources)) {
-      if (ADMIN_ONLY.test(file)) continue;
+      if (NOT_PAGES.test(file)) continue;
       const code = src
         .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
         .replace(/\/\*[\s\S]*?\*\//g, "")

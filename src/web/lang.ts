@@ -2,9 +2,9 @@ import { formatDateZh, toPacific } from "../shared/time";
 import { MESSAGES } from "./messages";
 
 /**
- * 简体 / 繁體 / English for the member and public pages. The text in the code stays Simplified
+ * 简体 / 繁體 / English for every page, the admin pages included (Ke Li 2026-11-04). The text in the code stays Simplified
  * Chinese and is its own key: t("我的活动") looks it up in messages.ts and falls back to the key.
- * The choice is kept in this browser only; the admin pages stay Simplified Chinese.
+ * The choice is kept in this browser only.
  *
  * Nothing here needs preact or the DOM types (tests type-check it with the Worker's); the hooks
  * and tx() are in i18n.ts, which is what the pages import.
@@ -47,9 +47,9 @@ function saved(): Lang | null {
 
 let chosen: Lang = saved() ?? detect();
 
-/** The Owner's and organizers' pages, which stay Simplified Chinese with no switch. */
+/** The Owner's, admins' and organizers' pages. */
 export const isAdminPath = (path: string) => path === "/admin" || path.startsWith("/admin/");
-/** What this render is in: the visitor's choice, or Simplified on the admin pages. */
+/** What this render is in: the visitor's choice. */
 let active: Lang = chosen;
 export const listeners = new Set<(l: Lang) => void>();
 export const chosenLang = () => chosen;

@@ -1,6 +1,6 @@
 // Translations for the Telegram bot (botLang.ts), keyed by the Simplified Chinese in the code.
-// zh-TW was converted from Simplified (OpenCC, Taiwan phrasing) and then read over by hand. The
-// admin pages stay Simplified Chinese, so English text names their labels (收款, 设置 › …) as shown.
+// zh-TW was converted from Simplified (OpenCC, Taiwan phrasing) and then read over by hand. English
+// text names the admin pages' labels as their English version shows them (Payments, Settings › …).
 
 export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   "—— 可复制到微信 ——": { tw: "—— 可複製到微信 ——", en: "—— Copy to WeChat ——" },
@@ -99,12 +99,12 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   "应收 {due}，实收 {paid}": { tw: "應收 {due}，實收 {paid}", en: "{due} due, {paid} received" },
   "还有多付的 {amount} 需要退，见管理页「收款」。": {
     tw: "還有多付的 {amount} 需要退，見管理頁「收款」。",
-    en: "{amount} was overpaid and needs refunding, see 收款 on the admin page.",
+    en: "{amount} was overpaid and needs refunding, see Payments on the admin page.",
   },
   "❓ 有一笔 Venmo 付款需要确认：{payer} {amount}，备注「{note}」。\n原因：{reason}\n请到管理页「收款」把它关联到某人名下，或者忽略。":
     {
       tw: "❓ 有一筆 Venmo 付款需要確認：{payer} {amount}，備註「{note}」。\n原因：{reason}\n請到管理頁「收款」把它關聯到某人名下，或者忽略。",
-      en: '❓ A Venmo payment needs confirming: {payer} {amount}, note "{note}".\nReason: {reason}\nOn the admin page under 收款, link it to someone or ignore it.',
+      en: '❓ A Venmo payment needs confirming: {payer} {amount}, note "{note}".\nReason: {reason}\nOn the admin page under Payments, match it to someone or ignore it.',
     },
   "💵 {name} 付了 {amount}（{date}），还差 {owed}。": {
     tw: "💵 {name} 付了 {amount}（{date}），還差 {owed}。",
@@ -112,7 +112,7 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "↩️ {name} 多付了 {over}（{date}，应付 {due}，共收到 {received}），需要退款，见管理页「收款」。": {
     tw: "↩️ {name} 多付了 {over}（{date}，應付 {due}，共收到 {received}），需要退款，見管理頁「收款」。",
-    en: "↩️ {name} overpaid by {over} ({date}: {due} due, {received} received in total) and needs a refund, see 收款 on the admin page.",
+    en: "↩️ {name} overpaid by {over} ({date}: {due} due, {received} received in total) and needs a refund, see Payments on the admin page.",
   },
   "🆕 {title} {name} 发起了新活动：\n{when}\n地点：{venue}\n{link}": {
     tw: "🆕 {title} {name} 發起了新活動：\n{when}\n地點：{venue}\n{link}",
@@ -121,12 +121,12 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   "📭 {quiet}，但还有 {owing} 笔账单没付清。\n如果最近确实有人用 Venmo 付过款，说明 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（管理页「设置 → 使用指南」第二部分）。":
     {
       tw: "📭 {quiet}，但還有 {owing} 筆帳單沒付清。\n如果最近確實有人用 Venmo 付過款，說明 Gmail 轉發可能斷了：請檢查 Gmail 的轉發地址和過濾器（管理頁「設定 → 使用指南」第二部分）。",
-      en: "📭 {quiet}, yet {owing} bills are still unpaid.\nIf someone did pay by Venmo lately, Gmail forwarding may have stopped: check the forwarding address and filter in Gmail (admin page 设置 → 使用指南, part 2).",
+      en: "📭 {quiet}, yet {owing} bills are still unpaid.\nIf someone did pay by Venmo lately, Gmail forwarding may have stopped: check the forwarding address and filter in Gmail (admin page Settings → User guide, part 2).",
     },
   "📭 {quiet}，但付到这个账户的账单还有 {owing} 笔没付清。\n如果最近确实有人用 Venmo 付过款，说明这个账户的 Gmail 转发可能断了：请检查 Gmail 的转发地址和过滤器（组织者或管理员的管理页「设置 › Venmo 邮件转发」）。":
     {
       tw: "📭 {quiet}，但付到這個帳戶的帳單還有 {owing} 筆沒付清。\n如果最近確實有人用 Venmo 付過款，說明這個帳戶的 Gmail 轉發可能斷了：請檢查 Gmail 的轉發地址和過濾器（組織者或管理員的管理頁「設定 › Venmo 郵件轉發」）。",
-      en: "📭 {quiet}, yet {owing} bills paying into this account are still unpaid.\nIf someone did pay by Venmo lately, this account's Gmail forwarding may have stopped: check the forwarding address and filter in Gmail (the organizer's or admin's admin page 设置 › Venmo 邮件转发).",
+      en: "📭 {quiet}, yet {owing} bills paying into this account are still unpaid.\nIf someone did pay by Venmo lately, this account's Gmail forwarding may have stopped: check the forwarding address and filter in Gmail (the organizer's or admin's admin page Settings › Venmo email forwarding).",
     },
   "已经 {days} 天没收到 {account}的 Venmo 邮件了": {
     tw: "已經 {days} 天沒收到 {account}的 Venmo 郵件了",
@@ -213,7 +213,7 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   "留言：{message}": { tw: "留言：{message}", en: "Message: {message}" },
   "请在管理页「待审核」处理。": {
     tw: "請在管理頁「待審核」處理。",
-    en: "Please handle it under 待审核 on the admin page.",
+    en: "Please handle it under Pending on the admin page.",
   },
   "不认识的话，可以在管理页「成员」里停用。": {
     tw: "不認識的話，可以在管理頁「成員」裡停用。",
@@ -292,7 +292,7 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   "⚠️ 收到一封转发到 {name} 的 Venmo 收款邮件，但收款账号和 {name} 的收款设置里的 Venmo 用户名不一致，已忽略。\n请检查管理页「设置 › 我的收款设置」里的 Venmo 用户名和通知邮箱是否填对。":
     {
       tw: "⚠️ 收到一封轉發到 {name} 的 Venmo 收款郵件，但收款帳號和 {name} 的收款設定裡的 Venmo 使用者名稱不一致，已忽略。\n請檢查管理頁「設定 › 我的收款設定」裡的 Venmo 使用者名稱和通知信箱是否填對。",
-      en: "⚠️ A Venmo payment email forwarded to {name} was ignored: its account doesn't match the Venmo username in {name}'s payment settings.\nCheck the Venmo username and notification email under 设置 › 我的收款设置 on the admin page.",
+      en: "⚠️ A Venmo payment email forwarded to {name} was ignored: its account doesn't match the Venmo username in {name}'s payment settings.\nCheck the Venmo username and notification email under Settings › My payment settings on the admin page.",
     },
   自动记账: { tw: "自動記帳", en: "matched" },
   部分付款: { tw: "部分付款", en: "partial" },

@@ -1,8 +1,10 @@
-// Translations for the member and public pages, keyed by the Simplified Chinese in the code.
+// Translations for the member and public pages (the admin pages' are in adminMessages.ts), keyed by the Simplified Chinese in the code.
 // zh-TW was converted from Simplified (OpenCC, Taiwan phrasing) and then read over by hand.
 // en: an empty string means nothing is shown (units such as 人 / 次 that English leaves out).
 
-export const MESSAGES: Record<string, { tw: string; en: string }> = {
+import { ADMIN_MESSAGES } from "./adminMessages";
+
+const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "Apple 日历 / Outlook": { tw: "Apple 日曆 / Outlook", en: "Apple Calendar / Outlook" },
   "Google 日历": { tw: "Google 日曆", en: "Google Calendar" },
   "Google 登录未完成，请重试。若持续失败，请联系群主。": {
@@ -885,3 +887,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "修改请联系{name}": { tw: "修改請聯絡{name}", en: "Contact {name} to make changes" },
 };
+
+/** Every page's text: the member and public pages above, the admin pages in adminMessages.ts. */
+export const MESSAGES: Record<string, { tw: string; en: string }> = { ...MEMBER_MESSAGES, ...ADMIN_MESSAGES };

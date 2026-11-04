@@ -125,6 +125,8 @@ export function settle(rows: SettleRow[], input: SettleInput): Settlement {
 }
 
 export const dollars = (cents: number) => (cents / 100).toFixed(2);
+/** "$12.50" for 1250 cents. */
+export const usd = (cents: number) => `$${dollars(cents)}`;
 
 /** Parses "12.5", "$12.50" or "12" into cents; null if not a valid non-negative amount. */
 export function parseDollars(raw: string | number): number | null {
