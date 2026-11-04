@@ -441,8 +441,7 @@ function CourtSheet(props: {
       <div class="cq-row">
         <CourtNumber value={court} onChange={setCourt} q={props.q} now={props.now} except={c?.id ?? null} />
         <div>
-          <p class="sheet-label">{t("状态")}</p>
-          <div class="seg cq-status">
+          <div class="seg cq-status" role="group" aria-label={t("状态")}>
             {Array.from({ length: QUEUE_MAX_POSITION + 1 }, (_, k) => (
               <button
                 type="button"
@@ -457,10 +456,10 @@ function CourtSheet(props: {
           </div>
         </div>
       </div>
-      <p class="sheet-label">{label}</p>
       {/* Typed in the box, or dragged on the slider right beside it. */}
       <div class={noMinutes && minutes === "" ? "cq-minutes cq-unsure" : "cq-minutes"}>
         <label class="cq-minutes-box">
+          <span>{position === 0 || fromScreen ? t("剩余") : t("等待")}</span>
           <input
             type="number"
             inputMode="numeric"
@@ -571,7 +570,6 @@ function PhotoButton(props: { path: string; disabled: boolean; onRead: (url: str
         <input type="file" accept="image/*" disabled={busy || props.disabled} onChange={pick} />
         {busy ? t("识别中…") : t("📷 拍照登记")}
       </label>
-      {!busy && !error && <p class="muted small">{t("拍排队屏幕，自动填好场号、时间和账号")}</p>}
       {error && <p class="error">{error}</p>}
     </div>
   );
@@ -669,7 +667,8 @@ function CourtNumber(props: {
     <CourtCombo
       id="cq-court-no"
       label={t("场号")}
-      placeholder={t("选择或输入")}
+      labelHidden
+      placeholder={t("场号")}
       toggleLabel={t("选择场号")}
       value={props.value}
       onInput={props.onChange}

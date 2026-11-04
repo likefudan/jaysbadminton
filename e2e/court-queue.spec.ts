@@ -449,6 +449,13 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
   });
   await page.getByRole("button", { name: "＋ 登记球场" }).click();
   const sheet = page.getByRole("dialog");
+  await expect(sheet.getByPlaceholder("场号")).toBeVisible();
+  await expect(sheet).not.toContainText("拍排队屏幕");
+  await expect(sheet.locator(".cq-minutes-box")).toContainText("剩余");
+  await page.screenshot({ path: test.info().outputPath("court-sheet-light.png") });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({ path: test.info().outputPath("court-sheet-dark.png") });
+  await page.emulateMedia({ colorScheme: "light" });
   await sheet.locator(".cq-photo input[type=file]").setInputFiles("e2e/fixtures/queue-screen.jpg");
 
   // The photo goes up shrunk to a JPEG of at most 1600 px.

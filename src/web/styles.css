@@ -4320,13 +4320,13 @@ ul.audit li:first-child {
 }
 .cq-minutes-box {
   flex: none;
-  width: 116px;
+  width: 150px;
   display: flex;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--field);
-  padding-right: 10px;
+  padding: 0 10px;
 }
 .cq-minutes input[type="number"] {
   flex: 1;
