@@ -38,7 +38,9 @@ const status = async (id: number) =>
 
 /** Moves the event so that it ended `minutes` ago. */
 const endedAgo = (id: number, minutes: number) =>
-  env.DB.prepare("UPDATE events SET start_at = ?, end_at = ?, deadline_at = ?, status = 'closed' WHERE id = ?")
+  env.DB.prepare(
+    "UPDATE events SET start_at = ?, end_at = ?, deadline_at = ?, status = 'closed', created_at = '2026-01-01T00:00:00Z' WHERE id = ?",
+  )
     .bind(
       new Date(Date.now() - (minutes + 120) * 60_000).toISOString(),
       new Date(Date.now() - minutes * 60_000).toISOString(),
@@ -76,6 +78,8 @@ describe("无需收款", () => {
 
   it("ends by hand straight into history, with nothing to collect", async () => {
     const { ctx, alice, e } = await scene();
+    // Not while sign-up is still open.
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}/end`, {})).status).toBe(400);
     await expire(e.id);
     const res = await ctx.admin.call(`${ctx.base}/events/${e.id}/end`, {});
     expect(res.status).toBe(200);
@@ -118,6 +122,18 @@ describe("无需收款", () => {
     expect(mine.data.history).toEqual([expect.objectContaining({ id: e.id, noFee: true, amountCents: null })]);
     const log = await ctx.admin.call(`${ctx.base}/events/${e.id}/audit`);
     expect(JSON.stringify(log.data)).toContain("自动结束（无需收款）");
+  });
+
+  it("gives one created after the fact an hour from its creation", async () => {
+    const { e } = await scene();
+    await endedAgo(e.id, 300);
+    await env.DB.prepare("UPDATE events SET created_at = ? WHERE id = ?")
+      .bind(new Date(Date.now() - 10 * 60_000).toISOString(), e.id)
+      .run();
+    await endDueNoFeeEvents(env);
+    expect((await status(e.id)).status).toBe("closed");
+    await endDueNoFeeEvents(env, new Date(Date.now() + 51 * 60_000));
+    expect((await status(e.id)).status).toBe("settled");
   });
 
   it("sends no 结算 reminder", async () => {

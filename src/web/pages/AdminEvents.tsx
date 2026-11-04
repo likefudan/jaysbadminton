@@ -564,7 +564,7 @@ function EventAdminBody(props: {
             </div>
             {editable && (
               <div class="actions">
-                {e.status !== "open" && !e.noFee && (
+                {e.status !== "open" && (
                   <button
                     type="button"
                     class={`toggle ${r.attended ? "" : "off"}`}
@@ -1192,9 +1192,11 @@ function EndNoFee(props: { eb: string; e: EventDetail; onDone: () => void }) {
         })}
       </p>
       {error && <p class="error">{error}</p>}
-      <button type="button" class="button block" disabled={busy} onClick={end}>
-        {t("现在结束活动")}
-      </button>
+      {props.e.status === "closed" && (
+        <button type="button" class="button block" disabled={busy} onClick={end}>
+          {t("现在结束活动")}
+        </button>
+      )}
     </Card>
   );
 }

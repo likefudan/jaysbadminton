@@ -176,8 +176,13 @@ export default {
       console.error("court photo cleanup failed:", err);
     }
     try {
-      await closeExpired(env);
       await endDueNoFeeEvents(env); // 无需收款 events an hour past their end go to history
+    } catch (err) {
+      console.error("ending 无需收款 events failed:", err);
+      await recordCronError(env, err);
+    }
+    try {
+      await closeExpired(env);
       // Re-aims every open event's alarm, so events created before alarms existed (or whose
       // sync failed) still get theirs.
       await syncAllDeadlines(env);
