@@ -1102,9 +1102,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "開啟後，申請加入的人直接成為成員，不用在「待審核」裡通過",
     en: 'When on, people who apply become members right away, without approval under "Pending"',
   },
-  "每天最多自动通过 {n} 人。": {
-    tw: "每天最多自動通過 {n} 人。",
-    en: "At most {n} people are let in automatically each day.",
+  每天最多自动通过几人: { tw: "每天最多自動通過幾人", en: "Most people let in automatically per day" },
+  "1–{n}，超过的申请回到「待审核」": {
+    tw: "1–{n}，超過的申請回到「待審核」",
+    en: '1–{n}; applications beyond that go back to "Pending"',
   },
   报名设置: { tw: "報名設定", en: "Sign-up settings" },
   每人最多带几个朋友: { tw: "每人最多帶幾個朋友", en: "Friends each member can bring" },
@@ -1372,4 +1373,8 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   拍照登记: { tw: "拍照登記", en: "Photo check-in" },
   发版说明: { tw: "發版說明", en: "Release notes" },
   "密码至少 {n} 位": { tw: "密碼至少 {n} 位", en: "Passwords need at least {n} characters" },
+  "每天最多自动通过的人数请填 1–{n}": {
+    tw: "每天最多自動通過的人數請填 1–{n}",
+    en: "The daily limit for automatic joins must be 1–{n}",
+  },
 };
