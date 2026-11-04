@@ -138,7 +138,10 @@ app.get("/manifest.webmanifest", async (c) => {
   const res = await c.env.ASSETS.fetch(new Request(new URL("/manifest.webmanifest", c.req.url)));
   if (!res.ok) return res;
   const manifest = await res.json<Record<string, unknown>>();
-  manifest.name = await siteTitle(c.env);
+  const title = await siteTitle(c.env);
+  manifest.name = title;
+  // Android launchers prefer short_name for the home-screen label.
+  manifest.short_name = title;
   return c.body(JSON.stringify(manifest), 200, { "Content-Type": "application/manifest+json" });
 });
 

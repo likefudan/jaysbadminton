@@ -19,15 +19,32 @@ describe("each site names itself", () => {
     expect(await siteTitle(site)).toBe("South Bay");
   });
 
-  it("names the home-screen app after the site", async () => {
-    const assets = {
-      fetch: async () => Response.json({ name: "Jay's 羽毛球", short_name: "羽毛球", icons: [] }),
-    } as unknown as Fetcher;
+  it.each([
+    { siteName: undefined, savedTitle: undefined, expected: "Jay's 羽毛球" },
+    { siteName: "SBBC 羽毛球", savedTitle: undefined, expected: "SBBC 羽毛球" },
+    { siteName: "SBBC 羽毛球", savedTitle: "South Bay & Friends 🏸", expected: "South Bay & Friends 🏸" },
+  ])("uses $expected for both install and home-screen names", async ({ siteName, savedTitle, expected }) => {
+    if (savedTitle)
+      await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('site_title', ?)").bind(savedTitle).run();
+    const original = {
+      name: "Jay's 羽毛球",
+      short_name: "羽毛球",
+      id: "/",
+      scope: "/",
+      display: "standalone",
+      icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    };
+    const assets = { fetch: async () => Response.json(original) } as unknown as Fetcher;
     const ctx = createExecutionContext();
-    const res = await worker.fetch(new Request(`${ORIGIN}/manifest.webmanifest`), { ...site, ASSETS: assets }, ctx);
+    const res = await worker.fetch(
+      new Request(`${ORIGIN}/manifest.webmanifest`),
+      { ...env, SITE_NAME: siteName, ASSETS: assets },
+      ctx,
+    );
     await waitOnExecutionContext(ctx);
     expect(res.headers.get("Content-Type")).toBe("application/manifest+json");
-    expect(await res.json()).toEqual({ name: "SBBC 羽毛球", short_name: "羽毛球", icons: [] });
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(await res.json()).toEqual({ ...original, name: expected, short_name: expected });
   });
 });
 
