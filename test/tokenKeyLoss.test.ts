@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { currentAdminToken } from "../src/worker/auth";
 import { encryptToken } from "../src/worker/lib/crypto";
-import { Client, linkMember, setUpAdmin } from "./helpers";
+import { linkMember, setUpAdmin } from "./helpers";
 
 /** What the database holds after TOKEN_KEY was replaced: values encrypted under another key. */
 const underOldKey = () => encryptToken("some-old-secret", "the-key-that-was-lost");
@@ -31,7 +31,7 @@ describe("after TOKEN_KEY was replaced", () => {
     expect(await currentAdminToken(env)).toEqual({ token, renewed: false });
   });
 
-  it("a member's link says to make a new one, and 找回 answers like for anyone else", async () => {
+  it("a member's link says to make a new one", async () => {
     const ctx = await setUpAdmin();
     const joined = await linkMember("Alice", "Alice", "alice@example.com");
     await ctx.admin.call(`${ctx.base}/members/${joined.id}/approve`, {});
@@ -40,7 +40,6 @@ describe("after TOKEN_KEY was replaced", () => {
       .run();
     const link = await ctx.admin.call(`${ctx.base}/members/${joined.id}/link`);
     expect(link).toMatchObject({ status: 409, data: { error: { code: "link_unreadable" } } });
-    expect((await new Client().call("/api/public/recover-link", { email: "alice@example.com" })).status).toBe(200);
     expect((await ctx.admin.call(`${ctx.base}/members/${joined.id}/regenerate`, {})).status).toBe(200);
     expect((await ctx.admin.call(`${ctx.base}/members/${joined.id}/link`)).status).toBe(200);
   });

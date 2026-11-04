@@ -49,10 +49,6 @@ const sponsorListeners = new Set<(s: Sponsor | null) => void>();
 let autoJoin = false;
 const autoJoinListeners = new Set<(on: boolean) => void>();
 
-// Cloudflare Turnstile's site key: undefined until /api/public/site answers, null while it is off.
-let turnstileKey: string | null | undefined;
-const turnstileListeners = new Set<(k: string | null) => void>();
-
 function load() {
   if (!loading)
     loading = api<{
@@ -60,13 +56,10 @@ function load() {
       theme: string;
       staging?: boolean;
       icon?: string | null;
-      turnstileSiteKey?: string | null;
       sponsor?: Sponsor | null;
       autoJoin?: boolean;
     }>("/api/public/site")
       .then((r) => {
-        turnstileKey = r.turnstileSiteKey ?? null;
-        turnstileListeners.forEach((l) => l(turnstileKey!));
         setSiteTitle(r.title);
         setSiteTheme(r.theme);
         staging = !!r.staging;
@@ -85,23 +78,8 @@ function load() {
         autoJoinListeners.forEach((l) => l(autoJoin));
       })
       .catch(() => {
-        // Let the forms submit anyway: the server says so if it needed a token.
-        if (turnstileKey !== undefined) return;
-        turnstileKey = null;
-        turnstileListeners.forEach((l) => l(null));
+        // The defaults stand: the site's name and theme just stay as they were.
       });
-}
-
-/** Turnstile's site key for the public forms; undefined while loading, null while it is off. */
-export function useTurnstileSiteKey(): string | null | undefined {
-  const [k, setK] = useState(turnstileKey);
-  useEffect(() => {
-    turnstileListeners.add(setK);
-    load();
-    setK(turnstileKey);
-    return () => void turnstileListeners.delete(setK);
-  }, []);
-  return k;
 }
 
 /** True on the test site (staging.…), which shows a banner so its links are never mistaken for real ones. */

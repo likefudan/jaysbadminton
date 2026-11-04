@@ -71,26 +71,15 @@ test("登录 / 注册 has no email sign-up: Google only for new members, even be
   await expect(page.getByText("网站尚未启用 Google 登录。已有成员可以继续使用原专属链接。")).toBeVisible();
 });
 
-test("a member who lost their link asks for it again", async ({ page }) => {
-  let asked: unknown = null;
+test("there is no 找回我的专属链接 any more; /recover shows 登录 / 注册", async ({ page }) => {
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({ json: { enabled: true, signedIn: false, hasMember: false } }),
   );
-  await page.route("**/api/public/recover-link", async (route) => {
-    asked = route.request().postDataJSON();
-    await route.fulfill({ json: { ok: true } });
-  });
   await page.goto("/login");
-  await page.getByRole("link", { name: "已经是成员？找回我的专属链接" }).click();
-  await expect(page.getByRole("heading", { name: "找回我的专属链接" })).toBeVisible();
-  await page.getByLabel("邮箱").fill("not-an-email");
-  await page.getByRole("button", { name: "发送专属链接" }).click();
-  await expect(page.getByText("邮箱格式不对")).toBeVisible();
-  expect(asked).toBeNull();
-  await page.getByLabel("邮箱").fill("alice@example.com");
-  await page.getByRole("button", { name: "发送专属链接" }).click();
-  await expect(page.getByRole("status")).toContainText("如果 alice@example.com 是已通过审核的成员邮箱");
-  expect(asked).toEqual({ email: "alice@example.com", website: "" });
+  await expect(page.getByRole("button", { name: "用 Google 登录 / 注册" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /找回我的专属链接/ })).toHaveCount(0);
+  await page.goto("/recover");
+  await expect(page.getByRole("heading", { name: "登录 / 注册", exact: true })).toBeVisible();
 });
 
 test("Google login navigates to the server authorization endpoint", async ({ page }) => {

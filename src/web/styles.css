@@ -572,16 +572,6 @@ select:focus {
   border: 1px solid var(--border);
   margin-left: 4px;
 }
-.turnstile {
-  margin: 12px 0;
-  min-height: 65px;
-}
-.hp {
-  position: absolute;
-  left: -9999px;
-  width: 1px;
-  height: 1px;
-}
 .event-info {
   min-width: 0;
 }
