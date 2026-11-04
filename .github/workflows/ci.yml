@@ -226,24 +226,8 @@ jobs:
       - name: Tell the Owner and admins
         continue-on-error: true
         run: node scripts/release-notice.mjs
-      - name: Tell the developers
-        if: always()
-        env:
-          TELEGRAM_DEV_BOT_TOKEN: ${{ secrets.TELEGRAM_DEV_BOT_TOKEN }}
-          TELEGRAM_DEV_CHAT_ID: ${{ secrets.TELEGRAM_DEV_CHAT_ID }}
-          STATUS: ${{ job.status }}
-        run: |
-          [ -x scripts/notify-dev.sh ] || exit 0
-          run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          if [ "$STATUS" = success ]; then
-            text=$(printf '🚀 %s 已发布到正式网站\nhttps://jaysbadminton.llmat.dev\n\n更新内容：%s/%s/releases/tag/%s' \
-              "$GITHUB_REF_NAME" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME")
-          else
-            text=$(printf '⚠️ %s 发布到正式网站失败（%s）\n%s' "$GITHUB_REF_NAME" "$STATUS" "$run")
-          fi
-          scripts/notify-dev.sh "$text"
 
-  # The extra sites in sites.json (each group's own site), after production on every release: each
+  # The other production sites in sites.json (each group's own site), after Jay's on every release: each
   # is backed up, migrated and deployed on its own, so one site failing leaves the others deployed.
   # Off until the shared GitHub secrets SITES_KEY and SITES_ADMIN_PASSWORD exist.
   list-sites:
@@ -321,3 +305,32 @@ jobs:
         run: node scripts/release-notice.mjs
         env:
           WRANGLER_CONFIG: ${{ env.CONFIG }}
+
+  # One message to the developers' Telegram group with every production site's result: Jay's site
+  # and each site in sites.json, ✓ / ✗ / not deployed. Runs whatever happened above, so a release
+  # that failed its tests or stopped on one site is reported too.
+  notify-release:
+    needs: [deploy-production, list-sites, deploy-sites]
+    if: always() && startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # this run's job results
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts
+            sites.json
+            wrangler.jsonc
+          sparse-checkout-cone-mode: false
+      - name: Tell the developers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_DEV_BOT_TOKEN: ${{ secrets.TELEGRAM_DEV_BOT_TOKEN }}
+          TELEGRAM_DEV_CHAT_ID: ${{ secrets.TELEGRAM_DEV_CHAT_ID }}
+        run: |
+          text=$(node scripts/release-summary.mjs) ||
+            text=$(printf '⚠️ %s 的发布结果读取失败，请查看：\n%s/%s/actions/runs/%s' \
+              "$GITHUB_REF_NAME" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          scripts/notify-dev.sh "$text"

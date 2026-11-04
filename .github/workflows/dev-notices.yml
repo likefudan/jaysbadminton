@@ -1,7 +1,7 @@
 name: Dev notices
 
 # Tells the developers' Telegram group about every PR merged into main (the test site deploys
-# right after). Production releases are announced by the deploy job in ci.yml.
+# right after). Releases are announced by the notify-release job in ci.yml.
 # pull_request_target runs this repository's own copy of the workflow with its secrets, also for
 # PRs from forks; it never checks out or runs the PR's code, and the PR's text only reaches the
 # message through environment variables.
