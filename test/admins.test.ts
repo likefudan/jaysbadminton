@@ -140,7 +140,9 @@ describe("an admin", () => {
     // A plain member and an organizer: link, note, disable and enable again.
     expect((await asAdmin(`/members/${bob.id}/link`)).status).toBe(200);
     expect((await asAdmin(`/members/${bob.id}/note`, { note: "左手" })).status).toBe(200);
-    expect((await asAdmin(`/members/${alice.id}/link`)).status).toBe(200);
+    // Alice signs in with Google, so she has no 专属链接 to show or make (Ke Li 2026-11-04).
+    expect((await asAdmin(`/members/${alice.id}/link`)).status).toBe(400);
+    expect((await asAdmin(`/members/${alice.id}/regenerate`, {})).status).toBe(400);
     expect((await asAdmin(`/members/${bob.id}/deactivate`, {})).status).toBe(200);
     expect((await asAdmin(`/members/${bob.id}/reactivate`, {})).status).toBe(200);
     // Deleting a member can't be undone: the Owner's alone.

@@ -249,7 +249,8 @@ googleRoutes.post("/link", async (c) => {
   if (await emailTaken(c.env, session.email, m.id)) throw googleEmailTaken();
   try {
     const result = await c.env.DB.prepare(
-      "UPDATE members SET google_sub = ?, google_email = ? WHERE id = ? AND google_sub IS NULL AND deleted_at IS NULL",
+      // Bound to Google, the old link stops working: 专属链接 are going away (Ke Li 2026-11-04).
+      "UPDATE members SET google_sub = ?, google_email = ?, token_hash = NULL, token_enc = NULL WHERE id = ? AND google_sub IS NULL AND deleted_at IS NULL",
     )
       .bind(session.google_sub, session.email, m.id)
       .run();

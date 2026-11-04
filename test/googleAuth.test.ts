@@ -306,18 +306,20 @@ describe("Google member access", () => {
     expect(((await again.json()) as any).error.code).toBe("already_linked");
   });
 
-  it("binds an existing member without changing ID, token or records and prevents reassignment", async () => {
+  it("binds an existing member without changing ID or records, drops their link and prevents reassignment", async () => {
     const m = await createMember(env, { username: "Alice", wechatNickname: "Alice", status: "active" });
     const token = await issueMemberToken(env, m.id);
     const cookie = await session();
     expect((await request("/api/auth/link", cookie, { token })).status).toBe(200);
     expect(((await (await request("/api/m/session/me", cookie)).json()) as any).id).toBe(m.id);
-    expect((await request(`/api/m/${token}/me`)).status).toBe(200);
-    expect((await request("/api/auth/link", cookie, { token })).status).toBe(200);
+    // Bound to Google, the 专属链接 is gone (Ke Li 2026-11-04).
+    expect((await request(`/api/m/${token}/me`)).status).toBe(404);
+    const row = await env.DB.prepare("SELECT token_hash, token_enc FROM members WHERE id = ?").bind(m.id).first();
+    expect(row).toEqual({ token_hash: null, token_enc: null });
+    expect((await request("/api/auth/link", await session("other-google"), { token })).status).toBe(403);
     const other = await createMember(env, { username: "Other", wechatNickname: "Other", status: "active" });
     const otherToken = await issueMemberToken(env, other.id);
     expect((await request("/api/auth/link", cookie, { token: otherToken })).status).toBe(409);
-    expect((await request("/api/auth/link", await session("other-google"), { token })).status).toBe(409);
     expect((await request("/api/auth/link", cookie, { token: "wrong" })).status).toBe(403);
   });
   it("does not merge people by matching usernames and keeps disabled/deleted restrictions", async () => {
