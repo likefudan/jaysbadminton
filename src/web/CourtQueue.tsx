@@ -188,17 +188,12 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           </span>
           <span>
             <i class="soon" />
-            {t("{n} 分钟内到时间", { n: QUEUE_SOON_MIN })}
+            {t("{n} 分钟内", { n: QUEUE_SOON_MIN })}
           </span>
           <span>
             <i class="queue" />
             {t("排队")}
           </span>
-          <span>
-            <i class="other" />
-            {t("不是我们")}
-          </span>
-          <span class="cq-tip">{t("点场可修改")}</span>
           {q.manage && (
             <button type="button" class="text-button cq-pick-start" onClick={() => setPicked(new Set())}>
               {t("选择")}

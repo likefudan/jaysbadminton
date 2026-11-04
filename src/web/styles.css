@@ -4089,16 +4089,8 @@ ul.audit li:first-child {
   background: var(--surface-2);
   border: 1px solid var(--muted);
 }
-.cq-legend i.other {
-  background: repeating-linear-gradient(135deg, var(--cq-stripe-a) 0 3px, var(--cq-stripe-b) 3px 6px);
-  border: 1px solid var(--muted);
-}
-.cq-tip {
-  margin-left: auto;
-  color: var(--muted);
-}
 .cq-pick-start {
-  margin-left: 2px;
+  margin-left: auto;
   font-weight: 600;
 }
 /* 选择 (群主 and 管理员): the key's bar turns into the delete bar; ticked courts get a ring. */
