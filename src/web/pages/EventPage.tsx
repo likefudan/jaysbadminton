@@ -1,7 +1,7 @@
 import type { MyEventResponse, PublicEvent } from "../../shared/types";
 import { fmtDate, t, tx } from "../i18n";
 import { Load, Page } from "../components";
-import { EventHero, mapLink, publicStatus } from "../events";
+import { EventHero, FeeLine, mapLink, publicStatus } from "../events";
 import { useApi, useMemberSession } from "../hooks";
 import { CardCornerIcons } from "../ShareCard";
 import { SignupCard } from "./Member";
@@ -65,6 +65,7 @@ function PublicCard(props: { e: PublicEvent }) {
             {e.address} ↗
           </a>
         )}
+        <FeeLine e={e} />
         {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
         <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>
       </div>

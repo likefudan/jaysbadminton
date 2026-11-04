@@ -160,6 +160,8 @@ export interface EventSummary {
   address: string; // street address, may be empty for older events
   notes?: string; // optional multiline activity notes
   queueRoundMin: number | null; // 球场排队: minutes per round, null when off
+  /** 无需收款: everyone pays the venue themselves; no fees, bills or payments. */
+  noFee: boolean;
   title: string; // optional, e.g. "HappyTuesday 比赛"; "" when not set
   deadlineAt: string; // UTC ISO; the end time when noDeadline
   noDeadline: boolean; // 报名截止时间 off: sign-up stays open until the event ends (shown without a deadline)
@@ -202,6 +204,8 @@ export interface EventDetail extends EventSummary {
   manager: { id: string | null; name: string; isMe: boolean };
   /** 拍照登记用量: photos read, tokens and an estimated price; null when no photo was sent. */
   photoUsage: PhotoUsage | null;
+  /** 无需收款: when it ends by itself (an hour after its end time), UTC ISO. */
+  autoEndAt: string;
 }
 
 /** 操作记录: one change to an event, newest first on the admin page. */
@@ -313,6 +317,8 @@ export interface MyHistoryEvent {
   /** Brought by this member, who paid for them (带群友); null otherwise. */
   paidBy: string | null;
   kcal: number | null;
+  /** 无需收款: nothing was billed because everyone paid the venue themselves. */
+  noFee: boolean;
 }
 
 export interface MyRosterEntry {
@@ -330,6 +336,7 @@ export interface Venue {
   name: string;
   address: string;
   queueRoundMin: number | null;
+  noFee: boolean;
 }
 
 export interface EventDefaults {
@@ -400,6 +407,10 @@ export const STATUS_ZH: Record<EventStatus, string> = {
   settled: "已收齐",
   cancelled: "已取消",
 };
+
+/** The status word for an event: a 无需收款 one collects nothing, so once over it is 已结束, not 已收齐. */
+export const statusZh = (e: { status: EventStatus; noFee?: boolean }): string =>
+  e.noFee && e.status === "settled" ? "已结束" : STATUS_ZH[e.status];
 
 export type PaymentStatus = "unpaid" | "partial" | "paid";
 

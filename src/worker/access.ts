@@ -257,6 +257,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "GET /events/:id/settlement": event(),
   "POST /events/:id/preview": event(),
   "POST /events/:id/finalize": event(),
+  "POST /events/:id/end": event(),
   "POST /events/:id/dunning": event(),
   "POST /payments/:pid/mark-paid": bill(),
   "POST /payments/:pid/refunded": bill(),

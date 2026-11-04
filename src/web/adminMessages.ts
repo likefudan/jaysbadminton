@@ -1383,4 +1383,18 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "每天最多自動通過的人數請填 1–{n}",
     en: "The daily limit for automatic joins must be 1–{n}",
   },
+  无需收款: { tw: "無需收款", en: "No fees to collect" },
+  "大家到球场各付各的，活动结束后不用结算和收款": {
+    tw: "大家到球場各付各的，活動結束後不用結算和收款",
+    en: "Everyone pays the venue at the door; nothing to settle or collect afterwards",
+  },
+  "大家在球场各付各的，这次活动不用结算。活动结束 1 小时后（{time}）会自动结束，存进历史活动。": {
+    tw: "大家在球場各付各的，這次活動不用結算。活動結束 1 小時後（{time}）會自動結束，存進歷史活動。",
+    en: "Everyone pays the venue themselves, so there is nothing to settle. The event ends by itself 1 hour after it finishes ({time}) and moves to past events.",
+  },
+  现在结束活动: { tw: "現在結束活動", en: "End event now" },
+  "结束后活动存进历史活动，名单不能再改。确定结束吗？": {
+    tw: "結束後活動存進歷史活動，名單不能再改。確定結束嗎？",
+    en: "Once ended, the event moves to past events and its list can't be changed. End it now?",
+  },
 };

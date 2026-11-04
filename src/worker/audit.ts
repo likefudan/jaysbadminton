@@ -46,7 +46,8 @@ export type AuditAction =
   | "dunning_stop"
   | "dunning_resume"
   | "auto_match"
-  | "collected";
+  | "collected"
+  | "end";
 
 /** Who did it, as stored: the admin page's caller. */
 export const actorId = (actor: Pick<Actor, "memberId">): string => actor.memberId ?? OWNER;

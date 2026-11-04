@@ -47,6 +47,7 @@ import {
   memberNames,
   type EventRow,
 } from "../events";
+import { endNoFeeEvent } from "../noFee";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
 import { cleanRoundMin } from "../courtQueue";
@@ -186,11 +187,12 @@ adminEventRoutes.get("/events/defaults", async (c) => {
   ]);
   const offset = Number(s.last_deadline_offset_min ?? 1440);
   const { results } = await c.env.DB.prepare(
-    "SELECT name, address, queue_round_min AS queueRoundMin FROM locations ORDER BY last_used_at DESC LIMIT 10",
+    "SELECT name, address, queue_round_min AS queueRoundMin, no_fee FROM locations ORDER BY last_used_at DESC LIMIT 10",
   ).all<{
     name: string;
     address: string;
     queueRoundMin: number | null;
+    no_fee: number;
   }>();
   return c.json<EventDefaults>({
     startTime: s.last_start_time ?? "19:00",
@@ -200,7 +202,7 @@ adminEventRoutes.get("/events/defaults", async (c) => {
     deadlineDays: Math.floor(offset / 1440),
     deadlineHours: Math.floor((offset % 1440) / 60),
     deadlineOn: s.last_no_deadline !== "1",
-    locations: results,
+    locations: results.map(({ no_fee, ...v }) => ({ ...v, noFee: no_fee === 1 })),
     friendCap: await friendCap(c.env),
   });
 });
@@ -231,6 +233,7 @@ adminEventRoutes.post("/events", async (c) => {
     title: str(b.title),
     notes: str(b.notes),
     queueRoundMin: cleanRoundMin(b.queueRoundMin),
+    noFee: b.noFee === true,
     deadlineDays: num(b.deadlineDays),
     deadlineHours: num(b.deadlineHours),
     noDeadline: b.noDeadline === true,
@@ -508,11 +511,15 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
     if (deadline <= now()) status = "closed";
   }
   const queueRoundMin = b.queueRoundMin === undefined ? e.queue_round_min : cleanRoundMin(b.queueRoundMin);
+  // 无需收款 can change only before Finalize: after it there are bills.
+  const noFee = b.noFee === undefined ? e.no_fee === 1 : b.noFee === true;
+  if (noFee !== (e.no_fee === 1) && e.status !== "open" && e.status !== "closed")
+    throw badRequest("已经 Finalize 的活动不能改成无需收款");
   const ts = now();
   // Only over what was read: a close, Finalize or archive landing in between is never undone.
   const [res] = await c.env.DB.batch([
     c.env.DB.prepare(
-      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, notes = ?, queue_round_min = ?, deadline_at = ?, status = ?
+      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, notes = ?, queue_round_min = ?, no_fee = ?, deadline_at = ?, status = ?
        WHERE id = ? AND status = ? AND deadline_at = ?`,
     ).bind(
       date,
@@ -523,13 +530,14 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
       b.title === undefined ? e.title : cleanTitle(str(b.title)),
       b.notes === undefined ? e.notes : cleanNotes(str(b.notes)),
       queueRoundMin,
+      noFee ? 1 : 0,
       deadline,
       status,
       e.id,
       e.status,
       e.deadline_at,
     ),
-    saveVenue(c.env, location, address, queueRoundMin, ts),
+    saveVenue(c.env, location, address, queueRoundMin, noFee, ts),
   ]);
   if (!res?.meta.changes) throw badRequest("这个活动刚刚有了变化，请刷新后再改");
   const after = await getEvent(c.env, e.id);
@@ -581,6 +589,7 @@ function editChanges(a: EventRow, b: EventRow): string[] {
     ["备注", a.notes || "（无）", b.notes || "（无）"],
     ["标题", a.title || "（无）", b.title || "（无）"],
     ["排队系统", queueLabel(a), queueLabel(b)],
+    ["无需收款", a.no_fee ? "开" : "关", b.no_fee ? "开" : "关"],
   ];
   const out = fields.filter(([, x, y]) => x !== y).map(([k, x, y]) => `${k} ${x} → ${y}`);
   // An open event's deadline moves with the start (one without a deadline just follows the end).
@@ -1047,6 +1056,7 @@ function readInput(b: Record<string, unknown>): SettleInput {
 }
 
 function assertSettleable(e: EventRow) {
+  if (e.no_fee) throw badRequest("这个活动无需收款，不用结算");
   if (e.status === "open") throw badRequest("报名还没截止，不能结算");
   if (e.status === "settled") throw badRequest("这个活动已收齐归档，不能再修改");
   if (e.status === "cancelled") throw badRequest("这个活动已取消");
@@ -1102,6 +1112,14 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
   await checkCollected(c.env, e.id);
   // Each member's bill, after the response (only the first Finalize sends them).
   if (first && (await pushBills(c.env, e))) sendSoon(c);
+  return c.json({ ok: true });
+});
+
+/** 无需收款: 现在结束活动, straight to history with nothing to collect. */
+adminEventRoutes.post("/events/:id/end", async (c) => {
+  await closeExpired(c.env);
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  await endNoFeeEvent(c.env, e, actorId(c.get("actor")));
   return c.json({ ok: true });
 });
 

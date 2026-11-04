@@ -146,6 +146,7 @@ memberRoutes.get("/:token/events", async (c) => {
       friends: rows.filter((r) => r.friend_index > 0).length + mine.guestsOf(e.id).length,
       paidBy: mine.broughtOf(e.id)?.username ?? null,
       kcal: mine.kcalOf(e.id),
+      noFee: e.no_fee === 1,
     };
   });
 

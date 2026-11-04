@@ -58,8 +58,8 @@ describe("creating events", () => {
       deadlineHours: 6,
     });
     expect(data.locations).toEqual([
-      { name: "Wellness Gym", address, queueRoundMin: null },
-      { name: "Bay Center", address: "2 Bay St, Fremont, CA 94538", queueRoundMin: null },
+      { name: "Wellness Gym", address, queueRoundMin: null, noFee: false },
+      { name: "Bay Center", address: "2 Bay St, Fremont, CA 94538", queueRoundMin: null, noFee: false },
     ]);
   });
 
@@ -74,6 +74,7 @@ describe("creating events", () => {
       name: "Old Gym",
       address: "1 Old St, San Jose, CA 95131",
       queueRoundMin: null,
+      noFee: false,
     });
     expect(data.location).toBe(""); // it was the last one used, so it no longer pre-fills either
   });
@@ -738,6 +739,7 @@ describe("我的活动 (the member's events)", () => {
         friends: 1,
         paidBy: null,
         kcal: null,
+        noFee: false,
       },
     ]);
 
