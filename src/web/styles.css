@@ -3744,6 +3744,22 @@ p.center a {
   background: linear-gradient(135deg, #8fd0a2, #46a066);
   box-shadow: 0 4px 14px rgba(70, 160, 102, 0.4);
 }
+
+/* An extra site with muted purple icons (sites.json "icon": "purple"); deliberately greyer and redder than
+   staging's blue-violet so the two never look alike. */
+.logo.logo-purple {
+  color: #84598a;
+  background: #f2eaf3;
+}
+[data-mode="dark"] .logo.logo-purple {
+  color: #d3b6d6;
+  background: #35283a;
+}
+[data-style="aurora"] .logo.logo-purple {
+  color: #ffffff;
+  background: linear-gradient(135deg, #c4a5c8, #916a96);
+  box-shadow: 0 4px 14px rgba(145, 106, 150, 0.4);
+}
 .developer-tools {
   position: fixed;
   left: max(16px, env(safe-area-inset-left));
