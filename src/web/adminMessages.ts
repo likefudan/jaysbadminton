@@ -1128,24 +1128,16 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   确认清空: { tw: "確認清空", en: "Clear everything" },
   公共页面: { tw: "公共頁面", en: "Public pages" },
   网站标题: { tw: "網站標題", en: "Site title" },
+  请填写网站标题: { tw: "請填寫網站標題", en: "Please enter a site title" },
   已保存: { tw: "已儲存", en: "Saved" },
-  保存标题: { tw: "儲存標題", en: "Save title" },
+  名称: { tw: "名稱", en: "Names" },
+  "最多 {n} 个字。已添加的图标要删掉重新添加才会变。": {
+    tw: "最多 {n} 個字。已加好的圖示要刪掉重新加入才會變。",
+    en: "At most {n} characters. Icons already added keep the old name until removed and added again.",
+  },
   桌面图标名称: { tw: "桌面圖示名稱", en: "Home-screen icon name" },
   "桌面图标名称最多 {n} 个字": { tw: "桌面圖示名稱最多 {n} 個字", en: "Each icon name can be at most {n} characters" },
-  "添加到手机桌面后图标下面的名字。安卓添加时和添加后都不能改，苹果只能在添加时改一次。": {
-    tw: "加到手機桌面後圖示下面的名字。Android 加入時和加入後都不能改，iPhone 只能在加入時改一次。",
-    en: "The name under the icon when the site is added to a phone's home screen. Android never lets anyone rename it; iPhone only once, while adding.",
-  },
-  "每个最多 {n} 个字（约 6 个汉字），太长桌面上会显示不全。按访客选的语言显示；没填的语言用简体中文的名字，简体也没填就用网站标题。已经添加的图标要删掉重新添加才会变。":
-    {
-      tw: "每個最多 {n} 個字（約 6 個漢字），太長桌面上會顯示不全。依訪客選的語言顯示；沒填的語言用簡體中文的名字，簡體也沒填就用網站標題。已經加好的圖示要刪掉重新加入才會變。",
-      en: "At most {n} characters each (about 6 Chinese characters); longer names get cut off on the home screen. Visitors get the name in the language they picked; a language left empty uses the Simplified Chinese name, and with that empty too, the site title. Icons already added keep their old name until removed and added again.",
-    },
   展示排行榜: { tw: "展示排行榜", en: "Show leaderboard" },
-  "在首页显示出勤排行榜（只有名字和次数，没有金额）": {
-    tw: "在首頁顯示出勤排行榜（只有名字和次數，沒有金額）",
-    en: "Show the attendance leaderboard on the home page (names and counts only, no amounts)",
-  },
   入群设置: { tw: "入群設定", en: "Joining" },
   入群不需要审核: { tw: "入群不需要審核", en: "Join without approval" },
   "打开后，申请加入的人直接成为成员，不用在「待审核」里通过": {
@@ -1214,10 +1206,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "To prevent accidental changes, saving payment settings needs the owner password",
   },
   默认外观: { tw: "預設外觀", en: "Default look" },
-  "成员可以点右上角 ◐ 自己换。": {
-    tw: "成員可以點右上角 ◐ 自己換。",
-    en: "Members can change it themselves with ◐ at the top right.",
-  },
   "（你自己选了别的外观，所以这里换了你看不到变化。）": {
     tw: "（你自己選了別的外觀，所以這裡換了你看不到變化。）",
     en: "(You picked a different look for yourself, so you won't see changes made here.)",

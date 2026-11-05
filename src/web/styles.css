@@ -4860,3 +4860,67 @@ ul.audit li:first-child {
   font-size: 22px;
   font-weight: 700;
 }
+
+/* 外观和公共页面 / 名称 (Ke Li 2026-11-05): lists like the 设置 menu, a small heading above each */
+.set-head {
+  margin: 18px 6px 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.sub-title + .set-head {
+  margin-top: 0;
+}
+.set-list.bare .set-item + .set-item::before {
+  left: 18px;
+}
+.set-label.grow {
+  flex: 1;
+}
+label.set-row {
+  cursor: default;
+}
+.theme-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px 12px 18px;
+}
+.theme-line .theme-label {
+  flex: none;
+  min-width: 44px;
+  margin-right: 0;
+  font-size: 15.5px;
+  font-weight: 400;
+}
+.set-input,
+.set-value-input {
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.set-input {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 18px;
+  box-sizing: border-box;
+}
+.set-value-input {
+  flex: 1;
+  padding: 0;
+  text-align: right;
+}
+.set-input::placeholder,
+.set-value-input::placeholder {
+  color: var(--faint);
+}
+.set-foot {
+  margin: 6px 6px 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
