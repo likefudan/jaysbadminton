@@ -640,6 +640,8 @@ function AppNamesPage(props: { base: string; back: () => void }) {
 
 function AppNamesCard(props: { base: string; initial: AppNames; siteTitle: string }) {
   const [names, setNames] = useState(props.initial);
+  // What the site holds as far as this page knows: the last load or save.
+  const [stored, setStored] = useState(props.initial);
   const [saved, setSaved] = useState(false);
   const { busy, error, run, setError } = useAction();
   const simplified = names["zh-CN"].trim();
@@ -648,10 +650,12 @@ function AppNamesCard(props: { base: string; initial: AppNames; siteTitle: strin
     if (SITE_LANGS.some((l) => [...v[l]].length > APP_NAME_MAX))
       return setError(t("桌面图标名称最多 {n} 个字", { n: APP_NAME_MAX }));
     // Only what changed here, so a name another admin saved meanwhile stays.
-    const changed = Object.fromEntries(SITE_LANGS.filter((l) => v[l] !== props.initial[l]).map((l) => [l, v[l]]));
+    const changed = Object.fromEntries(SITE_LANGS.filter((l) => v[l] !== stored[l]).map((l) => [l, v[l]]));
     if (await run(() => api(`${props.base}/settings`, { appNames: changed }))) {
       setSaved(true);
-      setAppNames({ ...props.initial, ...changed });
+      const now = { ...stored, ...changed };
+      setStored(now);
+      setAppNames(now);
     }
   }
   return (
