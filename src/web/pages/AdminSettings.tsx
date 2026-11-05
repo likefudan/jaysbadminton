@@ -1,3 +1,4 @@
+import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { AI_EFFORTS, AI_USE_NAME, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
 import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
@@ -13,39 +14,146 @@ import {
 import type { LinkResponse, RevokeImpact } from "../../shared/types";
 import { STYLES, type ThemeId } from "../../shared/themes";
 import { api } from "../api";
-import { Card, Field, LinkCard, Load, useAction } from "../components";
+import { Card, Field, LinkCard, Load, SettingRow, useAction } from "../components";
 import { signOutGoogle } from "../GoogleAccount";
 import { revokeSummary } from "../organizers";
 import { type Loaded, useApi } from "../hooks";
 import { setAppNames, setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
-import { RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
+import { DunningCard, RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
 import { LANGS, currentLang, t, tk, tx, fmtInstant } from "../i18n";
 
-/** 设置: the admin page's settings tab, one card per setting. */
+const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames"] as const;
+type Sub = (typeof SUBS)[number];
+
+/**
+ * The sub-page named in ?sub= (Google sign-in comes back to 账号与安全 this way), taken off the
+ * address once read so 设置 opens on the menu next time.
+ */
+function initialSub(): Sub | null {
+  const params = new URLSearchParams(location.search);
+  const s = params.get("sub");
+  if (s === null) return null;
+  params.delete("sub");
+  const q = params.toString();
+  history.replaceState(history.state, "", `${location.pathname}${q ? `?${q}` : ""}${location.hash}`);
+  return SUBS.includes(s as Sub) ? (s as Sub) : null;
+}
+
+/**
+ * 设置 (Ke Li 2026-11-05, option B): one menu, each group on its own page, since these are rarely
+ * changed. The menu shows each group's current value; it reloads on the way back.
+ */
+function useSubPages(reload: () => void) {
+  const [sub, setSub] = useState<Sub | null>(initialSub);
+  const open = (s: Sub | null) => {
+    setSub(s);
+    if (s === null) reload();
+    window.scrollTo(0, 0);
+  };
+  return [sub, open] as const;
+}
+
+/** A second-level page under 设置: the way back and its name. */
+function SubPage(props: { title?: string; back: () => void; backLabel?: string; children: ComponentChildren }) {
+  return (
+    <>
+      <button type="button" class="back" onClick={props.back}>
+        {props.backLabel ?? t("‹ 设置")}
+      </button>
+      {props.title && <h2 class="sub-title">{props.title}</h2>}
+      {props.children}
+    </>
+  );
+}
+
+function SheetsRow(props: { readOnly?: boolean; open: () => void }) {
+  return (
+    <Card>
+      <button type="button" class="menu-row" onClick={props.open}>
+        <span>
+          <strong>{t("Google 表格同步")}</strong>
+          <small>{props.readOnly ? t("看看每天的备份是否正常") : t("每天把数据备份到你自己的 Google 表格")}</small>
+        </span>
+        <span class="chevron">›</span>
+      </button>
+    </Card>
+  );
+}
+
+/** The group settings both the Owner and admins change, by sub-page. */
+function GroupSubPage(props: { base: string; sub: "looks" | "join" | "appNames"; open: (s: Sub | null) => void }) {
+  const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
+  if (props.sub === "appNames")
+    return (
+      <SubPage back={() => props.open("looks")} backLabel={t("‹ 外观和公共页面")}>
+        <Load result={s}>{(v) => <AppNamesCard base={props.base} initial={v.appNames} siteTitle={v.siteTitle} />}</Load>
+      </SubPage>
+    );
+  if (props.sub === "looks")
+    return (
+      <SubPage title={t("外观和公共页面")} back={() => props.open(null)}>
+        <ThemeCard base={props.base} />
+        <Load result={s}>
+          {(v) => <PublicPageCard base={props.base} initial={v} openAppNames={() => props.open("appNames")} />}
+        </Load>
+      </SubPage>
+    );
+  return (
+    <SubPage title={t("入群和报名")} back={() => props.open(null)}>
+      <Load result={s}>
+        {(v) => (
+          <>
+            <JoinCard base={props.base} initial={v} />
+            <SignupCard base={props.base} initial={v} />
+          </>
+        )}
+      </Load>
+    </SubPage>
+  );
+}
+
+/** 高级设置's group cards after Telegram and reminders: export, Sheets, AI, calories, past events. */
+function AdvancedCards(props: { base: string; readOnlySheets?: boolean; openSheets: () => void }) {
+  const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
+  return (
+    <>
+      <RemindersCard base={props.base} />
+      <SheetsRow readOnly={props.readOnlySheets} open={props.openSheets} />
+      <ExportCard base={props.base} />
+      <Load result={s}>
+        {(v) => (
+          <>
+            <AiCard base={props.base} initial={v.ai} />
+            <ShortcutCard base={props.base} initial={v} />
+            <DaysCard base={props.base} initial={v} />
+          </>
+        )}
+      </Load>
+    </>
+  );
+}
+
+function joinValue(g: Loaded<GeneralSettings>) {
+  return g.state === "ok" ? (g.data.autoJoin ? t("入群不需要审核") : t("入群要审核")) : null;
+}
+function telegramValue(s: Loaded<TelegramStatus>) {
+  return s.state === "ok" ? (s.data.connected ? t("Telegram 已连接") : t("Telegram 未连接")) : null;
+}
+const venmoValue = (name: string | undefined) => (name ? `@${name}` : <span class="muted">{t("未填写")}</span>);
+
+/** 设置 for the Owner: the menu, 使用指南 and 退出登录; everything else one level down. */
 export function Settings(props: { base: string; viaGoogle: boolean }) {
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [again, setAgain] = useState("");
-  const [newAdmin, setNewAdmin] = useState("");
-  const [sub, setSub] = useState<"sheets" | "appNames" | null>(null);
-  const pw = useAction();
-  const link = useAction();
+  const [general, reloadGeneral] = useApi<GeneralSettings>(`${props.base}/settings`);
   // Shared by the Telegram card and 使用指南's checklist.
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
+  const [sub, open] = useSubPages(() => {
+    reloadGeneral();
+    reloadTelegram();
+  });
+  const home = () => open(null);
 
-  async function changePassword(e: Event) {
-    e.preventDefault();
-    const err = checkPassword(next) ?? (next !== again ? t("两次输入的新密码不一致") : null);
-    if (err) return pw.setError(err);
-    if (await pw.run(() => api(`${props.base}/settings/password`, { current, next }))) location.reload();
-  }
-  async function rotate() {
-    if (!confirm(t("重新生成后，当前管理链接立即失效。继续吗？"))) return;
-    const r = await link.run(() => api<LinkResponse>(`${props.base}/settings/rotate-admin`, {}));
-    if (r) setNewAdmin(r.link);
-  }
   async function logout() {
     if (props.viaGoogle) {
       await signOutGoogle().catch(() => location.assign("/login"));
@@ -55,89 +163,199 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
     location.reload();
   }
 
-  if (sub === "appNames") return <AppNamesPage base={props.base} back={() => setSub(null)} />;
-  if (sub === "sheets") {
+  if (sub === "looks" || sub === "join" || sub === "appNames")
+    return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
+  if (sub === "sheets")
     return (
-      <>
-        <button type="button" class="back" onClick={() => setSub(null)}>
-          {t("‹ 设置")}
-        </button>
+      <SubPage back={() => open("advanced")} backLabel={t("‹ 高级设置")}>
         <SheetsCard base={props.base} />
-      </>
+      </SubPage>
     );
-  }
+  if (sub === "pay")
+    return (
+      <SubPage title={t("收款设置")} back={home}>
+        <PaymentCard base={props.base} />
+        <DunningCard base={props.base} />
+      </SubPage>
+    );
+  if (sub === "advanced")
+    return (
+      <SubPage title={t("高级设置")} back={home}>
+        <TelegramCard base={props.base} status={telegram} reload={reloadTelegram} />
+        <AdvancedCards base={props.base} openSheets={() => open("sheets")} />
+      </SubPage>
+    );
+  if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
 
+  const g = general.state === "ok" ? general.data : null;
   return (
     <>
-      <ThemeCard base={props.base} />
-      <PaymentCard base={props.base} />
-      <FriendCap base={props.base} openAppNames={() => setSub("appNames")} />
-      <TelegramCard base={props.base} status={telegram} reload={reloadTelegram} />
-      <RemindersCard base={props.base} />
-      <ExportCard base={props.base} />
-      <Card>
-        <button type="button" class="menu-row" onClick={() => setSub("sheets")}>
-          <span>
-            <strong>{t("Google 表格同步")}</strong>
-            <small>{t("每天把数据备份到你自己的 Google 表格")}</small>
-          </span>
-          <span class="chevron">›</span>
-        </button>
-      </Card>
-      <GoogleAdminCard base={props.base} viaGoogle={props.viaGoogle} />
-      <Card title={t("修改群主密码")}>
-        <form onSubmit={changePassword}>
-          <Field
-            label={t("当前密码")}
-            type="password"
-            value={current}
-            onInput={setCurrent}
-            autocomplete="current-password"
-          />
-          <Field label={t("新密码")} type="password" value={next} onInput={setNext} autocomplete="new-password" />
-          <Field
-            label={t("再输一次新密码")}
-            type="password"
-            value={again}
-            onInput={setAgain}
-            autocomplete="new-password"
-          />
-          {pw.error && <p class="error">{pw.error}</p>}
-          <button type="submit" class="button block" disabled={pw.busy}>
-            {t("保存新密码")}
-          </button>
-          <p class="muted small">
-            {t("修改后所有设备都会退出登录。忘记密码时，改 GitHub 里的 ADMIN_PASSWORD 并重新部署即可重置。")}
-          </p>
-        </form>
-      </Card>
-      <Card title={t("管理链接")}>
-        {newAdmin ? (
-          <>
-            <LinkCard title={t("新的管理链接")} link={newAdmin} note={t("旧链接已失效，请收藏新链接。")} />
-            <a class="button block" href={new URL(newAdmin).pathname}>
-              {t("打开新链接")}
-            </a>
-          </>
-        ) : (
-          <>
-            <p class="muted">{t("怀疑管理链接泄露时，重新生成一个。")}</p>
-            {link.error && <p class="error">{link.error}</p>}
-            <button type="button" class="button secondary block" disabled={link.busy} onClick={rotate}>
-              {t("重新生成管理链接")}
-            </button>
-          </>
-        )}
-      </Card>
-      <BackupKey base={props.base} />
+      <section class="card set-list">
+        <SettingRow
+          icon={<LooksIcon />}
+          label={t("外观和公共页面")}
+          value={g?.siteTitle}
+          onClick={() => open("looks")}
+        />
+        <SettingRow
+          icon={<JoinIcon />}
+          label={t("入群和报名")}
+          value={joinValue(general)}
+          onClick={() => open("join")}
+        />
+        <SettingRow
+          icon={<PayIcon />}
+          label={t("收款设置")}
+          value={g && venmoValue(g.venmoUsername)}
+          onClick={() => open("pay")}
+        />
+        <SettingRow
+          icon={<GearIcon />}
+          label={t("高级设置")}
+          value={telegramValue(telegram)}
+          onClick={() => open("advanced")}
+        />
+        <SettingRow icon={<LockIcon />} label={t("账号与安全")} onClick={() => open("security")} />
+      </section>
+      <AdminGuide base={props.base} telegram={telegram} />
       <button type="button" class="button secondary block" onClick={logout}>
         {t("退出登录")}
       </button>
-      <AdminGuide base={props.base} telegram={telegram} />
-      <ResetAll base={props.base} />
     </>
   );
 }
+
+/**
+ * 账号与安全 (Owner only). After 重新生成管理链接 the old link is dead, so the way back opens 设置 on
+ * the new one instead of reloading with the old.
+ */
+function SecurityPage(props: { base: string; viaGoogle: boolean; back: () => void }) {
+  const [newPath, setNewPath] = useState("");
+  return (
+    <SubPage title={t("账号与安全")} back={newPath ? () => location.assign(`${newPath}?tab=settings`) : props.back}>
+      <GoogleAdminCard base={props.base} viaGoogle={props.viaGoogle} />
+      <PasswordCard base={props.base} />
+      <AdminLinkCard base={props.base} onRotated={setNewPath} />
+      <BackupKey base={props.base} />
+      <ResetAll base={props.base} />
+    </SubPage>
+  );
+}
+
+function PasswordCard(props: { base: string }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [again, setAgain] = useState("");
+  const pw = useAction();
+  async function changePassword(e: Event) {
+    e.preventDefault();
+    const err = checkPassword(next) ?? (next !== again ? t("两次输入的新密码不一致") : null);
+    if (err) return pw.setError(err);
+    if (await pw.run(() => api(`${props.base}/settings/password`, { current, next }))) location.reload();
+  }
+  return (
+    <Card title={t("修改群主密码")}>
+      <form onSubmit={changePassword}>
+        <Field
+          label={t("当前密码")}
+          type="password"
+          value={current}
+          onInput={setCurrent}
+          autocomplete="current-password"
+        />
+        <Field label={t("新密码")} type="password" value={next} onInput={setNext} autocomplete="new-password" />
+        <Field
+          label={t("再输一次新密码")}
+          type="password"
+          value={again}
+          onInput={setAgain}
+          autocomplete="new-password"
+        />
+        {pw.error && <p class="error">{pw.error}</p>}
+        <button type="submit" class="button block" disabled={pw.busy}>
+          {t("保存新密码")}
+        </button>
+        <p class="muted small">
+          {t("修改后所有设备都会退出登录。忘记密码时，改 GitHub 里的 ADMIN_PASSWORD 并重新部署即可重置。")}
+        </p>
+      </form>
+    </Card>
+  );
+}
+
+function AdminLinkCard(props: { base: string; onRotated: (path: string) => void }) {
+  const [newAdmin, setNewAdmin] = useState("");
+  const link = useAction();
+  async function rotate() {
+    if (!confirm(t("重新生成后，当前管理链接立即失效。继续吗？"))) return;
+    const r = await link.run(() => api<LinkResponse>(`${props.base}/settings/rotate-admin`, {}));
+    if (r) {
+      setNewAdmin(r.link);
+      props.onRotated(new URL(r.link).pathname);
+    }
+  }
+  return (
+    <Card title={t("管理链接")}>
+      {newAdmin ? (
+        <>
+          <LinkCard title={t("新的管理链接")} link={newAdmin} note={t("旧链接已失效，请收藏新链接。")} />
+          <a class="button block" href={new URL(newAdmin).pathname}>
+            {t("打开新链接")}
+          </a>
+        </>
+      ) : (
+        <>
+          <p class="muted">{t("怀疑管理链接泄露时，重新生成一个。")}</p>
+          {link.error && <p class="error">{link.error}</p>}
+          <button type="button" class="button secondary block" disabled={link.busy} onClick={rotate}>
+            {t("重新生成管理链接")}
+          </button>
+        </>
+      )}
+    </Card>
+  );
+}
+
+const icon = (d: ComponentChildren) => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    {d}
+  </svg>
+);
+const LooksIcon = () =>
+  icon(
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" />
+    </>,
+  );
+const JoinIcon = () =>
+  icon(
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M18 8v6M15 11h6" />
+    </>,
+  );
+const PayIcon = () =>
+  icon(
+    <>
+      <rect x="3" y="6" width="18" height="13" rx="2" />
+      <path d="M3 10h18M7 15h4" />
+    </>,
+  );
+const GearIcon = () =>
+  icon(
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
+    </>,
+  );
+const LockIcon = () =>
+  icon(
+    <>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </>,
+  );
 
 /**
  * 设置 for an organizer (design §10.2): their own payment settings with the Venmo forwarding steps,
@@ -172,27 +390,47 @@ export function OrganizerSettings(props: { base: string }) {
 }
 
 /**
- * 设置 for an admin (admin-role.zh.md): their own payment settings, forwarding and Telegram as an
- * organizer has them, then the group's settings, export and the Sheets status. The password, admin
- * link, backup key, the Owner's Google sign-in and payment settings, and 清空数据 stay the Owner's.
+ * 设置 for an admin (admin-role.zh.md): the setup checklist, then the same menu as the Owner's without
+ * 账号与安全. 收款设置 holds their own payment settings and the Venmo forwarding; 高级设置 their own
+ * Telegram, the group's reminders, export and the Sheets status. The password, admin link, backup
+ * key, the Owner's Google sign-in and payment settings, and 清空数据 stay the Owner's.
  */
 export function AdminRoleSettings(props: { base: string }) {
   const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
   const p = profile.state === "ok" ? profile.data : null;
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
-  const [sub, setSub] = useState<"sheets" | "appNames" | null>(null);
+  const [general, reloadGeneral] = useApi<GeneralSettings>(`${props.base}/settings`);
+  const [sub, open] = useSubPages(() => {
+    reloadGeneral();
+    reloadTelegram();
+  });
+  const home = () => open(null);
 
-  if (sub === "appNames") return <AppNamesPage base={props.base} back={() => setSub(null)} />;
-  if (sub === "sheets") {
+  if (sub === "looks" || sub === "join" || sub === "appNames")
+    return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
+  if (sub === "sheets")
     return (
-      <>
-        <button type="button" class="back" onClick={() => setSub(null)}>
-          {t("‹ 设置")}
-        </button>
+      <SubPage back={() => open("advanced")} backLabel={t("‹ 高级设置")}>
         <SheetsCard base={props.base} readOnly />
-      </>
+      </SubPage>
     );
-  }
+  if (sub === "pay")
+    return (
+      <SubPage title={t("收款设置")} back={home}>
+        <MyPaymentCard base={props.base} profile={profile} reload={reload} />
+        <ForwardingCard profile={p} />
+        <DunningCard base={props.base} />
+      </SubPage>
+    );
+  if (sub === "advanced")
+    return (
+      <SubPage title={t("高级设置")} back={home}>
+        <TelegramCard base={props.base} organizer admin status={telegram} reload={reloadTelegram} />
+        <AdvancedCards base={props.base} readOnlySheets openSheets={() => open("sheets")} />
+      </SubPage>
+    );
+
+  const g = general.state === "ok" ? general.data : null;
   return (
     <>
       <OrganizerGuide
@@ -201,22 +439,32 @@ export function AdminRoleSettings(props: { base: string }) {
         forwarding={done(profile, (d) => !!d.lastVenmoEmailAt)}
         telegram={done(telegram, (d) => (d.botReady ? d.connected : null))}
       />
-      <MyPaymentCard base={props.base} profile={profile} reload={reload} />
-      <ForwardingCard profile={p} />
-      <TelegramCard base={props.base} organizer admin status={telegram} reload={reloadTelegram} />
-      <ThemeCard base={props.base} />
-      <FriendCap base={props.base} openAppNames={() => setSub("appNames")} />
-      <RemindersCard base={props.base} />
-      <ExportCard base={props.base} />
-      <Card>
-        <button type="button" class="menu-row" onClick={() => setSub("sheets")}>
-          <span>
-            <strong>{t("Google 表格同步")}</strong>
-            <small>{t("看看每天的备份是否正常")}</small>
-          </span>
-          <span class="chevron">›</span>
-        </button>
-      </Card>
+      <section class="card set-list">
+        <SettingRow
+          icon={<PayIcon />}
+          label={t("收款设置")}
+          value={p && venmoValue(p.venmoUsername ?? undefined)}
+          onClick={() => open("pay")}
+        />
+        <SettingRow
+          icon={<LooksIcon />}
+          label={t("外观和公共页面")}
+          value={g?.siteTitle}
+          onClick={() => open("looks")}
+        />
+        <SettingRow
+          icon={<JoinIcon />}
+          label={t("入群和报名")}
+          value={joinValue(general)}
+          onClick={() => open("join")}
+        />
+        <SettingRow
+          icon={<GearIcon />}
+          label={t("高级设置")}
+          value={telegramValue(telegram)}
+          onClick={() => open("advanced")}
+        />
+      </section>
       <RetireCard base={props.base} title={tk("管理员")} />
       <button
         type="button"
@@ -541,26 +789,6 @@ interface GeneralSettings {
   zelleAccount: string;
 }
 
-function FriendCap(props: { base: string; openAppNames: () => void }) {
-  const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
-  return (
-    <Load result={s}>{(v) => <GeneralForm base={props.base} initial={v} openAppNames={props.openAppNames} />}</Load>
-  );
-}
-
-function GeneralForm(props: { base: string; initial: GeneralSettings; openAppNames: () => void }) {
-  return (
-    <>
-      <PublicPageCard base={props.base} initial={props.initial} openAppNames={props.openAppNames} />
-      <JoinCard base={props.base} initial={props.initial} />
-      <SignupCard base={props.base} initial={props.initial} />
-      <DaysCard base={props.base} initial={props.initial} />
-      <ShortcutCard base={props.base} initial={props.initial} />
-      <AiCard base={props.base} initial={props.initial.ai} />
-    </>
-  );
-}
-
 /** 公共页面: what anyone with the site address sees. */
 function PublicPageCard(props: { base: string; initial: GeneralSettings; openAppNames: () => void }) {
   const [title, setTitle] = useState(props.initial.siteTitle);
@@ -621,23 +849,11 @@ function PublicPageCard(props: { base: string; initial: GeneralSettings; openApp
 }
 
 /**
- * 桌面图标名称 (Ke Li 2026-11-04), its own page under 设置: the name under the home-screen icon in each
- * language. Android won't let anyone rename it and iPhone only while adding, so the Owner or an admin
- * picks short ones here. The visitor's language picks the name; one not set uses Simplified's, then
- * the site title.
+ * 桌面图标名称 (Ke Li 2026-11-04), its own page under 外观和公共页面: the name under the home-screen
+ * icon in each language. Android won't let anyone rename it and iPhone only while adding, so the Owner
+ * or an admin picks short ones here. The visitor's language picks the name; one not set uses
+ * Simplified's, then the site title.
  */
-function AppNamesPage(props: { base: string; back: () => void }) {
-  const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
-  return (
-    <>
-      <button type="button" class="back" onClick={props.back}>
-        {t("‹ 设置")}
-      </button>
-      <Load result={s}>{(v) => <AppNamesCard base={props.base} initial={v.appNames} siteTitle={v.siteTitle} />}</Load>
-    </>
-  );
-}
-
 function AppNamesCard(props: { base: string; initial: AppNames; siteTitle: string }) {
   const [names, setNames] = useState(props.initial);
   // What the site holds as far as this page knows: the last load or save.
@@ -975,7 +1191,7 @@ function PaymentCard(props: { base: string }) {
           );
         }
         return (
-          <Card title={t("收款设置")}>
+          <Card title={t("收款账户")}>
             <dl class="kv">
               <dt>Venmo</dt>
               <dd>@{v.venmoUsername}</dd>
@@ -985,7 +1201,7 @@ function PaymentCard(props: { base: string }) {
               <dd>{v.zelleAccount || t("（未填）")}</dd>
             </dl>
             <button type="button" class="link-button" onClick={() => setEditing(true)}>
-              {t("🔒 修改收款设置（需要群主密码）")}
+              {t("🔒 修改收款账户（需要群主密码）")}
             </button>
           </Card>
         );
@@ -1013,7 +1229,7 @@ function PaymentForm(props: {
     if (await run(() => api(`${props.base}/settings/payment`, body))) props.onDone();
   }
   return (
-    <Card title={t("收款设置")}>
+    <Card title={t("收款账户")}>
       <form onSubmit={save}>
         {props.first && <p class="muted small">{t("成员付款时用的账号，一般只需要设置一次。")}</p>}
         <Field label={t("你的 Venmo 用户名")} value={venmo} onInput={setVenmo} hint={t("不用加 @，例如 KeLi8916")} />
@@ -1100,7 +1316,7 @@ function GoogleAdminCard(props: { base: string; viaGoogle: boolean }) {
   const [res, reload] = useApi<State>(`${props.base}/settings/google`);
   const { busy, error, run } = useAction();
   const signIn = () =>
-    location.assign(`/api/auth/google?next=${encodeURIComponent(`${location.pathname}?tab=settings`)}`);
+    location.assign(`/api/auth/google?next=${encodeURIComponent(`${location.pathname}?tab=settings&sub=security`)}`);
   async function bind() {
     if (await run(() => api(`${props.base}/settings/google/bind`, {}))) reload();
   }

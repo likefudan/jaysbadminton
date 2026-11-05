@@ -4853,3 +4853,10 @@ ul.audit li:first-child {
 .app-names p {
   margin-bottom: 14px;
 }
+
+/* 设置's second-level pages: the group's name under ‹ 设置. */
+.sub-title {
+  margin: 2px 2px 14px;
+  font-size: 22px;
+  font-weight: 700;
+}

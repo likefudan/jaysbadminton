@@ -183,13 +183,12 @@ export function RemindersCard(props: { base: string }) {
 function RemindersForm(props: { base: string; initial: ReminderSettings }) {
   const [enabled, setEnabled] = useState(props.initial.reminderEnabled);
   const [hours, setHours] = useState(String(props.initial.reminderHours));
-  const [dunning, setDunning] = useState(props.initial.dunningHour);
   const [digest, setDigest] = useState(props.initial.weeklyDigest);
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useAction();
 
   async function save() {
-    const body = { reminderEnabled: enabled, reminderHours: Number(hours), dunningHour: dunning, weeklyDigest: digest };
+    const body = { reminderEnabled: enabled, reminderHours: Number(hours), weeklyDigest: digest };
     if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
   }
 
@@ -217,23 +216,6 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
           }}
         />
       )}
-      <label class="field">
-        <span>{t("账单提醒时间（太平洋时间）")}</span>
-        <select
-          value={dunning}
-          onChange={(e) => {
-            setDunning(Number((e.target as HTMLSelectElement).value));
-            setSaved(false);
-          }}
-        >
-          {Array.from({ length: 24 }, (_, h) => (
-            <option key={h} value={h}>
-              {h}:00
-            </option>
-          ))}
-        </select>
-        <small class="muted">{t("Finalize 24 小时后每天这时发，直到收齐。")}</small>
-      </label>
       <label class="check">
         <input
           type="checkbox"
@@ -245,10 +227,46 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
         />
         {t("每周一发送健康简报")}
       </label>
+      {digest && <p class="muted small">{t("在收款设置的账单提醒时间发送")}</p>}
       {error && <p class="error">{error}</p>}
       <button type="button" class="button secondary block" disabled={busy} onClick={save}>
         {saved ? t("已保存") : t("保存")}
       </button>
+    </Card>
+  );
+}
+
+/** 账单提醒时间 (in 收款设置): the hour bill reminders go out, which the Monday digest also uses. */
+export function DunningCard(props: { base: string }) {
+  const [s] = useApi<ReminderSettings>(`${props.base}/settings`);
+  return <Load result={s}>{(v) => <DunningForm base={props.base} initial={v.dunningHour} />}</Load>;
+}
+
+function DunningForm(props: { base: string; initial: number }) {
+  const [hour, setHour] = useState(props.initial);
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  async function choose(h: number) {
+    const before = hour;
+    setHour(h);
+    setSaved(false);
+    if (await run(() => api(`${props.base}/settings`, { dunningHour: h }))) setSaved(true);
+    else setHour(before);
+  }
+  return (
+    <Card title={t("账单提醒")}>
+      <label class="field">
+        <span>{t("账单提醒时间（太平洋时间）")}</span>
+        <select value={hour} disabled={busy} onChange={(e) => choose(Number((e.target as HTMLSelectElement).value))}>
+          {Array.from({ length: 24 }, (_, h) => (
+            <option key={h} value={h}>
+              {h}:00
+            </option>
+          ))}
+        </select>
+        <small class="muted">{saved ? t("已保存") : t("Finalize 24 小时后每天这时发，直到收齐。")}</small>
+      </label>
+      {error && <p class="error">{error}</p>}
     </Card>
   );
 }
