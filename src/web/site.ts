@@ -1,11 +1,14 @@
 import { useEffect, useState } from "preact/hooks";
 import { DEFAULT_THEME, isTheme, normalizeTheme, themeById, type ThemeId } from "../shared/themes";
+import { type AppNames, appNameFor } from "../shared/rules";
 import { api } from "./api";
+import { chosenLang, listeners as langListeners } from "./lang";
 
 // The site title and default appearance are admin settings, fetched once per page load and shared
 // by every page. Each visitor may also pick their own appearance and light/dark mode; that choice
 // lives only in this browser. index.html applies the cached values before anything renders.
 const TITLE_KEY = "site-title";
+const APP_NAME_KEY = "app-name";
 const SITE_THEME_KEY = "site-theme";
 const MY_THEME_KEY = "my-theme";
 const MY_MODE_KEY = "my-mode";
@@ -53,6 +56,7 @@ function load() {
   if (!loading)
     loading = api<{
       title: string;
+      appNames?: AppNames;
       theme: string;
       staging?: boolean;
       icon?: string | null;
@@ -61,6 +65,7 @@ function load() {
     }>("/api/public/site")
       .then((r) => {
         setSiteTitle(r.title);
+        setAppNames(r.appNames ?? null);
         setSiteTheme(r.theme);
         staging = !!r.staging;
         if (staging)
@@ -128,9 +133,39 @@ export function useSponsor(): Sponsor | null {
   return s;
 }
 
+/**
+ * 桌面图标名称, in the language the visitor reads the site in. iPhone's 添加到主屏幕 offers the
+ * apple-mobile-web-app-title tag's name (renamable only then); Android labels the icon with the
+ * manifest's short_name, which the Worker picks by ?lang=. Remembered, so it is right before the site answers.
+ */
+let appNames: AppNames | null = null;
+try {
+  appNames = JSON.parse(read(APP_NAME_KEY, "null")) as AppNames | null;
+} catch {
+  // An old or broken value: the site's answer replaces it.
+}
+
+function applyAppName() {
+  if (typeof document === "undefined") return;
+  const lang = chosenLang();
+  const name = appNameFor(appNames, lang, current);
+  document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", name);
+  document.querySelector('link[rel="manifest"]')?.setAttribute("href", `/manifest.webmanifest?lang=${lang}`);
+}
+
+/** The names as set ("" for a language not set), as the site answers them. */
+export function setAppNames(names: AppNames | null) {
+  appNames = names;
+  write(APP_NAME_KEY, names ? JSON.stringify(names) : "");
+  applyAppName();
+}
+applyAppName();
+langListeners.add(applyAppName);
+
 export function setSiteTitle(title: string) {
   current = title;
   write(TITLE_KEY, title);
+  applyAppName();
   listeners.forEach((l) => l(title));
 }
 

@@ -5,7 +5,7 @@ import worker from "../src/worker/index";
 import { siteTitle } from "../src/worker/site";
 import { botToken, saveBotToken, telegramStatus } from "../src/worker/telegram";
 import type { Env } from "../src/worker/env";
-import { ORIGIN } from "./helpers";
+import { ORIGIN, setUpAdmin } from "./helpers";
 
 /** An extra site from sites.json: its own name, and no bot token in the GitHub secrets. */
 const site = { ...env, SITE_ID: "sbbc", SITE_NAME: "SBBC 羽毛球", TELEGRAM_BOT_TOKEN: undefined };
@@ -27,7 +27,43 @@ describe("each site names itself", () => {
     const res = await worker.fetch(new Request(`${ORIGIN}/manifest.webmanifest`), { ...site, ASSETS: assets }, ctx);
     await waitOnExecutionContext(ctx);
     expect(res.headers.get("Content-Type")).toBe("application/manifest+json");
-    expect(await res.json()).toEqual({ name: "SBBC 羽毛球", short_name: "羽毛球", icons: [] });
+    // Android labels the icon with short_name and won't let anyone rename it.
+    expect(await res.json()).toEqual({ name: "SBBC 羽毛球", short_name: "SBBC 羽毛球", icons: [] });
+  });
+
+  it("labels the icon with the 桌面图标名称 in the visitor's language", async () => {
+    const ctx = await setUpAdmin();
+    const call = (body?: object) => ctx.admin.call(`${ctx.base}/settings`, body);
+    expect((await call()).data.appNames).toEqual({ "zh-CN": "", "zh-TW": "", en: "" });
+    expect((await call({ appNames: { "zh-CN": "南湾", en: "South Bay Badminton" } })).status).toBe(400);
+    expect((await call({ appNames: { "zh-CN": " 南湾羽球 ", "zh-TW": "", en: "SBBC" } })).status).toBe(200);
+    expect((await call()).data.appNames).toEqual({ "zh-CN": "南湾羽球", "zh-TW": "", en: "SBBC" });
+    const manifest = async (query = "") => {
+      const assets = { fetch: async () => Response.json({ short_name: "羽毛球" }) } as unknown as Fetcher;
+      const c = createExecutionContext();
+      const req = new Request(`${ORIGIN}/manifest.webmanifest${query}`);
+      const res = await worker.fetch(req, { ...site, ASSETS: assets }, c);
+      await waitOnExecutionContext(c);
+      return (await res.json()) as { name: string; short_name: string };
+    };
+    expect(await manifest()).toEqual({ name: "SBBC 羽毛球", short_name: "南湾羽球" });
+    expect((await manifest("?lang=en")).short_name).toBe("SBBC");
+    // 繁體 not set: Simplified's name.
+    expect((await manifest("?lang=zh-TW")).short_name).toBe("南湾羽球");
+    expect((await manifest("?lang=xx")).short_name).toBe("南湾羽球");
+    // iPhone reads them from the page.
+    const pub = await worker.fetch(new Request(`${ORIGIN}/api/public/site`), site, createExecutionContext());
+    expect(await pub.json()).toMatchObject({
+      title: "SBBC 羽毛球",
+      appNames: { "zh-CN": "南湾羽球", "zh-TW": "", en: "SBBC" },
+    });
+    // A language left out keeps its name.
+    expect((await call({ appNames: { en: "South Bay" } })).status).toBe(200);
+    expect((await call()).data.appNames).toEqual({ "zh-CN": "南湾羽球", "zh-TW": "", en: "South Bay" });
+    expect((await call({ appNames: "SBBC" })).status).toBe(400);
+    // All cleared, the icon carries the site title again.
+    expect((await call({ appNames: { "zh-CN": "", en: "" } })).status).toBe(200);
+    expect((await manifest("?lang=en")).short_name).toBe("SBBC 羽毛球");
   });
 });
 

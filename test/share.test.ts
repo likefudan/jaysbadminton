@@ -8,7 +8,8 @@ import { ORIGIN, createTestEvent, setUpAdmin } from "./helpers";
 const get = (path: string) => exports.default.fetch(`${ORIGIN}${path}`);
 const SHELL = `<!doctype html><html><head><title>Jay's 羽毛球</title>
 <meta name="description" content="x" /><meta property="og:title" content="x" />
-<meta property="og:description" content="x" /><meta property="og:image" content="x" /></head><body></body></html>`;
+<meta property="og:description" content="x" /><meta property="og:image" content="x" />
+<meta name="apple-mobile-web-app-title" content="羽毛球" /></head><body></body></html>`;
 
 describe("link previews", () => {
   it("describes an event by title, date, time, venue and headcount — never names", async () => {
@@ -40,6 +41,14 @@ describe("link previews", () => {
     expect(html).toContain('<meta name="description" content="19:00 · 场馆" />');
     expect(html).toContain('<meta property="og:image" content="https://example.com/og-image.jpg" />');
     expect(html).toContain('<meta property="og:url" content="https://example.com/e/1006" />');
+    expect(html).toContain('<meta name="apple-mobile-web-app-title" content="羽毛球" />');
+  });
+
+  it("names the iPhone home-screen icon after the site, not the page", async () => {
+    const meta = { title: "周三 · 南湾羽毛球群", description: "d", url: "u" };
+    const shell = new Response(SHELL, { headers: { "Content-Type": "text/html" } });
+    const html = await withShareMeta(shell, meta, "https://example.com", false, "南湾羽毛球群").text();
+    expect(html).toContain('<meta name="apple-mobile-web-app-title" content="南湾羽毛球群" />');
   });
 });
 

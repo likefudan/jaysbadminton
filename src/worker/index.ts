@@ -19,7 +19,8 @@ import { remindExpiredPayees } from "./appointments";
 import { emailProblemAlert, pruneEmailLog, recordCronError } from "./health";
 import { runScheduled } from "./notify";
 import { eventMeta, homeMeta, sharePage } from "./share";
-import { isStaging, siteTitle } from "./site";
+import { appNames, isStaging } from "./site";
+import { appNameFor, isSiteLang } from "../shared/rules";
 import { SECURITY_HEADERS } from "../shared/security";
 import { checkExportKey } from "./sheets";
 import { handleUpdate, upgradeCommands, upgradeWebhookSecret, webhookSecret } from "./telegram";
@@ -138,7 +139,13 @@ app.get("/manifest.webmanifest", async (c) => {
   const res = await c.env.ASSETS.fetch(new Request(new URL("/manifest.webmanifest", c.req.url)));
   if (!res.ok) return res;
   const manifest = await res.json<Record<string, unknown>>();
-  manifest.name = await siteTitle(c.env);
+  const { names, title } = await appNames(c.env);
+  manifest.name = title;
+  // The label under the icon, which Android won't let anyone rename: each site's own 桌面图标名称, in
+  // the language the visitor reads the site in (the page asks with ?lang=).
+  const lang = c.req.query("lang");
+  manifest.short_name = appNameFor(names, isSiteLang(lang) ? lang : "zh-CN", title);
+  if (isSiteLang(lang)) manifest.lang = lang;
   return c.body(JSON.stringify(manifest), 200, { "Content-Type": "application/manifest+json" });
 });
 
