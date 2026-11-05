@@ -270,3 +270,65 @@ function DunningForm(props: { base: string; initial: number }) {
     </Card>
   );
 }
+
+/**
+ * 结算期限 (Ke Li 2026-11-05, 设置 → 收款设置): how long after an event ends its fees must be
+ * finalized. Past it the event is archived with nothing billed; 0 (the switch off) never does.
+ */
+export function SettleDeadlineCard(props: { base: string }) {
+  const [s] = useApi<{ settleDeadlineHours: number }>(`${props.base}/settings`);
+  return <Load result={s}>{(v) => <SettleDeadlineForm base={props.base} initial={v.settleDeadlineHours} />}</Load>;
+}
+
+function SettleDeadlineForm(props: { base: string; initial: number }) {
+  const [on, setOn] = useState(props.initial > 0);
+  const [hours, setHours] = useState(String(props.initial || 48));
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  async function save(next: boolean, h: string) {
+    setSaved(false);
+    return run(() => api(`${props.base}/settings`, { settleDeadlineHours: next ? Number(h) : 0 })).then((ok) => {
+      if (ok) setSaved(true);
+      return !!ok;
+    });
+  }
+  return (
+    <Card title={t("结算期限")}>
+      <p class="muted small">
+        {t("活动结束后，每半小时提醒负责人填写费用并 Finalize。")}
+        {on && t("超过期限还没有 Finalize，活动会自动归档：不出账单，不收费，以后也不能再结算。")}
+      </p>
+      <label class="check">
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={busy}
+          onChange={async (e) => {
+            const next = (e.target as HTMLInputElement).checked;
+            setOn(next);
+            if (!(await save(next, hours))) setOn(!next);
+          }}
+        />
+        {t("超过期限自动归档")}
+      </label>
+      {on && (
+        <>
+          <Field
+            label={t("活动结束后几小时内必须结算")}
+            type="number"
+            value={hours}
+            onInput={(v) => {
+              setHours(v);
+              setSaved(false);
+            }}
+          />
+          <button type="button" class="button secondary block" disabled={busy} onClick={() => save(true, hours)}>
+            {saved ? t("已保存") : t("保存")}
+          </button>
+        </>
+      )}
+      {!on && saved && <p class="muted small">{t("已保存")}</p>}
+      {error && <p class="error">{error}</p>}
+    </Card>
+  );
+}

@@ -390,6 +390,8 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   管理页: { tw: "管理頁", en: "Admin" },
   "组织：{name}": { tw: "組織：{name}", en: "Organizer: {name}" },
   每人自付场地费: { tw: "每人自付場地費", en: "Everyone pays the venue themselves" },
+  "未结算，不收费": { tw: "未結算，不收費", en: "Not settled, no charge" },
+  "已结束（未结算）": { tw: "已結束（未結算）", en: "Ended (not settled)" },
   活动后由组织者结算费用: { tw: "活動後由組織者結算費用", en: "The organizer splits the fees after the event" },
   "场地：{courts} 号": { tw: "場地：{courts} 號", en: "Courts: {courts}" },
   "绑定 Google 账号": { tw: "綁定 Google 帳號", en: "Link Google account" },

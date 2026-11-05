@@ -21,7 +21,7 @@ import { type Loaded, useApi } from "../hooks";
 import { setAppNames, setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
-import { DunningCard, RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
+import { DunningCard, SettleDeadlineCard, RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
 import { LANGS, currentLang, t, tk, tx, fmtInstant } from "../i18n";
 
 const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames"] as const;
@@ -175,6 +175,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
     return (
       <SubPage title={t("收款设置")} back={home}>
         <PaymentCard base={props.base} />
+        <SettleDeadlineCard base={props.base} />
         <DunningCard base={props.base} />
       </SubPage>
     );
@@ -419,6 +420,7 @@ export function AdminRoleSettings(props: { base: string }) {
       <SubPage title={t("收款设置")} back={home}>
         <MyPaymentCard base={props.base} profile={profile} reload={reload} />
         <ForwardingCard profile={p} />
+        <SettleDeadlineCard base={props.base} />
         <DunningCard base={props.base} />
       </SubPage>
     );

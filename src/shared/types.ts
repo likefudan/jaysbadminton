@@ -162,6 +162,8 @@ export interface EventSummary {
   queueRoundMin: number | null; // 球场排队: minutes per round, null when off
   /** 无需收款: everyone pays the venue themselves; no fees, bills or payments. */
   noFee: boolean;
+  /** 结算期限 passed without a Finalize: archived with nothing billed (已结束（未结算）). */
+  unsettled: boolean;
   title: string; // optional, e.g. "HappyTuesday 比赛"; "" when not set
   deadlineAt: string; // UTC ISO; the end time when noDeadline
   noDeadline: boolean; // 报名截止时间 off: sign-up stays open until the event ends (shown without a deadline)
@@ -319,6 +321,8 @@ export interface MyHistoryEvent {
   kcal: number | null;
   /** 无需收款: nothing was billed because everyone paid the venue themselves. */
   noFee: boolean;
+  /** Archived after its 结算期限 with nothing billed. */
+  unsettled: boolean;
 }
 
 export interface MyRosterEntry {
@@ -409,8 +413,12 @@ export const STATUS_ZH: Record<EventStatus, string> = {
 };
 
 /** The status word for an event: a 无需收款 one collects nothing, so once over it is 已结束, not 已收齐. */
-export const statusZh = (e: { status: EventStatus; noFee?: boolean }): string =>
-  e.noFee && e.status === "settled" ? "已结束" : STATUS_ZH[e.status];
+export const statusZh = (e: { status: EventStatus; noFee?: boolean; unsettled?: boolean }): string =>
+  e.status === "settled" && e.unsettled
+    ? "已结束（未结算）"
+    : e.noFee && e.status === "settled"
+      ? "已结束"
+      : STATUS_ZH[e.status];
 
 export type PaymentStatus = "unpaid" | "partial" | "paid";
 

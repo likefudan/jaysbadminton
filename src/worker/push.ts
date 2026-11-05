@@ -334,6 +334,7 @@ async function sendBatch(env: Env, keys: VapidKeys, endpoint?: string): Promise<
     `SELECT o.id, o.payload, s.endpoint, s.p256dh, s.auth,
        CASE o.kind
          WHEN 'event' THEN NOT COALESCE((SELECT status = 'open' AND deadline_at > ?2 FROM events WHERE id = o.event_id), 0)
+         WHEN 'settle' THEN NOT COALESCE((SELECT status = 'closed' FROM events WHERE id = o.event_id), 0)
          WHEN 'roster' THEN NOT COALESCE((SELECT status != 'cancelled' FROM events WHERE id = o.event_id), 0)
          WHEN 'start' THEN NOT COALESCE((SELECT status IN ('open', 'closed') AND start_at > ?2 FROM events WHERE id = o.event_id), 0)
            OR NOT EXISTS (SELECT 1 FROM registrations r WHERE r.event_id = o.event_id AND r.member_id = o.member_id)
@@ -615,4 +616,24 @@ export async function pushStarting(env: Env, e: EventRow): Promise<boolean> {
     .bind(e.id, JSON.stringify(msg), now())
     .run();
   return res.meta.changes > 0;
+}
+
+/**
+ * 结算提醒 on the phone of the organizer or admin who runs the event (the Owner's come on
+ * Telegram): every half hour until it's finalized (notify.ts). Stale once it's no longer closed.
+ */
+export async function pushSettle(env: Env, e: EventRow, headcount: number, warn: boolean): Promise<boolean> {
+  if (!e.manager_id) return false;
+  return pushTo(env, e.manager_id, "settle", e, {
+    title: "请结算羽毛球活动",
+    body: [
+      `${day(e)}${e.title ? "" : ` ${e.location}`} 已结束（报名 ${headcount} 人）`,
+      "请填写场地费和用球数，然后点 Finalize。",
+      warn ? "还剩不到 2 小时，过时会自动归档，不收费。" : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    url: "/admin/google",
+    tag: `settle-${e.id}`,
+  });
 }

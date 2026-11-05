@@ -17,6 +17,7 @@ const event: EventSummary = {
   queueRoundMin: null,
   noDeadline: false,
   noFee: false,
+  unsettled: false,
 };
 
 describe("分享名片 text", () => {

@@ -58,6 +58,14 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "💰 {day} 的活動已經結束，沒有人報名，不用結算。\n可以在管理頁取消這個活動。",
     en: "💰 {day} is over and nobody signed up, so there is nothing to settle.\nYou can cancel this event on the admin page.",
   },
+  "⚠️ 还剩不到 {h} 小时，过时没有结算会自动归档，不收费。": {
+    tw: "⚠️ 還剩不到 {h} 小時，過時沒有結算會自動歸檔，不收費。",
+    en: "⚠️ Less than {h} h left: if it isn't settled by then, it will be archived with no charge.",
+  },
+  "🗄 {day} 的活动结束 {hours} 小时还没有结算，已自动归档：不出账单，不收费，以后也不能再结算。": {
+    tw: "🗄 {day} 的活動結束 {hours} 小時還沒有結算，已自動歸檔：不出帳單，不收費，以後也不能再結算。",
+    en: "🗄 {day} wasn't settled within {hours} h of its end, so it was archived: no bills, no charge, and it can't be settled later.",
+  },
   "💰 {day} 的活动已经结束，还没有结算（报名 {n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。":
     {
       tw: "💰 {day} 的活動已經結束，還沒有結算（報名 {n} 人）。\n請開啟管理頁：標記沒來的人，填寫場地費和用球數，然後點 Finalize。",

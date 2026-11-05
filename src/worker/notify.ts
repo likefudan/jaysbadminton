@@ -7,7 +7,8 @@ import { type BotLang, type BotText, bt, botDate, btm, usd } from "./botLang";
 import { day, venue, when } from "./eventText";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { ROLE_TITLE, eventManager, isStaff, memberRole, organizersEnabled } from "./organizers";
-import { START_PUSH_MS, drainPushes, pushStarting, sendRest } from "./push";
+import { START_PUSH_MS, drainPushes, pushSettle, pushStarting, sendRest } from "./push";
+import { SETTLE_WARN_MS, settleDeadline, settleDueAt } from "./settleDeadline";
 import {
   escapeHtml,
   sendLikewise,
@@ -264,8 +265,10 @@ export async function nextDeadlineAlarm(
 }
 
 /**
- * 结算提醒: hourly once the event is over and not finalized, quiet from 22:00 to 8:00. An event
- * nobody signed up for can't be finalized, so that one gets a single note suggesting 取消 instead.
+ * 结算提醒: every half hour once the event is over and not finalized, quiet from 22:00 to 8:00, to
+ * whoever runs it on Telegram and, for an organizer or admin, to their phone too. In the last two
+ * hours before its 结算期限 it says it will be archived (settleDeadline.ts). An event nobody signed
+ * up for can't be finalized, so that one gets a single note suggesting 取消 instead.
  */
 async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
   if (e.status !== "closed" || e.no_fee || at.getTime() < new Date(e.end_at).getTime()) return;
@@ -288,8 +291,12 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
     );
     return;
   }
-  await once(env, e.id, "settle_reminder", `${p.date}T${p.time.slice(0, 2)}`, async () =>
-    toManager(
+  const due = settleDueAt(e, await settleDeadline(env));
+  const left = due === null ? null : due - at.getTime();
+  const warn = left !== null && left <= SETTLE_WARN_MS;
+  const slot = `${p.date}T${p.time.slice(0, 2)}:${Number(p.time.slice(3, 5)) < 30 ? "00" : "30"}`;
+  await once(env, e.id, "settle_reminder", slot, async () => {
+    const sent = await toManager(
       env,
       e,
       (l) =>
@@ -299,11 +306,21 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
             l,
             "💰 {day} 的活动已经结束，还没有结算（报名 {n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。",
             { day: day(e, l), n },
-          ),
+          ) +
+            (warn
+              ? `\n${bt(l, "⚠️ 还剩不到 {h} 小时，过时没有结算会自动归档，不收费。", { h: Math.max(1, Math.ceil(left! / 3600_000)) })}`
+              : ""),
         ),
       true,
-    ),
-  );
+    );
+    try {
+      // Best effort: a push that fails must not send the Telegram one again.
+      if (await pushSettle(env, e, n, warn)) await sendRest(env);
+    } catch (err) {
+      console.error(`settle push for event ${e.id} failed:`, err);
+    }
+    return sent;
+  });
 }
 
 /**

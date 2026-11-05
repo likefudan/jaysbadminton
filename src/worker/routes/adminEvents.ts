@@ -48,6 +48,7 @@ import {
   type EventRow,
 } from "../events";
 import { endNoFeeEvent } from "../noFee";
+import { SETTLE_DEADLINE_MAX_HOURS, settleDeadline } from "../settleDeadline";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
 import { cleanRoundMin } from "../courtQueue";
@@ -771,6 +772,7 @@ adminEventRoutes.get("/settings", async (c) => {
     autoJoin: await autoJoinEnabled(c.env),
     autoJoinCap: await autoJoinCap(c.env),
     ...(await notifySettings(c.env)),
+    settleDeadlineHours: (await settleDeadline(c.env)).hours,
     ai: await aiChoices(c.env),
   });
 });
@@ -888,6 +890,16 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!Number.isInteger(h) || h < 0 || h > 23) throw badRequest("账单提醒时间请选 0–23 点");
     writes.push(setSetting(c.env.DB, "dunning_hour", String(h)));
     said.push(`账单提醒 ${h} 点`);
+  }
+  if (b.settleDeadlineHours !== undefined) {
+    const h = num(b.settleDeadlineHours);
+    if (!Number.isInteger(h) || h < 0 || h > SETTLE_DEADLINE_MAX_HOURS)
+      throw badRequest(`结算期限请填 1–${SETTLE_DEADLINE_MAX_HOURS} 小时`);
+    writes.push(setSetting(c.env.DB, "settle_deadline_hours", String(h)));
+    // Turned back on: events that ended while it was off get their hours from now, not at once.
+    if (h > 0 && (await settleDeadline(c.env)).hours === 0)
+      writes.push(setSetting(c.env.DB, "settle_deadline_since", now()));
+    said.push(h ? `结算期限 ${h} 小时` : "结算期限 关（不自动归档）");
   }
   if (b.weeklyDigest !== undefined) {
     writes.push(setSetting(c.env.DB, "weekly_digest", b.weeklyDigest === false ? "0" : "1"));

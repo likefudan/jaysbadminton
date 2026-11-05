@@ -111,7 +111,8 @@ export const TABLES = {
           toPacific(e.end_at).time,
           e.location,
           e.address ?? "",
-          statusZh({ status: e.status as EventStatus, noFee: e.no_fee === 1 }) ?? e.status,
+          statusZh({ status: e.status as EventStatus, noFee: e.no_fee === 1, unsettled: e.unsettled === 1 }) ??
+            e.status,
           e.signed,
           ["finalized", "settled"].includes(e.status) ? e.came : "",
           e.no_deadline ? "" : at(e.deadline_at), // 报名截止时间 off: none of its own

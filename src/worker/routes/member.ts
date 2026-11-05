@@ -147,6 +147,7 @@ memberRoutes.get("/:token/events", async (c) => {
       paidBy: mine.broughtOf(e.id)?.username ?? null,
       kcal: mine.kcalOf(e.id),
       noFee: e.no_fee === 1,
+      unsettled: e.unsettled === 1,
     };
   });
 

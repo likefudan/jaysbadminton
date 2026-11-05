@@ -740,6 +740,7 @@ describe("我的活动 (the member's events)", () => {
         paidBy: null,
         kcal: null,
         noFee: false,
+        unsettled: false,
       },
     ]);
 

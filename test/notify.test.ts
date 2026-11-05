@@ -192,17 +192,18 @@ describe("scheduled notifications", () => {
     expect(sent()).toEqual([]);
   });
 
-  it("reminds hourly to settle after the event, but not at night", async () => {
+  it("reminds every half hour to settle after the event, but not at night", async () => {
     const s = await billingScenario();
     await connectChat();
     await runScheduled(env, pacific(s.e.date, "14:05")); // before the event ends: 21:00
     expect(sent().filter((t) => t.includes("还没有结算"))).toEqual([]);
     await env.DB.prepare("UPDATE events SET end_at = '2000-01-01T00:00:00.000Z'").run();
     await runScheduled(env, pacific(s.e.date, "14:05"));
+    await runScheduled(env, pacific(s.e.date, "14:20")); // same half hour: not again
     await runScheduled(env, pacific(s.e.date, "14:45"));
     await runScheduled(env, pacific(s.e.date, "15:05"));
     await runScheduled(env, pacific(s.e.date, "23:05"));
-    expect(sent().filter((t) => t.includes("还没有结算"))).toHaveLength(2);
+    expect(sent().filter((t) => t.includes("还没有结算"))).toHaveLength(3);
   });
 
   it("tells the Owner once that an empty event needs no settling", async () => {
