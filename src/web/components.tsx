@@ -143,7 +143,7 @@ export function SectionTitle(props: { children: ComponentChildren; more?: Compon
  * close() for after saving).
  */
 export function SettingRow(props: {
-  icon: ComponentChildren;
+  icon?: ComponentChildren;
   label: string;
   value?: ComponentChildren;
   href?: string;
@@ -153,9 +153,11 @@ export function SettingRow(props: {
   const [open, setOpen] = useState(false);
   const inner = (
     <>
-      <span class="set-icon" aria-hidden="true">
-        {props.icon}
-      </span>
+      {props.icon && (
+        <span class="set-icon" aria-hidden="true">
+          {props.icon}
+        </span>
+      )}
       <span class="set-label">{props.label}</span>
       <span class="set-value">{props.value}</span>
       <svg class={open ? "set-chev open" : "set-chev"} viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">

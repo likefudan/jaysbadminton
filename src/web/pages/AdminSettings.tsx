@@ -5,7 +5,6 @@ import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
 import {
   APP_NAME_MAX,
   SITE_LANGS,
-  appNameFor,
   type AppNames,
   MAX_AUTO_JOINS_PER_DAY,
   checkAutoJoinCap,
@@ -22,7 +21,7 @@ import { setAppNames, setSiteTheme, setSiteTitle, useAppearance } from "../site"
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
 import { DunningCard, SettleDeadlineCard, RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
-import { LANGS, currentLang, t, tk, tx, fmtInstant } from "../i18n";
+import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
 
 const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames"] as const;
 type Sub = (typeof SUBS)[number];
@@ -87,8 +86,8 @@ function GroupSubPage(props: { base: string; sub: "looks" | "join" | "appNames";
   const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
   if (props.sub === "appNames")
     return (
-      <SubPage back={() => props.open("looks")} backLabel={t("‹ 外观和公共页面")}>
-        <Load result={s}>{(v) => <AppNamesCard base={props.base} initial={v.appNames} siteTitle={v.siteTitle} />}</Load>
+      <SubPage title={t("名称")} back={() => props.open("looks")} backLabel={t("‹ 外观和公共页面")}>
+        <Load result={s}>{(v) => <NamesPage base={props.base} initial={v} />}</Load>
       </SubPage>
     );
   if (props.sub === "looks")
@@ -96,7 +95,7 @@ function GroupSubPage(props: { base: string; sub: "looks" | "join" | "appNames";
       <SubPage title={t("外观和公共页面")} back={() => props.open(null)}>
         <ThemeCard base={props.base} />
         <Load result={s}>
-          {(v) => <PublicPageCard base={props.base} initial={v} openAppNames={() => props.open("appNames")} />}
+          {(v) => <PublicPageCard base={props.base} initial={v} openNames={() => props.open("appNames")} />}
         </Load>
       </SubPage>
     );
@@ -791,119 +790,115 @@ interface GeneralSettings {
   zelleAccount: string;
 }
 
-/** 公共页面: what anyone with the site address sees. */
-function PublicPageCard(props: { base: string; initial: GeneralSettings; openAppNames: () => void }) {
-  const [title, setTitle] = useState(props.initial.siteTitle);
+/**
+ * 公共页面 (Ke Li 2026-11-05, option C): one list like the 设置 menu. 名称 opens the page that holds
+ * both the site title and the 桌面图标名称; the leaderboard switch sits in its row.
+ */
+function PublicPageCard(props: { base: string; initial: GeneralSettings; openNames: () => void }) {
   const [board, setBoard] = useState(props.initial.showLeaderboard);
-  const [saved, setSaved] = useState(false);
   const { busy, error, run } = useAction();
   async function toggleBoard(on: boolean) {
     setBoard(on);
     if (!(await run(() => api(`${props.base}/settings`, { showLeaderboard: on })))) setBoard(!on);
   }
   return (
-    <Card title={t("公共页面")}>
-      <Field
-        label={t("网站标题")}
-        value={title}
-        onInput={(v) => {
-          setTitle(v);
-          setSaved(false);
-        }}
-      />
-      <button
-        type="button"
-        class="button secondary block"
-        disabled={busy}
-        onClick={async () => {
-          if (await run(() => api(`${props.base}/settings`, { siteTitle: title }))) {
-            setSaved(true);
-            setSiteTitle(title.trim());
-          }
-        }}
-      >
-        {saved ? t("已保存") : t("保存标题")}
-      </button>
-      <button type="button" class="menu-row" onClick={props.openAppNames}>
-        <span>
-          <strong>{t("桌面图标名称")}</strong>
-          <small>{appNameFor(props.initial.appNames, currentLang(), title.trim())}</small>
-        </span>
-        <span class="chevron">›</span>
-      </button>
-      <label class="switch-card plain">
-        <span>
-          <strong>{t("展示排行榜")}</strong>
-          <small>{t("在首页显示出勤排行榜（只有名字和次数，没有金额）")}</small>
-        </span>
-        <input
-          type="checkbox"
-          role="switch"
-          aria-checked={board}
-          checked={board}
-          disabled={busy}
-          onChange={(e) => toggleBoard((e.target as HTMLInputElement).checked)}
-        />
-      </label>
+    <>
+      <h3 class="set-head">{t("公共页面")}</h3>
+      <section class="card set-list bare">
+        <SettingRow label={t("名称")} value={props.initial.siteTitle} onClick={props.openNames} />
+        <div class="set-item">
+          <label class="set-row">
+            <span class="set-label grow">{t("展示排行榜")}</span>
+            <input
+              type="checkbox"
+              role="switch"
+              aria-checked={board}
+              checked={board}
+              disabled={busy}
+              onChange={(e) => toggleBoard((e.target as HTMLInputElement).checked)}
+            />
+          </label>
+        </div>
+      </section>
       {error && <p class="error">{error}</p>}
-    </Card>
+    </>
   );
 }
 
 /**
- * 桌面图标名称 (Ke Li 2026-11-04), its own page under 外观和公共页面: the name under the home-screen
- * icon in each language. Android won't let anyone rename it and iPhone only while adding, so the Owner
+ * 名称, under 外观和公共页面: the site title and the 桌面图标名称 (Ke Li 2026-11-04) in each language,
+ * saved together. Android won't let anyone rename the icon and iPhone only while adding, so the Owner
  * or an admin picks short ones here. The visitor's language picks the name; one not set uses
  * Simplified's, then the site title.
  */
-function AppNamesCard(props: { base: string; initial: AppNames; siteTitle: string }) {
-  const [names, setNames] = useState(props.initial);
+function NamesPage(props: { base: string; initial: GeneralSettings }) {
+  const [title, setTitle] = useState(props.initial.siteTitle);
+  const [names, setNames] = useState(props.initial.appNames);
   // What the site holds as far as this page knows: the last load or save.
-  const [stored, setStored] = useState(props.initial);
+  const [stored, setStored] = useState({ title: props.initial.siteTitle, names: props.initial.appNames });
   const [saved, setSaved] = useState(false);
   const { busy, error, run, setError } = useAction();
-  const simplified = names["zh-CN"].trim();
+  const fallback = names["zh-CN"].trim() || title.trim();
   async function save() {
+    const tt = title.trim();
+    if (!tt) return setError(t("请填写网站标题"));
     const v = Object.fromEntries(SITE_LANGS.map((l) => [l, names[l].trim()])) as AppNames;
     if (SITE_LANGS.some((l) => [...v[l]].length > APP_NAME_MAX))
       return setError(t("桌面图标名称最多 {n} 个字", { n: APP_NAME_MAX }));
     // Only what changed here, so a name another admin saved meanwhile stays.
-    const changed = Object.fromEntries(SITE_LANGS.filter((l) => v[l] !== stored[l]).map((l) => [l, v[l]]));
-    if (await run(() => api(`${props.base}/settings`, { appNames: changed }))) {
-      setSaved(true);
-      const now = { ...stored, ...changed };
-      setStored(now);
-      setAppNames(now);
-    }
+    const changed = Object.fromEntries(SITE_LANGS.filter((l) => v[l] !== stored.names[l]).map((l) => [l, v[l]]));
+    const body: Record<string, unknown> = {};
+    if (tt !== stored.title) body.siteTitle = tt;
+    if (Object.keys(changed).length) body.appNames = changed;
+    if (Object.keys(body).length && !(await run(() => api(`${props.base}/settings`, body)))) return;
+    const now = { title: tt, names: { ...stored.names, ...changed } };
+    setStored(now);
+    setSiteTitle(tt);
+    setAppNames(now.names);
+    setSaved(true);
   }
+  const edited = () => setSaved(false);
   return (
-    <Card title={t("桌面图标名称")} class="app-names">
-      <p class="muted">{t("添加到手机桌面后图标下面的名字。安卓添加时和添加后都不能改，苹果只能在添加时改一次。")}</p>
-      {SITE_LANGS.map((l) => (
-        <label class="field" key={l}>
-          <span>{LANGS.find((x) => x.id === l)?.name}</span>
+    <>
+      <h3 class="set-head">{t("网站标题")}</h3>
+      <section class="card set-list bare">
+        <div class="set-item">
           <input
+            class="set-input"
             type="text"
-            value={names[l]}
-            placeholder={l === "zh-CN" ? props.siteTitle : simplified || props.siteTitle}
+            aria-label={t("网站标题")}
+            value={title}
             onInput={(e) => {
-              setNames({ ...names, [l]: (e.target as HTMLInputElement).value });
-              setSaved(false);
+              setTitle((e.target as HTMLInputElement).value);
+              edited();
             }}
           />
-        </label>
-      ))}
-      <p class="muted small">
-        {t(
-          "每个最多 {n} 个字（约 6 个汉字），太长桌面上会显示不全。按访客选的语言显示；没填的语言用简体中文的名字，简体也没填就用网站标题。已经添加的图标要删掉重新添加才会变。",
-          { n: APP_NAME_MAX },
-        )}
-      </p>
+        </div>
+      </section>
+      <h3 class="set-head">{t("桌面图标名称")}</h3>
+      <section class="card set-list bare">
+        {SITE_LANGS.map((l) => (
+          <label class="set-item set-row" key={l}>
+            <span class="set-label">{LANGS.find((x) => x.id === l)?.name}</span>
+            <input
+              class="set-value-input"
+              type="text"
+              value={names[l]}
+              placeholder={l === "zh-CN" ? title.trim() : fallback}
+              onInput={(e) => {
+                setNames({ ...names, [l]: (e.target as HTMLInputElement).value });
+                edited();
+              }}
+            />
+          </label>
+        ))}
+      </section>
+      <p class="set-foot">{t("最多 {n} 个字。已添加的图标要删掉重新添加才会变。", { n: APP_NAME_MAX })}</p>
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy} onClick={save}>
         {saved ? t("已保存") : t("保存")}
       </button>
-    </Card>
+    </>
   );
 }
 
@@ -1280,32 +1275,32 @@ function ThemeCard(props: { base: string }) {
     if (!(await run(() => api(`${props.base}/settings`, { theme: id })))) setSiteTheme(before);
   }
   return (
-    <Card title={t("默认外观")}>
-      {STYLES.map((s) => (
-        <div key={s.id} class="theme-row">
-          <span class="theme-label">{t(s.name)}</span>
-          {s.accents.map((x) => {
-            const id = `${s.id}-${x.id}` as ThemeId;
-            return (
-              <button
-                key={id}
-                type="button"
-                title={t(x.name)}
-                aria-label={`${t(s.name)} ${t(x.name)}`}
-                class={id === a.site ? "swatch on" : "swatch"}
-                style={{ background: `linear-gradient(135deg, ${x.swatch[0]}, ${x.swatch[1]})` }}
-                onClick={() => choose(id)}
-              />
-            );
-          })}
-        </div>
-      ))}
-      <p class="muted small">
-        {t("成员可以点右上角 ◐ 自己换。")}
-        {a.mine && t("（你自己选了别的外观，所以这里换了你看不到变化。）")}
-      </p>
+    <>
+      <h3 class="set-head">{t("默认外观")}</h3>
+      <section class="card set-list bare">
+        {STYLES.map((s) => (
+          <div key={s.id} class="set-item theme-line">
+            <span class="theme-label">{t(s.name)}</span>
+            {s.accents.map((x) => {
+              const id = `${s.id}-${x.id}` as ThemeId;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  title={t(x.name)}
+                  aria-label={`${t(s.name)} ${t(x.name)}`}
+                  class={id === a.site ? "swatch on" : "swatch"}
+                  style={{ background: `linear-gradient(135deg, ${x.swatch[0]}, ${x.swatch[1]})` }}
+                  onClick={() => choose(id)}
+                />
+              );
+            })}
+          </div>
+        ))}
+      </section>
+      {a.mine && <p class="set-foot">{t("（你自己选了别的外观，所以这里换了你看不到变化。）")}</p>}
       {error && <p class="error">{error}</p>}
-    </Card>
+    </>
   );
 }
 
