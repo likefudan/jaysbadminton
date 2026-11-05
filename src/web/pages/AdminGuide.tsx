@@ -119,13 +119,13 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
         <ol class="checklist">
           <Step>
             {tx(
-              "{b}。打开管理页需要「管理链接 + 群主密码」两样。如果是用初始密码登录的，请在上面「修改群主密码」里改成你自己的。",
+              "{b}。打开管理页需要「管理链接 + 群主密码」两样。如果是用初始密码登录的，请在「设置 → 账号与安全 → 修改群主密码」里改成你自己的。",
               { b: <b>{t("收藏管理链接")}</b> },
             )}
           </Step>
           <Step done={s?.telegram}>
             {tx(
-              "{b}（上面「Telegram 通知」→ 连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里{x}；以后忘了管理链接也能在这里找回。",
+              "{b}（「设置 → 高级设置 → Telegram 通知」→ 连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里{x}；以后忘了管理链接也能在这里找回。",
               {
                 b: <b>{t("连接 Telegram")}</b>,
                 x: organizers && t("（组织者负责的活动的提醒发给组织者，见第四部分）"),
@@ -134,13 +134,13 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
           </Step>
           <Step>
             {tx(
-              "{b}（「设置 → 备份网站密钥」，要先连接 Telegram）：密钥发到 Telegram 后存进密码管理器，再交给网站维护者存成 GitHub secret。万一 Cloudflare 里的密钥丢了，部署时会用它自动恢复，成员链接、管理链接和表格同步脚本才能继续显示和找回。",
+              "{b}（「设置 → 账号与安全 → 备份网站密钥」，要先连接 Telegram）：密钥发到 Telegram 后存进密码管理器，再交给网站维护者存成 GitHub secret。万一 Cloudflare 里的密钥丢了，部署时会用它自动恢复，成员链接、管理链接和表格同步脚本才能继续显示和找回。",
               { b: <b>{t("备份网站密钥")}</b> },
             )}
           </Step>
           <Step done={s?.venmo}>
             {tx(
-              "{b}（上面「收款设置」，保存时要输入群主密码）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。",
+              "{b}（「设置 → 收款设置」，保存时要输入群主密码）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。",
               { b: <b>{t("填写收款设置")}</b> },
             )}
           </Step>
@@ -149,11 +149,11 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
           </Step>
           <Step>{tx("{b}：截止前几小时提醒、每天几点发账单提醒。", { b: <b>{t("检查提醒设置")}</b> })}</Step>
           <Step done={s?.sheets} optional>
-            {tx("{b}（上面「Google 表格同步 ›」）：每天把数据备份到你自己的 Google 表格。", {
+            {tx("{b}（「设置 → 高级设置 → Google 表格同步」）：每天把数据备份到你自己的 Google 表格。", {
               b: <b>{t("Google 表格同步")}</b>,
             })}
           </Step>
-          <Step optional>{tx("{b}：网站标题和配色。", { b: <b>{t("外观")}</b> })}</Step>
+          <Step optional>{tx("{b}（「设置 → 外观和公共页面」）：网站标题和配色。", { b: <b>{t("外观")}</b> })}</Step>
           <Step>
             {tx(
               "{b}：把网站首页发到微信群，大家点「登录 / 注册」，用 Google 账号申请（新成员只能用 Google）。在「待审核」里通过后，对方直接用 Google 登录就能报名。",
@@ -216,10 +216,13 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
           </li>
           <li>{tx("{b}：用管理链接打开，输入密码即可；每台设备记住登录 30 天。", { b: <b>{t("换一部手机")}</b> })}</li>
           <li>
-            {tx("{b}：用下面的「清空所有数据」重置网站，新群主用群主密码在 {code} 做初次设置，再按本指南走一遍。", {
-              b: <b>{t("交接给新的群主")}</b>,
-              code: <code>{location.origin}/admin</code>,
-            })}
+            {tx(
+              "{b}：用「设置 → 账号与安全」里的「清空所有数据」重置网站，新群主用群主密码在 {code} 做初次设置，再按本指南走一遍。",
+              {
+                b: <b>{t("交接给新的群主")}</b>,
+                code: <code>{location.origin}/admin</code>,
+              },
+            )}
           </li>
         </ul>
       </Section>
@@ -329,20 +332,20 @@ export function OrganizerGuide(props: {
         <ol class="checklist">
           <Step done={payment}>
             {tx(
-              "{b}（下面「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。你负责的活动，成员把钱付到这里；没填好之前活动可以报名，但不能结算。",
+              "{b}（设置里的「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。你负责的活动，成员把钱付到这里；没填好之前活动可以报名，但不能结算。",
               { b: <b>{t("填好收款设置")}</b> },
             )}
           </Step>
           <Step done={forwarding}>
             {tx(
-              "{b}（下面「Venmo 邮件转发」的步骤）：设好以后成员付款会自动记账；第一封 Venmo 收款邮件到了，转发状态会显示「已生效」。",
+              "{b}（设置里「Venmo 邮件转发」的步骤）：设好以后成员付款会自动记账；第一封 Venmo 收款邮件到了，转发状态会显示「已生效」。",
               { b: <b>{t("设置 Venmo 邮件转发")}</b> },
             )}
           </Step>
           {telegram !== null && (
             <Step done={telegram}>
               {tx(
-                "{b}（下面「我的 Telegram」）：你负责的活动的报名截止、结算和收款提醒会发给你；没连接时这些提醒发给群主。",
+                "{b}（设置里的「我的 Telegram」）：你负责的活动的报名截止、结算和收款提醒会发给你；没连接时这些提醒发给群主。",
                 { b: <b>{t("连接你的 Telegram")}</b> },
               )}
             </Step>
@@ -363,7 +366,7 @@ export function OrganizerGuide(props: {
           {props.admin ? (
             <li>
               {t(
-                "你还能像群主一样管理整个群：审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、修改下面的群设置、导出数据。群主和管理员（包括你自己）的成员记录、任命管理员、密码和密钥、清空数据、永久删除只有群主能做。",
+                "你还能像群主一样管理整个群：审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、修改群设置、导出数据。群主和管理员（包括你自己）的成员记录、任命管理员、密码和密钥、清空数据、永久删除只有群主能做。",
               )}
             </li>
           ) : (

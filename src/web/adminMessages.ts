@@ -619,31 +619,32 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   测试: { tw: "測試", en: "Test" },
   使用指南: { tw: "使用指南", en: "User guide" },
   "一、第一次设置后要做的事": { tw: "一、第一次設定後要做的事", en: "1. To do after first-time setup" },
-  "{b}。打开管理页需要「管理链接 + 群主密码」两样。如果是用初始密码登录的，请在上面「修改群主密码」里改成你自己的。": {
-    tw: "{b}。開啟管理頁需要「管理連結 + 群主密碼」兩樣。如果是用初始密碼登入的，請在上面「修改群主密碼」裡改成你自己的。",
-    en: '{b}. Opening the admin page takes both the admin link and the owner password. If you signed in with the initial password, change it to your own under "Change owner password" above.',
-  },
-  收藏管理链接: { tw: "收藏管理連結", en: "Bookmark the admin link" },
-  "{b}（上面「Telegram 通知」→ 连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里{x}；以后忘了管理链接也能在这里找回。":
+  "{b}。打开管理页需要「管理链接 + 群主密码」两样。如果是用初始密码登录的，请在「设置 → 账号与安全 → 修改群主密码」里改成你自己的。":
     {
-      tw: "{b}（上面「Telegram 通知」→ 連線，然後傳送測試訊息）。所有提醒、帳單提醒、收款異常都發到這裡{x}；以後忘了管理連結也能在這裡找回。",
-      en: '{b} ("Telegram notifications" above → connect, then send a test message). All reminders, bill reminders and payment problems come here{x}; if you forget the admin link you can get it back here too.',
+      tw: "{b}。開啟管理頁需要「管理連結 + 群主密碼」兩樣。如果是用初始密碼登入的，請在「設定 → 帳號與安全 → 修改群主密碼」裡改成你自己的。",
+      en: '{b}. Opening the admin page takes both the admin link and the owner password. If you signed in with the initial password, change it to your own under "Settings → Account & security → Change owner password".',
+    },
+  收藏管理链接: { tw: "收藏管理連結", en: "Bookmark the admin link" },
+  "{b}（「设置 → 高级设置 → Telegram 通知」→ 连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里{x}；以后忘了管理链接也能在这里找回。":
+    {
+      tw: "{b}（「設定 → 進階設定 → Telegram 通知」→ 連線，然後傳送測試訊息）。所有提醒、帳單提醒、收款異常都發到這裡{x}；以後忘了管理連結也能在這裡找回。",
+      en: '{b} ("Settings → Advanced → Telegram notifications" → connect, then send a test message). All reminders, bill reminders and payment problems come here{x}; if you forget the admin link you can get it back here too.',
     },
   "连接 Telegram": { tw: "連線 Telegram", en: "Connect Telegram" },
   "（组织者负责的活动的提醒发给组织者，见第四部分）": {
     tw: "（組織者負責的活動的提醒發給組織者，見第四部分）",
     en: " (reminders for events run by organizers go to the organizers; see part 4)",
   },
-  "{b}（「设置 → 备份网站密钥」，要先连接 Telegram）：密钥发到 Telegram 后存进密码管理器，再交给网站维护者存成 GitHub secret。万一 Cloudflare 里的密钥丢了，部署时会用它自动恢复，成员链接、管理链接和表格同步脚本才能继续显示和找回。":
+  "{b}（「设置 → 账号与安全 → 备份网站密钥」，要先连接 Telegram）：密钥发到 Telegram 后存进密码管理器，再交给网站维护者存成 GitHub secret。万一 Cloudflare 里的密钥丢了，部署时会用它自动恢复，成员链接、管理链接和表格同步脚本才能继续显示和找回。":
     {
-      tw: "{b}（「設定 → 備份網站金鑰」，要先連線 Telegram）：金鑰發到 Telegram 後存進密碼管理器，再交給網站維護者存成 GitHub secret。萬一 Cloudflare 裡的金鑰丟了，部署時會用它自動恢復，成員連結、管理連結和表格同步腳本才能繼續顯示和找回。",
-      en: '{b} ("Settings → Back up site key"; connect Telegram first): the key is sent to Telegram; save it in a password manager, then give it to the site maintainer to store as a GitHub secret. If the key in Cloudflare is ever lost, deploys restore it automatically, so member links, the admin link and the sheet sync script keep working.',
+      tw: "{b}（「設定 → 帳號與安全 → 備份網站金鑰」，要先連線 Telegram）：金鑰發到 Telegram 後存進密碼管理器，再交給網站維護者存成 GitHub secret。萬一 Cloudflare 裡的金鑰丟了，部署時會用它自動恢復，成員連結、管理連結和表格同步腳本才能繼續顯示和找回。",
+      en: '{b} ("Settings → Account & security → Back up site key"; connect Telegram first): the key is sent to Telegram; save it in a password manager, then give it to the site maintainer to store as a GitHub secret. If the key in Cloudflare is ever lost, deploys restore it automatically, so member links, the admin link and the sheet sync script keep working.',
     },
   备份网站密钥: { tw: "備份網站金鑰", en: "Back up the site key" },
-  "{b}（上面「收款设置」，保存时要输入群主密码）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。":
+  "{b}（「设置 → 收款设置」，保存时要输入群主密码）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。":
     {
-      tw: "{b}（上面「收款設定」，儲存時要輸入群主密碼）：Venmo 使用者名稱、Venmo 通知電子郵件（Venmo 帳戶裡登記的、收款通知發到的那個電子郵件），Zelle 選填。",
-      en: '{b} ("Payment settings" above; saving asks for the owner password): Venmo username, Venmo notification email (the email on your Venmo account that payment notices go to); Zelle is optional.',
+      tw: "{b}（「設定 → 收款設定」，儲存時要輸入群主密碼）：Venmo 使用者名稱、Venmo 通知電子郵件（Venmo 帳戶裡登記的、收款通知發到的那個電子郵件），Zelle 選填。",
+      en: '{b} ("Settings → Payment settings"; saving asks for the owner password): Venmo username, Venmo notification email (the email on your Venmo account that payment notices go to); Zelle is optional.',
     },
   填写收款设置: { tw: "填寫收款設定", en: "Fill in payment settings" },
   "{b}，让系统自动对账，见下面第二部分。": {
@@ -656,11 +657,14 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "{b}: the reminder a few hours before sign-up closes, and what time bill reminders go out each day.",
   },
   检查提醒设置: { tw: "檢查提醒設定", en: "Check reminder settings" },
-  "{b}（上面「Google 表格同步 ›」）：每天把数据备份到你自己的 Google 表格。": {
-    tw: "{b}（上面「Google 表格同步 ›」）：每天把資料備份到你自己的 Google 表格。",
-    en: '{b} ("Google Sheets sync ›" above): back up the data to your own Google Sheet every day.',
+  "{b}（「设置 → 高级设置 → Google 表格同步」）：每天把数据备份到你自己的 Google 表格。": {
+    tw: "{b}（「設定 → 進階設定 → Google 表格同步」）：每天把資料備份到你自己的 Google 表格。",
+    en: '{b} ("Settings → Advanced → Google Sheets sync"): back up the data to your own Google Sheet every day.',
   },
-  "{b}：网站标题和配色。": { tw: "{b}：網站標題和配色。", en: "{b}: site title and colors." },
+  "{b}（「设置 → 外观和公共页面」）：网站标题和配色。": {
+    tw: "{b}（「設定 → 外觀和公共頁面」）：網站標題和配色。",
+    en: '{b} ("Settings → Look & public page"): site title and colors.',
+  },
   "{b}：把网站首页发到微信群，大家点「登录 / 注册」，用 Google 账号申请（新成员只能用 Google）。在「待审核」里通过后，对方直接用 Google 登录就能报名。":
     {
       tw: "{b}：把網站首頁發到微信群，大家點「登入 / 註冊」，用 Google 帳號申請（新成員只能用 Google）。在「待審核」裡通過後，對方直接用 Google 登入就能報名。",
@@ -717,10 +721,11 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "{b}: open the admin link and enter the password; each device stays signed in for 30 days.",
   },
   换一部手机: { tw: "換一部手機", en: "New phone" },
-  "{b}：用下面的「清空所有数据」重置网站，新群主用群主密码在 {code} 做初次设置，再按本指南走一遍。": {
-    tw: "{b}：用下面的「清空所有資料」重置網站，新群主用群主密碼在 {code} 做初次設定，再按本指南走一遍。",
-    en: '{b}: reset the site with "Clear all data" below; the new owner then does first-time setup at {code} with the owner password and goes through this guide again.',
-  },
+  "{b}：用「设置 → 账号与安全」里的「清空所有数据」重置网站，新群主用群主密码在 {code} 做初次设置，再按本指南走一遍。":
+    {
+      tw: "{b}：用「設定 → 帳號與安全」裡的「清空所有資料」重置網站，新群主用群主密碼在 {code} 做初次設定，再按本指南走一遍。",
+      en: '{b}: reset the site with "Clear all data" under "Settings → Account & security"; the new owner then does first-time setup at {code} with the owner password and goes through this guide again.',
+    },
   交接给新的群主: { tw: "交接給新的群主", en: "Handing over to a new owner" },
   "四、组织者": { tw: "四、組織者", en: "4. Organizers" },
   "{b}：在「成员」里点对方的「设为组织者」。对方要是正常状态的成员，并且已经关联了 Google 账号（组织者只能用 Google 账号进入管理页）。系统会发邮件告诉他；邮件服务没配置时页面会提示，你要自己告诉他。":
@@ -790,20 +795,20 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   给管理员的说明: { tw: "給管理員的說明", en: "Notes for admins" },
   给组织者的说明: { tw: "給組織者的說明", en: "Notes for organizers" },
   "一、开始前要做的事": { tw: "一、開始前要做的事", en: "1. Before you start" },
-  "{b}（下面「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。你负责的活动，成员把钱付到这里；没填好之前活动可以报名，但不能结算。":
+  "{b}（设置里的「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。你负责的活动，成员把钱付到这里；没填好之前活动可以报名，但不能结算。":
     {
-      tw: "{b}（下面「我的收款設定」）：Venmo 使用者名稱、Venmo 通知電子郵件（Venmo 帳戶裡登記的、收款通知發到的那個電子郵件），Zelle 選填。你負責的活動，成員把錢付到這裡；沒填好之前活動可以報名，但不能結算。",
-      en: "{b} (\"My payment settings\" below): Venmo username, Venmo notification email (the email on your Venmo account that payment notices go to); Zelle is optional. Members pay here for events you run; until it's filled in, your events can take sign-ups but can't be billed.",
+      tw: "{b}（設定裡的「我的收款設定」）：Venmo 使用者名稱、Venmo 通知電子郵件（Venmo 帳戶裡登記的、收款通知發到的那個電子郵件），Zelle 選填。你負責的活動，成員把錢付到這裡；沒填好之前活動可以報名，但不能結算。",
+      en: "{b} (\"My payment settings\" in Settings): Venmo username, Venmo notification email (the email on your Venmo account that payment notices go to); Zelle is optional. Members pay here for events you run; until it's filled in, your events can take sign-ups but can't be billed.",
     },
   填好收款设置: { tw: "填好收款設定", en: "Fill in payment settings" },
-  "{b}（下面「Venmo 邮件转发」的步骤）：设好以后成员付款会自动记账；第一封 Venmo 收款邮件到了，转发状态会显示「已生效」。":
+  "{b}（设置里「Venmo 邮件转发」的步骤）：设好以后成员付款会自动记账；第一封 Venmo 收款邮件到了，转发状态会显示「已生效」。":
     {
-      tw: "{b}（下面「Venmo 郵件轉發」的步驟）：設好以後成員付款會自動記帳；第一封 Venmo 收款郵件到了，轉發狀態會顯示「已生效」。",
-      en: '{b} (the "Venmo email forwarding" steps below): once set up, member payments are recorded automatically; when the first Venmo payment email arrives, the forwarding status shows "Working".',
+      tw: "{b}（設定裡「Venmo 郵件轉發」的步驟）：設好以後成員付款會自動記帳；第一封 Venmo 收款郵件到了，轉發狀態會顯示「已生效」。",
+      en: '{b} (the "Venmo email forwarding" steps in Settings): once set up, member payments are recorded automatically; when the first Venmo payment email arrives, the forwarding status shows "Working".',
     },
-  "{b}（下面「我的 Telegram」）：你负责的活动的报名截止、结算和收款提醒会发给你；没连接时这些提醒发给群主。": {
-    tw: "{b}（下面「我的 Telegram」）：你負責的活動的報名截止、結算和收款提醒會發給你；沒連線時這些提醒發給群主。",
-    en: '{b} ("My Telegram" below): sign-up closing, billing and payment reminders for your events come to you; if you\'re not connected, they go to the owner.',
+  "{b}（设置里的「我的 Telegram」）：你负责的活动的报名截止、结算和收款提醒会发给你；没连接时这些提醒发给群主。": {
+    tw: "{b}（設定裡的「我的 Telegram」）：你負責的活動的報名截止、結算和收款提醒會發給你；沒連線時這些提醒發給群主。",
+    en: '{b} ("My Telegram" in Settings): sign-up closing, billing and payment reminders for your events come to you; if you\'re not connected, they go to the owner.',
   },
   "连接你的 Telegram": { tw: "連線你的 Telegram", en: "Connect your Telegram" },
   "二、怎么组织一场活动": { tw: "二、怎麼組織一場活動", en: "2. How to run an event" },
@@ -820,10 +825,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
       tw: "沒有自動對上的 Venmo 付款在「收款 › 待確認」裡，關聯到對應的帳單；Zelle 和現金在活動的帳單裡手動標記已付。全部付清後活動自動歸檔。",
       en: "Venmo payments that didn't match automatically are under \"Payments › To confirm\"; match them to the right bill. Mark Zelle and cash as paid by hand in the event's bills. Once everyone has paid, the event is archived automatically.",
     },
-  "你还能像群主一样管理整个群：审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、修改下面的群设置、导出数据。群主和管理员（包括你自己）的成员记录、任命管理员、密码和密钥、清空数据、永久删除只有群主能做。":
+  "你还能像群主一样管理整个群：审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、修改群设置、导出数据。群主和管理员（包括你自己）的成员记录、任命管理员、密码和密钥、清空数据、永久删除只有群主能做。":
     {
-      tw: "你還能像群主一樣管理整個群：審核申請、管理成員、任命組織者、管理和轉交所有活動、確認所有收款、修改下面的群設定、匯出資料。群主和管理員（包括你自己）的成員記錄、任命管理員、密碼和金鑰、清空資料、永久刪除只有群主能做。",
-      en: "You can also run the whole group like the owner: review applications, manage members, appoint organizers, manage and hand over all events, confirm all payments, change the group settings below, and export data. Only the owner can change the owner's and admins' (including your own) member records, appoint admins, handle the password and keys, clear all data, and delete permanently.",
+      tw: "你還能像群主一樣管理整個群：審核申請、管理成員、任命組織者、管理和轉交所有活動、確認所有收款、修改群設定、匯出資料。群主和管理員（包括你自己）的成員記錄、任命管理員、密碼和金鑰、清空資料、永久刪除只有群主能做。",
+      en: "You can also run the whole group like the owner: review applications, manage members, appoint organizers, manage and hand over all events, confirm all payments, change the group settings, and export data. Only the owner can change the owner's and admins' (including your own) member records, appoint admins, handle the password and keys, clear all data, and delete permanently.",
     },
   "群主能看到并修改你的活动，会收到发起、结算完成、收齐三条抄送。你看不到别人负责的活动和收款；「待审核」「成员」只能看，不能改。":
     {
@@ -970,6 +975,19 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "After regenerating, the current admin link stops working right away. Continue?",
   },
   "‹ 设置": { tw: "‹ 設定", en: "‹ Settings" },
+  "‹ 外观和公共页面": { tw: "‹ 外觀和公共頁面", en: "‹ Look & public page" },
+  "‹ 高级设置": { tw: "‹ 進階設定", en: "‹ Advanced" },
+  外观和公共页面: { tw: "外觀和公共頁面", en: "Look & public page" },
+  入群和报名: { tw: "入群和報名", en: "Joining & sign-ups" },
+  入群要审核: { tw: "入群要審核", en: "Joining needs approval" },
+  高级设置: { tw: "進階設定", en: "Advanced" },
+  账号与安全: { tw: "帳號與安全", en: "Account & security" },
+  收款账户: { tw: "收款帳戶", en: "Payment accounts" },
+  "🔒 修改收款账户（需要群主密码）": {
+    tw: "🔒 修改收款帳戶（需要群主密碼）",
+    en: "🔒 Change payment accounts (owner password needed)",
+  },
+  账单提醒: { tw: "帳單提醒", en: "Bill reminders" },
   "每天把数据备份到你自己的 Google 表格": {
     tw: "每天把資料備份到你自己的 Google 表格",
     en: "Back up the data to your own Google Sheet every day",
@@ -1163,10 +1181,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Falls back to claude-sonnet-5-5 on errors.",
   },
   收款设置: { tw: "收款設定", en: "Payment settings" },
-  "🔒 修改收款设置（需要群主密码）": {
-    tw: "🔒 修改收款設定（需要群主密碼）",
-    en: "🔒 Change payment settings (needs the owner password)",
-  },
   "修改后，成员付款页上的收款账号会立即改变。确定修改吗？": {
     tw: "修改後，成員付款頁上的收款帳號會立即改變。確定修改嗎？",
     en: "The account on members' payment pages changes right away. Save the change?",

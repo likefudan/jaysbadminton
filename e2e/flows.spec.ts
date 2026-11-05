@@ -69,13 +69,18 @@ test("the Owner sets up the site and the payment details", async ({ page }) => {
   });
   expect(res.ok()).toBe(true);
 
-  // 设置 offers binding a Google account for the admin page; nothing is bound yet.
+  // 设置 is a menu; 账号与安全 offers binding a Google account for the admin page; nothing is bound yet.
   await page.goto(`${adminPath}?tab=settings`);
+  await page.getByRole("button", { name: /^账号与安全/ }).click();
+  await expect(page.getByRole("heading", { name: "账号与安全" })).toBeVisible();
   const google = page.locator(".card", { has: page.getByText("用 Google 登录管理页") });
   await expect(google).toContainText("绑定一个 Google 账号（只能一个）");
   await expect(google.getByRole("button", { name: "先登录 Google" })).toBeVisible();
 
-  // 卡路里快捷指令: the link and version members install, set here instead of in a deploy.
+  // 卡路里快捷指令 (in 高级设置): the link and version members install, set here instead of in a deploy.
+  await page.getByRole("button", { name: "‹ 设置" }).click();
+  await expect(page.getByRole("button", { name: /^收款设置/ })).toContainText("@Jays-Badminton");
+  await page.getByRole("button", { name: /^高级设置/ }).click();
   const shortcut = page.locator(".card", { has: page.getByRole("heading", { name: "卡路里快捷指令" }) });
   const link = shortcut.getByLabel("iCloud 链接");
   await expect(link).toHaveValue(/^https:\/\/www\.icloud\.com\/shortcuts\/[0-9a-f]{32}$/);
@@ -335,7 +340,7 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await page.goto("/admin/google");
   await expect(page.getByRole("button", { name: /Google 账号登录|使用 Google 登录/ })).toBeVisible(); // not bound yet
   await openAdmin(page);
-  await page.goto(`${adminPath}?tab=settings`);
+  await page.goto(`${adminPath}?tab=settings&sub=security`);
   const card = page.locator(".card", { has: page.getByText("用 Google 登录管理页") });
   await card.getByRole("button", { name: "绑定 jay@example.com" }).click();
   await expect(card).toContainText("已绑定 jay@example.com");
@@ -576,17 +581,26 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   const tabs = page.locator(".tabs");
   await expect(tabs.getByRole("button")).toHaveText(["活动", "收款", "待审核 (1)", "成员", "设置"]);
 
-  // 设置: his own payment, Telegram and stepping down, the group's settings and export; none of the Owner's.
+  // 设置: a menu without 账号与安全; his own payment in 收款设置, his Telegram, the group's reminders and
+  // export in 高级设置; none of the Owner's own things anywhere.
   await tabs.getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "给管理员的说明" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "我的收款设置" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "导出数据" })).toBeVisible();
   await expect(page.getByRole("button", { name: "不再当管理员" })).toBeVisible();
-  for (const heading of ["修改群主密码", "管理链接", "备份网站密钥", "危险操作", "用 Google 登录管理页", "收款设置"])
+  await expect(page.getByRole("button", { name: /^账号与安全/ })).toHaveCount(0);
+  const ownerOnly = ["修改群主密码", "管理链接", "备份网站密钥", "危险操作", "用 Google 登录管理页", "收款账户"];
+  await page.getByRole("button", { name: /^收款设置/ }).click();
+  await expect(page.getByRole("heading", { name: "我的收款设置" })).toBeVisible();
+  for (const heading of ownerOnly)
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "‹ 设置" }).click();
+  await page.getByRole("button", { name: /^高级设置/ }).click();
+  await expect(page.getByRole("heading", { name: "导出数据" })).toBeVisible();
+  for (const heading of ownerOnly)
     await expect(page.getByRole("heading", { name: heading, exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /Google 表格同步/ }).click();
   await expect(page.getByText("开启、关闭同步和查看脚本只有群主能做。")).toBeVisible();
   await expect(page.getByRole("button", { name: "开启同步" })).toHaveCount(0);
+  await page.getByRole("button", { name: "‹ 高级设置" }).click();
   await page.getByRole("button", { name: "‹ 设置" }).click();
 
   // 待审核: he approves 小红.
