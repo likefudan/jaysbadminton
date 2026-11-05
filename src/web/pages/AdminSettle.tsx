@@ -222,6 +222,12 @@ export function Billing(props: { base: string; e: EventDetail; onChange: () => v
   };
   const s = props.e.status;
   if (s === "open" || s === "cancelled") return null;
+  if (s === "settled" && props.e.unsettled)
+    return (
+      <Card title={t("结算")}>
+        <p class="muted">{t("超过结算期限没有 Finalize，已自动归档：没有出账单，不收费，不能再结算。")}</p>
+      </Card>
+    );
   return (
     <Load result={view}>
       {(v) => (

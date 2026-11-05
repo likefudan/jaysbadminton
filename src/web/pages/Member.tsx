@@ -201,11 +201,13 @@ function MyEvents(props: { base: string }) {
                       <>
                         {h.noFee
                           ? t("每人自付场地费")
-                          : h.paidBy
-                            ? t("{name} 已付清", { name: h.paidBy })
-                            : h.amountCents
-                              ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
-                              : t("没有费用")}
+                          : h.unsettled
+                            ? t("未结算，不收费")
+                            : h.paidBy
+                              ? t("{name} 已付清", { name: h.paidBy })
+                              : h.amountCents
+                                ? tx("已付清 {amount}", { amount: <b>${dollars(h.amountCents)}</b> })
+                                : t("没有费用")}
                         {h.kcal != null && (
                           <span class="mini-kcal">
                             <FlameIcon size={12} />

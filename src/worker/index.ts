@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { Env } from "./env";
 import { closeExpired } from "./events";
 import { endDueNoFeeEvents } from "./noFee";
+import { archiveUnsettled } from "./settleDeadline";
 import { syncAllDeadlines } from "./deadlines";
 export { DeadlineAlarm } from "./deadlines";
 export { PushSender } from "./push";
@@ -186,6 +187,12 @@ export default {
       await endDueNoFeeEvents(env); // 无需收款 events an hour past their end go to history
     } catch (err) {
       console.error("ending 无需收款 events failed:", err);
+      await recordCronError(env, err);
+    }
+    try {
+      await archiveUnsettled(env); // past their 结算期限 without a Finalize: to history, nothing billed
+    } catch (err) {
+      console.error("archiving unsettled events failed:", err);
       await recordCronError(env, err);
     }
     try {

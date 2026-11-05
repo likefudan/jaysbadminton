@@ -328,6 +328,21 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   进行中: { tw: "進行中", en: "Current" },
   没有进行中的活动: { tw: "沒有進行中的活動", en: "No current events" },
   已结束: { tw: "已結束", en: "Ended" },
+  结算期限: { tw: "結算期限", en: "Settlement deadline" },
+  "活动结束后，每半小时提醒负责人填写费用并 Finalize。": {
+    tw: "活動結束後，每半小時提醒負責人填寫費用並 Finalize。",
+    en: "After an event ends, whoever runs it is reminded every half hour to enter the fees and Finalize.",
+  },
+  "超过期限还没有 Finalize，活动会自动归档：不出账单，不收费，以后也不能再结算。": {
+    tw: "超過期限還沒有 Finalize，活動會自動歸檔：不出帳單，不收費，以後也不能再結算。",
+    en: "If it isn't finalized by the deadline, the event is archived by itself: no bills, no charge, and it can't be settled later.",
+  },
+  超过期限自动归档: { tw: "超過期限自動歸檔", en: "Archive when the deadline passes" },
+  活动结束后几小时内必须结算: { tw: "活動結束後幾小時內必須結算", en: "Hours after the end to settle by" },
+  "超过结算期限没有 Finalize，已自动归档：没有出账单，不收费，不能再结算。": {
+    tw: "超過結算期限沒有 Finalize，已自動歸檔：沒有出帳單，不收費，不能再結算。",
+    en: "Not finalized by the settlement deadline, so it was archived: no bills, no charge, and it can't be settled now.",
+  },
   显示更早的活动: { tw: "顯示更早的活動", en: "Show older events" },
   "负责人：{name}": { tw: "負責人：{name}", en: "Run by: {name}" },
   新建活动: { tw: "新建活動", en: "New event" },

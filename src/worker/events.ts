@@ -46,6 +46,8 @@ export interface EventRow {
   queue_round_min: number | null;
   /** 无需收款: 1 when everyone pays the venue themselves; no fees, bills or payments. */
   no_fee: number;
+  /** 结算期限 passed without a Finalize: archived ('settled') with nothing billed (settleDeadline.ts). */
+  unsettled: number;
   /** 预定场地: JSON array of the hall's court numbers booked for it; read through bookedCourts. */
   booked_courts: string;
 }
@@ -90,6 +92,7 @@ export function toSummary(e: EventRow, headcount: number): EventSummary {
     notes: e.notes,
     queueRoundMin: e.queue_round_min,
     noFee: e.no_fee === 1,
+    unsettled: e.unsettled === 1,
     deadlineAt: e.deadline_at,
     noDeadline: !!e.no_deadline,
     status: liveStatus(e),
