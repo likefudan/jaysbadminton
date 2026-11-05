@@ -652,9 +652,9 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "{b} so payments are matched automatically; see part 2 below.",
   },
   "设置 Venmo 邮件转发": { tw: "設定 Venmo 郵件轉發", en: "Set up Venmo email forwarding" },
-  "{b}：截止前几小时提醒、每天几点发账单提醒。": {
-    tw: "{b}：截止前幾小時提醒、每天幾點發帳單提醒。",
-    en: "{b}: the reminder a few hours before sign-up closes, and what time bill reminders go out each day.",
+  "{b}（「设置 → 高级设置」和「设置 → 收款设置」）：截止前几小时提醒、每天几点发账单提醒。": {
+    tw: "{b}（「設定 → 進階設定」和「設定 → 收款設定」）：截止前幾小時提醒、每天幾點發帳單提醒。",
+    en: '{b} ("Settings → Advanced" and "Settings → Payment settings"): the reminder a few hours before sign-up closes, and what time bill reminders go out each day.',
   },
   检查提醒设置: { tw: "檢查提醒設定", en: "Check reminder settings" },
   "{b}（「设置 → 高级设置 → Google 表格同步」）：每天把数据备份到你自己的 Google 表格。": {
@@ -1401,6 +1401,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Sent at this time every day from 24 hours after Finalize until everyone has paid.",
   },
   每周一发送健康简报: { tw: "每週一傳送健康簡報", en: "Send a health report every Monday" },
+  在收款设置的账单提醒时间发送: {
+    tw: "在收款設定的帳單提醒時間傳送",
+    en: "Sent at the bill reminder time set in Payment settings",
+  },
   拍照登记: { tw: "拍照登記", en: "Photo check-in" },
   发版说明: { tw: "發版說明", en: "Release notes" },
   "密码至少 {n} 位": { tw: "密碼至少 {n} 位", en: "Passwords need at least {n} characters" },

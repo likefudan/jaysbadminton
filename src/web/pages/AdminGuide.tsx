@@ -147,7 +147,11 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
           <Step done={!!s?.email.lastAt}>
             {tx("{b}，让系统自动对账，见下面第二部分。", { b: <b>{t("设置 Venmo 邮件转发")}</b> })}
           </Step>
-          <Step>{tx("{b}：截止前几小时提醒、每天几点发账单提醒。", { b: <b>{t("检查提醒设置")}</b> })}</Step>
+          <Step>
+            {tx("{b}（「设置 → 高级设置」和「设置 → 收款设置」）：截止前几小时提醒、每天几点发账单提醒。", {
+              b: <b>{t("检查提醒设置")}</b>,
+            })}
+          </Step>
           <Step done={s?.sheets} optional>
             {tx("{b}（「设置 → 高级设置 → Google 表格同步」）：每天把数据备份到你自己的 Google 表格。", {
               b: <b>{t("Google 表格同步")}</b>,

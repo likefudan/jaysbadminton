@@ -227,6 +227,7 @@ function RemindersForm(props: { base: string; initial: ReminderSettings }) {
         />
         {t("每周一发送健康简报")}
       </label>
+      {digest && <p class="muted small">{t("在收款设置的账单提醒时间发送")}</p>}
       {error && <p class="error">{error}</p>}
       <button type="button" class="button secondary block" disabled={busy} onClick={save}>
         {saved ? t("已保存") : t("保存")}

@@ -24,12 +24,20 @@ import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
 import { DunningCard, RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
 import { LANGS, currentLang, t, tk, tx, fmtInstant } from "../i18n";
 
-type Sub = "looks" | "join" | "pay" | "advanced" | "security" | "sheets" | "appNames";
-const SUBS: readonly Sub[] = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames"];
+const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames"] as const;
+type Sub = (typeof SUBS)[number];
 
-/** The sub-page named in ?sub= (Google sign-in comes back to 账号与安全 this way). */
+/**
+ * The sub-page named in ?sub= (Google sign-in comes back to 账号与安全 this way), taken off the
+ * address once read so 设置 opens on the menu next time.
+ */
 function initialSub(): Sub | null {
-  const s = new URLSearchParams(location.search).get("sub");
+  const params = new URLSearchParams(location.search);
+  const s = params.get("sub");
+  if (s === null) return null;
+  params.delete("sub");
+  const q = params.toString();
+  history.replaceState(history.state, "", `${location.pathname}${q ? `?${q}` : ""}${location.hash}`);
   return SUBS.includes(s as Sub) ? (s as Sub) : null;
 }
 
@@ -156,7 +164,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
   }
 
   if (sub === "looks" || sub === "join" || sub === "appNames")
-    return <GroupSubPage base={props.base} sub={sub} open={open} />;
+    return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
   if (sub === "sheets")
     return (
       <SubPage back={() => open("advanced")} backLabel={t("‹ 高级设置")}>
@@ -177,16 +185,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
         <AdvancedCards base={props.base} openSheets={() => open("sheets")} />
       </SubPage>
     );
-  if (sub === "security")
-    return (
-      <SubPage title={t("账号与安全")} back={home}>
-        <GoogleAdminCard base={props.base} viaGoogle={props.viaGoogle} />
-        <PasswordCard base={props.base} />
-        <AdminLinkCard base={props.base} />
-        <BackupKey base={props.base} />
-        <ResetAll base={props.base} />
-      </SubPage>
-    );
+  if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
 
   const g = general.state === "ok" ? general.data : null;
   return (
@@ -223,6 +222,23 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
         {t("退出登录")}
       </button>
     </>
+  );
+}
+
+/**
+ * 账号与安全 (Owner only). After 重新生成管理链接 the old link is dead, so the way back opens 设置 on
+ * the new one instead of reloading with the old.
+ */
+function SecurityPage(props: { base: string; viaGoogle: boolean; back: () => void }) {
+  const [newPath, setNewPath] = useState("");
+  return (
+    <SubPage title={t("账号与安全")} back={newPath ? () => location.assign(`${newPath}?tab=settings`) : props.back}>
+      <GoogleAdminCard base={props.base} viaGoogle={props.viaGoogle} />
+      <PasswordCard base={props.base} />
+      <AdminLinkCard base={props.base} onRotated={setNewPath} />
+      <BackupKey base={props.base} />
+      <ResetAll base={props.base} />
+    </SubPage>
   );
 }
 
@@ -267,13 +283,16 @@ function PasswordCard(props: { base: string }) {
   );
 }
 
-function AdminLinkCard(props: { base: string }) {
+function AdminLinkCard(props: { base: string; onRotated: (path: string) => void }) {
   const [newAdmin, setNewAdmin] = useState("");
   const link = useAction();
   async function rotate() {
     if (!confirm(t("重新生成后，当前管理链接立即失效。继续吗？"))) return;
     const r = await link.run(() => api<LinkResponse>(`${props.base}/settings/rotate-admin`, {}));
-    if (r) setNewAdmin(r.link);
+    if (r) {
+      setNewAdmin(r.link);
+      props.onRotated(new URL(r.link).pathname);
+    }
   }
   return (
     <Card title={t("管理链接")}>
@@ -388,7 +407,7 @@ export function AdminRoleSettings(props: { base: string }) {
   const home = () => open(null);
 
   if (sub === "looks" || sub === "join" || sub === "appNames")
-    return <GroupSubPage base={props.base} sub={sub} open={open} />;
+    return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
   if (sub === "sheets")
     return (
       <SubPage back={() => open("advanced")} backLabel={t("‹ 高级设置")}>
