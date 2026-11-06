@@ -4966,7 +4966,10 @@ label.set-row {
   color: var(--acc-ink);
 }
 .stay-chart {
-  margin: 12px 0 12px;
+  position: relative;
+  margin: 4px 0 12px;
+  /* Room for the tapped bar's bubble, so it never covers the bars or 名单. */
+  padding-top: 30px;
 }
 .stay-bars {
   display: flex;
@@ -4983,6 +4986,29 @@ label.set-row {
 }
 .stay-bars i.me {
   background: var(--acc);
+}
+.stay-bars {
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.stay-bars i.on {
+  background: var(--text);
+}
+.stay-tip {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 .stay-axis {
   position: relative;
