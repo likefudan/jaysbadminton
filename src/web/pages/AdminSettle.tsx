@@ -39,7 +39,7 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
       (noShuttleShare ? t("所有人都标成了未出席，球费不会算进任何人的账单。\n") : "") +
       (finalized
         ? t("保存后，所有人的金额都会按新数据重新计算；已付款的人会显示还差多少或多付多少。继续吗？")
-        : t("Finalize 后，成员就能看到应付金额和付款链接。确定吗？"));
+        : t("结算后，成员就能看到应付金额和付款链接。确定吗？"));
     if (!confirm(msg)) return;
     if (await run(() => api(`${eb}/finalize`, body()))) {
       setPreview(null);
@@ -49,7 +49,7 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
 
   const names = new Map(props.e.roster.map((r) => [r.memberId, r.memberName]));
   return (
-    <Card title={finalized ? t("费用（已 Finalize，可修改）") : t("结算")}>
+    <Card title={finalized ? t("费用（已结算，可修改）") : t("结算")}>
       <Field label={t("场地总费用（美元）")} type="text" value={court} onInput={setCourt} />
       <div class="inline">
         <Field label={t("用球个数")} type="number" value={count} onInput={setCount} />
@@ -87,7 +87,7 @@ export function SettleCard(props: { base: string; e: EventDetail; view: Settleme
           <p class="small">{t("合计应收 {amount}", { amount: usd(preview.totalCents) })}</p>
           {noShuttleShare && <p class="error">{t("所有人都标成了未出席，球费不会算进任何人的账单。")}</p>}
           <button type="button" class="button block" disabled={busy} onClick={doFinalize}>
-            {finalized ? t("保存修改") : "Finalize"}
+            {finalized ? t("保存修改") : t("结算费用")}
           </button>
         </>
       )}
@@ -225,7 +225,7 @@ export function Billing(props: { base: string; e: EventDetail; onChange: () => v
   if (s === "settled" && props.e.unsettled)
     return (
       <Card title={t("结算")}>
-        <p class="muted">{t("超过结算期限没有 Finalize，已自动归档：没有出账单，不收费，不能再结算。")}</p>
+        <p class="muted">{t("超过结算期限没有结算，已自动归档：没有出账单，不收费，不能再结算。")}</p>
       </Card>
     );
   return (

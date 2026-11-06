@@ -66,9 +66,9 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "🗄 {day} 的活動結束 {hours} 小時還沒有結算，已自動歸檔：不出帳單，不收費，以後也不能再結算。",
     en: "🗄 {day} wasn't settled within {hours} h of its end, so it was archived: no bills, no charge, and it can't be settled later.",
   },
-  "💰 {day} 的活动已经结束，还没有结算（报名 {n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。":
+  "💰 {day} 的活动已经结束，还没有结算（报名 {n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点「结算费用」。":
     {
-      tw: "💰 {day} 的活動已經結束，還沒有結算（報名 {n} 人）。\n請開啟管理頁：標記沒來的人，填寫場地費和用球數，然後點 Finalize。",
+      tw: "💰 {day} 的活動已經結束，還沒有結算（報名 {n} 人）。\n請開啟管理頁：標記沒來的人，填寫場地費和用球數，然後點「結算費用」。",
       en: "💰 {day} is over but not settled yet ({n} signed up).\nOpen the admin page: mark who didn't come, enter the court fee and shuttles used, then click Finalize.",
     },
   "🏸 {day}：{total} 个球馆账号里有 {n} 个空着（{share}%），没在打也没在排队，该去排队了。": {

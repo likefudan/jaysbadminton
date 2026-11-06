@@ -264,7 +264,7 @@ function DunningForm(props: { base: string; initial: number }) {
             </option>
           ))}
         </select>
-        <small class="muted">{saved ? t("已保存") : t("Finalize 24 小时后每天这时发，直到收齐。")}</small>
+        <small class="muted">{saved ? t("已保存") : t("结算 24 小时后每天这时发，直到收齐。")}</small>
       </label>
       {error && <p class="error">{error}</p>}
     </Card>
@@ -295,8 +295,8 @@ function SettleDeadlineForm(props: { base: string; initial: number }) {
   return (
     <Card title={t("结算期限")}>
       <p class="muted small">
-        {t("活动结束后，每半小时提醒负责人填写费用并 Finalize。")}
-        {on && t("超过期限还没有 Finalize，活动会自动归档：不出账单，不收费，以后也不能再结算。")}
+        {t("活动结束后，每半小时提醒负责人填写费用并点「结算费用」。")}
+        {on && t("超过期限还没有结算，活动会自动归档：不出账单，不收费，以后也不能再结算。")}
       </p>
       <label class="check">
         <input

@@ -370,8 +370,8 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   await field(page, "球单价（美元）").fill("3");
   await page.getByRole("button", { name: "预览每人金额" }).click();
   await expect(page.getByText("合计应收 $72.00")).toBeVisible(); // 3 players: $20 court + $4 shuttles each
-  await page.getByRole("button", { name: "Finalize" }).click();
-  await expect(page.getByText("费用（已 Finalize，可修改）")).toBeVisible();
+  await page.getByRole("button", { name: "结算费用" }).click();
+  await expect(page.getByText("费用（已结算，可修改）")).toBeVisible();
 
   await page.goto(memberPath);
   const bill = page.locator(".card", { hasText: "本次应付" });
@@ -511,7 +511,7 @@ test("an organizer signs in with Google and runs their own event", async ({ page
     await field(page, "用球个数").fill("2");
     await field(page, "球单价（美元）").fill("4");
     await page.getByRole("button", { name: "预览每人金额" }).click();
-    await page.getByRole("button", { name: "Finalize" }).click();
+    await page.getByRole("button", { name: "结算费用" }).click();
   };
   await settle();
   await expect(page.getByText("请先在收款设置里填好 Venmo 和通知邮箱")).toBeVisible();
@@ -535,7 +535,7 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await tabs.getByRole("button", { name: "活动" }).click();
   await page.locator(".event-link", { hasText: "Ming Gym" }).click();
   await settle();
-  await expect(page.getByText("费用（已 Finalize，可修改）")).toBeVisible();
+  await expect(page.getByText("费用（已结算，可修改）")).toBeVisible();
 
   // Jay's bill for it names the organizer and pays into his Venmo.
   const jay = googleSession("google-jay", "jay@example.com");

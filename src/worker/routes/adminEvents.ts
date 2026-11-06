@@ -420,14 +420,14 @@ adminEventRoutes.post("/events/:id/transfer", async (c) => {
 
 adminEventRoutes.post("/events/:id/cancel", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
-  if (e.status !== "open" && e.status !== "closed") throw badRequest("只能在 Finalize 之前取消活动");
+  if (e.status !== "open" && e.status !== "closed") throw badRequest("只能在结算之前取消活动");
   // Guarded, so of two clicks at once only the one that cancelled it records it.
   const res = await c.env.DB.prepare(
     "UPDATE events SET status = 'cancelled' WHERE id = ? AND status IN ('open', 'closed')",
   )
     .bind(e.id)
     .run();
-  if (!res.meta.changes) throw badRequest("只能在 Finalize 之前取消活动");
+  if (!res.meta.changes) throw badRequest("只能在结算之前取消活动");
   await audit(c.env, e.id, actorId(c.get("actor")), "cancel", "取消活动");
   await syncDeadline(c.env, e.id);
   await remindIfExpired(c.env, e.payee_id);
@@ -515,7 +515,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   // 无需收款 can change only before Finalize: after it there are bills.
   const noFee = b.noFee === undefined ? e.no_fee === 1 : b.noFee === true;
   if (noFee !== (e.no_fee === 1) && e.status !== "open" && e.status !== "closed")
-    throw badRequest("已经 Finalize 的活动不能改成无需收款");
+    throw badRequest("已经结算的活动不能改成无需收款");
   const ts = now();
   // Only over what was read: a close, Finalize or archive landing in between is never undone.
   const [res] = await c.env.DB.batch([
@@ -554,7 +554,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
  */
 adminEventRoutes.post("/events/:id/courts", async (c) => {
   const e = await getEvent(c.env, Number(c.req.param("id")));
-  if (e.status !== "open" && e.status !== "closed") throw badRequest("活动已经 Finalize，不能再改场地");
+  if (e.status !== "open" && e.status !== "closed") throw badRequest("活动已经结算，不能再改场地");
   const courts = cleanBookedCourts((await readJson(c.req.raw)).courts);
   const before = bookedCourts(e);
   // Only while it is still before Finalize: one landing in between is never written over.
@@ -563,7 +563,7 @@ adminEventRoutes.post("/events/:id/courts", async (c) => {
   )
     .bind(JSON.stringify(courts), e.id)
     .run();
-  if (!res.meta.changes) throw badRequest("活动已经 Finalize，不能再改场地");
+  if (!res.meta.changes) throw badRequest("活动已经结算，不能再改场地");
   if (before.join() !== courts.join())
     await audit(
       c.env,
@@ -604,7 +604,7 @@ function editChanges(a: EventRow, b: EventRow): string[] {
 adminEventRoutes.post("/events/:id/reopen", async (c) => {
   await closeExpired(c.env);
   const e = await getEvent(c.env, Number(c.req.param("id")));
-  if (e.status !== "closed") throw badRequest("只能重新开放已截止、还没 Finalize 的活动");
+  if (e.status !== "closed") throw badRequest("只能重新开放已截止、还没结算的活动");
   const b = await readJson(c.req.raw);
   const date = str(b.date);
   const time = str(b.time);
@@ -618,7 +618,7 @@ adminEventRoutes.post("/events/:id/reopen", async (c) => {
   )
     .bind(deadline, e.id)
     .run();
-  if (!res.meta.changes) throw badRequest("只能重新开放已截止、还没 Finalize 的活动");
+  if (!res.meta.changes) throw badRequest("只能重新开放已截止、还没结算的活动");
   await audit(c.env, e.id, actorId(c.get("actor")), "reopen", `重新开放报名，截止到 ${date} ${time}`);
   await syncDeadline(c.env, e.id);
   return c.json({ ok: true });
@@ -1134,7 +1134,7 @@ adminEventRoutes.post("/events/:id/finalize", async (c) => {
   const fees = (i: SettleInput) =>
     `场地 ${money(i.courtTotalCents)}，用球 ${i.shuttleCount} 个 × ${money(i.shuttlePriceCents)}`;
   const first = await finalize(c.env, e, input);
-  if (first) await audit(c.env, e.id, actorId(c.get("actor")), "finalize", `Finalize 发出账单：${fees(input)}`);
+  if (first) await audit(c.env, e.id, actorId(c.get("actor")), "finalize", `结算发出账单：${fees(input)}`);
   // Saved again with the same fees, or a second click on the first Finalize (no fees saved yet when
   // it read them): nothing changed.
   else if (was && fees(was) !== fees(input))

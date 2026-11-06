@@ -628,7 +628,7 @@ export async function pushSettle(env: Env, e: EventRow, headcount: number, warn:
     title: "请结算羽毛球活动",
     body: [
       `${day(e)}${e.title ? "" : ` ${e.location}`} 已结束（报名 ${headcount} 人）`,
-      "请填写场地费和用球数，然后点 Finalize。",
+      "请填写场地费和用球数，然后点「结算费用」。",
       warn ? "还剩不到 2 小时，过时会自动归档，不收费。" : "",
     ]
       .filter(Boolean)
