@@ -329,18 +329,18 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   没有进行中的活动: { tw: "沒有進行中的活動", en: "No current events" },
   已结束: { tw: "已結束", en: "Ended" },
   结算期限: { tw: "結算期限", en: "Settlement deadline" },
-  "活动结束后，每半小时提醒负责人填写费用并 Finalize。": {
-    tw: "活動結束後，每半小時提醒負責人填寫費用並 Finalize。",
+  "活动结束后，每半小时提醒负责人填写费用并点「结算费用」。": {
+    tw: "活動結束後，每半小時提醒負責人填寫費用並點「結算費用」。",
     en: "After an event ends, whoever runs it is reminded every half hour to enter the fees and Finalize.",
   },
-  "超过期限还没有 Finalize，活动会自动归档：不出账单，不收费，以后也不能再结算。": {
-    tw: "超過期限還沒有 Finalize，活動會自動歸檔：不出帳單，不收費，以後也不能再結算。",
+  "超过期限还没有结算，活动会自动归档：不出账单，不收费，以后也不能再结算。": {
+    tw: "超過期限還沒有結算，活動會自動歸檔：不出帳單，不收費，以後也不能再結算。",
     en: "If it isn't finalized by the deadline, the event is archived by itself: no bills, no charge, and it can't be settled later.",
   },
   超过期限自动归档: { tw: "超過期限自動歸檔", en: "Archive when the deadline passes" },
   活动结束后几小时内必须结算: { tw: "活動結束後幾小時內必須結算", en: "Hours after the end to settle by" },
-  "超过结算期限没有 Finalize，已自动归档：没有出账单，不收费，不能再结算。": {
-    tw: "超過結算期限沒有 Finalize，已自動歸檔：沒有出帳單，不收費，不能再結算。",
+  "超过结算期限没有结算，已自动归档：没有出账单，不收费，不能再结算。": {
+    tw: "超過結算期限沒有結算，已自動歸檔：沒有出帳單，不收費，不能再結算。",
     en: "Not finalized by the settlement deadline, so it was archived: no bills, no charge, and it can't be settled now.",
   },
   显示更早的活动: { tw: "顯示更早的活動", en: "Show older events" },
@@ -361,8 +361,8 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   结束: { tw: "結束", en: "End" },
   报名截止时间: { tw: "報名截止時間", en: "Sign-up deadline" },
   到截止时间就不能再报名: { tw: "到截止時間就不能再報名", en: "No sign-ups after the deadline" },
-  "不设截止：活动结束前都能报名（Finalize 后就不能了）": {
-    tw: "不設截止：活動結束前都能報名（Finalize 後就不能了）",
+  "不设截止：活动结束前都能报名（结算后就不能了）": {
+    tw: "不設截止：活動結束前都能報名（結算後就不能了）",
     en: "No deadline: people can sign up until the event ends (not after Finalize)",
   },
   活动开始前: { tw: "活動開始前", en: "Before the event starts" },
@@ -831,8 +831,8 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "在「活動」裡點「＋ 新建活動」，你就是這場的負責人和收款人，然後「複製活動連結」發到群裡。",
     en: 'Under "Events", tap "＋ New event"; you\'re its manager and payee. Then tap "Copy event link" and post it in the group.',
   },
-  "截止后可以改名单、标记到场，填好场地费和用球数，预览后点 Finalize，成员就能看到账单并付钱给你。": {
-    tw: "截止後可以改名單、標記到場，填好場地費和用球數，預覽後點 Finalize，成員就能看到帳單並付錢給你。",
+  "截止后可以改名单、标记到场，填好场地费和用球数，预览后点「结算费用」，成员就能看到账单并付钱给你。": {
+    tw: "截止後可以改名單、標記到場，填好場地費和用球數，預覽後點「結算費用」，成員就能看到帳單並付錢給你。",
     en: "After sign-up closes, edit the list, mark attendance, enter the court fee and shuttlecocks used, preview and tap Finalize; members then see their bills and pay you.",
   },
   "没有自动对上的 Venmo 付款在「收款 › 待确认」里，关联到对应的账单；Zelle 和现金在活动的账单里手动标记已付。全部付清后活动自动归档。":
@@ -1256,11 +1256,12 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "儲存後，所有人的金額都會按新資料重新計算；已付款的人會顯示還差多少或多付多少。繼續嗎？",
     en: "After saving, everyone's amount is recalculated from the new figures; people who already paid will show how much is still due or overpaid. Continue?",
   },
-  "Finalize 后，成员就能看到应付金额和付款链接。确定吗？": {
-    tw: "Finalize 後，成員就能看到應付金額和付款連結。確定嗎？",
+  "结算后，成员就能看到应付金额和付款链接。确定吗？": {
+    tw: "結算後，成員就能看到應付金額和付款連結。確定嗎？",
     en: "After Finalize, members see what they owe and the payment links. Go ahead?",
   },
-  "费用（已 Finalize，可修改）": { tw: "費用（已 Finalize，可修改）", en: "Costs (finalized, can be changed)" },
+  结算费用: { tw: "結算費用", en: "Finalize" },
+  "费用（已结算，可修改）": { tw: "費用（已结算，可修改）", en: "Costs (finalized, can be changed)" },
   "场地总费用（美元）": { tw: "場地總費用（美元）", en: "Total court fee (USD)" },
   用球个数: { tw: "用球個數", en: "Shuttlecocks used" },
   "球单价（美元）": { tw: "球單價（美元）", en: "Price per shuttlecock (USD)" },
@@ -1406,8 +1407,8 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   报名截止前提醒: { tw: "報名截止前提醒", en: "Reminder before sign-up closes" },
   截止前几小时提醒: { tw: "截止前幾小時提醒", en: "Hours before closing" },
   "账单提醒时间（太平洋时间）": { tw: "帳單提醒時間（太平洋時間）", en: "Bill reminder time (Pacific)" },
-  "Finalize 24 小时后每天这时发，直到收齐。": {
-    tw: "Finalize 24 小時後每天這時發，直到收齊。",
+  "结算 24 小时后每天这时发，直到收齐。": {
+    tw: "結算 24 小時後每天這時發，直到收齊。",
     en: "Sent at this time every day from 24 hours after Finalize until everyone has paid.",
   },
   每周一发送健康简报: { tw: "每週一傳送健康簡報", en: "Send a health report every Monday" },

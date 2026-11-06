@@ -95,7 +95,7 @@ describe("预定场地", () => {
     await env.DB.prepare("UPDATE events SET status = 'finalized' WHERE id = ?").bind(e.id).run();
     const late = await ctx.admin.call(`${ctx.base}/events/${e.id}/courts`, { courts: [8] });
     expect(late.status).toBe(400);
-    expect(late.data.error.message).toContain("Finalize");
+    expect(late.data.error.message).toContain("已经结算");
   });
 
   it("is refused to a member's link", async () => {

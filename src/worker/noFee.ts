@@ -14,7 +14,7 @@ import { badRequest } from "./http";
 
 /** Ends one 无需收款 event now (现在结束活动), once sign-up has closed. */
 export async function endNoFeeEvent(env: Env, e: EventRow, actor: string): Promise<void> {
-  if (!e.no_fee) throw badRequest("这个活动需要结算收款，请在下面填写费用后 Finalize");
+  if (!e.no_fee) throw badRequest("这个活动需要结算收款，请在下面填写费用后点「结算费用」");
   if (e.status === "open") throw badRequest("报名还没截止，请先截止报名再结束活动");
   if (e.status !== "closed") throw badRequest("这个活动已经结束了");
   const ended = await archive(env, "id = ?1 AND status = 'closed'", e.id);

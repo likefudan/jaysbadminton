@@ -306,7 +306,7 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
           l,
           bt(
             l,
-            "💰 {day} 的活动已经结束，还没有结算（报名 {n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点 Finalize。",
+            "💰 {day} 的活动已经结束，还没有结算（报名 {n} 人）。\n请打开管理页：标记没来的人，填写场地费和用球数，然后点「结算费用」。",
             { day: day(e, l), n },
           ) +
             (warn

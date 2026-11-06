@@ -249,7 +249,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
           <span>
             <strong>{t("报名截止时间")}</strong>
             <small>
-              {deadlineOn ? t("到截止时间就不能再报名") : t("不设截止：活动结束前都能报名（Finalize 后就不能了）")}
+              {deadlineOn ? t("到截止时间就不能再报名") : t("不设截止：活动结束前都能报名（结算后就不能了）")}
             </small>
           </span>
           <input

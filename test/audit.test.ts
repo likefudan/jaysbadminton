@@ -139,7 +139,7 @@ describe("what the Owner does", () => {
     const s = await billingScenario();
     const id = s.e.id as number;
     expect(await added(id, () => s.admin.call(`${s.eb}/finalize`, s.fees))).toEqual([
-      { actor_id: s.owner, action: "finalize", detail: "Finalize 发出账单：场地 $100.00，用球 6 个 × $3.00" },
+      { actor_id: s.owner, action: "finalize", detail: "结算发出账单：场地 $100.00，用球 6 个 × $3.00" },
     ]);
     expect(await added(id, () => s.admin.call(`${s.eb}/finalize`, { ...s.fees, courtTotal: "120" }))).toEqual([
       {
