@@ -637,3 +637,18 @@ export async function pushSettle(env: Env, e: EventRow, headcount: number, warn:
     tag: `settle-${e.id}`,
   });
 }
+
+/**
+ * 空闲账号提醒 (Ke Li): on the phone of whoever runs the event (the Owner's own events: the Owner),
+ * while too many of its hall accounts sit idle. At most every half hour (notify.ts).
+ */
+export async function pushIdle(env: Env, e: EventRow, idle: number, total: number): Promise<boolean> {
+  const id = await eventManager(env.DB, e);
+  if (!id) return false;
+  return pushTo(env, id, "idle", e, {
+    title: `${idle} 个球馆账号空着，该去排队了`,
+    body: `${when(e)} ${e.title || e.location}\n${total} 个账号里有 ${idle} 个没在打也没在排队（${Math.round((idle * 100) / total)}%）。`,
+    url: `/e/${e.code}`,
+    tag: `idle-${e.id}`,
+  });
+}

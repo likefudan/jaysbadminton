@@ -7,7 +7,8 @@ import { type BotLang, type BotText, bt, botDate, btm, usd } from "./botLang";
 import { day, venue, when } from "./eventText";
 import { forwardingWatch, recordCronError, weeklyDigest } from "./health";
 import { ROLE_TITLE, eventManager, isStaff, memberRole, organizersEnabled } from "./organizers";
-import { START_PUSH_MS, drainPushes, pushSettle, pushStarting, sendRest } from "./push";
+import { idleAlertDue } from "./courtQueue";
+import { START_PUSH_MS, drainPushes, pushIdle, pushSettle, pushStarting, sendRest } from "./push";
 import { SETTLE_WARN_MS, settleDeadline, settleDueAt } from "./settleDeadline";
 import {
   escapeHtml,
@@ -130,6 +131,7 @@ export async function runScheduled(env: Env, at: Date = new Date()): Promise<voi
       await closedNotice(env, e, at);
       await startPush(env, e, at);
       await settleReminder(env, e, at);
+      await idleAlert(env, e, at);
       await dailyDunning(env, e, at, cfg);
     } catch (err) {
       console.error(`notifications for event ${e.id} failed:`, err);
@@ -320,6 +322,41 @@ async function settleReminder(env: Env, e: EventRow, at: Date): Promise<void> {
       console.error(`settle push for event ${e.id} failed:`, err);
     }
     return sent;
+  });
+}
+
+/**
+ * 空闲账号提醒 (Ke Li): while a 排队系统 event is on, when the share of its hall accounts neither on
+ * a court nor queued reaches the threshold in 设置, whoever runs it hears on their phone and on
+ * Telegram; at most once per half hour while it stays that way. The 球场 card shows its own notice.
+ */
+async function idleAlert(env: Env, e: EventRow, at: Date): Promise<void> {
+  const due = await idleAlertDue(env, e, at);
+  if (!due) return;
+  const p = toPacific(at);
+  const slot = `${p.date}T${p.time.slice(0, 2)}:${Number(p.time.slice(3, 5)) < 30 ? "00" : "30"}`;
+  const n = due.idle.length;
+  const share = Math.round((n * 100) / due.total);
+  await once(env, e.id, "idle_alert", slot, async () => {
+    let pushed = false;
+    try {
+      pushed = await pushIdle(env, e, n, due.total);
+      if (pushed) await sendRest(env);
+    } catch (err) {
+      console.error(`idle push for event ${e.id} failed:`, err);
+    }
+    const sent = await toManager(env, e, (l) =>
+      message(
+        l,
+        bt(l, "🏸 {day}：{total} 个球馆账号里有 {n} 个空着（{share}%），没在打也没在排队，该去排队了。", {
+          day: day(e, l),
+          total: due.total,
+          n,
+          share,
+        }) + `\n${due.idle.map(escapeHtml).join("、")}`,
+      ),
+    );
+    return sent || pushed;
   });
 }
 

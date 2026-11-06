@@ -689,6 +689,11 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "{name} 更新于 {time}": { tw: "{name} 更新於 {time}", en: "Updated by {name} at {time}" },
   "＋ 登记球场": { tw: "＋ 登記球場", en: "＋ Add court" },
   "球馆账号（{n}）": { tw: "球館帳號（{n}）", en: "Venue accounts ({n})" },
+  "⚠️ {total} 个账号有 {n} 个空着（{share}%），该去排队了": {
+    tw: "⚠️ {total} 個帳號有 {n} 個空著（{share}%），該去排隊了",
+    en: "⚠️ {n} of {total} accounts are idle ({share}%). Time to queue.",
+  },
+  "＋ 用空闲账号登记排队": { tw: "＋ 用空閒帳號登記排隊", en: "＋ Queue with idle accounts" },
   "在打 · {n} 片": { tw: "在打 · {n} 片", en: "Playing · {n}" },
   "剩 {n} 分": { tw: "剩 {n} 分", en: "{n} min left" },
   "排队 · {n} 组": { tw: "排隊 · {n} 組", en: "Queued · {n}" },

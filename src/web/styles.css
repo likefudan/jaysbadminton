@@ -4005,6 +4005,37 @@ ul.audit li:first-child {
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
   backdrop-filter: blur(18px) saturate(1.4);
 }
+/* 空闲账号提醒: too many of the accounts sit idle while the event is on. */
+.cq-idle {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-line);
+  color: var(--warn);
+  line-height: 1.4;
+}
+.cq-idle b {
+  font-weight: 650;
+}
+.cq-idle-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+.cq-idle-names span {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--warn-line);
+  color: var(--text);
+  font-size: 13.5px;
+}
+.cq-idle .button {
+  margin: 0;
+  min-height: 38px;
+}
 .cq-bar .button {
   flex: 1;
   margin: 0;

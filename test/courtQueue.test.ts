@@ -1,6 +1,14 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { courtLeft, courtPhase, parseAccountList, queueWait, replacedBy } from "../src/shared/courtQueue";
+import {
+  courtLeft,
+  courtPhase,
+  idleAccounts,
+  idleTooMany,
+  parseAccountList,
+  queueWait,
+  replacedBy,
+} from "../src/shared/courtQueue";
 import { purgeCourtPhotos, toPhotoResult } from "../src/worker/courtPhoto";
 import worker from "../src/worker/index";
 import { Client, ORIGIN, appoint, approveMember, googleCookie, createTestEvent, request, setUpAdmin } from "./helpers";
@@ -421,6 +429,21 @@ describe("courtPhase / queueWait", () => {
     expect(courtLeft(courts, 3, at)).toBe(35);
     expect(courtLeft(courts, 4, at)).toBeNull();
     expect(courtLeft(courts, 2, at + 30 * 60_000)).toBe(20);
+  });
+
+  it("idleAccounts: neither playing nor queued, any case; idleTooMany at the threshold", () => {
+    const t = Date.parse("2030-01-01T20:00:00Z");
+    const at = (min: number) => new Date(t + min * 60_000).toISOString();
+    const courts = [
+      { startsAt: null, endsAt: at(10), accounts: ["ann"] },
+      { startsAt: at(5), endsAt: at(50), accounts: ["Ben"] },
+      { startsAt: null, endsAt: at(-1), accounts: ["Cat"] }, // over
+    ];
+    expect(idleAccounts(["Ann", "Ben", "Cat", "Dan"], courts, t)).toEqual(["Cat", "Dan"]);
+    expect(idleTooMany(2, 4, 50)).toBe(true);
+    expect(idleTooMany(1, 4, 50)).toBe(false);
+    expect(idleTooMany(4, 4, 0)).toBe(false);
+    expect(idleTooMany(0, 0, 50)).toBe(false);
   });
 
   it("estimates the wait from the screen", () => {
