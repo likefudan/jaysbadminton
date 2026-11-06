@@ -4936,46 +4936,25 @@ label.set-row {
   margin-top: 4px;
   padding-top: 0;
 }
-.stay-head {
+.stay-range {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
-.stay-head strong {
-  font-size: 17px;
+.stay-range .field {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
 }
-.stay-head small {
-  font-size: 13px;
-}
-.stay-picker .inline {
-  gap: 10px;
+.stay-dash {
+  color: var(--muted);
 }
 .stay-picker select {
   width: 100%;
 }
 .stay-picker select:disabled {
   opacity: 0.45;
-}
-.my-stay {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--acc-soft);
-  border: 1px solid var(--acc-line);
-  margin: 10px 0 2px;
-  font-size: 14px;
-}
-.my-stay b {
-  color: var(--acc-ink);
-  font-variant-numeric: tabular-nums;
-}
-.my-stay small {
-  color: var(--muted);
 }
 .stay-tag {
   margin-left: 6px;

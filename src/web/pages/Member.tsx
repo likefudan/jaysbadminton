@@ -17,7 +17,7 @@ import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEd
 import { PaymentBox } from "../PaymentBox";
 import { Heatmap, ProfileHero, ProfileSettings } from "../Profile";
 import { RosterList } from "../Roster";
-import { StayPicker, stayText } from "../Stay";
+import { StayPicker } from "../Stay";
 import { CourtQueue } from "../CourtQueue";
 import { useApi } from "../hooks";
 import { CardCornerIcons } from "../ShareCard";
@@ -310,12 +310,6 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         <FeeLine e={e} />
         {e.organizer && <div class="ev-meta">{t("组织：{name}", { name: e.organizer })}</div>}
         {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
-        {signedUp && myStay.arrive && !editing && (
-          <div class="my-stay">
-            <span>{tx("我 {time}", { time: <b>{stayText(myStay)}</b> })}</span>
-            {e.canEdit && !brought && <small>{t("点「修改」可以改")}</small>}
-          </div>
-        )}
         {!e.roster?.length && <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>}
         {e.roster && e.roster.length > 0 && (
           <RosterList

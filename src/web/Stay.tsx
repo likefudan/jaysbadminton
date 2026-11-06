@@ -22,21 +22,20 @@ export function stayText(s: Stay): string {
   return s.leave ? `${clock(s.arrive)}–${clock(s.leave)}` : t("{time} 到", { time: clock(s.arrive) });
 }
 
-/** The two dropdowns on the sign-up form: 到 first; 走 only once 到 is picked. */
+/**
+ * The two dropdowns on the sign-up form as one time range, no labels (Ke Li): 「几点到 – 几点走」,
+ * both optional; 走 only once 到 is picked.
+ */
 export function StayPicker(props: { start: string; end: string; value: Stay; onChange: (s: Stay) => void }) {
   const { start, end, value } = props;
   const arrives = arriveChoices(start, end);
   const leaves = value.arrive ? leaveChoices(start, end, value.arrive) : [];
   return (
     <div class="stay-picker">
-      <div class="stay-head">
-        <strong>{t("在场时间")}</strong>
-        <small class="muted">{t("选填，先选到的时间")}</small>
-      </div>
-      <div class="inline">
+      <div class="stay-range">
         <label class="field">
-          <span>{t("到")}</span>
           <select
+            aria-label={t("到")}
             value={value.arrive ?? ""}
             onChange={(e) => {
               const arrive = (e.target as HTMLSelectElement).value || null;
@@ -45,7 +44,7 @@ export function StayPicker(props: { start: string; end: string; value: Stay; onC
               props.onChange({ arrive, leave: keep ? value.leave : null });
             }}
           >
-            <option value="">{t("不填")}</option>
+            <option value="">{t("几点到")}</option>
             {arrives.map((a) => (
               <option key={a} value={a}>
                 {clock(a)}
@@ -53,14 +52,15 @@ export function StayPicker(props: { start: string; end: string; value: Stay; onC
             ))}
           </select>
         </label>
+        <span class="stay-dash">–</span>
         <label class="field">
-          <span>{t("走")}</span>
           <select
+            aria-label={t("走")}
             disabled={!value.arrive}
             value={value.leave ?? ""}
             onChange={(e) => props.onChange({ ...value, leave: (e.target as HTMLSelectElement).value || null })}
           >
-            <option value="">{t("不填")}</option>
+            <option value="">{t("几点走")}</option>
             {leaves.map((l) => (
               <option key={l} value={l}>
                 {clock(l)}
