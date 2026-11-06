@@ -1,3 +1,4 @@
+import { clock } from "./Stay";
 import type { EventStatus, EventSummary, MyEvent } from "../shared/types";
 import { statusZh } from "../shared/types";
 import type { ComponentChildren } from "preact";
@@ -197,7 +198,7 @@ export function EventHero(props: {
       <span class="hero-date">
         {monthDay(e.date)}
         <small>
-          {weekdayOf(e.date)} {e.startTime}
+          {weekdayOf(e.date)} {clock(e.startTime)}–{clock(e.endTime)}
         </small>
       </span>
       <span class="hero-what">

@@ -28,6 +28,8 @@ import {
   removeSignup,
   roster,
   setSignup,
+  setStay,
+  checkEventStay,
   summaries,
   type EventRow,
   validateFriends,
@@ -324,6 +326,8 @@ async function myEvents(
         friendOf: r.friendIndex > 0 ? r.memberName : r.memberId !== m.id ? r.paidByName : null,
         mine: r.memberId === m.id || r.paidBy === m.id,
         absent: settled && !r.attended,
+        arrive: r.arrive,
+        leave: r.leave,
       }));
     }
     events.push({
@@ -334,6 +338,10 @@ async function myEvents(
         ? { name: brought.username, billed: settled && brought.status !== null, paid: brought.status === "paid" }
         : null,
       selfSignedUp: selfOn,
+      myStay: (() => {
+        const own = people.find((r) => r.memberId === m.id && r.friendIndex === 0);
+        return { arrive: own?.arrive ?? null, leave: own?.leave ?? null };
+      })(),
       canEdit: m.status === "active" && (e.status === "open" || (runs && e.status === "closed")),
       friendCap: runs ? MANAGER_FRIEND_MAX : generalCap,
       organizer: await organizerOf(row),
@@ -393,7 +401,11 @@ memberRoutes.post("/:token/events/:id/signup", async (c) => {
     keep,
     guests?.length ?? (await guestCount(c.env, e.id, m.id)),
   );
+  // 在场时间: left out by a page from before it, they keep what they had.
+  const stay =
+    body.arrive === undefined && body.leave === undefined ? null : checkEventStay(e, body.arrive, body.leave);
   const { added, removed, missed } = await setSignup(c.env, e.id, m.id, friends, false, guests);
+  if (stay) await setStay(c.env, e.id, m.id, stay);
   const pushed = await Promise.all([
     ...added.map((g) => pushBrought(c.env, e, g, m.id, m.id, true)),
     ...removed.map((g) => pushBrought(c.env, e, g, m.id, m.id, false)),

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import { StayChart, stayText } from "../Stay";
 import { AI_PRICES, type PhotoUsage } from "../../shared/ai";
 import { QUEUE_DEFAULT_ROUND_MIN, QUEUE_ROUND_MAX, QUEUE_ROUND_MIN } from "../../shared/courtQueue";
 import { AddressInput } from "../AddressInput";
@@ -553,11 +554,15 @@ function EventAdminBody(props: {
       <Card title={t("名单（{n}）", { n: e.roster.length })}>
         {error && <p class="error">{error}</p>}
         {e.roster.length === 0 && <Empty>{t("还没有人报名")}</Empty>}
+        {e.roster.some((r) => r.arrive) && (
+          <StayChart start={e.startTime} end={e.endTime} stays={e.roster} mine={null} />
+        )}
         {e.roster.map((r) => (
           <div class="row" key={r.id}>
             <div class="who">
               {(r.friendIndex > 0 || r.paidBy) && "　↳ "}
               {r.name}
+              {r.friendIndex === 0 && r.arrive && <span class="stay-tag">{stayText(r)}</span>}
               {r.addedByOwner && <span class="badge">{addedBy}</span>}
               {r.friendIndex > 0 && <small>　{t("{name} 带的朋友", { name: r.memberName })}</small>}
               {r.paidBy && <small>　{t("{name} 带的群友，{name} 付钱", { name: r.paidByName ?? "" })}</small>}
