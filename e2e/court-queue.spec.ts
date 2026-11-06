@@ -331,7 +331,48 @@ test("hall accounts: everyone's are listed, yours can be removed, and more added
   const posts = await setUp(page);
   await page.getByRole("button", { name: "球馆账号（18）" }).click();
   const sheet = page.getByRole("dialog");
-  await expect(sheet.locator(".cq-account").first()).toHaveText("Am · 100916号"); // alphabetical, whatever the case
+  // Free accounts first, alphabetical whatever the case; those on a court or queued below, greyed out.
+  await expect(sheet.locator(".cq-account").first()).toHaveText("arthur · 1017");
+  await expect(sheet.locator("li:not(.on) .cq-account")).toHaveText([
+    "arthur · 1017",
+    "Dafei · 1016",
+    "Lily · 1014",
+    "Tom · 1015",
+  ]);
+  // Those in use by court number, then A→Z on the same court.
+  await expect(sheet.locator("li.on .cq-account")).toHaveText([
+    /^Pengy /,
+    /^Xiayw /,
+    /^Yuew /,
+    /^Zi /,
+    /^Chris /,
+    /^Weicheng /,
+    /^Ben /,
+    /^Coco /,
+    /^Mark /,
+    /^Yixing /,
+    /^Keoung /,
+    /^Zhichun /,
+    /^Am /,
+    /^Wenxi /,
+  ]);
+  await expect(sheet.locator("li.on")).toHaveCount(14);
+  // The sort button goes round A→Z, Z→A, newest added; the busy ones stay below either way.
+  await sheet.getByRole("button", { name: "排序：A→Z" }).click();
+  await expect(sheet.locator("li:not(.on) .cq-account")).toHaveText([
+    "Tom · 1015",
+    "Lily · 1014",
+    "Dafei · 1016",
+    "arthur · 1017",
+  ]);
+  await sheet.getByRole("button", { name: "排序：Z→A" }).click();
+  await expect(sheet.locator("li:not(.on) .cq-account")).toHaveText([
+    "arthur · 1017",
+    "Dafei · 1016",
+    "Tom · 1015",
+    "Lily · 1014",
+  ]);
+  await expect(sheet.getByText("报名这场的人都能看到这些账号和密码。")).toHaveCount(0);
   await expect(sheet.locator("li", { hasText: "Xiayw" })).toContainText("Ke 提供");
   await expect(sheet.locator("li", { hasText: "Chris" }).getByRole("button", { name: "删除" })).toHaveCount(0);
   // Hall usernames and passwords are often lowercase: phones mustn't capitalise them.

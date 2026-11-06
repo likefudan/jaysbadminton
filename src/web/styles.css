@@ -4472,6 +4472,39 @@ ul.audit li:first-child {
 .cq-accounts li:first-child {
   border-top: 0;
 }
+/* On a court or queued: below the free ones, greyed out (Ke Li). */
+.cq-accounts li.on .cq-account {
+  color: var(--muted);
+}
+.cq-accounts li.on .cq-on {
+  color: var(--muted);
+}
+/* 搜索 and the sort button on one row. */
+.cq-find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 2px;
+}
+.cq-find .cq-search {
+  flex: 1;
+  margin: 0;
+}
+.cq-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
 .cq-account {
   font-family: var(--mono);
   font-size: 14px;

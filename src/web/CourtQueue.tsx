@@ -13,6 +13,7 @@ import {
   QUEUE_GROUP_MAX,
   QUEUE_MAX_POSITION,
   QUEUE_SOON_MIN,
+  type QueueAccount,
   type QueueCourt,
   parseAccountList,
   type QueueInfo,
@@ -727,6 +728,29 @@ function Search(props: { value: string; onInput: (v: string) => void }) {
 
 const matches = (name: string, query: string) => name.toLowerCase().includes(query.trim().toLowerCase());
 
+type AccountSort = "az" | "za" | "new";
+/** 球馆账号's sort button, tapped round: A→Z, Z→A, newest added first. */
+const SORTS: Record<AccountSort, { label: () => string; compare: (a: QueueAccount, b: QueueAccount) => number }> = {
+  az: { label: () => "A→Z", compare: (a, b) => byName(a, b) },
+  za: { label: () => "Z→A", compare: (a, b) => byName(b, a) },
+  new: { label: () => t("最新添加"), compare: (a, b) => b.id - a.id },
+};
+
+function SortIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+      <path
+        d="M6 3v13M6 16l-3-3M6 16l3-3M14 17V4M14 4l-3 3M14 4l3 3"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Accounts in alphabetical order, ignoring case (Ke Li). */
 const byName = (a: { username: string }, b: { username: string }) =>
   a.username.localeCompare(b.username, "en", { sensitivity: "base" });
@@ -802,10 +826,20 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
   const [password, setPassword] = useState("");
   const [query, setQuery] = useState("");
   const [batch, setBatch] = useState(false);
+  const [sort, setSort] = useState<AccountSort>("az");
   const { busy, error, run } = useAction();
   const path = `${props.base}/events/${props.e.id}/queue/accounts`;
   const inUse = busyAccounts(props.q, Date.now(), null);
-  const shown = props.q.accounts.filter((a) => matches(a.username, query)).sort(byName);
+  // Free accounts first in the order picked; those on a court or queued below them, by court
+  // number and then in the order picked (Ke Li).
+  const order = SORTS[sort].compare;
+  const found = props.q.accounts.filter((a) => matches(a.username, query));
+  const isOn = (a: { username: string }) => inUse.has(a.username.toLowerCase());
+  const court = (a: { username: string }) => Math.min(...(inUse.get(a.username.toLowerCase()) ?? [0]));
+  const shown = [
+    ...found.filter((a) => !isOn(a)).sort(order),
+    ...found.filter(isOn).sort((a, b) => court(a) - court(b) || order(a, b)),
+  ];
   // The list on screen follows what the card last fetched, so it updates as accounts come and go.
   async function add() {
     if (await run(() => api(path, { username, password }))) {
@@ -828,8 +862,6 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
       label={t("球馆账号")}
       onClose={props.onClose}
     >
-      <p class="muted small">{t("报名这场的人都能看到这些账号和密码。")}</p>
-      <p class="sheet-label">{t("添加账号（可以加好几个）")}</p>
       <div class="cq-add">
         <Field label={t("用户名")} value={username} onInput={setUsername} autocomplete="off" verbatim />
         <Field label={t("密码")} value={password} onInput={setPassword} autocomplete="off" verbatim />
@@ -844,13 +876,26 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
         </button>
       </div>
       {batch && <BatchAdd path={`${path}/batch`} q={props.q} onDone={props.onChange} />}
-      {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
+      {props.q.accounts.length > 1 && (
+        <div class="cq-find">
+          {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
+          <button
+            type="button"
+            class="cq-sort"
+            aria-label={t("排序：{by}", { by: SORTS[sort].label() })}
+            onClick={() => setSort(sort === "az" ? "za" : sort === "za" ? "new" : "az")}
+          >
+            <SortIcon />
+            <span>{SORTS[sort].label()}</span>
+          </button>
+        </div>
+      )}
       {shown.length > 0 && (
         <ul class="cq-accounts">
           {shown.map((a) => {
             const on = inUse.get(a.username.toLowerCase());
             return (
-              <li key={a.id}>
+              <li key={a.id} class={on ? "on" : undefined}>
                 <span class="cq-account">
                   {a.username} · {a.password}
                   {on && <small class="cq-on">{t("{n}号", { n: on.join("、") })}</small>}
