@@ -4472,21 +4472,12 @@ ul.audit li:first-child {
 .cq-accounts li:first-child {
   border-top: 0;
 }
-/* On a court or queued: below the free ones, tinted like the courts being played (Ke Li). */
-.cq-accounts li.on {
-  margin: 0 -12px;
-  padding: 9px 12px;
-  background: var(--ok-soft);
+/* On a court or queued: below the free ones, greyed out (Ke Li). */
+.cq-accounts li.on .cq-account {
+  color: var(--muted);
 }
 .cq-accounts li.on .cq-on {
-  color: var(--ok);
-  font-weight: 600;
-}
-.cq-accounts li.on + li.on {
-  border-top-color: transparent;
-}
-.cq-accounts li:last-child.on {
-  border-radius: 0 0 12px 12px;
+  color: var(--muted);
 }
 /* 搜索 and the sort button on one row. */
 .cq-find {

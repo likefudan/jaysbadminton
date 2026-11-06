@@ -834,7 +834,12 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
   const order = SORTS[sort].compare;
   const found = props.q.accounts.filter((a) => matches(a.username, query));
   const isOn = (a: { username: string }) => inUse.has(a.username.toLowerCase());
-  const shown = [...found.filter((a) => !isOn(a)).sort(order), ...found.filter(isOn).sort(order)];
+  // Those in use by court number, then in the order picked within a court (Ke Li).
+  const court = (a: { username: string }) => Math.min(...(inUse.get(a.username.toLowerCase()) ?? [0]));
+  const shown = [
+    ...found.filter((a) => !isOn(a)).sort(order),
+    ...found.filter(isOn).sort((a, b) => court(a) - court(b) || order(a, b)),
+  ];
   // The list on screen follows what the card last fetched, so it updates as accounts come and go.
   async function add() {
     if (await run(() => api(path, { username, password }))) {

@@ -331,7 +331,7 @@ test("hall accounts: everyone's are listed, yours can be removed, and more added
   const posts = await setUp(page);
   await page.getByRole("button", { name: "球馆账号（18）" }).click();
   const sheet = page.getByRole("dialog");
-  // Free accounts first, alphabetical whatever the case; those on a court or queued below, tinted.
+  // Free accounts first, alphabetical whatever the case; those on a court or queued below, greyed out.
   await expect(sheet.locator(".cq-account").first()).toHaveText("arthur · 1017");
   await expect(sheet.locator("li:not(.on) .cq-account")).toHaveText([
     "arthur · 1017",
@@ -339,7 +339,23 @@ test("hall accounts: everyone's are listed, yours can be removed, and more added
     "Lily · 1014",
     "Tom · 1015",
   ]);
-  await expect(sheet.locator("li.on").first()).toHaveText(/^Am · 100916号/);
+  // Those in use by court number, then A→Z on the same court.
+  await expect(sheet.locator("li.on .cq-account")).toHaveText([
+    /^Pengy /,
+    /^Xiayw /,
+    /^Yuew /,
+    /^Zi /,
+    /^Chris /,
+    /^Weicheng /,
+    /^Ben /,
+    /^Coco /,
+    /^Mark /,
+    /^Yixing /,
+    /^Keoung /,
+    /^Zhichun /,
+    /^Am /,
+    /^Wenxi /,
+  ]);
   await expect(sheet.locator("li.on")).toHaveCount(14);
   // The sort button goes round A→Z, Z→A, newest added; the busy ones stay below either way.
   await sheet.getByRole("button", { name: "排序：A→Z" }).click();
