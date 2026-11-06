@@ -688,6 +688,8 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   球场: { tw: "球場", en: "Courts" },
   "{name} 更新于 {time}": { tw: "{name} 更新於 {time}", en: "Updated by {name} at {time}" },
   "＋ 登记球场": { tw: "＋ 登記球場", en: "＋ Add court" },
+  "排序：{by}": { tw: "排序：{by}", en: "Sort: {by}" },
+  最新添加: { tw: "最新加入", en: "Newest" },
   "球馆账号（{n}）": { tw: "球館帳號（{n}）", en: "Venue accounts ({n})" },
   "⚠️ {n} 个账号空着（{share}%）": { tw: "⚠️ {n} 個帳號空著（{share}%）", en: "⚠️ {n} accounts idle ({share}%)" },
   "在打 · {n} 片": { tw: "在打 · {n} 片", en: "Playing · {n}" },
