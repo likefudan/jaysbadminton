@@ -584,18 +584,14 @@ test("拍照登记: skipping every court left closes the sheet", async ({ page }
   expect(posts.length).toBe(before);
 });
 
-test("空闲账号提醒: too many idle accounts during the event ask everyone to go queue", async ({ page }) => {
+test("空闲账号提醒: too many idle accounts during the event show a strip under the buttons", async ({ page }) => {
   // Only courts 1 and 6 are entered: 12 of the 18 accounts are neither playing nor queued.
   const idleAlert = { pct: 50, from: ago(30), to: at(120) };
   const q = { ...queue, idleAlert, courts: [queue.courts[0]!, queue.courts[5]!] };
   await setUp(page, { ...event, queue: q });
-  const note = page.locator(".cq-idle");
-  await expect(note).toContainText("18 个账号有 12 个空着（67%），该去排队了");
-  await expect(note.locator(".cq-idle-names span")).toHaveCount(12);
-  await expect(note.locator(".cq-idle-names span").first()).toHaveText("Mark");
+  const note = page.locator(".cq-bar .cq-idle");
+  await expect(note).toHaveText("⚠️ 12 个账号空着（67%）");
   await page.screenshot({ path: test.info().outputPath("court-queue-idle.png") });
-  await note.getByRole("button", { name: "＋ 用空闲账号登记排队" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
 });
 
 test("空闲账号提醒 stays away under the threshold, and outside the event's hours", async ({ page }) => {

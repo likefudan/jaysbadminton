@@ -123,8 +123,8 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
         <button type="button" class="button secondary" onClick={() => setSheet({ kind: "accounts" })}>
           {t("球馆账号（{n}）", { n: q.accounts.length })}
         </button>
+        <IdleNotice q={q} now={now} />
       </div>
-      <IdleNotice q={q} now={now} onQueue={() => setSheet({ kind: "court", court: null })} />
       {playing.length > 0 && (
         <>
           <p class="cq-sub">{t("在打 · {n} 片", { n: playing.length })}</p>
@@ -221,32 +221,19 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
 }
 
 /**
- * 空闲账号提醒 (Ke Li): while the event is on and at least the threshold set in 设置 of the shared
- * accounts are neither on a court nor queued, a notice names them and asks everyone to go queue.
+ * 空闲账号提醒 (Ke Li, option C): while the event is on and at least the threshold set in 设置 of
+ * the shared accounts are neither on a court nor queued, a thin strip under the two buttons says
+ * how many, and stays on screen with them.
  */
-function IdleNotice(props: { q: QueueInfo; now: number; onQueue: () => void }) {
+function IdleNotice(props: { q: QueueInfo; now: number }) {
   const a = props.q.idleAlert;
   if (!a || props.now < Date.parse(a.from) || props.now >= Date.parse(a.to)) return null;
   const all = props.q.accounts.map((x) => x.username);
-  const idle = idleAccounts(all, props.q.courts, props.now);
-  if (!idleTooMany(idle.length, all.length, a.pct)) return null;
+  const idle = idleAccounts(all, props.q.courts, props.now).length;
+  if (!idleTooMany(idle, all.length, a.pct)) return null;
   return (
     <div class="cq-idle" role="status">
-      <b>
-        {t("⚠️ {total} 个账号有 {n} 个空着（{share}%），该去排队了", {
-          total: all.length,
-          n: idle.length,
-          share: Math.round((idle.length * 100) / all.length),
-        })}
-      </b>
-      <div class="cq-idle-names">
-        {idle.map((n) => (
-          <span key={n}>{n}</span>
-        ))}
-      </div>
-      <button type="button" class="button block" onClick={props.onQueue}>
-        {t("＋ 用空闲账号登记排队")}
-      </button>
+      {t("⚠️ {n} 个账号空着（{share}%）", { n: idle, share: Math.round((idle * 100) / all.length) })}
     </div>
   );
 }
