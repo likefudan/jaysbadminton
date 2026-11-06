@@ -24,7 +24,7 @@ import { toPacific } from "../shared/time";
 import type { MyEvent } from "../shared/types";
 import { api } from "./api";
 import { CourtCombo } from "./CourtCombo";
-import { Field, useAction } from "./components";
+import { useAction } from "./components";
 import { t } from "./i18n";
 
 /** Over this many accounts, the lists get a search box. */
@@ -294,10 +294,17 @@ function SheetFrame(props: {
   title: ComponentChildren;
   label: string;
   onClose: () => void;
+  action?: ComponentChildren;
   children: ComponentChildren;
 }) {
   return (
-    <Panel title={props.title ?? props.label} label={props.label} onClose={props.onClose} class="cq-sheet">
+    <Panel
+      title={props.title ?? props.label}
+      label={props.label}
+      onClose={props.onClose}
+      action={props.action}
+      class="cq-sheet"
+    >
       {props.children}
     </Panel>
   );
@@ -844,20 +851,47 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
       title={t("球馆账号（{n}）", { n: props.q.accounts.length })}
       label={t("球馆账号")}
       onClose={props.onClose}
-    >
-      <div class="cq-add">
-        <Field label={t("用户名")} value={username} onInput={setUsername} autocomplete="off" verbatim />
-        <Field label={t("密码")} value={password} onInput={setPassword} autocomplete="off" verbatim />
-      </div>
-      {error && <p class="error">{error}</p>}
-      <div class="cq-add-buttons">
-        <button type="button" class="button" disabled={busy || !username.trim()} onClick={add}>
-          {t("添加")}
-        </button>
-        <button type="button" class="button secondary" aria-expanded={batch} onClick={() => setBatch(!batch)}>
+      action={
+        <button type="button" aria-expanded={batch} onClick={() => setBatch(!batch)}>
           {t("批量添加")}
         </button>
-      </div>
+      }
+    >
+      {/* One row (Ke Li, option F): the two boxes and ＋; 批量添加 is up in the top bar. */}
+      <form
+        class="cq-add"
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          if (!busy && username.trim()) add();
+        }}
+      >
+        <input
+          aria-label={t("用户名")}
+          placeholder={t("用户名")}
+          autocomplete="off"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck={false}
+          value={username}
+          onInput={(ev) => setUsername((ev.target as HTMLInputElement).value)}
+        />
+        <input
+          aria-label={t("密码")}
+          placeholder={t("密码")}
+          autocomplete="off"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck={false}
+          value={password}
+          onInput={(ev) => setPassword((ev.target as HTMLInputElement).value)}
+        />
+        <button type="submit" class="cq-add-plus" aria-label={t("添加")} disabled={busy || !username.trim()}>
+          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+            <path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+      </form>
+      {error && <p class="error">{error}</p>}
       {batch && <BatchAdd path={`${path}/batch`} q={props.q} onDone={props.onChange} />}
       {props.q.accounts.length > 1 && (
         <div class="cq-find">

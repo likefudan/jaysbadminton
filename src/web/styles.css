@@ -4557,8 +4557,34 @@ ul.audit li:first-child {
 }
 .cq-add {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 46px;
   gap: 8px;
+  margin: 0;
+}
+.cq-add input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+}
+.cq-add-plus {
+  display: grid;
+  place-items: center;
+  min-height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--acc);
+  color: var(--on-acc);
+  cursor: pointer;
+}
+.cq-add-plus:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* 拍照登记: the photo button, the photo to check against, and yellow for what the photo left unsure. */
@@ -4670,17 +4696,11 @@ ul.audit li:first-child {
   color: #fff;
 }
 
-/* 批量添加: 添加 and 批量添加 side by side, then the paste box and what it will do. */
-.cq-add-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
-}
 .cq-clear {
   width: 100%;
   margin-top: 12px;
 }
+/* 批量添加: the paste box and what it will do. */
 .cq-batch {
   margin: 10px 0 4px;
 }
