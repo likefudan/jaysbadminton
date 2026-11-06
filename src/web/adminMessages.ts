@@ -810,45 +810,95 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   给管理员的说明: { tw: "給管理員的說明", en: "Notes for admins" },
   给组织者的说明: { tw: "給組織者的說明", en: "Notes for organizers" },
   "一、开始前要做的事": { tw: "一、開始前要做的事", en: "1. Before you start" },
-  "{b}（设置里的「我的收款设置」）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。你负责的活动，成员把钱付到这里；没填好之前活动可以报名，但不能结算。":
+  "{b}（「设置 › 收款设置」）：要收场地费才需要。填 Venmo 用户名和通知邮箱，Zelle 选填，成员把钱付到这里。不填也能办「无需收款」的活动。":
     {
-      tw: "{b}（設定裡的「我的收款設定」）：Venmo 使用者名稱、Venmo 通知電子郵件（Venmo 帳戶裡登記的、收款通知發到的那個電子郵件），Zelle 選填。你負責的活動，成員把錢付到這裡；沒填好之前活動可以報名，但不能結算。",
-      en: "{b} (\"My payment settings\" in Settings): Venmo username, Venmo notification email (the email on your Venmo account that payment notices go to); Zelle is optional. Members pay here for events you run; until it's filled in, your events can take sign-ups but can't be billed.",
+      tw: "{b}（「設定 › 收款設定」）：要收場地費才需要。填 Venmo 使用者名稱和通知電子郵件，Zelle 選填，成員把錢付到這裡。不填也能辦「無需收款」的活動。",
+      en: '{b} ("Settings › Payment settings"): only needed to collect court fees. Enter your Venmo username and notification email (Zelle optional); members pay you there. Without it you can still run "No fees to collect" events.',
+    },
+  "{b}（上面的「我的收款设置」）：要收场地费才需要。填 Venmo 用户名和通知邮箱，Zelle 选填，成员把钱付到这里。不填也能办「无需收款」的活动。":
+    {
+      tw: "{b}（上面的「我的收款設定」）：要收場地費才需要。填 Venmo 使用者名稱和通知電子郵件，Zelle 選填，成員把錢付到這裡。不填也能辦「無需收款」的活動。",
+      en: '{b} ("My payment settings" above): only needed to collect court fees. Enter your Venmo username and notification email (Zelle optional); members pay you there. Without it you can still run "No fees to collect" events.',
     },
   填好收款设置: { tw: "填好收款設定", en: "Fill in payment settings" },
-  "{b}（设置里「Venmo 邮件转发」的步骤）：设好以后成员付款会自动记账；第一封 Venmo 收款邮件到了，转发状态会显示「已生效」。":
-    {
-      tw: "{b}（設定裡「Venmo 郵件轉發」的步驟）：設好以後成員付款會自動記帳；第一封 Venmo 收款郵件到了，轉發狀態會顯示「已生效」。",
-      en: '{b} (the "Venmo email forwarding" steps in Settings): once set up, member payments are recorded automatically; when the first Venmo payment email arrives, the forwarding status shows "Working".',
-    },
-  "{b}（设置里的「我的 Telegram」）：你负责的活动的报名截止、结算和收款提醒会发给你；没连接时这些提醒发给群主。": {
-    tw: "{b}（設定裡的「我的 Telegram」）：你負責的活動的報名截止、結算和收款提醒會發給你；沒連線時這些提醒發給群主。",
-    en: '{b} ("My Telegram" in Settings): sign-up closing, billing and payment reminders for your events come to you; if you\'re not connected, they go to the owner.',
+  "{b}（「设置 › 收款设置」里的步骤）：要收场地费才需要，设好后付款自动记账，第一封收款邮件到了会显示「已生效」。": {
+    tw: "{b}（「設定 › 收款設定」裡的步驟）：要收場地費才需要，設好後付款自動記帳，第一封收款郵件到了會顯示「已生效」。",
+    en: '{b} (the steps in "Settings › Payment settings"): only needed to collect court fees. Once set up, payments are recorded automatically; when the first payment email arrives it shows "Forwarding works".',
+  },
+  "{b}（上面「Venmo 邮件转发」的步骤）：要收场地费才需要，设好后付款自动记账，第一封收款邮件到了会显示「已生效」。": {
+    tw: "{b}（上面「Venmo 郵件轉發」的步驟）：要收場地費才需要，設好後付款自動記帳，第一封收款郵件到了會顯示「已生效」。",
+    en: '{b} (the "Venmo email forwarding" steps above): only needed to collect court fees. Once set up, payments are recorded automatically; when the first payment email arrives it shows "Forwarding works".',
+  },
+  "{b}（「设置 › 高级设置」）：你的活动的提醒和新成员申请发给你。": {
+    tw: "{b}（「設定 › 進階設定」）：你的活動的提醒和新成員申請發給你。",
+    en: '{b} ("Settings › Advanced"): reminders for your events and new member applications come to you.',
+  },
+  "{b}（上面的「我的 Telegram」）：你的活动的提醒发给你；没连接时发给群主。": {
+    tw: "{b}（上面的「我的 Telegram」）：你的活動的提醒發給你；沒連線時發給群主。",
+    en: '{b} ("My Telegram" above): reminders for your events come to you; if you\'re not connected, they go to the owner.',
   },
   "连接你的 Telegram": { tw: "連線你的 Telegram", en: "Connect your Telegram" },
   "二、怎么组织一场活动": { tw: "二、怎麼組織一場活動", en: "2. How to run an event" },
-  "在「活动」里点「＋ 新建活动」，你就是这场的负责人和收款人，然后「复制活动链接」发到群里。": {
-    tw: "在「活動」裡點「＋ 新建活動」，你就是這場的負責人和收款人，然後「複製活動連結」發到群裡。",
-    en: 'Under "Events", tap "＋ New event"; you\'re its manager and payee. Then tap "Copy event link" and post it in the group.',
+  "{b}：「活动 › ＋ 新建活动」，你就是这场的负责人和收款人；建好后「复制活动链接」发到群里。": {
+    tw: "{b}：「活動 › ＋ 新建活動」，你就是這場的負責人和收款人；建好後「複製活動連結」發到群裡。",
+    en: '{b}: "Events › ＋ New event"; you\'re its manager and payee. Then tap "Copy event link" and post it in the group.',
   },
-  "截止后可以改名单、标记到场，填好场地费和用球数，预览后点「结算费用」，成员就能看到账单并付钱给你。": {
-    tw: "截止後可以改名單、標記到場，填好場地費和用球數，預覽後點「結算費用」，成員就能看到帳單並付錢給你。",
-    en: "After sign-up closes, edit the list, mark attendance, enter the court fee and shuttlecocks used, preview and tap Finalize; members then see their bills and pay you.",
+  新建: { tw: "新建", en: "Create" },
+  "{b}：「无需收款」是每人到场自付，活动结束 1 小时后自动结束，不用结算；「排队系统」打开球场排队；「报名截止时间」关掉的话，活动结束前一直能报名。{x}":
+    {
+      tw: "{b}：「無需收款」是每人到場自付，活動結束 1 小時後自動結束，不用結算；「排隊系統」打開球場排隊；「報名截止時間」關掉的話，活動結束前一直能報名。{x}",
+      en: '{b}: with "No fees to collect", everyone pays at the venue and the event ends by itself 1 hour after it finishes, with no billing. "Court queue" turns on court queuing. With "Sign-up deadline" off, people can sign up until the event ends. {x}',
+    },
+  三个开关: { tw: "三個開關", en: "Three switches" },
+  "已经开始的活动也能补建，建好就是截止状态，不发通知。": {
+    tw: "已經開始的活動也能補建，建好就是截止狀態，不發通知。",
+    en: "You can also add an event that has already started; it's created closed, with no notifications.",
   },
-  "没有自动对上的 Venmo 付款在「收款 › 待确认」里，关联到对应的账单；Zelle 和现金在活动的账单里手动标记已付。全部付清后活动自动归档。":
+  "{b}：「预定场地」填上场号，报名的人都能看到，开始前 10 分钟会收到提醒。成员报名时可以选几点到、几点走，名单上有每 15 分钟的人数图。":
     {
-      tw: "沒有自動對上的 Venmo 付款在「收款 › 待確認」裡，關聯到對應的帳單；Zelle 和現金在活動的帳單裡手動標記已付。全部付清後活動自動歸檔。",
-      en: "Venmo payments that didn't match automatically are under \"Payments › To confirm\"; match them to the right bill. Mark Zelle and cash as paid by hand in the event's bills. Once everyone has paid, the event is archived automatically.",
+      tw: "{b}：「預定場地」填上場號，報名的人都能看到，開始前 10 分鐘會收到提醒。成員報名時可以選幾點到、幾點走，名單上有每 15 分鐘的人數圖。",
+      en: '{b}: enter the court numbers under "Booked courts"; everyone signed up sees them and gets a reminder 10 minutes before the start. Members can pick when they arrive and leave when signing up, and the list shows a chart of how many are there every 15 minutes.',
     },
-  "你还能像群主一样管理整个群：审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、修改群设置、导出数据。群主和管理员（包括你自己）的成员记录、任命管理员、密码和密钥、清空数据、永久删除只有群主能做。":
+  活动当天: { tw: "活動當天", en: "On the day" },
+  "{b}：大家在「球馆账号」里加账号，在球场上登记在打或排队；空着的账号太多时会提醒你。{x}": {
+    tw: "{b}：大家在「球館帳號」裡加帳號，在球場上登記在打或排隊；空著的帳號太多時會提醒你。{x}",
+    en: '{b}: everyone adds accounts under "Venue accounts" and marks courts as playing or queued; you get an alert when too many accounts sit idle. {x}',
+  },
+  球场排队: { tw: "球場排隊", en: "Court queue" },
+  "提醒比例在「设置 › 高级设置 › 空闲账号提醒」；你还能批量删除球场、清空账号。": {
+    tw: "提醒比例在「設定 › 進階設定 › 空閒帳號提醒」；你還能批次刪除球場、清空帳號。",
+    en: 'Set the alert level in "Settings › Advanced › Idle account alert". You can also delete courts in bulk and remove all accounts.',
+  },
+  "{b}：活动结束后填场地费和用球数，预览后点「结算费用」，成员就能看到账单付钱给你。没结算前每 30 分钟提醒一次，超过结算期限（{x}默认 48 小时）自动归档，不再收费。":
     {
-      tw: "你還能像群主一樣管理整個群：審核申請、管理成員、任命組織者、管理和轉交所有活動、確認所有收款、修改群設定、匯出資料。群主和管理員（包括你自己）的成員記錄、任命管理員、密碼和金鑰、清空資料、永久刪除只有群主能做。",
-      en: "You can also run the whole group like the owner: review applications, manage members, appoint organizers, manage and hand over all events, confirm all payments, change the group settings, and export data. Only the owner can change the owner's and admins' (including your own) member records, appoint admins, handle the password and keys, clear all data, and delete permanently.",
+      tw: "{b}：活動結束後填場地費和用球數，預覽後點「結算費用」，成員就能看到帳單付錢給你。沒結算前每 30 分鐘提醒一次，超過結算期限（{x}預設 48 小時）自動歸檔，不再收費。",
+      en: "{b}: after the event, enter the court fee and shuttlecocks used, preview and tap Finalize; members then see their bills and pay you. Until then you're reminded every 30 minutes; past the settlement deadline ({x}48 hours by default) the event is archived with no charge.",
     },
-  "群主能看到并修改你的活动，会收到发起、结算完成、收齐三条抄送。你看不到别人负责的活动和收款；「待审核」「成员」只能看，不能改。":
+  "「设置 › 收款设置」，": { tw: "「設定 › 收款設定」，", en: '"Settings › Payment settings", ' },
+  "{b}：没自动对上的 Venmo 付款在「收款 › 待确认」里关联到账单；Zelle 和现金在账单里手动标记已付。全部付清后自动归档。":
     {
-      tw: "群主能看到並修改你的活動，會收到發起、結算完成、收齊三條抄送。你看不到別人負責的活動和收款；「待審核」「成員」只能看，不能改。",
-      en: 'The owner can see and change your events, and gets three copies: created, billed and fully paid. You can\'t see other people\'s events or payments; "Pending" and "Members" are view-only.',
+      tw: "{b}：沒自動對上的 Venmo 付款在「收款 › 待確認」裡關聯到帳單；Zelle 和現金在帳單裡手動標記已付。全部付清後自動歸檔。",
+      en: '{b}: match Venmo payments that weren\'t matched automatically to a bill under "Payments › To confirm"; mark Zelle and cash as paid by hand in the bills. Once everyone has paid, the event is archived automatically.',
+    },
+  "三、管理整个群": { tw: "三、管理整個群", en: "3. Running the group" },
+  "三、你能看到什么": { tw: "三、你能看到什麼", en: "3. What you can see" },
+  "和群主一样：审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、修改群设置、导出数据。": {
+    tw: "和群主一樣：審核申請、管理成員、任命組織者、管理和轉交所有活動、確認所有收款、修改群設定、匯出資料。",
+    en: "Like the owner: review applications, manage members, appoint organizers, manage and hand over all events, confirm all payments, change group settings and export data.",
+  },
+  "{b}：在「设置 › 入群和报名」里打开，新成员申请后直接入群，每天有人数上限。": {
+    tw: "{b}：在「設定 › 入群和報名」裡打開，新成員申請後直接入群，每天有人數上限。",
+    en: '{b}: turn it on in "Settings › Joining & sign-ups"; new applicants join straight away, up to a daily limit.',
+  },
+  "{b}：任命管理员、密码和密钥、清空数据、永久删除，以及修改群主和管理员的成员记录。": {
+    tw: "{b}：任命管理員、密碼和金鑰、清空資料、永久刪除，以及修改群主和管理員的成員記錄。",
+    en: "{b}: appointing admins, passwords and keys, clearing all data, permanent deletes, and changing the owner's and admins' member records.",
+  },
+  只有群主能做: { tw: "只有群主能做", en: "Only the owner can" },
+  "群主和管理员能看到并修改你的活动；群主会收到发起、结算完成、收齐三条抄送。你看不到别人的活动和收款，「待审核」「成员」只能看。":
+    {
+      tw: "群主和管理員能看到並修改你的活動；群主會收到發起、結算完成、收齊三條抄送。你看不到別人的活動和收款，「待審核」「成員」只能看。",
+      en: 'The owner and admins can see and change your events; the owner gets three copies: created, billed and fully paid. You can\'t see other people\'s events or payments; "Pending" and "Members" are view-only.',
     },
   "不想再当管理员时，点下面的「不再当管理员」，弹窗会先列出你的活动会怎么处理。": {
     tw: "不想再當管理員時，點下面的「不再當管理員」，彈窗會先列出你的活動會怎麼處理。",

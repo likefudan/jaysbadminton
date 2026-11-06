@@ -370,14 +370,14 @@ export function OrganizerSettings(props: { base: string }) {
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
   return (
     <>
+      <MyPaymentCard base={props.base} profile={profile} reload={reload} />
+      <ForwardingCard profile={p} />
+      <TelegramCard base={props.base} organizer status={telegram} reload={reloadTelegram} />
       <OrganizerGuide
         payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}
         forwarding={done(profile, (d) => !!d.lastVenmoEmailAt)}
         telegram={done(telegram, (d) => (d.botReady ? d.connected : null))}
       />
-      <MyPaymentCard base={props.base} profile={profile} reload={reload} />
-      <ForwardingCard profile={p} />
-      <TelegramCard base={props.base} organizer status={telegram} reload={reloadTelegram} />
       <RetireCard base={props.base} />
       <button
         type="button"
@@ -435,12 +435,6 @@ export function AdminRoleSettings(props: { base: string }) {
   const g = general.state === "ok" ? general.data : null;
   return (
     <>
-      <OrganizerGuide
-        admin
-        payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}
-        forwarding={done(profile, (d) => !!d.lastVenmoEmailAt)}
-        telegram={done(telegram, (d) => (d.botReady ? d.connected : null))}
-      />
       <section class="card set-list">
         <SettingRow
           icon={<PayIcon />}
@@ -467,6 +461,12 @@ export function AdminRoleSettings(props: { base: string }) {
           onClick={() => open("advanced")}
         />
       </section>
+      <OrganizerGuide
+        admin
+        payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}
+        forwarding={done(profile, (d) => !!d.lastVenmoEmailAt)}
+        telegram={done(telegram, (d) => (d.botReady ? d.connected : null))}
+      />
       <RetireCard base={props.base} title={tk("管理员")} />
       <button
         type="button"
