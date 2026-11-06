@@ -60,7 +60,7 @@ for (const role of ["owner", "organizer"] as const) {
       }),
     );
     await page.route("**/api/m/session/events/42/signup", (route) => {
-      expect(route.request().postDataJSON()).toEqual({ friends: [], guests: [] });
+      expect(route.request().postDataJSON()).toEqual({ friends: [], guests: [], arrive: null, leave: null });
       signedUp = true;
       return route.fulfill({ json: { ok: true } });
     });
