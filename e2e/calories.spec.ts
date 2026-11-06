@@ -173,7 +173,7 @@ test.describe("on iPhone, 个人信息", () => {
       "https://www.icloud.com/shortcuts/909be1bdeb324b88a0caca0b0031aa11",
     );
     await expect(sheet.getByRole("button", { name: "已安装，开始读取" })).toHaveCount(0);
-    await sheet.getByRole("button", { name: "关闭" }).click();
+    await sheet.getByRole("button", { name: "返回" }).click();
     await expect(sheet).toBeHidden();
   });
 

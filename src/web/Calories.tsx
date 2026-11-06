@@ -1,5 +1,5 @@
+import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
-import { createPortal } from "preact/compat";
 import { SHORTCUT_NAME } from "../shared/calories";
 import type { CalorieStart, MyCalories, MyEvent } from "../shared/types";
 import { api } from "./api";
@@ -124,80 +124,64 @@ export function CalorieRow(props: { base: string; e: MyEvent; onChange: () => vo
  */
 function CalorieGuide(props: { install: string; update: boolean; onRead?: () => void; onClose: () => void }) {
   const read = props.onRead;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, []);
-  return createPortal(
-    // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
-    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
-    <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet" role="dialog" aria-label={t("读取卡路里")}>
-        <div class="sheet-head">
-          <strong>{t("读取卡路里")}</strong>
-          <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
-            ✕
-          </button>
-        </div>
-        <p class="kcal-intro">
-          {props.update
-            ? t("快捷指令有新版本，读得更快。请重新安装一次，替换掉旧的。")
-            : t("要戴 Apple Watch 打球，装一次快捷指令就行。")}
-        </p>
-        <ol class="kcal-steps">
-          <li>
-            <span class="n">1</span>
+  return (
+    <Panel title={t("读取卡路里")} label={t("读取卡路里")} onClose={props.onClose}>
+      <p class="kcal-intro">
+        {props.update
+          ? t("快捷指令有新版本，读得更快。请重新安装一次，替换掉旧的。")
+          : t("要戴 Apple Watch 打球，装一次快捷指令就行。")}
+      </p>
+      <ol class="kcal-steps">
+        <li>
+          <span class="n">1</span>
+          <span>
+            {t("安装快捷指令「{name}」", { name: SHORTCUT_NAME })}
+            <small>
+              {props.update
+                ? t("在 iPhone 上打开，问到同名的快捷指令时选「替换」")
+                : read
+                  ? t("在 iPhone 上打开，点「添加快捷指令」")
+                  : t("在 iPhone 上打开，点「添加快捷指令」；问到同名的就选「替换」")}
+            </small>
+          </span>
+        </li>
+        <li>
+          <span class="n">2</span>
+          {read ? (
             <span>
-              {t("安装快捷指令「{name}」", { name: SHORTCUT_NAME })}
-              <small>
-                {props.update
-                  ? t("在 iPhone 上打开，问到同名的快捷指令时选「替换」")
-                  : read
-                    ? t("在 iPhone 上打开，点「添加快捷指令」")
-                    : t("在 iPhone 上打开，点「添加快捷指令」；问到同名的就选「替换」")}
-              </small>
+              {t("回到这里点「开始读取」")}
+              <small>{t("第一次会问能不能读取「活动能量」，选允许")}</small>
             </span>
-          </li>
-          <li>
-            <span class="n">2</span>
-            {read ? (
-              <span>
-                {t("回到这里点「开始读取」")}
-                <small>{t("第一次会问能不能读取「活动能量」，选允许")}</small>
-              </span>
-            ) : (
-              <span>
-                {t("打完球后，在活动卡片上点「读取」")}
-                <small>{t("第一次会问能不能读取「活动能量」，选允许")}</small>
-              </span>
-            )}
-          </li>
-        </ol>
-        {props.install ? (
-          <a
-            class={read ? "button block secondary" : "button block"}
-            href={props.install}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t("安装快捷指令")}
-          </a>
-        ) : (
-          <p class="muted small">{t("安装链接还在准备中。")}</p>
-        )}
-        {read && (
-          <button type="button" class="button block" onClick={read}>
-            {t("已安装，开始读取")}
-          </button>
-        )}
-        <p class="kcal-privacy">
-          <FlameIcon size={16} />
-          <span>{t("只存总数，只有你看得到。")}</span>
-        </p>
-      </div>
-    </div>,
-    document.body,
+          ) : (
+            <span>
+              {t("打完球后，在活动卡片上点「读取」")}
+              <small>{t("第一次会问能不能读取「活动能量」，选允许")}</small>
+            </span>
+          )}
+        </li>
+      </ol>
+      {props.install ? (
+        <a
+          class={read ? "button block secondary" : "button block"}
+          href={props.install}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t("安装快捷指令")}
+        </a>
+      ) : (
+        <p class="muted small">{t("安装链接还在准备中。")}</p>
+      )}
+      {read && (
+        <button type="button" class="button block" onClick={read}>
+          {t("已安装，开始读取")}
+        </button>
+      )}
+      <p class="kcal-privacy">
+        <FlameIcon size={16} />
+        <span>{t("只存总数，只有你看得到。")}</span>
+      </p>
+    </Panel>
   );
 }
 

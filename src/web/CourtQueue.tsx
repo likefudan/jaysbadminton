@@ -1,4 +1,4 @@
-import { createPortal } from "preact/compat";
+import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import {
@@ -296,27 +296,10 @@ function SheetFrame(props: {
   onClose: () => void;
   children: ComponentChildren;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, []);
-  // Into <body>, like the share sheet: the card's backdrop-filter would trap a fixed sheet inside it.
-  return createPortal(
-    // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
-    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
-    <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet cq-sheet" role="dialog" aria-label={props.label}>
-        <div class="sheet-head">
-          <strong>{props.title}</strong>
-          <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
-            ✕
-          </button>
-        </div>
-        {props.children}
-      </div>
-    </div>,
-    document.body,
+  return (
+    <Panel title={props.title ?? props.label} label={props.label} onClose={props.onClose} class="cq-sheet">
+      {props.children}
+    </Panel>
   );
 }
 

@@ -1,5 +1,5 @@
+import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
-import { createPortal } from "preact/compat";
 import { Card, SettingRow } from "./components";
 import { t } from "./i18n";
 
@@ -217,59 +217,47 @@ export const CheckIcon = () => (
 
 /** The steps (iPhone, or getting out of WeChat), as a sheet over the page (like 分享名片). */
 function InstallGuide(props: { kind: InstallKind; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, []);
   const wechat = props.kind === "wechat";
-  return createPortal(
-    // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
-    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
-    <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet" role="dialog" aria-label={wechat ? t("用浏览器打开") : t("添加到主屏幕")}>
-        <div class="sheet-head">
-          <strong>{wechat ? t("用浏览器打开") : t("添加到主屏幕")}</strong>
-          <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
-            ✕
-          </button>
-        </div>
-        {wechat ? (
-          <ol class="install-steps">
-            <li>
-              <MoreIcon />
-              <span>{t("点微信右上角的「⋯」")}</span>
-            </li>
-            <li>
-              <ShareIcon />
-              <span>{isIos() ? t("选「在 Safari 中打开」") : t("选「在浏览器打开」")}</span>
-            </li>
-            <li>
-              <AddIcon />
-              <span>{t("在浏览器里回到这一页，点「添加到主屏幕」")}</span>
-            </li>
-          </ol>
-        ) : (
-          <ol class="install-steps">
-            <li>
-              <ShareIcon />
-              <span>{t("点 Safari 的「分享」按钮（新版 Safari 先点右下角的「⋯」）")}</span>
-            </li>
-            <li>
-              <AddIcon />
-              <span>{t("往下滑，选「添加到主屏幕」")}</span>
-            </li>
-            <li>
-              <CheckIcon />
-              <span>{t("打开「作为 Web App 打开」（如果有这个开关），点右上角的「添加」")}</span>
-            </li>
-          </ol>
-        )}
-        {!wechat && (
-          <p class="muted small sheet-note">{t("添加以后，从主屏幕的「羽毛球」图标打开，就直接到你的页面。")}</p>
-        )}
-      </div>
-    </div>,
-    document.body,
+  return (
+    <Panel
+      title={wechat ? t("用浏览器打开") : t("添加到主屏幕")}
+      label={wechat ? t("用浏览器打开") : t("添加到主屏幕")}
+      onClose={props.onClose}
+    >
+      {wechat ? (
+        <ol class="install-steps">
+          <li>
+            <MoreIcon />
+            <span>{t("点微信右上角的「⋯」")}</span>
+          </li>
+          <li>
+            <ShareIcon />
+            <span>{isIos() ? t("选「在 Safari 中打开」") : t("选「在浏览器打开」")}</span>
+          </li>
+          <li>
+            <AddIcon />
+            <span>{t("在浏览器里回到这一页，点「添加到主屏幕」")}</span>
+          </li>
+        </ol>
+      ) : (
+        <ol class="install-steps">
+          <li>
+            <ShareIcon />
+            <span>{t("点 Safari 的「分享」按钮（新版 Safari 先点右下角的「⋯」）")}</span>
+          </li>
+          <li>
+            <AddIcon />
+            <span>{t("往下滑，选「添加到主屏幕」")}</span>
+          </li>
+          <li>
+            <CheckIcon />
+            <span>{t("打开「作为 Web App 打开」（如果有这个开关），点右上角的「添加」")}</span>
+          </li>
+        </ol>
+      )}
+      {!wechat && (
+        <p class="muted small sheet-note">{t("添加以后，从主屏幕的「羽毛球」图标打开，就直接到你的页面。")}</p>
+      )}
+    </Panel>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { onRefreshing, refreshAll } from "./hooks";
 import { standalone } from "./Install";
+import { panelOpen } from "./Panel";
 import { t } from "./i18n";
 
 const PULL_PX = 70;
@@ -18,7 +19,8 @@ export function PullToRefresh() {
     let startY: number | null = null;
     let dy = 0;
     const start = (e: TouchEvent) => {
-      startY = window.scrollY <= 0 && e.touches.length === 1 ? (e.touches[0]?.clientY ?? null) : null;
+      // A panel scrolls on its own; pulling it down is not a refresh.
+      startY = !panelOpen() && window.scrollY <= 0 && e.touches.length === 1 ? (e.touches[0]?.clientY ?? null) : null;
       dy = 0;
     };
     const move = (e: TouchEvent) => {

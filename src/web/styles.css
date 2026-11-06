@@ -752,11 +752,6 @@ button.event-link {
   font-size: 14px;
   cursor: pointer;
 }
-.guest-sheet {
-  display: flex;
-  flex-direction: column;
-  max-height: 80vh;
-}
 .guest-list {
   flex: 1;
   min-height: 0;
@@ -2858,52 +2853,106 @@ a.ev-meta {
   font-size: 14px;
 }
 
-/* ---- Appearance sheet ---- */
-.sheet-backdrop {
+/* ---- Panels (Panel.tsx): full screen on a phone, a centred card on a wide screen ---- */
+.panel-backdrop {
   position: fixed;
   inset: 0;
   z-index: 50;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.32);
   animation: fade 0.18s ease;
 }
-.sheet {
-  width: 100%;
-  max-width: 560px;
-  padding: 16px 18px calc(20px + env(safe-area-inset-bottom));
-  border-radius: 20px 20px 0 0;
-  background: var(--surface-raised);
-  border: 1px solid var(--line);
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.18);
-  animation: rise 0.22s ease;
-}
-[data-style="aurora"] .sheet {
-  border-color: var(--edge);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
-}
-.sheet-head {
+.panel {
   display: flex;
+  flex-direction: column;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  animation: slide-in 0.22s ease;
+  transition: transform 0.16s ease;
+}
+html.panel-open,
+html.panel-open body {
+  overflow: hidden;
+}
+.panel-bar {
+  display: grid;
+  grid-template-columns: minmax(84px, auto) 1fr minmax(84px, auto);
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
+  gap: 6px;
+  min-height: 50px;
+  padding: env(safe-area-inset-top) 8px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+[data-style="aurora"] .panel-bar {
+  border-color: var(--edge);
+}
+.panel-title {
+  overflow: hidden;
   font-size: 16px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-/* A sheet with no title, only the ✕ (分享名片: the image says what it is). */
-.sheet-head-close {
-  justify-content: flex-end;
-}
-.sheet-close {
-  width: 32px;
-  height: 32px;
+.panel-back,
+.panel-action > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 8px;
   border: 0;
-  border-radius: 50%;
-  background: var(--surface-2);
-  color: var(--muted);
-  font-size: 13px;
+  background: none;
+  color: var(--acc-ink);
+  font: inherit;
+  font-size: 16px;
   cursor: pointer;
+}
+.panel-back {
+  justify-self: start;
+}
+.panel-action {
+  justify-self: end;
+}
+.panel-action > button {
+  font-size: 15px;
+}
+.panel-action > button[aria-expanded="true"] {
+  font-weight: 600;
+}
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 16px calc(24px + env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .panel {
+    position: relative;
+    inset: auto;
+    width: min(560px, calc(100vw - 32px));
+    max-height: min(760px, calc(100vh - 64px));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--surface-raised);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+    animation: rise 0.22s ease;
+  }
+  .panel-body {
+    padding-bottom: 22px;
+  }
+}
+@keyframes slide-in {
+  from {
+    transform: translateX(40%);
+    opacity: 0.4;
+  }
 }
 .sheet-label {
   margin: 12px 0 6px;
@@ -4236,10 +4285,6 @@ ul.audit li:first-child {
   box-shadow: inset 0 0 0 3px var(--danger);
   pointer-events: none;
 }
-.cq-sheet {
-  max-height: 92vh;
-  overflow-y: auto;
-}
 .cq-court-no {
   display: block;
 }
@@ -4749,7 +4794,7 @@ ul.audit li:first-child {
   font-size: 13px;
   font-weight: 700;
 }
-.sheet .button.block + .button.block {
+.panel .button.block + .button.block {
   margin-top: 10px;
 }
 .kcal-privacy {

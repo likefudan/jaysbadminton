@@ -1,4 +1,4 @@
-import { createPortal } from "preact/compat";
+import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
 import { eventCardText, type CardText } from "../shared/shareCard";
 import type { EventSummary } from "../shared/types";
@@ -302,34 +302,16 @@ function ShareCardSheet(props: { text: CardText; onClose: () => void }) {
     drawShareCard(site, props.text).then(setPng, () => setFailed(true));
   }, [site, props.text.url]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, []);
-
-  // Rendered into <body>: event cards use backdrop-filter, which would otherwise trap this fixed
-  // sheet inside the card instead of covering the screen.
-  return createPortal(
-    // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
-    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
-    <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet" role="dialog" aria-label={t("分享")}>
-        <div class="sheet-head sheet-head-close">
-          <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
-            ✕
-          </button>
-        </div>
-        {failed && <p class="muted">{t("名片生成失败，请刷新后再试。")}</p>}
-        {!failed && !png && <p class="muted">{t("正在生成…")}</p>}
-        {png && (
-          <>
-            <img class="sharecard" src={png} alt={t("分享")} />
-            <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>
-          </>
-        )}
-      </div>
-    </div>,
-    document.body,
+  return (
+    <Panel title={t("分享")} label={t("分享")} onClose={props.onClose}>
+      {failed && <p class="muted">{t("名片生成失败，请刷新后再试。")}</p>}
+      {!failed && !png && <p class="muted">{t("正在生成…")}</p>}
+      {png && (
+        <>
+          <img class="sharecard" src={png} alt={t("分享")} />
+          <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>
+        </>
+      )}
+    </Panel>
   );
 }

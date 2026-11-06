@@ -1,5 +1,5 @@
-import { useEffect, useState } from "preact/hooks";
-import { createPortal } from "preact/compat";
+import { Panel } from "./Panel";
+import { useState } from "preact/hooks";
 import { t, tx } from "./i18n";
 import { CheckIcon, isIos, MoreIcon, ShareIcon } from "./Install";
 
@@ -66,43 +66,27 @@ export function WeChatBanner() {
 
 /** The steps out of WeChat, as a sheet over the page (like 添加到主屏幕). */
 export function WeChatSheet(props: { onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, []);
   const ios = isIos();
   const title = ios ? t("用 Safari 登录") : t("用浏览器登录");
-  return createPortal(
-    // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
-    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
-    <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet" role="dialog" aria-label={title}>
-        <div class="sheet-head">
-          <strong>{title}</strong>
-          <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
-            ✕
-          </button>
-        </div>
-        <p class="sheet-lead">
-          {ios ? t("微信里不能用 Google 登录，请换到 Safari：") : t("微信里不能用 Google 登录，请换到浏览器：")}
-        </p>
-        <ol class="install-steps">
-          <li>
-            <MoreIcon />
-            <span>{t("点微信右上角的「⋯」")}</span>
-          </li>
-          <li>
-            {ios ? <CompassIcon /> : <ShareIcon />}
-            <span>{openStep()}</span>
-          </li>
-          <li>
-            <CheckIcon />
-            <span>{ios ? t("在 Safari 里点「登录 / 注册」") : t("在浏览器里点「登录 / 注册」")}</span>
-          </li>
-        </ol>
-      </div>
-    </div>,
-    document.body,
+  return (
+    <Panel title={title} label={title} onClose={props.onClose}>
+      <p class="sheet-lead">
+        {ios ? t("微信里不能用 Google 登录，请换到 Safari：") : t("微信里不能用 Google 登录，请换到浏览器：")}
+      </p>
+      <ol class="install-steps">
+        <li>
+          <MoreIcon />
+          <span>{t("点微信右上角的「⋯」")}</span>
+        </li>
+        <li>
+          {ios ? <CompassIcon /> : <ShareIcon />}
+          <span>{openStep()}</span>
+        </li>
+        <li>
+          <CheckIcon />
+          <span>{ios ? t("在 Safari 里点「登录 / 注册」") : t("在浏览器里点「登录 / 注册」")}</span>
+        </li>
+      </ol>
+    </Panel>
   );
 }

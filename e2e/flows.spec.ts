@@ -228,7 +228,7 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
     "src",
     /^data:image\/png;base64,/,
   );
-  await page.getByRole("button", { name: "关闭" }).click();
+  await page.getByRole("button", { name: "返回" }).click();
 });
 
 test("the member sees their 个人信息 and the Owner adds a 备注名", async ({ page }) => {
@@ -306,8 +306,7 @@ test("public pages show the headcount and a link preview, never names", async ({
   await page.locator(".card").getByRole("button", { name: "分享", exact: true }).click();
   const card = page.getByRole("dialog", { name: "分享" });
   await expect(card.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
-  // No title and no 下载图片 button: only the image, the long-press hint and ✕.
-  await expect(card.locator(".sheet-head strong")).toHaveCount(0);
+  // No 下载图片 button: only the image, the long-press hint and 返回.
   await expect(card.getByRole("link")).toHaveCount(0);
 });
 
