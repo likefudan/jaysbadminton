@@ -17,6 +17,7 @@ import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEd
 import { PaymentBox } from "../PaymentBox";
 import { Heatmap, ProfileHero, ProfileSettings } from "../Profile";
 import { RosterList } from "../Roster";
+import { StayPicker } from "../Stay";
 import { CourtQueue } from "../CourtQueue";
 import { useApi } from "../hooks";
 import { CardCornerIcons } from "../ShareCard";
@@ -232,6 +233,9 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   const [editing, setEditing] = useState(false);
   const saved = () => toSlots(e.myFriends ?? [], e.myGuests);
   const [friends, setFriends] = useState<FriendSlot[]>(saved);
+  // 在场时间: optional 到 / 走 (Ke Li 2026-11-06).
+  const myStay = e.myStay ?? { arrive: null, leave: null };
+  const [stay, setStay] = useState(myStay);
   const { busy, error, run } = useAction();
   const signedUp = e.selfSignedUp;
   // 带群友: someone else brought them and pays; they can only say they're not coming (Ke Li).
@@ -265,7 +269,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
   const choices = () => api<{ members: GuestChoice[] }>(`${props.base}/events/${e.id}/guests`).then((r) => r.members);
 
   async function save() {
-    if (await run(() => api(`${props.base}/events/${e.id}/signup`, fromSlots(friends)))) {
+    if (await run(() => api(`${props.base}/events/${e.id}/signup`, { ...fromSlots(friends), ...stay }))) {
       setEditing(false);
       props.onChange();
     }
@@ -308,7 +312,13 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
         {!e.roster?.length && <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>}
         {e.roster && e.roster.length > 0 && (
-          <RosterList roster={e.roster} open={e.status === "open" || e.status === "closed"} />
+          <RosterList
+            roster={e.roster}
+            open={e.status === "open" || e.status === "closed"}
+            start={e.startTime}
+            end={e.endTime}
+            mine={signedUp ? myStay : null}
+          />
         )}
         {e.queue && <CourtQueue base={props.base} e={e} onChange={props.onChange} />}
         {friendsOnly && !editing && e.runByMe && (
@@ -320,6 +330,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">{t("你没有报名这次活动。")}</p>}
         {e.canEdit && editing && (
           <>
+            <StayPicker start={e.startTime} end={e.endTime} value={stay} onChange={setStay} />
             <FriendsEditor
               friends={friends}
               max={Math.max(e.friendCap, nFriends)}
@@ -349,6 +360,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
                   class="button secondary"
                   onClick={() => {
                     setFriends(saved());
+                    setStay(myStay);
                     setEditing(true);
                   }}
                 >
@@ -366,6 +378,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
                   onClick={() => {
                     // Signing up keeps the friends already under them.
                     setFriends(saved());
+                    setStay(myStay);
                     setEditing(true);
                   }}
                 >
@@ -381,6 +394,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
                 class="button block"
                 onClick={() => {
                   setFriends([]);
+                  setStay(myStay);
                   setEditing(true);
                 }}
               >

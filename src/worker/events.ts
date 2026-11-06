@@ -7,6 +7,7 @@ import {
   type GuestChoice,
   type RosterEntry,
 } from "../shared/types";
+import { checkStay } from "../shared/stay";
 import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
 import { getSettings, now, setSetting } from "./db";
 import { photoUsage } from "./ai";
@@ -62,6 +63,8 @@ interface RosterRow {
   added_by_owner: number;
   paid_by: string | null;
   paid_by_name: string | null;
+  arrive_at: string | null;
+  leave_at: string | null;
 }
 
 export const DEFAULT_FRIEND_CAP = 3;
@@ -134,7 +137,7 @@ export async function summaries(env: Env, rows: EventRow[]): Promise<EventSummar
 export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> {
   const { results } = await env.DB.prepare(
     `SELECT r.id, r.member_id, m.username, r.friend_index, r.friend_name, r.attended, r.added_by_owner,
-       r.paid_by, p.username AS paid_by_name
+       r.paid_by, p.username AS paid_by_name, r.arrive_at, r.leave_at
      FROM registrations r JOIN members m ON m.id = r.member_id LEFT JOIN members p ON p.id = r.paid_by
      WHERE r.event_id = ? ORDER BY r.id`,
   )
@@ -147,6 +150,8 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
   const order = new Map<string, number>();
   for (const r of results) if (!order.has(group(r))) order.set(group(r), r.id);
   results.sort((a, b) => order.get(group(a))! - order.get(group(b))! || rank(a) - rank(b) || a.id - b.id);
+  // 在场时间: friends come and go with the member who brings them.
+  const stay = new Map(results.filter((r) => r.friend_index === 0).map((r) => [r.member_id, r]));
   return results.map((r) => ({
     id: r.id,
     memberId: r.member_id,
@@ -157,6 +162,8 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
     addedByOwner: r.added_by_owner === 1,
     paidBy: r.paid_by,
     paidByName: r.paid_by_name,
+    arrive: stay.get(r.member_id)?.arrive_at ?? null,
+    leave: stay.get(r.member_id)?.leave_at ?? null,
   }));
 }
 
@@ -707,4 +714,29 @@ export function validateFriends(raw: unknown, cap: number | null, keep = 0, gues
     );
   if (friends.length + guests > Math.max(20, keep)) throw badRequest("朋友太多了");
   return friends;
+}
+
+/** 在场时间 sent with a sign-up, checked against the event's start and end (Pacific). */
+export function checkEventStay(
+  e: EventRow,
+  arrive: unknown,
+  leave: unknown,
+): { arrive: string | null; leave: string | null } {
+  const r = checkStay(toPacific(e.start_at).time, toPacific(e.end_at).time, arrive, leave);
+  if (typeof r === "string") throw badRequest(r);
+  return r;
+}
+
+/** Saves a member's 在场时间 on their own row (friends go with them). */
+export async function setStay(
+  env: Env,
+  eventId: number,
+  memberId: string,
+  stay: { arrive: string | null; leave: string | null },
+) {
+  await env.DB.prepare(
+    "UPDATE registrations SET arrive_at = ?, leave_at = ? WHERE event_id = ? AND member_id = ? AND friend_index = 0",
+  )
+    .bind(stay.arrive, stay.leave, eventId, memberId)
+    .run();
 }

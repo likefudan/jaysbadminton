@@ -187,6 +187,9 @@ export interface RosterEntry {
   /** 带群友: the member paying for this one (who brought them); null when they pay for themselves. */
   paidBy: string | null;
   paidByName: string | null;
+  /** 在场时间: when they arrive and leave (Pacific HH:MM), null when not given; friends have their member's. */
+  arrive: string | null;
+  leave: string | null;
 }
 
 /** 预定场地: court numbers at the hall run 1–99 (Ke Li); a dozen is more than any event books. */
@@ -256,6 +259,8 @@ export interface MyEvent extends EventSummary {
   ownerName: string;
   /** Present once the event is finalized and the member owes something. */
   payment: MyPayment | null;
+  /** 在场时间 they gave when signing up (both null when not given or not signed up). */
+  myStay: { arrive: string | null; leave: string | null };
   /** Everyone signed up, friends right after the member who brought them; only for members who signed up themselves. */
   roster: MyRosterEntry[] | null;
   /** 球场排队: shared hall accounts and courts; only for players on the event while it is on. */
@@ -333,6 +338,9 @@ export interface MyRosterEntry {
   mine: boolean;
   /** Marked absent at settlement (only reported once the event is finalized). */
   absent: boolean;
+  /** 在场时间 (Pacific HH:MM), null when not given; a friend has the time of who brings them. */
+  arrive: string | null;
+  leave: string | null;
 }
 
 /** A 最近的场馆 entry: its address, and the 排队系统 round length its last event used (null: off). */

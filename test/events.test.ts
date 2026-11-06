@@ -580,11 +580,11 @@ describe("who's coming", () => {
 
     const mine = (await anon.call(`${ming.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id);
     expect(mine.roster).toEqual([
-      { name: "Jay", friendOf: null, mine: false, absent: false },
-      { name: "小明", friendOf: null, mine: true, absent: false },
-      { name: "阿强", friendOf: "小明", mine: true, absent: false },
-      { name: "小明的朋友2", friendOf: "小明", mine: true, absent: false },
-      { name: "Bob", friendOf: null, mine: false, absent: false },
+      { name: "Jay", friendOf: null, mine: false, absent: false, arrive: null, leave: null },
+      { name: "小明", friendOf: null, mine: true, absent: false, arrive: null, leave: null },
+      { name: "阿强", friendOf: "小明", mine: true, absent: false, arrive: null, leave: null },
+      { name: "小明的朋友2", friendOf: "小明", mine: true, absent: false, arrive: null, leave: null },
+      { name: "Bob", friendOf: null, mine: false, absent: false, arrive: null, leave: null },
     ]);
     expect(
       (await anon.call(`${bob.base}/events`)).data.events.find((x: { id: number }) => x.id === e.id).roster,

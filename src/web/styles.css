@@ -4924,3 +4924,75 @@ label.set-row {
   color: var(--muted);
   font-size: 13px;
 }
+
+/* 在场时间 (Ke Li 2026-11-06): 到 / 走 on the sign-up form, my time, tags and the 各时段人数 chart. */
+.stay-picker {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+.stay-picker + .friends-editor {
+  border-top: 0;
+  margin-top: 4px;
+  padding-top: 0;
+}
+.stay-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.stay-range .field {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.stay-dash {
+  color: var(--muted);
+}
+.stay-picker select {
+  width: 100%;
+}
+.stay-picker select:disabled {
+  opacity: 0.45;
+}
+.stay-tag {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.names li.mine .stay-tag {
+  color: var(--acc-ink);
+}
+.stay-chart {
+  margin: 12px 0 12px;
+}
+.stay-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 64px;
+  border-bottom: 1px solid var(--line);
+}
+.stay-bars i {
+  flex: 1;
+  min-width: 0;
+  background: var(--acc-line);
+  border-radius: 2px 2px 0 0;
+}
+.stay-bars i.me {
+  background: var(--acc);
+}
+.stay-axis {
+  position: relative;
+  height: 16px;
+  margin-top: 4px;
+}
+.stay-axis span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
