@@ -830,11 +830,11 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
   const { busy, error, run } = useAction();
   const path = `${props.base}/events/${props.e.id}/queue/accounts`;
   const inUse = busyAccounts(props.q, Date.now(), null);
-  // Free accounts first, those on a court or queued below them (Ke Li), each part in the order picked.
+  // Free accounts first in the order picked; those on a court or queued below them, by court
+  // number and then in the order picked (Ke Li).
   const order = SORTS[sort].compare;
   const found = props.q.accounts.filter((a) => matches(a.username, query));
   const isOn = (a: { username: string }) => inUse.has(a.username.toLowerCase());
-  // Those in use by court number, then in the order picked within a court (Ke Li).
   const court = (a: { username: string }) => Math.min(...(inUse.get(a.username.toLowerCase()) ?? [0]));
   const shown = [
     ...found.filter((a) => !isOn(a)).sort(order),
