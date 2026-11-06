@@ -1152,6 +1152,13 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   报名设置: { tw: "報名設定", en: "Sign-up settings" },
   每人最多带几个朋友: { tw: "每人最多帶幾個朋友", en: "Friends each member can bring" },
   补建活动和卡路里: { tw: "補建活動和卡路里", en: "Past events and calories" },
+  空闲账号提醒: { tw: "空閒帳號提醒", en: "Idle account alert" },
+  "空闲账号达到多少 % 时提醒": { tw: "空閒帳號達到多少 % 時提醒", en: "Alert when this % of accounts is idle" },
+  "活动进行中，登记的球馆账号里没在打、也没在排队的达到这个比例，就推送给活动的组织者，球场页面上也会提示大家去排队。填 0 关闭。":
+    {
+      tw: "活動進行中，登記的球館帳號裡沒在打、也沒在排隊的達到這個比例，就推播給活動的組織者，球場頁面上也會提示大家去排隊。填 0 關閉。",
+      en: "During an event, when this share of the venue accounts is neither on a court nor queued, the event's organizer gets a push and the Courts section asks everyone to queue. 0 turns it off.",
+    },
   可以补建多少天前开始的活动: { tw: "可以補建多少天前開始的活動", en: "How many days back an event can be created" },
   活动开始后多少天内可以读取卡路里: {
     tw: "活動開始後多少天內可以讀取卡路里",

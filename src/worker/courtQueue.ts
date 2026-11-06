@@ -1,14 +1,17 @@
 import {
+  IDLE_ALERT_DEFAULT_PCT,
   QUEUE_COURT_MAX,
   QUEUE_GROUP_MAX,
   QUEUE_MAX_POSITION,
   QUEUE_MINUTES_MAX,
   QUEUE_ROUND_MAX,
   QUEUE_ROUND_MIN,
+  idleAccounts,
+  idleTooMany,
   type QueueInfo,
 } from "../shared/courtQueue";
 import { photoEnabled } from "./courtPhoto";
-import { now } from "./db";
+import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
 import { badRequest, HttpError } from "./http";
@@ -32,9 +35,17 @@ export function cleanRoundMin(v: unknown): number | null {
 export const queueLive = (e: EventRow, at = now()): boolean =>
   e.queue_round_min !== null && e.status !== "cancelled" && Date.parse(at) <= Date.parse(e.end_at) + AFTER_END_MS;
 
+/** 空闲账号提醒's threshold in % (设置 › 高级设置); 0 = off. */
+export async function idleAlertPct(env: Env): Promise<number> {
+  const v = (await getSettings(env.DB, ["idle_alert_pct"])).idle_alert_pct;
+  const n = Number(v ?? IDLE_ALERT_DEFAULT_PCT);
+  return Number.isInteger(n) && n >= 0 && n <= 100 ? n : IDLE_ALERT_DEFAULT_PCT;
+}
+
 /** Everything the card shows: shared accounts (with who added them) and the courts entered. */
 export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: boolean): Promise<QueueInfo> {
-  const [accounts, courts] = await Promise.all([
+  const [pct, accounts, courts] = await Promise.all([
+    idleAlertPct(env),
     env.DB.prepare(
       `SELECT a.id, a.username, a.password, a.member_id, m.username AS by_name
        FROM queue_accounts a JOIN members m ON m.id = a.member_id
@@ -85,6 +96,7 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: b
       updatedBy: c.updated_name,
       updatedAt: c.updated_at,
     })),
+    idleAlert: pct ? { pct, from: e.start_at, to: e.end_at } : null,
   };
 }
 
@@ -267,6 +279,41 @@ export async function removeCourts(env: Env, e: EventRow, body: Record<string, u
     .bind(e.id, ...ids)
     .run();
   return res.meta.changes ?? 0;
+}
+
+/**
+ * 空闲账号提醒 for the cron: the event's accounts that are neither on a court nor queued at `at`,
+ * when they reach the threshold while the event is on; null otherwise.
+ */
+export async function idleAlertDue(
+  env: Env,
+  e: EventRow,
+  at: Date,
+): Promise<{ idle: string[]; total: number; pct: number } | null> {
+  const t = at.getTime();
+  if (e.queue_round_min === null || (e.status !== "open" && e.status !== "closed")) return null;
+  if (t < Date.parse(e.start_at) || t >= Date.parse(e.end_at)) return null;
+  const pct = await idleAlertPct(env);
+  if (!pct) return null;
+  const [accounts, courts] = await Promise.all([
+    env.DB.prepare("SELECT username FROM queue_accounts WHERE event_id = ? ORDER BY id")
+      .bind(e.id)
+      .all<{ username: string }>(),
+    env.DB.prepare("SELECT starts_at, ends_at, accounts FROM queue_courts WHERE event_id = ?")
+      .bind(e.id)
+      .all<{ starts_at: string | null; ends_at: string; accounts: string }>(),
+  ]);
+  const names = accounts.results.map((a) => a.username);
+  const idle = idleAccounts(
+    names,
+    courts.results.map((c) => ({
+      startsAt: c.starts_at,
+      endsAt: c.ends_at,
+      accounts: JSON.parse(c.accounts) as string[],
+    })),
+    t,
+  );
+  return idleTooMany(idle.length, names.length, pct) ? { idle, total: names.length, pct } : null;
 }
 
 /** For deleteEvent: the event's courts, accounts and photos go with it. */

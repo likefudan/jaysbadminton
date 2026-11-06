@@ -4,6 +4,8 @@ import type { ComponentChildren } from "preact";
 import {
   courtLeft,
   courtPhase,
+  idleAccounts,
+  idleTooMany,
   PHOTO_MAX_SIDE,
   type PhotoCourt,
   type PhotoResult,
@@ -121,6 +123,7 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
         <button type="button" class="button secondary" onClick={() => setSheet({ kind: "accounts" })}>
           {t("球馆账号（{n}）", { n: q.accounts.length })}
         </button>
+        <IdleNotice q={q} now={now} />
       </div>
       {playing.length > 0 && (
         <>
@@ -213,6 +216,24 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
       {sheet?.kind === "accounts" && (
         <AccountsSheet base={props.base} e={props.e} q={q} onClose={close} onChange={props.onChange} />
       )}
+    </div>
+  );
+}
+
+/**
+ * 空闲账号提醒 (Ke Li, option C): while the event is on and at least the threshold set in 设置 of
+ * the shared accounts are neither on a court nor queued, a thin strip under the two buttons says
+ * how many, and stays on screen with them.
+ */
+function IdleNotice(props: { q: QueueInfo; now: number }) {
+  const a = props.q.idleAlert;
+  if (!a || props.now < Date.parse(a.from) || props.now >= Date.parse(a.to)) return null;
+  const all = props.q.accounts.map((x) => x.username);
+  const idle = idleAccounts(all, props.q.courts, props.now).length;
+  if (!idleTooMany(idle, all.length, a.pct)) return null;
+  return (
+    <div class="cq-idle" role="status">
+      {t("⚠️ {n} 个账号空着（{share}%）", { n: idle, share: Math.round((idle * 100) / all.length) })}
     </div>
   );
 }

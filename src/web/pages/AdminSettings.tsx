@@ -124,6 +124,7 @@ function AdvancedCards(props: { base: string; readOnlySheets?: boolean; openShee
       <Load result={s}>
         {(v) => (
           <>
+            <IdleAlertCard base={props.base} initial={v} />
             <AiCard base={props.base} initial={v.ai} />
             <ShortcutCard base={props.base} initial={v} />
             <DaysCard base={props.base} initial={v} />
@@ -783,6 +784,7 @@ interface GeneralSettings {
   friendCap: number;
   pastEventDays: number;
   calorieReadDays: number;
+  idleAlertPct: number;
   calorieShortcut: { url: string; version: number };
   ai: Record<AiUse, AiChoice>;
   venmoUsername: string;
@@ -987,6 +989,42 @@ function SignupCard(props: { base: string; initial: GeneralSettings }) {
 }
 
 /** 天数: how far back an already-started event may be created, and how long 读取卡路里 stays open (Ke Li). */
+/** 空闲账号提醒 (Ke Li): the share of an event's hall accounts sitting idle that sets it off; 0 = off. */
+function IdleAlertCard(props: { base: string; initial: GeneralSettings }) {
+  const [pct, setPct] = useState(String(props.initial.idleAlertPct));
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  return (
+    <Card title={t("空闲账号提醒")}>
+      <Field
+        label={t("空闲账号达到多少 % 时提醒")}
+        type="number"
+        value={pct}
+        onInput={(v) => {
+          setPct(v);
+          setSaved(false);
+        }}
+      />
+      <p class="muted small">
+        {t(
+          "活动进行中，登记的球馆账号里没在打、也没在排队的达到这个比例，就推送给活动的组织者，球场页面上也会提示大家去排队。填 0 关闭。",
+        )}
+      </p>
+      {error && <p class="error">{error}</p>}
+      <button
+        type="button"
+        class="button secondary block"
+        disabled={busy}
+        onClick={async () => {
+          if (await run(() => api(`${props.base}/settings`, { idleAlertPct: Number(pct) }))) setSaved(true);
+        }}
+      >
+        {saved ? t("已保存") : t("保存")}
+      </button>
+    </Card>
+  );
+}
+
 function DaysCard(props: { base: string; initial: GeneralSettings }) {
   const [past, setPast] = useState(String(props.initial.pastEventDays));
   const [kcal, setKcal] = useState(String(props.initial.calorieReadDays));

@@ -4005,6 +4005,19 @@ ul.audit li:first-child {
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
   backdrop-filter: blur(18px) saturate(1.4);
 }
+/* 空闲账号提醒: a strip along the bottom of the sticky bar, so it stays on screen too (Ke Li). */
+.cq-bar {
+  flex-wrap: wrap;
+}
+.cq-idle {
+  flex: 0 0 calc(100% + 32px);
+  margin: 0 -16px -8px;
+  padding: 7px 16px;
+  background: var(--warn-soft);
+  border-bottom: 1px solid var(--warn-line);
+  color: var(--warn);
+  font-size: 14.5px;
+}
 .cq-bar .button {
   flex: 1;
   margin: 0;

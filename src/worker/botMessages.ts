@@ -71,6 +71,10 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
       tw: "💰 {day} 的活動已經結束，還沒有結算（報名 {n} 人）。\n請開啟管理頁：標記沒來的人，填寫場地費和用球數，然後點 Finalize。",
       en: "💰 {day} is over but not settled yet ({n} signed up).\nOpen the admin page: mark who didn't come, enter the court fee and shuttles used, then click Finalize.",
     },
+  "🏸 {day}：{total} 个球馆账号里有 {n} 个空着（{share}%），没在打也没在排队，该去排队了。": {
+    tw: "🏸 {day}：{total} 個球館帳號裡有 {n} 個空著（{share}%），沒在打也沒在排隊，該去排隊了。",
+    en: "🏸 {day}: {n} of {total} venue accounts are idle ({share}%), neither on a court nor queued. Time to queue.",
+  },
   "{name} 还差 {amount}": { tw: "{name} 還差 {amount}", en: "{name} still owes {amount}" },
   "📋 {day} 收款汇总：应收 {due}，已收 {paid}；已付清 {done} 人，未付清 {owing} 人：\n{lines}\n\n下面是每个人的账单提醒，可以分别复制到微信私聊。":
     {

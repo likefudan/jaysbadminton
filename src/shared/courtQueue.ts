@@ -54,6 +54,12 @@ export interface QueueInfo {
   manage: boolean;
   accounts: QueueAccount[];
   courts: QueueCourt[];
+  /**
+   * 空闲账号提醒 (Ke Li): while the event is on (from..to, UTC ISO), the card asks everyone to go
+   * queue once at least pct % of the accounts are neither on a court nor queued. null when the
+   * Owner turned it off (0 %).
+   */
+  idleAlert: { pct: number; from: string; to: string } | null;
 }
 
 export type CourtPhase =
@@ -168,3 +174,25 @@ export function parseAccountList(text: string): { accounts: PastedAccount[]; bad
   }
   return { accounts, bad };
 }
+
+/** 空闲账号提醒's default threshold, in % of the event's accounts; 0 turns it off. */
+export const IDLE_ALERT_DEFAULT_PCT = 50;
+
+/**
+ * The accounts (as shared, in that order) not in any group still playing or queued at `now`:
+ * free to queue with. Names match case-insensitively, as the hall's do.
+ */
+export function idleAccounts(
+  accounts: string[],
+  courts: Pick<QueueCourt, "startsAt" | "endsAt" | "accounts">[],
+  now: number,
+): string[] {
+  const busy = new Set(
+    courts.flatMap((c) => (courtPhase(c, now).phase === "done" ? [] : c.accounts.map((a) => a.toLowerCase()))),
+  );
+  return accounts.filter((a) => !busy.has(a.toLowerCase()));
+}
+
+/** Whether `idle` of `total` accounts reaches the threshold (none shared: never). */
+export const idleTooMany = (idle: number, total: number, pct: number): boolean =>
+  pct > 0 && total > 0 && idle * 100 >= pct * total;

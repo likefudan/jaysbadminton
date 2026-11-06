@@ -51,7 +51,7 @@ import { endNoFeeEvent } from "../noFee";
 import { SETTLE_DEADLINE_MAX_HOURS, settleDeadline } from "../settleDeadline";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
-import { cleanRoundMin } from "../courtQueue";
+import { cleanRoundMin, idleAlertPct } from "../courtQueue";
 import type { Actor, AdminEnv } from "../access";
 import {
   can,
@@ -762,6 +762,7 @@ adminEventRoutes.get("/settings", async (c) => {
     friendCap: await friendCap(c.env),
     pastEventDays: await pastEventDays(c.env),
     calorieReadDays: await calorieReadDays(c.env),
+    idleAlertPct: await idleAlertPct(c.env),
     calorieShortcut: await shortcutSetting(c.env),
     ...payment,
     siteTitle: site.title,
@@ -815,6 +816,12 @@ adminEventRoutes.post("/settings", async (c) => {
       throw badRequest(`读取卡路里天数请填 1–${DAYS_SETTING_MAX}`);
     writes.push(setSetting(c.env.DB, "calorie_read_days", String(n)));
     said.push(`活动开始后 ${n} 天内可以读取卡路里`);
+  }
+  if (b.idleAlertPct !== undefined) {
+    const n = num(b.idleAlertPct);
+    if (!Number.isInteger(n) || n < 0 || n > 100) throw badRequest("空闲账号比例请填 0–100（0 是关闭）");
+    writes.push(setSetting(c.env.DB, "idle_alert_pct", String(n)));
+    said.push(n ? `空闲账号提醒 ${n}%` : "空闲账号提醒 关");
   }
   // 卡路里快捷指令: a new version is a new iCloud link, so both come together (Ke Li: no deploy for it).
   if (b.calorieShortcut !== undefined) {
