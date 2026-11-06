@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "preact/hooks";
 import {
   arriveChoices,
   eventLength,
@@ -75,10 +76,22 @@ export function StayPicker(props: { start: string; end: string; value: Stay; onC
 
 /**
  * 各时段人数: one bar per 15 minutes over the event's time, the viewer's own time darker; no
- * caption (Ke Li). Shown only once someone has given a time.
+ * caption (Ke Li). Tapping (or dragging along) it shows that slot's time and headcount above the
+ * bar; a tap elsewhere hides it (Ke Li 2026-11-06). Shown only once someone has given a time.
  */
 export function StayChart(props: { start: string; end: string; stays: Stay[]; mine: Stay | null }) {
   const { start, end } = props;
+  const [picked, setPicked] = useState<number | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  // A tap outside the chart hides the bubble.
+  useEffect(() => {
+    if (picked === null) return;
+    const away = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) setPicked(null);
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [picked]);
   const slots = headcountSlots(start, end, props.stays);
   const max = Math.max(0, ...slots);
   if (max === 0) return null;
@@ -91,19 +104,54 @@ export function StayChart(props: { start: string; end: string; stays: Stay[]; mi
   const at = offsetOf("00:00", start);
   const marks: number[] = [];
   for (let m = (60 - (at % 60)) % 60; m <= len; m += 60) if ((at + m) % every === 0) marks.push(m);
+  // Which bar is under the finger or pointer: anywhere along the chart's width, so thin bars are easy to hit.
+  const slotAt = (e: PointerEvent) => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    return Math.min(slots.length - 1, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * slots.length)));
+  };
+  const tip =
+    picked === null
+      ? null
+      : t("{from}–{to} · {n} 人", {
+          from: clock(timeAt(start, picked * STAY_STEP_MIN)),
+          to: clock(timeAt(start, Math.min((picked + 1) * STAY_STEP_MIN, len))),
+          n: slots[picked]!,
+        });
+  const tipAt = picked === null ? 0 : ((picked + 0.5) / slots.length) * 100;
   return (
-    <div class="stay-chart">
-      <div class="stay-bars" role="img" aria-label={t("各时段人数")}>
+    <div class="stay-chart" ref={box}>
+      {tip && (
+        <span
+          class="stay-tip"
+          style={{
+            left: `${tipAt}%`,
+            transform: tipAt < 20 ? "translateX(-15%)" : tipAt > 80 ? "translateX(-85%)" : "translateX(-50%)",
+          }}
+        >
+          {tip}
+        </span>
+      )}
+      <div
+        class="stay-bars"
+        role="img"
+        aria-label={t("各时段人数")}
+        onPointerDown={(e) => {
+          const i = slotAt(e);
+          // Tapping the bar already shown hides it again.
+          setPicked(e.pointerType === "mouse" || picked !== i ? i : null);
+          (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (e.buttons || e.pointerType === "mouse") setPicked(slotAt(e));
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType === "mouse") setPicked(null);
+        }}
+      >
         {slots.map((n, i) => {
           const t0 = i * STAY_STEP_MIN;
-          return (
-            <i
-              key={i}
-              class={t0 >= myFrom && t0 < myTo ? "me" : undefined}
-              style={{ height: `${n ? (n / max) * 100 : 3}%` }}
-              title={`${clock(timeAt(start, t0))} · ${n}`}
-            />
-          );
+          const cls = [t0 >= myFrom && t0 < myTo ? "me" : "", picked === i ? "on" : ""].join(" ").trim();
+          return <i key={i} class={cls || undefined} style={{ height: `${n ? (n / max) * 100 : 3}%` }} />;
         })}
       </div>
       <div class="stay-axis">

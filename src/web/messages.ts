@@ -158,6 +158,7 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   同上: { tw: "同上", en: "Same as above" },
   "{time} 到": { tw: "{time} 到", en: "from {time}" },
   到: { tw: "到", en: "Arrive" },
+  "{from}–{to} · {n} 人": { tw: "{from}–{to} · {n} 人", en: "{from}–{to} · {n}" },
   几点到: { tw: "幾點到", en: "Arrive at" },
   几点走: { tw: "幾點走", en: "Leave at" },
   走: { tw: "走", en: "Leave" },
