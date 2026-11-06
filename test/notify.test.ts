@@ -276,7 +276,7 @@ describe("scheduled notifications", () => {
 });
 
 describe("空闲账号提醒", () => {
-  it("tells whoever runs the event, every half hour while the event is on, when too many accounts sit idle", async () => {
+  it("is only the 球场 card's notice: the threshold reaches the card, and nobody is messaged (Ke Li)", async () => {
     const ctx = await setUpAdmin();
     await connectChat();
     const e = await createTestEvent(ctx, { queueRoundMin: 45 });
@@ -285,41 +285,21 @@ describe("空闲账号提醒", () => {
     await anon.call(`${alice.base}/events/${e.id}/signup`, { friends: [] });
     for (const u of ["Ann", "Ben", "Cat", "Dan"])
       await anon.call(`${alice.base}/events/${e.id}/queue/accounts`, { username: u, password: "1" });
-    await anon.call(`${alice.base}/events/${e.id}/queue/courts`, {
-      court: 3,
-      position: 0,
-      minutes: 30,
-      accounts: ["Ann", "Ben"],
-    });
-    // The court is still being played on at every run below.
-    await env.DB.prepare("UPDATE queue_courts SET ends_at = '2100-01-01T00:00:00.000Z'").run();
-    const idleNotes = () => sent().filter((t) => t.includes("个空着"));
-    // The card carries the threshold and the event's hours, for its own notice.
+    // All four idle while the event is on.
     const card = (await anon.call(`${alice.base}/events/${e.id}`)).data.event.queue;
     expect(card.idleAlert).toMatchObject({ pct: 50 });
+    await runScheduled(env, pacific(e.date, "19:05"));
+    expect(sent().filter((t) => t.includes("空着"))).toEqual([]);
+    expect(
+      (await env.DB.prepare("SELECT COUNT(*) AS n FROM push_outbox WHERE kind = 'idle'").first<{ n: number }>())!.n,
+    ).toBe(0);
 
-    await runScheduled(env, pacific(e.date, "18:50")); // before the start
-    expect(idleNotes()).toEqual([]);
-    await runScheduled(env, pacific(e.date, "19:05")); // 2 of 4 idle: 50%
-    await runScheduled(env, pacific(e.date, "19:20")); // same half hour
-    expect(idleNotes()).toHaveLength(1);
-    expect(idleNotes()[0]).toContain("4 个球馆账号里有 2 个空着（50%）");
-    expect(idleNotes()[0]).toContain("Cat、Dan");
-
-    // Over the threshold set in 设置: quiet. 0 turns it off for the card too.
+    // The threshold is set in 设置; 0 turns the notice off.
     expect((await ctx.admin.call(`${ctx.base}/settings`, { idleAlertPct: 60 })).status).toBe(200);
     expect((await ctx.admin.call(`${ctx.base}/settings`)).data.idleAlertPct).toBe(60);
-    await runScheduled(env, pacific(e.date, "19:35"));
-    expect(idleNotes()).toHaveLength(1);
     expect((await ctx.admin.call(`${ctx.base}/settings`, { idleAlertPct: 101 })).status).toBe(400);
     await ctx.admin.call(`${ctx.base}/settings`, { idleAlertPct: 0 });
     expect((await anon.call(`${alice.base}/events/${e.id}`)).data.event.queue.idleAlert).toBeNull();
-
-    await ctx.admin.call(`${ctx.base}/settings`, { idleAlertPct: 50 });
-    await runScheduled(env, pacific(e.date, "20:05"));
-    expect(idleNotes()).toHaveLength(2);
-    await runScheduled(env, pacific(e.date, "21:05")); // over
-    expect(idleNotes()).toHaveLength(2);
   });
 });
 

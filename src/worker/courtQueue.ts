@@ -6,8 +6,6 @@ import {
   QUEUE_MINUTES_MAX,
   QUEUE_ROUND_MAX,
   QUEUE_ROUND_MIN,
-  idleAccounts,
-  idleTooMany,
   type QueueInfo,
 } from "../shared/courtQueue";
 import { photoEnabled } from "./courtPhoto";
@@ -279,41 +277,6 @@ export async function removeCourts(env: Env, e: EventRow, body: Record<string, u
     .bind(e.id, ...ids)
     .run();
   return res.meta.changes ?? 0;
-}
-
-/**
- * 空闲账号提醒 for the cron: the event's accounts that are neither on a court nor queued at `at`,
- * when they reach the threshold while the event is on; null otherwise.
- */
-export async function idleAlertDue(
-  env: Env,
-  e: EventRow,
-  at: Date,
-): Promise<{ idle: string[]; total: number; pct: number } | null> {
-  const t = at.getTime();
-  if (e.queue_round_min === null || (e.status !== "open" && e.status !== "closed")) return null;
-  if (t < Date.parse(e.start_at) || t >= Date.parse(e.end_at)) return null;
-  const pct = await idleAlertPct(env);
-  if (!pct) return null;
-  const [accounts, courts] = await Promise.all([
-    env.DB.prepare("SELECT username FROM queue_accounts WHERE event_id = ? ORDER BY id")
-      .bind(e.id)
-      .all<{ username: string }>(),
-    env.DB.prepare("SELECT starts_at, ends_at, accounts FROM queue_courts WHERE event_id = ?")
-      .bind(e.id)
-      .all<{ starts_at: string | null; ends_at: string; accounts: string }>(),
-  ]);
-  const names = accounts.results.map((a) => a.username);
-  const idle = idleAccounts(
-    names,
-    courts.results.map((c) => ({
-      startsAt: c.starts_at,
-      endsAt: c.ends_at,
-      accounts: JSON.parse(c.accounts) as string[],
-    })),
-    t,
-  );
-  return idleTooMany(idle.length, names.length, pct) ? { idle, total: names.length, pct } : null;
 }
 
 /** For deleteEvent: the event's courts, accounts and photos go with it. */

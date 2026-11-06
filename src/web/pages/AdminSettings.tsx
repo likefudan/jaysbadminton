@@ -1006,9 +1006,7 @@ function IdleAlertCard(props: { base: string; initial: GeneralSettings }) {
         }}
       />
       <p class="muted small">
-        {t(
-          "活动进行中，登记的球馆账号里没在打、也没在排队的达到这个比例，就推送给活动的组织者，球场页面上也会提示大家去排队。填 0 关闭。",
-        )}
+        {t("活动进行中，登记的球馆账号里没在打、也没在排队的达到这个比例，球场页面上就会显示黄色提示。填 0 关闭。")}
       </p>
       {error && <p class="error">{error}</p>}
       <button
