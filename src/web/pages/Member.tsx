@@ -274,6 +274,12 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
       props.onChange();
     }
   }
+  function startEditing() {
+    // Signing up keeps the friends already under them; a fresh sign-up starts with none.
+    setFriends(signedUp || friendsOnly ? saved() : []);
+    setStay(myStay);
+    setEditing(true);
+  }
   async function cancel() {
     // Friends hung under them go too, the ones added for them from the admin page included (Ke Li's call),
     // and the group members they bring.
@@ -286,7 +292,10 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
           ? t("取消你自己和名下 {n} 个朋友的报名？", { n })
           : t("确定取消报名吗？");
     if (!confirm(question)) return;
-    if (await run(() => api(`${props.base}/events/${e.id}/cancel`, {}))) props.onChange();
+    if (await run(() => api(`${props.base}/events/${e.id}/cancel`, {}))) {
+      setEditing(false);
+      props.onChange();
+    }
   }
 
   return (
@@ -299,6 +308,12 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
             <CardCornerIcons e={e} calendar={signedUp && onIt && (e.status === "open" || e.status === "closed")} />
           }
         />
+        {/* 报名 / 修改 in the top's corner, like 查看 / 报名 on the home card (Ke Li 2026-11-07). */}
+        {e.canEdit && !editing && (
+          <button type="button" class="next-cta ev-cta" onClick={startEditing}>
+            {brought || signedUp ? t("修改") : friendsOnly ? t("我也报名") : t("报名")}
+          </button>
+        )}
       </div>
       <div class="ev-main">
         {e.address && (
@@ -310,6 +325,39 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         <FeeLine e={e} />
         {e.organizer && <div class="ev-meta">{t("组织：{name}", { name: e.organizer })}</div>}
         {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
+        {/* Right under the top, near the 报名 / 修改 button that opens it. */}
+        {e.canEdit && editing && (
+          <div class="ev-edit">
+            <>
+              {!brought && (
+                <>
+                  <StayPicker start={e.startTime} end={e.endTime} value={stay} onChange={setStay} />
+                  <FriendsEditor
+                    friends={friends}
+                    max={Math.max(e.friendCap, nFriends)}
+                    onChange={setFriends}
+                    choices={choices}
+                  />
+                </>
+              )}
+              {error && <p class="error">{error}</p>}
+              {!brought && (
+                <button type="button" class="button block" disabled={busy} onClick={save}>
+                  {signedUp ? t("保存修改") : t("确认报名")}
+                </button>
+              )}
+              {/* 取消报名 only shows once they tap 修改 (Ke Li 2026-11-07). */}
+              {(signedUp || friendsOnly || brought) && (
+                <button type="button" class="button danger block" disabled={busy} onClick={cancel}>
+                  {brought ? t("我不去了") : friendsOnly ? t("去掉这些朋友") : t("取消报名")}
+                </button>
+              )}
+              <button type="button" class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
+                {t("返回")}
+              </button>
+            </>
+          </div>
+        )}
         {!e.roster?.length && <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>}
         {e.roster && e.roster.length > 0 && (
           <RosterList
@@ -328,81 +376,6 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
           <p class="muted">{t("{adder}在你名下加了 {n} 个朋友，费用算在你账上", { adder, n: nFriends })}</p>
         )}
         {!signedUp && !friendsOnly && !e.canEdit && <p class="muted">{t("你没有报名这次活动。")}</p>}
-        {e.canEdit && editing && (
-          <>
-            <StayPicker start={e.startTime} end={e.endTime} value={stay} onChange={setStay} />
-            <FriendsEditor
-              friends={friends}
-              max={Math.max(e.friendCap, nFriends)}
-              onChange={setFriends}
-              choices={choices}
-            />
-            {error && <p class="error">{error}</p>}
-            <button type="button" class="button block" disabled={busy} onClick={save}>
-              {signedUp ? t("保存修改") : t("确认报名")}
-            </button>
-            <button type="button" class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
-              {t("返回")}
-            </button>
-          </>
-        )}
-        {e.canEdit && !editing && (
-          <>
-            {error && <p class="error">{error}</p>}
-            {brought ? (
-              <button type="button" class="button danger block" disabled={busy} onClick={cancel}>
-                {t("我不去了")}
-              </button>
-            ) : signedUp ? (
-              <div class="inline">
-                <button
-                  type="button"
-                  class="button secondary"
-                  onClick={() => {
-                    setFriends(saved());
-                    setStay(myStay);
-                    setEditing(true);
-                  }}
-                >
-                  {t("修改")}
-                </button>
-                <button type="button" class="button danger" disabled={busy} onClick={cancel}>
-                  {t("取消报名")}
-                </button>
-              </div>
-            ) : friendsOnly ? (
-              <div class="inline">
-                <button
-                  type="button"
-                  class="button"
-                  onClick={() => {
-                    // Signing up keeps the friends already under them.
-                    setFriends(saved());
-                    setStay(myStay);
-                    setEditing(true);
-                  }}
-                >
-                  {t("我也报名")}
-                </button>
-                <button type="button" class="button danger" disabled={busy} onClick={cancel}>
-                  {t("去掉这些朋友")}
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                class="button block"
-                onClick={() => {
-                  setFriends([]);
-                  setStay(myStay);
-                  setEditing(true);
-                }}
-              >
-                {t("报名")}
-              </button>
-            )}
-          </>
-        )}
         {!e.canEdit && e.status === "closed" && (signedUp || friendsOnly) && !brought && (
           <p class="muted small">{t("修改请联系{name}", { name: runner })}</p>
         )}
