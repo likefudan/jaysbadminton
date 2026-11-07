@@ -758,6 +758,8 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "删除（不排了）": { tw: "刪除（不排了）", en: "Remove (no longer waiting)" },
   "删除账号 {name}？": { tw: "刪除帳號 {name}？", en: "Remove account {name}?" },
   球馆账号: { tw: "球館帳號", en: "Venue accounts" },
+  账号管理: { tw: "帳號管理", en: "Manage accounts" },
+  "＋ 新账号": { tw: "＋ 新帳號", en: "+ New account" },
   清空全部账号: { tw: "清空全部帳號", en: "Remove all accounts" },
   "清空这场的全部 {n} 个球馆账号？已登记的球场不受影响。": {
     tw: "清空這場的全部 {n} 個球館帳號？已登記的球場不受影響。",

@@ -60,7 +60,17 @@ export interface QueueInfo {
    * Owner turned it off (0 %).
    */
   idleAlert: { pct: number; from: string; to: string } | null;
+  /** How 登记球场 shows the hall accounts (设置, Ke Li): see QueueAccountsView. */
+  accountsView: QueueAccountsView;
 }
+
+/**
+ * 球馆账号 inside 登记球场 (Ke Li 2026-11-07, both built, the Owner or an admin picks in 设置):
+ * "list" puts each account's password under its name and adds 「＋ 新账号」 in place, with
+ * 账号管理 top right; "tabs" gives the panel two tabs, 登记球场 and 球馆账号.
+ */
+export type QueueAccountsView = "list" | "tabs";
+export const QUEUE_ACCOUNTS_VIEWS: readonly QueueAccountsView[] = ["list", "tabs"];
 
 export type CourtPhase =
   | { phase: "playing"; minutes: number }

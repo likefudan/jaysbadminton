@@ -47,6 +47,7 @@ const queue = {
     addedBy: i < 6 ? "Ke" : "Arthur",
     mine: i < 6,
   })),
+  accountsView: "list",
   courts: [
     court(1, 1, 0, null, 14, names("Xiayw", "Zi", "Pengy", "Yuew")),
     court(2, 7, 0, null, 4, names("Mark", "Ben", "Coco", "Yixing")),
@@ -86,6 +87,13 @@ const event = {
   roster: null,
   queue,
 };
+
+/** 球馆账号 is inside 登记球场 now: 账号管理 at its top right opens the list over it. */
+async function openAccounts(page: Page) {
+  await page.getByRole("button", { name: "＋ 登记球场" }).click();
+  await page.getByRole("dialog", { name: "登记球场" }).getByRole("button", { name: "账号管理" }).click();
+  return page.getByRole("dialog", { name: "球馆账号" });
+}
 
 async function setUp(page: Page, ev = event) {
   const posts: { url: string; body: unknown }[] = [];
@@ -278,14 +286,15 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   const drag = await box(sheet.getByRole("slider", { name: "正在打的还剩几分钟" }));
   expect(drag.x).toBeGreaterThan(min.x + min.width);
   expect(Math.abs(min.y + min.height / 2 - (drag.y + drag.height / 2))).toBeLessThan(6);
-  // Accounts in alphabetical order, whatever the case; those on a court say where; a search narrows them.
-  const chips = sheet.locator(".cq-chips .chip");
-  await expect(chips.nth(0)).toHaveText("Am16号");
-  await expect(chips.nth(1)).toHaveText("arthur");
-  await expect(chips.nth(2)).toHaveText("Ben7号");
-  await expect(sheet.getByRole("button", { name: "Mark7号" })).toHaveClass(/cq-busy/);
+  // Accounts in alphabetical order, whatever the case, each with its password; those on a court
+  // say where; a search narrows them.
+  const chips = sheet.locator(".cq-chips .chip:not(.cq-new)");
+  await expect(chips.nth(0)).toHaveText("Am1009 · 16号");
+  await expect(chips.nth(1)).toHaveText("arthur1017");
+  await expect(chips.nth(2)).toHaveText("Ben1005 · 7号");
+  await expect(chips.filter({ hasText: "Mark" })).toHaveClass(/cq-busy/);
   await sheet.getByLabel("搜索账号").fill("chr");
-  await expect(chips).toHaveText(["Chris6号"]);
+  await expect(chips).toHaveText(["Chris1010 · 6号"]);
   await sheet.getByRole("button", { name: "Chris" }).click();
   // Picked ones move up into their own highlighted row.
   // …with each password in small type under the name.
@@ -293,7 +302,7 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   await expect(sheet.locator(".cq-picked .chip small")).toHaveText(["1010"]);
   await expect(chips).toHaveCount(0);
   await sheet.getByLabel("搜索账号").fill("");
-  await expect(chips.first()).toHaveText("Am16号");
+  await expect(chips.first()).toHaveText("Am1009 · 16号");
   await page.screenshot({ path: test.info().outputPath("court-queue-new.png") });
   await sheet.getByRole("button", { name: "保存" }).click();
   expect(posts.at(-1)?.body).toEqual({ court: 52, position: 3, minutes: 100, accounts: ["Chris"] });
@@ -329,8 +338,7 @@ test("a queued group with no minutes typed waits for the group playing on that c
 
 test("hall accounts: everyone's are listed, yours can be removed, and more added", async ({ page }) => {
   const posts = await setUp(page);
-  await page.getByRole("button", { name: "球馆账号（18）" }).click();
-  const sheet = page.getByRole("dialog");
+  const sheet = await openAccounts(page);
   // Free accounts first, alphabetical whatever the case; those on a court or queued below, greyed out.
   await expect(sheet.locator(".cq-account").first()).toHaveText("arthur · 1017");
   await expect(sheet.locator("li:not(.on) .cq-account")).toHaveText([
@@ -394,14 +402,59 @@ test("hall accounts: everyone's are listed, yours can be removed, and more added
     });
 });
 
+test("球馆账号 in 登记球场: one button on the card, passwords on the accounts, 新账号 added and picked", async ({
+  page,
+}) => {
+  const posts = await setUp(page);
+  await expect(page.locator(".cq-bar .button")).toHaveText(["＋ 登记球场"]);
+  await page.getByRole("button", { name: "＋ 登记球场" }).click();
+  const sheet = page.getByRole("dialog", { name: "登记球场" });
+  await expect(sheet.locator(".cq-chips .chip", { hasText: "arthur" })).toContainText("1017");
+  await expect(sheet.locator(".cq-chips .chip", { hasText: "Chris" })).toContainText("1010 · 6号");
+  await sheet.getByRole("spinbutton", { name: "场号" }).fill("52");
+  await sheet.getByRole("button", { name: "＋ 新账号" }).click();
+  await sheet.getByLabel("用户名").fill("nina ");
+  await sheet.getByLabel("密码").fill("moon8");
+  await page.screenshot({ path: test.info().outputPath("court-queue-new-account.png") });
+  await sheet.getByRole("button", { name: "添加", exact: true }).click();
+  await expect
+    .poll(() => posts.at(-1))
+    .toEqual({ url: "/api/m/tok/events/9/queue/accounts", body: { username: "nina", password: "moon8" } });
+  await expect(sheet.locator(".cq-picked")).toContainText("nina");
+  await expect(sheet.getByRole("button", { name: "＋ 新账号" })).toBeVisible();
+
+  // 账号管理 opens the list over the form; 返回 comes back to it as it was.
+  await sheet.getByRole("button", { name: "账号管理" }).click();
+  const accounts = page.getByRole("dialog", { name: "球馆账号" });
+  await expect(accounts.getByRole("button", { name: "批量添加" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(accounts).toBeHidden();
+  await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("52");
+});
+
+test("球馆账号 as a second tab of 登记球场, when 设置 says so", async ({ page }) => {
+  await setUp(page, { ...event, queue: { ...queue, accountsView: "tabs" } });
+  await page.getByRole("button", { name: "＋ 登记球场" }).click();
+  const sheet = page.getByRole("dialog", { name: "登记球场" });
+  await expect(sheet.getByRole("button", { name: "账号管理" })).toHaveCount(0);
+  await expect(sheet.getByRole("button", { name: "＋ 新账号" })).toHaveCount(0);
+  await expect(sheet.locator(".cq-chips .chip", { hasText: "arthur" })).not.toContainText("1017");
+  await sheet.getByRole("spinbutton", { name: "场号" }).fill("52");
+  await sheet.getByRole("tab", { name: "球馆账号（18）" }).click();
+  await expect(sheet.locator(".cq-account").first()).toHaveText("arthur · 1017");
+  await expect(sheet.getByRole("button", { name: "批量添加" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("court-queue-tabs.png") });
+  await sheet.getByRole("tab", { name: "登记球场" }).click();
+  await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("52");
+  await expect(sheet.getByRole("button", { name: "批量添加" })).toHaveCount(0);
+});
+
 test("清空全部账号 is for the Owner and admins, after a confirm", async ({ page }) => {
   await setUp(page);
-  await page.getByRole("button", { name: "球馆账号（18）" }).click();
-  await expect(page.getByRole("dialog").getByRole("button", { name: "清空全部账号" })).toHaveCount(0);
+  await expect((await openAccounts(page)).getByRole("button", { name: "清空全部账号" })).toHaveCount(0);
 
   const posts = await setUp(page, { ...event, queue: { ...queue, manage: true } });
-  await page.getByRole("button", { name: "球馆账号（18）" }).click();
-  const sheet = page.getByRole("dialog");
+  const sheet = await openAccounts(page);
   const clear = sheet.getByRole("button", { name: "清空全部账号" });
   await clear.scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath("court-queue-clear.png") });
@@ -420,8 +473,7 @@ test("批量添加 reads a pasted list as typed, skips accounts already there, a
   page,
 }) => {
   const posts = await setUp(page);
-  await page.getByRole("button", { name: "球馆账号（18）" }).click();
-  const sheet = page.getByRole("dialog");
+  const sheet = await openAccounts(page);
   await sheet.getByRole("button", { name: "批量添加" }).click();
   const box = sheet.getByLabel("粘贴账号列表，每行「编号. 用户名 密码」");
   await expect(box).toHaveAttribute("autocapitalize", "none");

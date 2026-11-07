@@ -42,7 +42,7 @@ function useNow(): number {
   return now;
 }
 
-type Sheet = { kind: "court"; court: QueueCourt | null } | { kind: "accounts" } | null;
+type Sheet = { kind: "court"; court: QueueCourt | null } | null;
 
 /**
  * 球场: the courts we hold and queue for, each drawn as a court with our hall usernames on its two
@@ -117,12 +117,10 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           </span>
         )}
       </div>
+      {/* One button (Ke Li 2026-11-07): 球馆账号 lives inside 登记球场 now. */}
       <div class="cq-bar">
         <button type="button" class="button" onClick={() => setSheet({ kind: "court", court: null })}>
           {t("＋ 登记球场")}
-        </button>
-        <button type="button" class="button secondary" onClick={() => setSheet({ kind: "accounts" })}>
-          {t("球馆账号（{n}）", { n: q.accounts.length })}
         </button>
         <IdleNotice q={q} now={now} />
       </div>
@@ -213,9 +211,6 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           onDone={done}
           onSaved={props.onChange}
         />
-      )}
-      {sheet?.kind === "accounts" && (
-        <AccountsSheet base={props.base} e={props.e} q={q} onClose={close} onChange={props.onChange} />
       )}
     </div>
   );
@@ -345,6 +340,11 @@ function CourtSheet(props: {
   const [entryId, setEntryId] = useState<number | null>(null);
   const [missing, setMissing] = useState(false);
   const { busy, error, run } = useAction();
+  // 球馆账号 inside 登记球场 (设置, Ke Li): two tabs, or the list here with 账号管理 on top of it.
+  const tabs = props.q.accountsView === "tabs";
+  const [tab, setTab] = useState<"court" | "accounts">("court");
+  const [manage, setManage] = useState(false);
+  const bar = useAccountsBar();
   const path = `${props.base}/events/${props.e.id}/queue/courts`;
   const fromScreen = !c && position > 0;
   // A new queued group with the box left empty: the group playing on that court (if it is on the
@@ -420,115 +420,170 @@ function CourtSheet(props: {
   // The slider reaches one round for a court's time left, else the whole wait for that group.
   const sliderMax = Math.max(position === 0 || fromScreen ? props.q.roundMin : position * props.q.roundMin, n || 0);
   return (
-    <SheetFrame title={c ? t("{n} 号场", { n: c.court }) : null} label={t("登记球场")} onClose={props.onClose}>
-      {c && (
-        <p class="muted small">
-          {c.updatedAt === c.createdAt
-            ? t("{name} {time} 登记", { name: c.createdBy, time: toPacific(c.createdAt).time })
-            : t("{a} {t1} 登记，{b} {t2} 修改", {
-                a: c.createdBy,
-                t1: toPacific(c.createdAt).time,
-                b: c.updatedBy,
-                t2: toPacific(c.updatedAt).time,
-              })}
-        </p>
+    <SheetFrame
+      title={c ? t("{n} 号场", { n: c.court }) : null}
+      label={t("登记球场")}
+      onClose={props.onClose}
+      action={
+        tabs ? (
+          tab === "accounts" && <AccountsActions q={props.q} bar={bar} />
+        ) : (
+          <button type="button" onClick={() => setManage(true)}>
+            {t("账号管理")}
+          </button>
+        )
+      }
+    >
+      {tabs && (
+        <div class="seg cq-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "court"}
+            class={tab === "court" ? "on" : ""}
+            onClick={() => setTab("court")}
+          >
+            {t("登记球场")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "accounts"}
+            class={tab === "accounts" ? "on" : ""}
+            onClick={() => setTab("accounts")}
+          >
+            {t("球馆账号（{n}）", { n: props.q.accounts.length })}
+          </button>
+        </div>
       )}
-      {!c && props.q.photo && (
-        <PhotoButton path={`${props.base}/events/${props.e.id}/queue/photo`} onRead={read} disabled={busy} />
-      )}
-      {photo && (
-        <PhotoFound
-          url={photo.url}
-          result={photo.result}
-          at={at}
-          saved={saved}
-          skipped={skipped}
-          onPick={(k) => fill(photo.result.courts[k]!, k)}
-          onSkip={skip}
-        />
-      )}
-      <div class="cq-row">
-        <CourtNumber value={court} onChange={setCourt} q={props.q} now={props.now} except={c?.id ?? null} />
-        <div>
-          <div class="seg cq-status" role="group" aria-label={t("状态")}>
-            {Array.from({ length: QUEUE_MAX_POSITION + 1 }, (_, k) => (
-              <button
-                type="button"
-                key={k}
-                class={position === k ? "on" : ""}
-                aria-label={k === 0 ? t("在打") : t("排第 {k} 组", { k })}
-                onClick={() => setPosition(k)}
-              >
-                {k === 0 ? t("在打") : t("排{k}", { k })}
-              </button>
-            ))}
+      {/* Kept while the other tab shows, so what was typed stays. */}
+      <div hidden={tab !== "court"}>
+        {c && (
+          <p class="muted small">
+            {c.updatedAt === c.createdAt
+              ? t("{name} {time} 登记", { name: c.createdBy, time: toPacific(c.createdAt).time })
+              : t("{a} {t1} 登记，{b} {t2} 修改", {
+                  a: c.createdBy,
+                  t1: toPacific(c.createdAt).time,
+                  b: c.updatedBy,
+                  t2: toPacific(c.updatedAt).time,
+                })}
+          </p>
+        )}
+        {!c && props.q.photo && (
+          <PhotoButton path={`${props.base}/events/${props.e.id}/queue/photo`} onRead={read} disabled={busy} />
+        )}
+        {photo && (
+          <PhotoFound
+            url={photo.url}
+            result={photo.result}
+            at={at}
+            saved={saved}
+            skipped={skipped}
+            onPick={(k) => fill(photo.result.courts[k]!, k)}
+            onSkip={skip}
+          />
+        )}
+        <div class="cq-row">
+          <CourtNumber value={court} onChange={setCourt} q={props.q} now={props.now} except={c?.id ?? null} />
+          <div>
+            <div class="seg cq-status" role="group" aria-label={t("状态")}>
+              {Array.from({ length: QUEUE_MAX_POSITION + 1 }, (_, k) => (
+                <button
+                  type="button"
+                  key={k}
+                  class={position === k ? "on" : ""}
+                  aria-label={k === 0 ? t("在打") : t("排第 {k} 组", { k })}
+                  onClick={() => setPosition(k)}
+                >
+                  {k === 0 ? t("在打") : t("排{k}", { k })}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-      {/* Typed in the box, or dragged on the slider right beside it. */}
-      <div class={noMinutes && minutes === "" ? "cq-minutes cq-unsure" : "cq-minutes"}>
-        <label class="cq-minutes-box">
-          <span>{position === 0 || fromScreen ? t("剩余") : t("等待")}</span>
+        {/* Typed in the box, or dragged on the slider right beside it. */}
+        <div class={noMinutes && minutes === "" ? "cq-minutes cq-unsure" : "cq-minutes"}>
+          <label class="cq-minutes-box">
+            <span>{position === 0 || fromScreen ? t("剩余") : t("等待")}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={minutes}
+              placeholder={playingLeft !== null ? String(playingLeft) : undefined}
+              aria-label={label}
+              onInput={(ev) => {
+                setMinutes((ev.target as HTMLInputElement).value);
+                setMissing(false);
+              }}
+            />
+            <span>{t("分钟")}</span>
+          </label>
           <input
-            type="number"
-            inputMode="numeric"
+            class="cq-slider"
+            type="range"
             min={0}
-            value={minutes}
-            placeholder={playingLeft !== null ? String(playingLeft) : undefined}
+            max={sliderMax}
+            step={1}
+            value={n || 0}
             aria-label={label}
             onInput={(ev) => {
               setMinutes((ev.target as HTMLInputElement).value);
               setMissing(false);
             }}
           />
-          <span>{t("分钟")}</span>
-        </label>
-        <input
-          class="cq-slider"
-          type="range"
-          min={0}
-          max={sliderMax}
-          step={1}
-          value={n || 0}
-          aria-label={label}
-          onInput={(ev) => {
-            setMinutes((ev.target as HTMLInputElement).value);
-            setMissing(false);
+        </div>
+        {missing && minutes === "" && <p class="error">{t("请填写正在打的还剩几分钟")}</p>}
+        {noMinutes && minutes === "" && <p class="cq-unsure-note small">{t("照片上没读出剩余时间，请看屏幕填写。")}</p>}
+        <p class="muted small">
+          {wait !== null
+            ? t("按每轮 {r} 分钟估算：大约 {n} 分钟后上场。", { r: props.q.roundMin, n: wait })
+            : position > 0
+              ? t("前面有人提前下场或退出，就把时间改短。到点会自动变成「在打」。")
+              : t("屏幕上的 Minutes Left。保存后从现在开始倒计时。")}
+        </p>
+        <p class="sheet-label">{t("用了哪几个账号（1-{n} 个）", { n: QUEUE_GROUP_MAX })}</p>
+        {tabs && props.q.accounts.length === 0 && (
+          <p class="muted small">{t("还没有人添加球馆账号，请先在「球馆账号」里添加。")}</p>
+        )}
+        {picked.some((name) => unsure.includes(name)) && (
+          <p class="cq-unsure-note small">{t("黄色的账号照片上看不太清，请对照球馆屏幕核对。")}</p>
+        )}
+        <AccountPicker
+          q={props.q}
+          now={props.now}
+          except={c?.id ?? null}
+          picked={picked}
+          unsure={unsure}
+          onToggle={toggle}
+          addPath={tabs ? undefined : `${props.base}/events/${props.e.id}/queue/accounts`}
+          onAdded={(name) => {
+            if (picked.length < QUEUE_GROUP_MAX) setPicked([...picked, name]);
+            props.onSaved();
           }}
         />
-      </div>
-      {missing && minutes === "" && <p class="error">{t("请填写正在打的还剩几分钟")}</p>}
-      {noMinutes && minutes === "" && <p class="cq-unsure-note small">{t("照片上没读出剩余时间，请看屏幕填写。")}</p>}
-      <p class="muted small">
-        {wait !== null
-          ? t("按每轮 {r} 分钟估算：大约 {n} 分钟后上场。", { r: props.q.roundMin, n: wait })
-          : position > 0
-            ? t("前面有人提前下场或退出，就把时间改短。到点会自动变成「在打」。")
-            : t("屏幕上的 Minutes Left。保存后从现在开始倒计时。")}
-      </p>
-      <p class="sheet-label">{t("用了哪几个账号（1-{n} 个）", { n: QUEUE_GROUP_MAX })}</p>
-      {props.q.accounts.length === 0 && (
-        <p class="muted small">{t("还没有人添加球馆账号，请先在「球馆账号」里添加。")}</p>
-      )}
-      {picked.some((name) => unsure.includes(name)) && (
-        <p class="cq-unsure-note small">{t("黄色的账号照片上看不太清，请对照球馆屏幕核对。")}</p>
-      )}
-      <AccountPicker
-        q={props.q}
-        now={props.now}
-        except={c?.id ?? null}
-        picked={picked}
-        unsure={unsure}
-        onToggle={toggle}
-      />
-      {error && <p class="error">{error}</p>}
-      <button type="button" class="button block" disabled={busy} onClick={save}>
-        {t("保存")}
-      </button>
-      {c && (
-        <button type="button" class="button danger block" disabled={busy} onClick={remove}>
-          {position === 0 ? t("删除（提前结束，不打了）") : t("删除（不排了）")}
+        {error && <p class="error">{error}</p>}
+        <button type="button" class="button block" disabled={busy} onClick={save}>
+          {t("保存")}
         </button>
+        {c && (
+          <button type="button" class="button danger block" disabled={busy} onClick={remove}>
+            {position === 0 ? t("删除（提前结束，不打了）") : t("删除（不排了）")}
+          </button>
+        )}
+      </div>
+      {tab === "accounts" && (
+        <AccountsList base={props.base} e={props.e} q={props.q} bar={bar} onChange={props.onSaved} />
+      )}
+      {manage && (
+        <AccountsSheet
+          base={props.base}
+          e={props.e}
+          q={props.q}
+          onClose={() => setManage(false)}
+          onChange={props.onSaved}
+        />
       )}
     </SheetFrame>
   );
@@ -726,6 +781,14 @@ const SORTS: Record<AccountSort, { label: () => string; compare: (a: QueueAccoun
   new: { label: () => t("最新添加"), compare: (a, b) => b.id - a.id },
 };
 
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+      <path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    </svg>
+  );
+}
+
 function SortIcon() {
   return (
     <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
@@ -758,13 +821,32 @@ function AccountPicker(props: {
   /** Read off a photo without being sure of the name: marked yellow to check. */
   unsure?: string[];
   onToggle: (name: string) => void;
+  /**
+   * 球馆账号 listed here (设置 「列在登记球场里」): each account shows its password, and
+   * 「＋ 新账号」 adds one in place through this path; the new one comes back through onAdded.
+   */
+  addPath?: string;
+  onAdded?: (name: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const { busy: saving, error, run } = useAction();
   const busy = busyAccounts(props.q, props.now, props.except);
   const list = props.q.accounts
     .filter((a) => !props.picked.includes(a.username) && matches(a.username, query))
     .sort(byName);
-  if (props.q.accounts.length === 0) return null;
+  const inline = props.addPath !== undefined;
+  if (props.q.accounts.length === 0 && !inline) return null;
+  async function add() {
+    const name = username.trim();
+    if (!name || !(await run(() => api(props.addPath!, { username: name, password })))) return;
+    setUsername("");
+    setPassword("");
+    setAdding(false);
+    props.onAdded?.(name);
+  }
   return (
     <>
       <div class="cq-picked">
@@ -789,9 +871,49 @@ function AccountPicker(props: {
         })}
       </div>
       {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
-      <div class="chips cq-chips">
+      <div class={inline ? "chips cq-chips cq-chips-pw" : "chips cq-chips"}>
+        {inline &&
+          (adding ? (
+            <form
+              class="cq-add cq-add-inline"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                if (!saving) add();
+              }}
+            >
+              <input
+                aria-label={t("用户名")}
+                placeholder={t("用户名")}
+                autocomplete="off"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck={false}
+                value={username}
+                onInput={(ev) => setUsername((ev.target as HTMLInputElement).value)}
+              />
+              <input
+                aria-label={t("密码")}
+                placeholder={t("密码")}
+                autocomplete="off"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck={false}
+                value={password}
+                onInput={(ev) => setPassword((ev.target as HTMLInputElement).value)}
+              />
+              <button type="submit" class="cq-add-plus" aria-label={t("添加")} disabled={saving || !username.trim()}>
+                <PlusIcon />
+              </button>
+            </form>
+          ) : (
+            <button type="button" class="chip cq-new" onClick={() => setAdding(true)}>
+              {t("＋ 新账号")}
+            </button>
+          ))}
+        {inline && error && <p class="error">{error}</p>}
         {list.map((a) => {
           const on = busy.get(a.username.toLowerCase());
+          const court = on && t("{n}号", { n: on.join("、") });
           return (
             <button
               type="button"
@@ -799,8 +921,17 @@ function AccountPicker(props: {
               class={on ? "chip cq-busy" : "chip"}
               onClick={() => props.onToggle(a.username)}
             >
-              {a.username}
-              {on && <small>{t("{n}号", { n: on.join("、") })}</small>}
+              {inline ? (
+                <>
+                  <span>{a.username}</span>
+                  <small>{court ? `${a.password} · ${court}` : a.password}</small>
+                </>
+              ) : (
+                <>
+                  {a.username}
+                  {on && <small>{court}</small>}
+                </>
+              )}
             </button>
           );
         })}
@@ -810,18 +941,62 @@ function AccountPicker(props: {
   );
 }
 
+/** 球馆账号's top-bar buttons (sort, 批量添加) and the state they set, shared by its panel and its tab. */
+function useAccountsBar() {
+  const [sort, setSort] = useState<AccountSort>("az");
+  const [batch, setBatch] = useState(false);
+  return { sort, setSort, batch, setBatch };
+}
+type AccountsBar = ReturnType<typeof useAccountsBar>;
+
+function AccountsActions(props: { q: QueueInfo; bar: AccountsBar }) {
+  const bar = props.bar;
+  return (
+    <>
+      {/* Sorting sits in the top bar too, so the list starts right under the add row (Ke Li). */}
+      {props.q.accounts.length > 1 && (
+        <button
+          type="button"
+          class="cq-sort-icon"
+          aria-label={t("排序：{by}", { by: SORTS[bar.sort].label() })}
+          title={SORTS[bar.sort].label()}
+          onClick={() => bar.setSort(bar.sort === "az" ? "za" : bar.sort === "za" ? "new" : "az")}
+        >
+          <SortIcon />
+        </button>
+      )}
+      <button type="button" aria-expanded={bar.batch} onClick={() => bar.setBatch(!bar.batch)}>
+        {t("批量添加")}
+      </button>
+    </>
+  );
+}
+
 /** 球馆账号: everyone's hall accounts for this event; add your own, take off the ones you added. */
 function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose: () => void; onChange: () => void }) {
+  const bar = useAccountsBar();
+  return (
+    <SheetFrame
+      title={t("球馆账号（{n}）", { n: props.q.accounts.length })}
+      label={t("球馆账号")}
+      onClose={props.onClose}
+      action={<AccountsActions q={props.q} bar={bar} />}
+    >
+      <AccountsList base={props.base} e={props.e} q={props.q} bar={bar} onChange={props.onChange} />
+    </SheetFrame>
+  );
+}
+
+/** The accounts: add one, 批量添加, the list with 删除, 清空 (in the 球馆账号 panel or tab). */
+function AccountsList(props: { base: string; e: MyEvent; q: QueueInfo; bar: AccountsBar; onChange: () => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [batch, setBatch] = useState(false);
-  const [sort, setSort] = useState<AccountSort>("az");
   const { busy, error, run } = useAction();
   const path = `${props.base}/events/${props.e.id}/queue/accounts`;
   const inUse = busyAccounts(props.q, Date.now(), null);
   // Free accounts first in the order picked; those on a court or queued below them, by court
   // number and then in the order picked (Ke Li).
-  const order = SORTS[sort].compare;
+  const order = SORTS[props.bar.sort].compare;
   // No search box (Ke Li, option S3): typing a 用户名 narrows the list, which also shows a repeat.
   const found = props.q.accounts.filter((a) => matches(a.username, username));
   const isOn = (a: { username: string }) => inUse.has(a.username.toLowerCase());
@@ -847,30 +1022,7 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
     if (await run(() => api(`${path}/clear`, {}))) props.onChange();
   }
   return (
-    <SheetFrame
-      title={t("球馆账号（{n}）", { n: props.q.accounts.length })}
-      label={t("球馆账号")}
-      onClose={props.onClose}
-      action={
-        <>
-          {/* Sorting sits in the top bar too, so the list starts right under the add row (Ke Li). */}
-          {props.q.accounts.length > 1 && (
-            <button
-              type="button"
-              class="cq-sort-icon"
-              aria-label={t("排序：{by}", { by: SORTS[sort].label() })}
-              title={SORTS[sort].label()}
-              onClick={() => setSort(sort === "az" ? "za" : sort === "za" ? "new" : "az")}
-            >
-              <SortIcon />
-            </button>
-          )}
-          <button type="button" aria-expanded={batch} onClick={() => setBatch(!batch)}>
-            {t("批量添加")}
-          </button>
-        </>
-      }
-    >
+    <>
       {/* One row (Ke Li, option F): the two boxes and ＋; 批量添加 is up in the top bar. */}
       <form
         class="cq-add"
@@ -900,13 +1052,11 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
           onInput={(ev) => setPassword((ev.target as HTMLInputElement).value)}
         />
         <button type="submit" class="cq-add-plus" aria-label={t("添加")} disabled={busy || !username.trim()}>
-          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
-            <path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          </svg>
+          <PlusIcon />
         </button>
       </form>
       {error && <p class="error">{error}</p>}
-      {batch && <BatchAdd path={`${path}/batch`} q={props.q} onDone={props.onChange} />}
+      {props.bar.batch && <BatchAdd path={`${path}/batch`} q={props.q} onDone={props.onChange} />}
       {shown.length > 0 && (
         <ul class="cq-accounts">
           {shown.map((a) => {
@@ -935,7 +1085,7 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
           {t("清空全部账号")}
         </button>
       )}
-    </SheetFrame>
+    </>
   );
 }
 

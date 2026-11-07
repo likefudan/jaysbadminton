@@ -17,6 +17,7 @@ import { formatInstantZh, isDate, isTime, pacificToUtc, toPacific } from "../../
 import { getSettings, now, setSetting } from "../db";
 import { calorieReadDays, shortcutSetting } from "../calories";
 import { SHORTCUT_URL_RE } from "../../shared/calories";
+import { QUEUE_ACCOUNTS_VIEWS, type QueueAccountsView } from "../../shared/courtQueue";
 import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
 import type { Env } from "../env";
 import {
@@ -51,7 +52,7 @@ import { endNoFeeEvent } from "../noFee";
 import { SETTLE_DEADLINE_MAX_HOURS, settleDeadline } from "../settleDeadline";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
-import { cleanRoundMin, idleAlertPct } from "../courtQueue";
+import { cleanRoundMin, idleAlertPct, queueAccountsView } from "../courtQueue";
 import type { Actor, AdminEnv } from "../access";
 import {
   can,
@@ -763,6 +764,7 @@ adminEventRoutes.get("/settings", async (c) => {
     pastEventDays: await pastEventDays(c.env),
     calorieReadDays: await calorieReadDays(c.env),
     idleAlertPct: await idleAlertPct(c.env),
+    queueAccountsView: await queueAccountsView(c.env),
     calorieShortcut: await shortcutSetting(c.env),
     ...payment,
     siteTitle: site.title,
@@ -822,6 +824,12 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!Number.isInteger(n) || n < 0 || n > 100) throw badRequest("空闲账号比例请填 0–100（0 是关闭）");
     writes.push(setSetting(c.env.DB, "idle_alert_pct", String(n)));
     said.push(n ? `空闲账号提醒 ${n}%` : "空闲账号提醒 关");
+  }
+  if (b.queueAccountsView !== undefined) {
+    const v = str(b.queueAccountsView);
+    if (!QUEUE_ACCOUNTS_VIEWS.includes(v as QueueAccountsView)) throw badRequest("球馆账号显示方式不对");
+    writes.push(setSetting(c.env.DB, "queue_accounts_view", v));
+    said.push(v === "tabs" ? "球馆账号 分成两个标签" : "球馆账号 列在登记球场里");
   }
   // 卡路里快捷指令: a new version is a new iCloud link, so both come together (Ke Li: no deploy for it).
   if (b.calorieShortcut !== undefined) {
