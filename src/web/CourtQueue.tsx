@@ -42,7 +42,7 @@ function useNow(): number {
   return now;
 }
 
-type Sheet = { kind: "court"; court: QueueCourt | null } | null;
+type Sheet = { kind: "court"; court: QueueCourt | null } | { kind: "accounts" } | null;
 
 /**
  * 球场: the courts we hold and queue for, each drawn as a court with our hall usernames on its two
@@ -117,10 +117,14 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           </span>
         )}
       </div>
-      {/* One button (Ke Li 2026-11-07): 球馆账号 lives inside 登记球场 now. */}
+      {/* 球馆账号 lives inside 登记球场 now; 账号管理 stays on the card too, so people used to the old
+          button still find it (Ke Li 2026-11-07). */}
       <div class="cq-bar">
         <button type="button" class="button" onClick={() => setSheet({ kind: "court", court: null })}>
           {t("＋ 登记球场")}
+        </button>
+        <button type="button" class="button secondary" onClick={() => setSheet({ kind: "accounts" })}>
+          {t("账号管理")}
         </button>
         <IdleNotice q={q} now={now} />
       </div>
@@ -211,6 +215,9 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           onDone={done}
           onSaved={props.onChange}
         />
+      )}
+      {sheet?.kind === "accounts" && (
+        <AccountsSheet base={props.base} e={props.e} q={q} onClose={close} onChange={props.onChange} />
       )}
     </div>
   );
