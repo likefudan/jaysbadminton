@@ -266,14 +266,12 @@ describe("球场排队", () => {
     expect(await rows()).toEqual([[9, 0, ["Sail"]]]);
 
     // The same group queued again on 8 (moved up from 第2组 to 第1组) replaces its old place;
-    // another group in the same queue, a group on another court, and the group on court stay.
+    // another group in the same queue and the group on court stay.
     await save({ court: 8, position: 0, minutes: 20, accounts: ["Jay"] });
     await save({ court: 8, position: 2, minutes: 60, accounts: ["Xiaoh", "Ryen"] });
     await save({ court: 8, position: 1, minutes: 20, accounts: ["TLi"] });
-    await save({ court: 7, position: 1, minutes: 20, accounts: ["Xiaoh", "Ryen"] });
     await save({ court: 8, position: 1, minutes: 15, accounts: ["Xiaoh", "Ryen"] });
     expect(await rows()).toEqual([
-      [7, 1, ["Xiaoh", "Ryen"]],
       [8, 0, ["Jay"]],
       [8, 1, ["TLi"]],
       [8, 1, ["Xiaoh", "Ryen"]],
@@ -281,21 +279,49 @@ describe("球场排队", () => {
     ]);
 
     // Moving an entry onto a court works the same way, and the moved entry keeps its id.
-    const seven = (await card(alice.base))!.queue.courts.find((c: any) => c.court === 7);
-    await save({ id: seven.id, court: 9, position: 0, minutes: 30, accounts: ["Xiaoh", "Ryen"] });
+    const group = (await card(alice.base))!.queue.courts.find((c: any) => c.accounts.includes("Ryen"));
+    await save({ id: group.id, court: 9, position: 0, minutes: 30, accounts: ["Xiaoh", "Ryen"] });
     courts = (await card(alice.base))!.queue.courts;
-    expect(courts.filter((c: any) => c.court === 9).map((c: any) => c.id)).toEqual([seven.id]);
+    expect(courts.filter((c: any) => c.court === 9).map((c: any) => c.id)).toEqual([group.id]);
+  });
+
+  it("an account is in one place at a time: entered on another court, it leaves the old one", async () => {
+    const { alice, q, card } = await scenario(45);
+    for (const username of ["Jiazl", "Lei", "Xiaoh", "Sail"])
+      await anon.call(`${alice.base}${q}/accounts`, { username, password: "1" });
+    const save = (body: object) => anon.call(`${alice.base}${q}/courts`, body);
+    const rows = async () =>
+      ((await card(alice.base))!.queue.courts as any[]).map((c) => [c.court, c.position, c.accounts]);
+
+    await save({ court: 8, position: 0, minutes: 30, accounts: ["Jiazl", "Lei", "Xiaoh"] });
+    await save({ court: 2, position: 1, minutes: 20, accounts: ["Sail"] });
+    // Jiazl and Lei now queue on 15 (any case): they leave 8, where Xiaoh plays on alone.
+    expect((await save({ court: 15, position: 1, minutes: 10, accounts: ["jiazl", "LEI"] })).status).toBe(200);
+    expect(await rows()).toEqual([
+      [2, 1, ["Sail"]],
+      [8, 0, ["Xiaoh"]],
+      [15, 1, ["Jiazl", "Lei"]],
+    ]);
+    // Sail, the whole group on 2, moves to 15 too: the entry left empty on 2 goes.
+    await save({ court: 15, position: 2, minutes: 40, accounts: ["Sail"] });
+    expect(await rows()).toEqual([
+      [8, 0, ["Xiaoh"]],
+      [15, 1, ["Jiazl", "Lei"]],
+      [15, 2, ["Sail"]],
+    ]);
   });
 
   it("批量删除 is for the Owner and admins: ticked courts go, playing or queued, on this event only", async () => {
     const { ctx, e, alice, bob, q, card } = await scenario();
-    await anon.call(`${alice.base}${q}/accounts`, { username: "Mark", password: "1" });
-    for (const [court, position] of [
-      [1, 0],
-      [2, 0],
-      [3, 1],
-    ])
-      await anon.call(`${alice.base}${q}/courts`, { court, position, minutes: 20, accounts: ["Mark"] });
+    // One account per court: an account is in one place at a time.
+    for (const [court, position, name] of [
+      [1, 0, "Mark"],
+      [2, 0, "Ann"],
+      [3, 1, "Ben"],
+    ] as const) {
+      await anon.call(`${alice.base}${q}/accounts`, { username: name, password: "1" });
+      await anon.call(`${alice.base}${q}/courts`, { court, position, minutes: 20, accounts: [name] });
+    }
     const ids = ((await card(alice.base))!.queue.courts as any[]).map((c) => c.id);
 
     // A player sees no 选择 and is refused.
