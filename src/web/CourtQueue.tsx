@@ -909,6 +909,7 @@ function AccountPicker(props: {
   }, []);
   const inline = props.addPath !== undefined;
   if (props.q.accounts.length === 0 && !inline) return null;
+  const search = props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />;
   async function add() {
     const name = username.trim();
     if (!name || !(await run(() => api(props.addPath!, { username: name, password })))) return;
@@ -940,51 +941,57 @@ function AccountPicker(props: {
           );
         })}
         {Array.from({ length: Math.max(0, QUEUE_GROUP_MAX - props.picked.length) }, (_, k) => (
-          <span key={`empty-${k}`} class="cq-slot" aria-hidden="true">
-            {t("空位")}
-          </span>
+          <span key={`empty-${k}`} class="cq-slot" aria-hidden="true" />
         ))}
       </div>
-      {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
+      {/* 「＋ 新账号」 beside the search (Ke Li, option A); opened, the row becomes 用户名 | 密码 | ＋ | ✕,
+          and ✕ goes back to the search. */}
+      {inline && adding ? (
+        <form
+          class="cq-add cq-add-x"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            if (!saving) add();
+          }}
+        >
+          <input
+            aria-label={t("用户名")}
+            placeholder={t("用户名")}
+            autocomplete="off"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck={false}
+            value={username}
+            onInput={(ev) => setUsername((ev.target as HTMLInputElement).value)}
+          />
+          <input
+            aria-label={t("密码")}
+            placeholder={t("密码")}
+            autocomplete="off"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck={false}
+            value={password}
+            onInput={(ev) => setPassword((ev.target as HTMLInputElement).value)}
+          />
+          <button type="submit" class="cq-add-plus" aria-label={t("添加")} disabled={saving || !username.trim()}>
+            <PlusIcon />
+          </button>
+          <button type="button" class="cq-add-close" aria-label={t("关闭")} onClick={() => setAdding(false)}>
+            ✕
+          </button>
+        </form>
+      ) : inline ? (
+        <div class="cq-find">
+          {search}
+          <button type="button" class="chip cq-new" onClick={() => setAdding(true)}>
+            {t("＋ 新账号")}
+          </button>
+        </div>
+      ) : (
+        search
+      )}
       <div ref={box} class={inline ? "chips cq-chips cq-chips-pw" : "chips cq-chips"}>
-        {inline &&
-          (adding ? (
-            <form
-              class="cq-add cq-add-inline"
-              onSubmit={(ev) => {
-                ev.preventDefault();
-                if (!saving) add();
-              }}
-            >
-              <input
-                aria-label={t("用户名")}
-                placeholder={t("用户名")}
-                autocomplete="off"
-                autocapitalize="none"
-                autocorrect="off"
-                spellcheck={false}
-                value={username}
-                onInput={(ev) => setUsername((ev.target as HTMLInputElement).value)}
-              />
-              <input
-                aria-label={t("密码")}
-                placeholder={t("密码")}
-                autocomplete="off"
-                autocapitalize="none"
-                autocorrect="off"
-                spellcheck={false}
-                value={password}
-                onInput={(ev) => setPassword((ev.target as HTMLInputElement).value)}
-              />
-              <button type="submit" class="cq-add-plus" aria-label={t("添加")} disabled={saving || !username.trim()}>
-                <PlusIcon />
-              </button>
-            </form>
-          ) : (
-            <button type="button" class="chip cq-new" onClick={() => setAdding(true)}>
-              {t("＋ 新账号")}
-            </button>
-          ))}
         {inline && error && <p class="error">{error}</p>}
         {list.map((a) => {
           const on = busy.get(a.username.toLowerCase());
