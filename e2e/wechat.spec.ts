@@ -37,7 +37,7 @@ test.describe("in WeChat on iPhone", () => {
     const sheet = page.getByRole("dialog", { name: "用 Safari 登录" });
     await expect(sheet).toContainText("选「在 Safari 中打开」");
     await expect(page).toHaveURL(/\/e\/AB12$/);
-    await sheet.getByRole("button", { name: "关闭" }).click();
+    await sheet.getByRole("button", { name: "返回" }).click();
     await expect(sheet).toHaveCount(0);
 
     // ✕ hides the strip for the rest of this visit.

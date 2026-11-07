@@ -1,4 +1,4 @@
-import { createPortal } from "preact/compat";
+import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import {
@@ -24,7 +24,7 @@ import { toPacific } from "../shared/time";
 import type { MyEvent } from "../shared/types";
 import { api } from "./api";
 import { CourtCombo } from "./CourtCombo";
-import { Field, useAction } from "./components";
+import { useAction } from "./components";
 import { t } from "./i18n";
 
 /** Over this many accounts, the lists get a search box. */
@@ -294,29 +294,19 @@ function SheetFrame(props: {
   title: ComponentChildren;
   label: string;
   onClose: () => void;
+  action?: ComponentChildren;
   children: ComponentChildren;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, []);
-  // Into <body>, like the share sheet: the card's backdrop-filter would trap a fixed sheet inside it.
-  return createPortal(
-    // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
-    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
-    <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet cq-sheet" role="dialog" aria-label={props.label}>
-        <div class="sheet-head">
-          <strong>{props.title}</strong>
-          <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
-            ✕
-          </button>
-        </div>
-        {props.children}
-      </div>
-    </div>,
-    document.body,
+  return (
+    <Panel
+      title={props.title ?? props.label}
+      label={props.label}
+      onClose={props.onClose}
+      action={props.action}
+      class="cq-sheet"
+    >
+      {props.children}
+    </Panel>
   );
 }
 
@@ -824,7 +814,6 @@ function AccountPicker(props: {
 function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose: () => void; onChange: () => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [query, setQuery] = useState("");
   const [batch, setBatch] = useState(false);
   const [sort, setSort] = useState<AccountSort>("az");
   const { busy, error, run } = useAction();
@@ -833,7 +822,8 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
   // Free accounts first in the order picked; those on a court or queued below them, by court
   // number and then in the order picked (Ke Li).
   const order = SORTS[sort].compare;
-  const found = props.q.accounts.filter((a) => matches(a.username, query));
+  // No search box (Ke Li, option S3): typing a 用户名 narrows the list, which also shows a repeat.
+  const found = props.q.accounts.filter((a) => matches(a.username, username));
   const isOn = (a: { username: string }) => inUse.has(a.username.toLowerCase());
   const court = (a: { username: string }) => Math.min(...(inUse.get(a.username.toLowerCase()) ?? [0]));
   const shown = [
@@ -861,35 +851,62 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
       title={t("球馆账号（{n}）", { n: props.q.accounts.length })}
       label={t("球馆账号")}
       onClose={props.onClose}
-    >
-      <div class="cq-add">
-        <Field label={t("用户名")} value={username} onInput={setUsername} autocomplete="off" verbatim />
-        <Field label={t("密码")} value={password} onInput={setPassword} autocomplete="off" verbatim />
-      </div>
-      {error && <p class="error">{error}</p>}
-      <div class="cq-add-buttons">
-        <button type="button" class="button" disabled={busy || !username.trim()} onClick={add}>
-          {t("添加")}
-        </button>
-        <button type="button" class="button secondary" aria-expanded={batch} onClick={() => setBatch(!batch)}>
-          {t("批量添加")}
-        </button>
-      </div>
-      {batch && <BatchAdd path={`${path}/batch`} q={props.q} onDone={props.onChange} />}
-      {props.q.accounts.length > 1 && (
-        <div class="cq-find">
-          {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
-          <button
-            type="button"
-            class="cq-sort"
-            aria-label={t("排序：{by}", { by: SORTS[sort].label() })}
-            onClick={() => setSort(sort === "az" ? "za" : sort === "za" ? "new" : "az")}
-          >
-            <SortIcon />
-            <span>{SORTS[sort].label()}</span>
+      action={
+        <>
+          {/* Sorting sits in the top bar too, so the list starts right under the add row (Ke Li). */}
+          {props.q.accounts.length > 1 && (
+            <button
+              type="button"
+              class="cq-sort-icon"
+              aria-label={t("排序：{by}", { by: SORTS[sort].label() })}
+              title={SORTS[sort].label()}
+              onClick={() => setSort(sort === "az" ? "za" : sort === "za" ? "new" : "az")}
+            >
+              <SortIcon />
+            </button>
+          )}
+          <button type="button" aria-expanded={batch} onClick={() => setBatch(!batch)}>
+            {t("批量添加")}
           </button>
-        </div>
-      )}
+        </>
+      }
+    >
+      {/* One row (Ke Li, option F): the two boxes and ＋; 批量添加 is up in the top bar. */}
+      <form
+        class="cq-add"
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          if (!busy && username.trim()) add();
+        }}
+      >
+        <input
+          aria-label={t("用户名")}
+          placeholder={t("用户名")}
+          autocomplete="off"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck={false}
+          value={username}
+          onInput={(ev) => setUsername((ev.target as HTMLInputElement).value)}
+        />
+        <input
+          aria-label={t("密码")}
+          placeholder={t("密码")}
+          autocomplete="off"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck={false}
+          value={password}
+          onInput={(ev) => setPassword((ev.target as HTMLInputElement).value)}
+        />
+        <button type="submit" class="cq-add-plus" aria-label={t("添加")} disabled={busy || !username.trim()}>
+          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+            <path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+      </form>
+      {error && <p class="error">{error}</p>}
+      {batch && <BatchAdd path={`${path}/batch`} q={props.q} onDone={props.onChange} />}
       {shown.length > 0 && (
         <ul class="cq-accounts">
           {shown.map((a) => {

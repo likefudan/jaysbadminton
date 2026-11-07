@@ -80,8 +80,10 @@ test.describe("iPhone", () => {
     await page.getByRole("button", { name: "添加到主屏幕" }).click();
     const guide = page.getByRole("dialog", { name: "添加到主屏幕" });
     await expect(guide.getByText("往下滑，选「添加到主屏幕」")).toBeVisible();
-    await guide.getByRole("button", { name: "关闭" }).click();
+    await guide.getByRole("button", { name: "返回" }).click();
     await expect(guide).toBeHidden();
+    // Closing takes the panel's own history entry off again (a same-page back) before moving on.
+    await page.waitForFunction(() => !history.state?.panel);
 
     await page.goto("/m/tok/profile");
     await page.getByRole("link", { name: "添加到主屏幕" }).click();

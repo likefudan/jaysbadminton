@@ -1,4 +1,4 @@
-import { createPortal } from "preact/compat";
+import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
 import type { GuestChoice } from "../shared/types";
 import { Field } from "./components";
@@ -138,9 +138,6 @@ function GuestPicker(props: {
   const [q, setQ] = useState("");
   useEffect(() => {
     props.load().then(setList, () => setFailed(true));
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
   }, []);
   const why = (c: GuestChoice) =>
     props.taken.includes(c.id)
@@ -151,53 +148,40 @@ function GuestPicker(props: {
           ? t("{name} 已带", { name: c.by ?? "" })
           : null;
   const shown = (list ?? []).filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase()));
-  // Into <body>, like the other sheets: the card's backdrop-filter would trap a fixed sheet inside
-  // it, so a long list ran off the screen with no way to close it (Ke Li).
-  return createPortal(
-    // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside is a mouse shortcut; Esc and ✕ close it too
-    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
-    <div class="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class="sheet guest-sheet" role="dialog" aria-label={t("选群友")}>
-        <div class="sheet-head">
-          <strong>{t("选群友")}</strong>
-          <button type="button" class="sheet-close" aria-label={t("关闭")} onClick={props.onClose}>
-            ✕
-          </button>
-        </div>
-        <input
-          class="cq-search"
-          type="search"
-          placeholder={t("搜索")}
-          aria-label={t("搜索")}
-          value={q}
-          onInput={(e) => setQ((e.target as HTMLInputElement).value)}
-        />
-        {failed && <p class="error">{t("加载失败，请稍后再试")}</p>}
-        {!list && !failed && <p class="muted">{t("加载中…")}</p>}
-        <ul class="guest-list">
-          {shown.map((c) => {
-            const no = why(c);
-            return (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  disabled={!!no}
-                  onClick={() => props.onPick({ id: c.id, name: c.name })}
-                  class={no ? "off" : ""}
-                >
-                  <i class="guest-avatar" aria-hidden="true">
-                    {c.name.slice(0, 1)}
-                  </i>
-                  <b class="guest-name">{c.name}</b>
-                  {no && <small>{no}</small>}
-                </button>
-              </li>
-            );
-          })}
-          {list && shown.length === 0 && <li class="muted guest-none">{t("没有找到")}</li>}
-        </ul>
-      </div>
-    </div>,
-    document.body,
+  return (
+    <Panel title={t("选群友")} label={t("选群友")} onClose={props.onClose} class="guest-sheet">
+      <input
+        class="cq-search"
+        type="search"
+        placeholder={t("搜索")}
+        aria-label={t("搜索")}
+        value={q}
+        onInput={(e) => setQ((e.target as HTMLInputElement).value)}
+      />
+      {failed && <p class="error">{t("加载失败，请稍后再试")}</p>}
+      {!list && !failed && <p class="muted">{t("加载中…")}</p>}
+      <ul class="guest-list">
+        {shown.map((c) => {
+          const no = why(c);
+          return (
+            <li key={c.id}>
+              <button
+                type="button"
+                disabled={!!no}
+                onClick={() => props.onPick({ id: c.id, name: c.name })}
+                class={no ? "off" : ""}
+              >
+                <i class="guest-avatar" aria-hidden="true">
+                  {c.name.slice(0, 1)}
+                </i>
+                <b class="guest-name">{c.name}</b>
+                {no && <small>{no}</small>}
+              </button>
+            </li>
+          );
+        })}
+        {list && shown.length === 0 && <li class="muted guest-none">{t("没有找到")}</li>}
+      </ul>
+    </Panel>
   );
 }
