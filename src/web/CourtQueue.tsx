@@ -109,14 +109,14 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
 
   return (
     <div class="cq">
-      <div class="cq-head">
-        <strong>{t("球场")}</strong>
-        {last && (
+      {/* No 球场 heading: the 登记球场 button says it (Ke Li 2026-11-07). */}
+      {last && (
+        <div class="cq-head">
           <span class="muted small">
             {t("{name} 更新于 {time}", { name: last.updatedBy, time: toPacific(last.updatedAt).time })}
           </span>
-        )}
-      </div>
+        </div>
+      )}
       {/* 球馆账号 lives inside 登记球场 now; 账号管理 stays on the card too, so people used to the old
           button still find it (Ke Li 2026-11-07). */}
       <div class="cq-bar">
