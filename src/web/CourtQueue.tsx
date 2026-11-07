@@ -984,7 +984,7 @@ function AccountPicker(props: {
       ) : inline ? (
         <div class="cq-find">
           {search}
-          <button type="button" class="chip cq-new" onClick={() => setAdding(true)}>
+          <button type="button" class="cq-new-btn" onClick={() => setAdding(true)}>
             {t("＋ 新账号")}
           </button>
         </div>

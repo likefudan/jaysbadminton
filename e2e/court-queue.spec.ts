@@ -304,7 +304,7 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   expect(Math.abs(min.y + min.height / 2 - (drag.y + drag.height / 2))).toBeLessThan(6);
   // Free accounts first in alphabetical order, whatever the case, each with its password; those on
   // a court after them by court number, saying where (as in 账号管理); a search narrows them.
-  const chips = sheet.locator(".cq-chips .chip:not(.cq-new)");
+  const chips = sheet.locator(".cq-chips .chip");
   await expect(chips.nth(0)).toHaveText("arthur1017");
   await expect(chips.nth(1)).toHaveText("Dafei1016");
   await expect(chips.nth(4)).toHaveText(/ · 1号$/);
