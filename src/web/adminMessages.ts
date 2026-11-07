@@ -1203,6 +1203,17 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   每人最多带几个朋友: { tw: "每人最多帶幾個朋友", en: "Friends each member can bring" },
   补建活动和卡路里: { tw: "補建活動和卡路里", en: "Past events and calories" },
   空闲账号提醒: { tw: "空閒帳號提醒", en: "Idle account alert" },
+  球馆账号显示方式: { tw: "球館帳號顯示方式", en: "Venue accounts layout" },
+  列在登记球场里: { tw: "列在登記球場裡", en: "In the court form" },
+  分成两个标签: { tw: "分成兩個標籤", en: "Two tabs" },
+  "登记球场时，每个账号下面直接显示密码，没有的账号点「＋ 新账号」添加；删除和批量添加在右上角「账号管理」。": {
+    tw: "登記球場時，每個帳號下面直接顯示密碼，沒有的帳號點「＋ 新帳號」新增；刪除和批次新增在右上角「帳號管理」。",
+    en: 'When entering a court, each account shows its password underneath; add a missing one with "+ New account". Deleting and bulk adding are under "Manage accounts" at the top right.',
+  },
+  "登记球场的页面顶部分成「登记球场」和「球馆账号」两个标签，账号和密码在第二个标签里。": {
+    tw: "登記球場的頁面頂部分成「登記球場」和「球館帳號」兩個標籤，帳號和密碼在第二個標籤裡。",
+    en: 'The court form has two tabs at the top, "Add court" and "Venue accounts"; the accounts and passwords are on the second.',
+  },
   "空闲账号达到多少 % 时提醒": { tw: "空閒帳號達到多少 % 時提醒", en: "Alert when this % of accounts is idle" },
   "活动进行中，登记的球馆账号里没在打、也没在排队的达到这个比例，球场页面上就会显示黄色提示。填 0 关闭。": {
     tw: "活動進行中，登記的球館帳號裡沒在打、也沒在排隊的達到這個比例，球場頁面上就會顯示黃色提示。填 0 關閉。",

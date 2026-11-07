@@ -7,10 +7,11 @@ import { t } from "./i18n";
 const EDGE_PX = 32;
 const BACK_PX = 80;
 
-let opened = 0;
+/** The panels open now, the last on top (账号管理 opens over 登记球场). */
+const stack: object[] = [];
 
 /** True while a panel covers the page (下拉刷新 leaves its touches alone). */
-export const panelOpen = () => opened > 0;
+export const panelOpen = () => stack.length > 0;
 
 /**
  * A full-screen panel over the page (Ke Li 2026-11-06, option D): a top bar with 「‹ 返回」, the
@@ -36,9 +37,11 @@ export function Panel(props: {
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    opened++;
+    const me = {};
+    stack.push(me);
     document.documentElement.classList.add("panel-open");
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close.current();
+    // Esc closes only the panel on top.
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && stack[stack.length - 1] === me && close.current();
     addEventListener("keydown", onKey);
     // An entry of our own, so the browser's back closes the panel instead of leaving the page.
     const mark = `panel-${Date.now()}-${Math.random()}`;
@@ -51,8 +54,8 @@ export function Panel(props: {
     };
     addEventListener("popstate", onPop);
     return () => {
-      opened--;
-      if (!opened) document.documentElement.classList.remove("panel-open");
+      stack.splice(stack.indexOf(me), 1);
+      if (!stack.length) document.documentElement.classList.remove("panel-open");
       removeEventListener("keydown", onKey);
       removeEventListener("popstate", onPop);
       // Closed with 返回 or Esc: take our entry off again. Not if a link inside moved on.

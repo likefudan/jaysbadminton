@@ -557,3 +557,21 @@ describe("backing up TOKEN_KEY", () => {
     expect(sent()).toEqual([]);
   });
 });
+
+describe("球馆账号显示方式", () => {
+  it("is set in 设置 and reaches the 球场 card; 「列在登记球场里」 until then (Ke Li)", async () => {
+    const ctx = await setUpAdmin();
+    const e = await createTestEvent(ctx, { queueRoundMin: 45 });
+    const alice = await approveMember(ctx, "Alice");
+    const anon = new Client();
+    await anon.call(`${alice.base}/events/${e.id}/signup`, { friends: [] });
+    const view = async () => (await anon.call(`${alice.base}/events/${e.id}`)).data.event.queue.accountsView;
+    expect(await view()).toBe("list");
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.queueAccountsView).toBe("list");
+    expect((await ctx.admin.call(`${ctx.base}/settings`, { queueAccountsView: "tabs" })).status).toBe(200);
+    expect(await view()).toBe("tabs");
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.queueAccountsView).toBe("tabs");
+    expect((await ctx.admin.call(`${ctx.base}/settings`, { queueAccountsView: "grid" })).status).toBe(400);
+    expect(await view()).toBe("tabs");
+  });
+});

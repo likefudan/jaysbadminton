@@ -1,11 +1,13 @@
 import {
   IDLE_ALERT_DEFAULT_PCT,
+  QUEUE_ACCOUNTS_VIEWS,
   QUEUE_COURT_MAX,
   QUEUE_GROUP_MAX,
   QUEUE_MAX_POSITION,
   QUEUE_MINUTES_MAX,
   QUEUE_ROUND_MAX,
   QUEUE_ROUND_MIN,
+  type QueueAccountsView,
   type QueueInfo,
 } from "../shared/courtQueue";
 import { photoEnabled } from "./courtPhoto";
@@ -40,10 +42,17 @@ export async function idleAlertPct(env: Env): Promise<number> {
   return Number.isInteger(n) && n >= 0 && n <= 100 ? n : IDLE_ALERT_DEFAULT_PCT;
 }
 
+/** 球馆账号显示方式 (设置 › 高级设置); "list" unless set. */
+export async function queueAccountsView(env: Env): Promise<QueueAccountsView> {
+  const v = (await getSettings(env.DB, ["queue_accounts_view"])).queue_accounts_view;
+  return QUEUE_ACCOUNTS_VIEWS.includes(v as QueueAccountsView) ? (v as QueueAccountsView) : "list";
+}
+
 /** Everything the card shows: shared accounts (with who added them) and the courts entered. */
 export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: boolean): Promise<QueueInfo> {
-  const [pct, accounts, courts] = await Promise.all([
+  const [pct, view, accounts, courts] = await Promise.all([
     idleAlertPct(env),
+    queueAccountsView(env),
     env.DB.prepare(
       `SELECT a.id, a.username, a.password, a.member_id, m.username AS by_name
        FROM queue_accounts a JOIN members m ON m.id = a.member_id
@@ -95,6 +104,7 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: b
       updatedAt: c.updated_at,
     })),
     idleAlert: pct ? { pct, from: e.start_at, to: e.end_at } : null,
+    accountsView: view,
   };
 }
 

@@ -2,6 +2,7 @@ import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { AI_EFFORTS, AI_USE_NAME, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
 import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
+import type { QueueAccountsView } from "../../shared/courtQueue";
 import {
   APP_NAME_MAX,
   SITE_LANGS,
@@ -125,6 +126,7 @@ function AdvancedCards(props: { base: string; readOnlySheets?: boolean; openShee
         {(v) => (
           <>
             <IdleAlertCard base={props.base} initial={v} />
+            <QueueViewCard base={props.base} initial={v} />
             <AiCard base={props.base} initial={v.ai} />
             <ShortcutCard base={props.base} initial={v} />
             <DaysCard base={props.base} initial={v} />
@@ -785,6 +787,7 @@ interface GeneralSettings {
   pastEventDays: number;
   calorieReadDays: number;
   idleAlertPct: number;
+  queueAccountsView: QueueAccountsView;
   calorieShortcut: { url: string; version: number };
   ai: Record<AiUse, AiChoice>;
   venmoUsername: string;
@@ -1019,6 +1022,40 @@ function IdleAlertCard(props: { base: string; initial: GeneralSettings }) {
       >
         {saved ? t("已保存") : t("保存")}
       </button>
+    </Card>
+  );
+}
+
+/**
+ * 球馆账号显示方式 (Ke Li 2026-11-07: both built, chosen here): inside 登记球场, either each account
+ * with its password and 「＋ 新账号」 in the list, or two tabs, 登记球场 and 球馆账号.
+ */
+function QueueViewCard(props: { base: string; initial: GeneralSettings }) {
+  const [view, setView] = useState(props.initial.queueAccountsView);
+  const { busy, error, run } = useAction();
+  async function pick(v: QueueAccountsView) {
+    const was = view;
+    setView(v);
+    if (!(await run(() => api(`${props.base}/settings`, { queueAccountsView: v })))) setView(was);
+  }
+  return (
+    <Card title={t("球馆账号显示方式")}>
+      <div class="seg" role="group" aria-label={t("球馆账号显示方式")}>
+        <button type="button" class={view === "list" ? "on" : ""} disabled={busy} onClick={() => pick("list")}>
+          {t("列在登记球场里")}
+        </button>
+        <button type="button" class={view === "tabs" ? "on" : ""} disabled={busy} onClick={() => pick("tabs")}>
+          {t("分成两个标签")}
+        </button>
+      </div>
+      <p class="muted small">
+        {view === "list"
+          ? t(
+              "登记球场时，每个账号下面直接显示密码，没有的账号点「＋ 新账号」添加；删除和批量添加在右上角「账号管理」。",
+            )
+          : t("登记球场的页面顶部分成「登记球场」和「球馆账号」两个标签，账号和密码在第二个标签里。")}
+      </p>
+      {error && <p class="error">{error}</p>}
     </Card>
   );
 }
