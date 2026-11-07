@@ -543,7 +543,6 @@ function CourtSheet(props: {
               ? t("前面有人提前下场或退出，就把时间改短。到点会自动变成「在打」。")
               : t("屏幕上的 Minutes Left。保存后从现在开始倒计时。")}
         </p>
-        <p class="sheet-label">{t("用了哪几个账号（1-{n} 个）", { n: QUEUE_GROUP_MAX })}</p>
         {tabs && props.q.accounts.length === 0 && (
           <p class="muted small">{t("还没有人添加球馆账号，请先在「球馆账号」里添加。")}</p>
         )}
@@ -849,9 +848,8 @@ function AccountPicker(props: {
   }
   return (
     <>
+      {/* Four places in one row (Ke Li, option P2); the empty ones dashed. */}
       <div class="cq-picked">
-        <span class="cq-picked-label">{t("已选 {n}/{max}", { n: props.picked.length, max: QUEUE_GROUP_MAX })}</span>
-        {props.picked.length === 0 && <span class="muted small">{t("点下面的账号选上")}</span>}
         {props.picked.map((name) => {
           const password = props.q.accounts.find((a) => a.username === name)?.password;
           return (
@@ -862,13 +860,19 @@ function AccountPicker(props: {
               aria-label={t("取消选择 {name}", { name })}
               onClick={() => props.onToggle(name)}
             >
-              <span class="cq-pick-name">
-                ✓ {name} <span aria-hidden="true">✕</span>
+              <span class="cq-pick-name">✓ {name}</span>
+              <span class="cq-pick-x" aria-hidden="true">
+                ✕
               </span>
               {password && <small>{password}</small>}
             </button>
           );
         })}
+        {Array.from({ length: Math.max(0, QUEUE_GROUP_MAX - props.picked.length) }, (_, k) => (
+          <span key={`empty-${k}`} class="cq-slot" aria-hidden="true">
+            {t("空位")}
+          </span>
+        ))}
       </div>
       {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
       <div class={inline ? "chips cq-chips cq-chips-pw" : "chips cq-chips"}>

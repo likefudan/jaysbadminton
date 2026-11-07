@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { createPortal } from "preact/compat";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import { t } from "./i18n";
 
 /** How far from the left edge a swipe must start, and how far right it must go, to go back. */
@@ -9,6 +9,10 @@ const BACK_PX = 80;
 
 /** The panels open now, the last on top (账号管理 opens over 登记球场). */
 const stack: object[] = [];
+
+/** Opened from the home screen, where there is no browser swipe to go back (as Install.tsx's standalone). */
+const homeScreenApp = () =>
+  window.matchMedia?.("(display-mode: standalone)").matches || !!(navigator as { standalone?: boolean }).standalone;
 
 /** True while a panel covers the page (下拉刷新 leaves its touches alone). */
 export const panelOpen = () => stack.length > 0;
@@ -19,8 +23,8 @@ export const panelOpen = () => stack.length > 0;
  * sheets sized in vh, whose ✕ went under Safari's address bar on small phones.
  *
  * Going back: 返回, Esc, the browser's back (Android's back button, Safari's edge swipe) through a
- * history entry of its own, or a swipe right from the left edge (the home-screen app has no
- * browser swipe). On a wide screen it is a centred card instead, and a click outside closes it.
+ * history entry of its own, or (in the home-screen app only, which has no browser swipe) a swipe
+ * right from the left edge. On a wide screen it is a centred card instead, and a click outside closes it.
  */
 export function Panel(props: {
   title: ComponentChildren;
@@ -36,7 +40,8 @@ export function Panel(props: {
   close.current = props.onClose;
   const box = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // Before paint, so a key pressed the moment the panel shows already finds it on top of the stack.
+  useLayoutEffect(() => {
     const me = {};
     stack.push(me);
     document.documentElement.classList.add("panel-open");
@@ -65,7 +70,10 @@ export function Panel(props: {
 
   useEffect(() => {
     const el = box.current;
-    if (!el) return;
+    // Only in the home-screen app. In a browser tab, Safari's own edge swipe already goes back
+    // (through the history entry above); ours on top of it slid the panel too, so two pages
+    // showed behind it at once (Ke Li).
+    if (!el || !homeScreenApp()) return;
     let x0: number | null = null;
     let y0 = 0;
     let dx = 0;

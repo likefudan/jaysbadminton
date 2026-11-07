@@ -298,8 +298,11 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   await sheet.getByRole("button", { name: "Chris" }).click();
   // Picked ones move up into their own highlighted row.
   // …with each password in small type under the name.
-  await expect(sheet.locator(".cq-picked .chip .cq-pick-name")).toHaveText(["✓ Chris ✕"]);
+  await expect(sheet.locator(".cq-picked .chip .cq-pick-name")).toHaveText(["✓ Chris"]);
   await expect(sheet.locator(".cq-picked .chip small")).toHaveText(["1010"]);
+  // Four places, two by two; the ones not yet used are dashed, and no 「用了哪几个账号」 line.
+  await expect(sheet.locator(".cq-picked .cq-slot")).toHaveCount(3);
+  await expect(sheet).not.toContainText("用了哪几个账号");
   await expect(chips).toHaveCount(0);
   await sheet.getByLabel("搜索账号").fill("");
   await expect(chips.first()).toHaveText("Am1009 · 16号");
@@ -569,7 +572,7 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
   await expect(sheet.getByRole("button", { name: "在打", exact: true })).toHaveClass(/on/);
   await expect(sheet.getByRole("spinbutton", { name: "还剩几分钟", exact: true })).toHaveValue("25");
   // The unsure account is yellow, with a note to check it.
-  await expect(sheet.locator(".cq-picked .chip .cq-pick-name")).toHaveText(["✓ Wenxi ✕", "✓ Am ✕"]);
+  await expect(sheet.locator(".cq-picked .chip .cq-pick-name")).toHaveText(["✓ Wenxi", "✓ Am"]);
   await expect(sheet.locator(".cq-picked .chip").nth(1)).toHaveClass(/cq-unsure/);
   await expect(sheet.locator(".cq-picked .chip").first()).not.toHaveClass(/cq-unsure/);
   await expect(sheet).toContainText("黄色的账号照片上看不太清");
