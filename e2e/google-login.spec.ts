@@ -247,10 +247,21 @@ test("a signed-in member sees the roster and can sign up on the shared event pag
 
   await page.goto("/e/AB12");
   await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(0);
-  await page.getByRole("button", { name: "报名", exact: true }).click();
+  // 报名 sits in the top's corner, like the home card's button (Ke Li 2026-11-07).
+  const cta = page.locator(".ev-head .ev-cta");
+  await expect(cta).toHaveText("报名");
+  await cta.click();
+  await expect(cta).toHaveCount(0);
   await page.getByRole("button", { name: "确认报名" }).click();
   await expect(page.locator(".status-mine")).toHaveText("我已报名");
   await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
+  // Then it reads 修改, and 取消报名 only shows once that is tapped.
+  await expect(cta).toHaveText("修改");
+  await expect(page.getByRole("button", { name: "取消报名" })).toHaveCount(0);
+  await cta.click();
+  await expect(page.getByRole("button", { name: "取消报名" })).toBeVisible();
+  await page.getByRole("button", { name: "返回" }).click();
+  await expect(cta).toHaveText("修改");
   await expect(page.getByRole("link", { name: "我的活动" })).toBeVisible();
 });
 
