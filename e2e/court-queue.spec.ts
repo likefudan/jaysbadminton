@@ -378,6 +378,10 @@ test("hall accounts: everyone's are listed, yours can be removed, and more added
   // Hall usernames and passwords are often lowercase: phones mustn't capitalise them.
   await expect(sheet.getByLabel("用户名")).toHaveAttribute("autocapitalize", "none");
   await expect(sheet.getByLabel("密码")).toHaveAttribute("autocapitalize", "none");
+  await expect(sheet.getByLabel("搜索账号")).toHaveCount(0);
+  // Typing a 用户名 narrows the list instead of a search box, which also shows one already there.
+  await sheet.getByLabel("用户名").fill("lily");
+  await expect(sheet.locator(".cq-account")).toHaveText(["Lily · 1014"]);
   await sheet.getByLabel("用户名").fill("Lily");
   await sheet.getByLabel("密码").fill("4321");
   await page.screenshot({ path: test.info().outputPath("court-queue-accounts.png") });

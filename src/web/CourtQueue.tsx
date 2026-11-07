@@ -814,7 +814,6 @@ function AccountPicker(props: {
 function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose: () => void; onChange: () => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [query, setQuery] = useState("");
   const [batch, setBatch] = useState(false);
   const [sort, setSort] = useState<AccountSort>("az");
   const { busy, error, run } = useAction();
@@ -823,7 +822,8 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
   // Free accounts first in the order picked; those on a court or queued below them, by court
   // number and then in the order picked (Ke Li).
   const order = SORTS[sort].compare;
-  const found = props.q.accounts.filter((a) => matches(a.username, query));
+  // No search box (Ke Li, option S3): typing a 用户名 narrows the list, which also shows a repeat.
+  const found = props.q.accounts.filter((a) => matches(a.username, username));
   const isOn = (a: { username: string }) => inUse.has(a.username.toLowerCase());
   const court = (a: { username: string }) => Math.min(...(inUse.get(a.username.toLowerCase()) ?? [0]));
   const shown = [
@@ -852,9 +852,23 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
       label={t("球馆账号")}
       onClose={props.onClose}
       action={
-        <button type="button" aria-expanded={batch} onClick={() => setBatch(!batch)}>
-          {t("批量添加")}
-        </button>
+        <>
+          {/* Sorting sits in the top bar too, so the list starts right under the add row (Ke Li). */}
+          {props.q.accounts.length > 1 && (
+            <button
+              type="button"
+              class="cq-sort-icon"
+              aria-label={t("排序：{by}", { by: SORTS[sort].label() })}
+              title={SORTS[sort].label()}
+              onClick={() => setSort(sort === "az" ? "za" : sort === "za" ? "new" : "az")}
+            >
+              <SortIcon />
+            </button>
+          )}
+          <button type="button" aria-expanded={batch} onClick={() => setBatch(!batch)}>
+            {t("批量添加")}
+          </button>
+        </>
       }
     >
       {/* One row (Ke Li, option F): the two boxes and ＋; 批量添加 is up in the top bar. */}
@@ -893,20 +907,6 @@ function AccountsSheet(props: { base: string; e: MyEvent; q: QueueInfo; onClose:
       </form>
       {error && <p class="error">{error}</p>}
       {batch && <BatchAdd path={`${path}/batch`} q={props.q} onDone={props.onChange} />}
-      {props.q.accounts.length > 1 && (
-        <div class="cq-find">
-          {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
-          <button
-            type="button"
-            class="cq-sort"
-            aria-label={t("排序：{by}", { by: SORTS[sort].label() })}
-            onClick={() => setSort(sort === "az" ? "za" : sort === "za" ? "new" : "az")}
-          >
-            <SortIcon />
-            <span>{SORTS[sort].label()}</span>
-          </button>
-        </div>
-      )}
       {shown.length > 0 && (
         <ul class="cq-accounts">
           {shown.map((a) => {

@@ -2915,6 +2915,7 @@ html.panel-open body {
   justify-self: start;
 }
 .panel-action {
+  display: flex;
   justify-self: end;
 }
 .panel-action > button {
@@ -4534,6 +4535,9 @@ ul.audit li:first-child {
 .cq-find .cq-search {
   flex: 1;
   margin: 0;
+}
+.panel-action > .cq-sort-icon {
+  padding: 0 6px;
 }
 .cq-sort {
   display: inline-flex;
