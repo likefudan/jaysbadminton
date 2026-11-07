@@ -209,7 +209,8 @@ function int(v: unknown, min: number, max: number, message: string): number {
  * group playing there (including a queued group whose time has come); and a group waits in a
  * court's queue once, so a queued entry takes the place of the same group (any account in common)
  * still queued there. Without this, 拍照登记 or a second 登记 of a court already on the card added
- * it again (9号 twice under 在打).
+ * it again (9号 twice under 在打). And an account is in one place at a time: it leaves any other
+ * court it is still on.
  */
 export async function saveCourt(env: Env, e: EventRow, memberId: string, body: Record<string, unknown>) {
   const court = int(body.court, 1, QUEUE_COURT_MAX, "请选择场号");
@@ -267,7 +268,20 @@ export async function saveCourt(env: Env, e: EventRow, memberId: string, body: R
         `INSERT INTO queue_courts (event_id, court, position, starts_at, ends_at, accounts, created_at, created_by, updated_at, updated_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(e.id, court, position, startsAt, endsAt, accounts, ts, memberId, ts, memberId);
-  const [, res] = await env.DB.batch([replaced, write]);
+  // An account is in one place at a time (Ke Li 2026-11-07): it leaves any other court it is still
+  // on or queued at (the form asked first), and an entry left with none goes.
+  const moved = env.DB.prepare(
+    `UPDATE queue_courts SET accounts = (
+       SELECT json_group_array(j.value) FROM json_each(queue_courts.accounts) j
+        WHERE lower(j.value) NOT IN (SELECT lower(value) FROM json_each(?)))
+     WHERE event_id = ? AND id != ? AND ends_at > ?
+       AND EXISTS (SELECT 1 FROM json_each(queue_courts.accounts) j
+                   WHERE lower(j.value) IN (SELECT lower(value) FROM json_each(?)))`,
+  ).bind(accounts, e.id, id, ts, accounts);
+  const emptied = env.DB.prepare(
+    "DELETE FROM queue_courts WHERE event_id = ? AND id != ? AND json_array_length(accounts) = 0",
+  ).bind(e.id, id);
+  const [, , , res] = await env.DB.batch([replaced, moved, emptied, write]);
   if (editing && !res!.meta.changes) throw new HttpError(404, "not_found", "这条记录已经被删掉了");
 }
 

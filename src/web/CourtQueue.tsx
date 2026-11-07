@@ -1,5 +1,5 @@
 import { Panel } from "./Panel";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import {
   courtLeft,
@@ -409,6 +409,21 @@ function CourtSheet(props: {
       minutes: wait ?? n,
       accounts: picked,
     };
+    // An account is in one place at a time (Ke Li): one already on another court leaves it on save.
+    const busy = busyAccounts(props.q, Date.now(), body.id ?? null);
+    const elsewhere = picked.flatMap((name) => {
+      const on = (busy.get(name.toLowerCase()) ?? []).filter((no) => no !== body.court);
+      return on.length ? [t("{name}（{courts}）", { name, courts: t("{n}号", { n: on.join("、") }) })] : [];
+    });
+    if (
+      elsewhere.length &&
+      !confirm(
+        t("{list} 已经在别的场上了。一个账号同时只能在一个地方，保存后会从原来的场上去掉。", {
+          list: elsewhere.join("、"),
+        }),
+      )
+    )
+      return;
     if (!(await run(() => api(path, body)))) return;
     const found = photo?.result.courts ?? [];
     const done = [...saved, at];
@@ -787,6 +802,39 @@ const SORTS: Record<AccountSort, { label: () => string; compare: (a: QueueAccoun
   new: { label: () => t("最新添加"), compare: (a, b) => b.id - a.id },
 };
 
+/** The order last picked in 账号管理, which 登记球场's accounts follow too (Ke Li), kept on this phone. */
+const SORT_KEY = "cq-account-sort";
+function savedSort(): AccountSort {
+  try {
+    const v = localStorage.getItem(SORT_KEY);
+    return v === "za" || v === "new" ? v : "az";
+  } catch {
+    return "az";
+  }
+}
+function saveSort(v: AccountSort) {
+  try {
+    localStorage.setItem(SORT_KEY, v);
+  } catch {}
+}
+
+/**
+ * Free accounts first, in the chosen order; those on a court or queued after them, by court number
+ * and then the same order (Ke Li), in 账号管理 and in 登记球场 alike.
+ */
+function freeFirst<A extends QueueAccount>(list: A[], inUse: Map<string, number[]>, sort: AccountSort): A[] {
+  const order = SORTS[sort].compare;
+  const court = (a: A) => Math.min(...(inUse.get(a.username.toLowerCase()) ?? [0]));
+  const isOn = (a: A) => inUse.has(a.username.toLowerCase());
+  return [
+    ...list.filter((a) => !isOn(a)).sort(order),
+    ...list.filter(isOn).sort((a, b) => court(a) - court(b) || order(a, b)),
+  ];
+}
+
+/** Room kept under the accounts box for 保存 and the panel's bottom edge. */
+const BELOW_BOX_PX = 124;
+
 function PlusIcon() {
   return (
     <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
@@ -840,9 +888,25 @@ function AccountPicker(props: {
   const [password, setPassword] = useState("");
   const { busy: saving, error, run } = useAction();
   const busy = busyAccounts(props.q, props.now, props.except);
-  const list = props.q.accounts
-    .filter((a) => !props.picked.includes(a.username) && matches(a.username, query))
-    .sort(byName);
+  const list = freeFirst(
+    props.q.accounts.filter((a) => !props.picked.includes(a.username) && matches(a.username, query)),
+    busy,
+    savedSort(),
+  );
+  // The box reaches down to just above 保存, so a tall phone shows more accounts at once (Ke Li).
+  const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const fit = () => {
+      const scroller = el.closest(".panel-body");
+      const top = el.getBoundingClientRect().top + (scroller?.scrollTop ?? 0);
+      el.style.maxHeight = `${Math.max(212, window.innerHeight - top - BELOW_BOX_PX)}px`;
+    };
+    fit();
+    addEventListener("resize", fit);
+    return () => removeEventListener("resize", fit);
+  }, []);
   const inline = props.addPath !== undefined;
   if (props.q.accounts.length === 0 && !inline) return null;
   async function add() {
@@ -882,7 +946,7 @@ function AccountPicker(props: {
         ))}
       </div>
       {props.q.accounts.length > SEARCH_FROM && <Search value={query} onInput={setQuery} />}
-      <div class={inline ? "chips cq-chips cq-chips-pw" : "chips cq-chips"}>
+      <div ref={box} class={inline ? "chips cq-chips cq-chips-pw" : "chips cq-chips"}>
         {inline &&
           (adding ? (
             <form
@@ -954,8 +1018,12 @@ function AccountPicker(props: {
 
 /** 球馆账号's top-bar buttons (sort, 批量添加) and the state they set, shared by its panel and its tab. */
 function useAccountsBar() {
-  const [sort, setSort] = useState<AccountSort>("az");
+  const [sort, setSortState] = useState<AccountSort>(savedSort);
   const [batch, setBatch] = useState(false);
+  const setSort = (v: AccountSort) => {
+    saveSort(v);
+    setSortState(v);
+  };
   return { sort, setSort, batch, setBatch };
 }
 type AccountsBar = ReturnType<typeof useAccountsBar>;
@@ -1005,17 +1073,9 @@ function AccountsList(props: { base: string; e: MyEvent; q: QueueInfo; bar: Acco
   const { busy, error, run } = useAction();
   const path = `${props.base}/events/${props.e.id}/queue/accounts`;
   const inUse = busyAccounts(props.q, Date.now(), null);
-  // Free accounts first in the order picked; those on a court or queued below them, by court
-  // number and then in the order picked (Ke Li).
-  const order = SORTS[props.bar.sort].compare;
   // No search box (Ke Li, option S3): typing a 用户名 narrows the list, which also shows a repeat.
   const found = props.q.accounts.filter((a) => matches(a.username, username));
-  const isOn = (a: { username: string }) => inUse.has(a.username.toLowerCase());
-  const court = (a: { username: string }) => Math.min(...(inUse.get(a.username.toLowerCase()) ?? [0]));
-  const shown = [
-    ...found.filter((a) => !isOn(a)).sort(order),
-    ...found.filter(isOn).sort((a, b) => court(a) - court(b) || order(a, b)),
-  ];
+  const shown = freeFirst(found, inUse, props.bar.sort);
   // The list on screen follows what the card last fetched, so it updates as accounts come and go.
   async function add() {
     if (await run(() => api(path, { username, password }))) {

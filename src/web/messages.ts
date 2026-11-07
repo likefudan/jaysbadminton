@@ -714,6 +714,11 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Only the group owner and admins can delete several at once",
   },
   "{n}号": { tw: "{n}號", en: "Court {n}" },
+  "{name}（{courts}）": { tw: "{name}（{courts}）", en: "{name} ({courts})" },
+  "{list} 已经在别的场上了。一个账号同时只能在一个地方，保存后会从原来的场上去掉。": {
+    tw: "{list} 已經在別的場上了。一個帳號同時只能在一個地方，儲存後會從原來的場上拿掉。",
+    en: "{list} is already on another court. An account can only be in one place at a time, so saving takes it off there.",
+  },
   "删除这片场（提前结束，不打了）？": {
     tw: "刪除這片場（提前結束，不打了）？",
     en: "Remove this court (finished early)?",

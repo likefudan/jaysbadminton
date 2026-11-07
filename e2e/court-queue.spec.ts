@@ -95,6 +95,20 @@ async function openAccounts(page: Page) {
   return page.getByRole("dialog", { name: "球馆账号" });
 }
 
+/**
+ * Says yes when saving asks to take an account off the court it is already on (one place at a
+ * time); returns what it asked.
+ */
+function acceptMoves(page: Page) {
+  const asked: string[] = [];
+  page.on("dialog", (d) => {
+    if (!d.message().includes("已经在别的场上了")) return;
+    asked.push(d.message());
+    d.accept();
+  });
+  return asked;
+}
+
 async function setUp(page: Page, ev = event) {
   const posts: { url: string; body: unknown }[] = [];
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false, hasMember: false } }));
@@ -169,6 +183,7 @@ test("draws our courts, playing then queued, one account per quarter", async ({ 
 });
 
 test("a court opens to change its time, accounts or status, or to remove it", async ({ page }) => {
+  acceptMoves(page);
   const posts = await setUp(page);
   await page.locator(".cq-court", { hasText: "8号" }).click();
   const sheet = page.getByRole("dialog");
@@ -260,6 +275,7 @@ test("选择 lets the Owner and admins tick courts, playing or queued, and delet
 });
 
 test("a new queued court works out the wait from the screen", async ({ page }) => {
+  const asked = acceptMoves(page);
   const posts = await setUp(page);
   await page.getByRole("button", { name: "＋ 登记球场" }).click();
   const sheet = page.getByRole("dialog");
@@ -286,12 +302,12 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   const drag = await box(sheet.getByRole("slider", { name: "正在打的还剩几分钟" }));
   expect(drag.x).toBeGreaterThan(min.x + min.width);
   expect(Math.abs(min.y + min.height / 2 - (drag.y + drag.height / 2))).toBeLessThan(6);
-  // Accounts in alphabetical order, whatever the case, each with its password; those on a court
-  // say where; a search narrows them.
+  // Free accounts first in alphabetical order, whatever the case, each with its password; those on
+  // a court after them by court number, saying where (as in 账号管理); a search narrows them.
   const chips = sheet.locator(".cq-chips .chip:not(.cq-new)");
-  await expect(chips.nth(0)).toHaveText("Am1009 · 16号");
-  await expect(chips.nth(1)).toHaveText("arthur1017");
-  await expect(chips.nth(2)).toHaveText("Ben1005 · 7号");
+  await expect(chips.nth(0)).toHaveText("arthur1017");
+  await expect(chips.nth(1)).toHaveText("Dafei1016");
+  await expect(chips.nth(4)).toHaveText(/ · 1号$/);
   await expect(chips.filter({ hasText: "Mark" })).toHaveClass(/cq-busy/);
   await sheet.getByLabel("搜索账号").fill("chr");
   await expect(chips).toHaveText(["Chris1010 · 6号"]);
@@ -305,13 +321,16 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   await expect(sheet).not.toContainText("用了哪几个账号");
   await expect(chips).toHaveCount(0);
   await sheet.getByLabel("搜索账号").fill("");
-  await expect(chips.first()).toHaveText("Am1009 · 16号");
+  await expect(chips.first()).toHaveText("arthur1017");
   await page.screenshot({ path: test.info().outputPath("court-queue-new.png") });
   await sheet.getByRole("button", { name: "保存" }).click();
+  // Chris is on 6号 already: an account is in one place at a time, so saving asks first.
+  expect(asked).toEqual(["Chris（6号） 已经在别的场上了。一个账号同时只能在一个地方，保存后会从原来的场上去掉。"]);
   expect(posts.at(-1)?.body).toEqual({ court: 52, position: 3, minutes: 100, accounts: ["Chris"] });
 });
 
 test("a queued group with no minutes typed waits for the group playing on that court", async ({ page }) => {
+  acceptMoves(page);
   const posts = await setUp(page);
   await page.getByRole("button", { name: "＋ 登记球场" }).click();
   const sheet = page.getByRole("dialog");
@@ -523,6 +542,7 @@ test("批量添加 reads a pasted list as typed, skips accounts already there, a
 });
 
 test("拍照登记 fills the form from the photo, one court at a time, with unsure parts in yellow", async ({ page }) => {
+  acceptMoves(page);
   const posts = await setUp(page);
   let sent: { image: string } | null = null;
   await page.route("**/api/m/tok/events/9/queue/photo", (route) => {
@@ -608,6 +628,7 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
 });
 
 test("拍照登记: ✕ skips a court read wrongly, it isn't saved, and a tap brings it back", async ({ page }) => {
+  acceptMoves(page);
   const posts = await setUp(page);
   const group = (n: number, position: number, minutesLeft: number, accounts: string[]) => ({
     court: n,
