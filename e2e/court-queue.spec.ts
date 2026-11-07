@@ -409,7 +409,13 @@ test("球馆账号 in 登记球场: one button on the card, passwords on the acc
   page,
 }) => {
   const posts = await setUp(page);
-  await expect(page.locator(".cq-bar .button")).toHaveText(["＋ 登记球场"]);
+  await expect(page.locator(".cq-bar .button")).toHaveText(["＋ 登记球场", "账号管理"]);
+  // 账号管理 on the card goes straight to the list, as the old 球馆账号 button did.
+  await page.locator(".cq-bar").getByRole("button", { name: "账号管理" }).click();
+  await expect(page.getByRole("dialog", { name: "球馆账号" }).getByRole("button", { name: "批量添加" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "球馆账号" })).toBeHidden();
+  await page.waitForFunction(() => !history.state?.panel);
   await page.getByRole("button", { name: "＋ 登记球场" }).click();
   const sheet = page.getByRole("dialog", { name: "登记球场" });
   await expect(sheet.locator(".cq-chips .chip", { hasText: "arthur" })).toContainText("1017");
