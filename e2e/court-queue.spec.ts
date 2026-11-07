@@ -440,6 +440,13 @@ test("球馆账号 in 登记球场: one button on the card, passwords on the acc
   await expect(sheet.locator(".cq-chips .chip", { hasText: "arthur" })).toContainText("1017");
   await expect(sheet.locator(".cq-chips .chip", { hasText: "Chris" })).toContainText("1010 · 6号");
   await sheet.getByRole("spinbutton", { name: "场号" }).fill("52");
+  await sheet.locator(".panel-title").click(); // closes the court list, which covers the row below
+  // 「＋ 新账号」 sits beside the search; opened, ✕ takes the row back to the search (Ke Li, option A).
+  await sheet.getByRole("button", { name: "＋ 新账号" }).click();
+  await expect(sheet.getByLabel("搜索账号")).toHaveCount(0);
+  await sheet.getByRole("button", { name: "关闭" }).click();
+  await expect(sheet.getByLabel("用户名")).toHaveCount(0);
+  await expect(sheet.getByLabel("搜索账号")).toBeVisible();
   await sheet.getByRole("button", { name: "＋ 新账号" }).click();
   await sheet.getByLabel("用户名").fill("nina ");
   await sheet.getByLabel("密码").fill("moon8");

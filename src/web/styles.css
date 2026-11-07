@@ -5212,3 +5212,25 @@ label.set-row {
   color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
+
+.cq-find .cq-new {
+  flex: none;
+  min-height: 40px;
+  margin: 0;
+}
+.cq-add-x {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 46px 46px;
+  margin: 4px 0 10px;
+}
+.cq-add-close {
+  min-height: 46px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--muted);
+  font-size: 15px;
+}
+.cq-picked + .cq-find {
+  margin: 4px 0 10px;
+}
