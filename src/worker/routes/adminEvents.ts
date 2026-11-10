@@ -4,6 +4,7 @@ import {
   type AdminEventSummary,
   BOARD_KEYS,
   BOARD_NAME,
+  type BoardKey,
   type EventDefaults,
   type InboundResponse,
   type LeaderboardAdmin,
@@ -789,7 +790,9 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
 /** 管理页「排行榜」: every board whether public or not, and the switches. */
 adminEventRoutes.get("/leaderboard", async (c) => {
   const s = await boardSettings(c.env);
-  return c.json<LeaderboardAdmin>({ board: await leaderboard(c.env), public: s.public, anon: s.anon });
+  const board = await leaderboard(c.env);
+  board.boards = s.order;
+  return c.json<LeaderboardAdmin>({ board, public: s.public, anon: s.anon });
 });
 
 adminEventRoutes.get("/settings", async (c) => {
@@ -909,6 +912,18 @@ adminEventRoutes.post("/settings", async (c) => {
     if (names.some(([, t]) => [...t].length > APP_NAME_MAX)) throw badRequest(`桌面图标名称最多 ${APP_NAME_MAX} 个字`);
     for (const [l, t] of names) writes.push(setSetting(c.env.DB, appNameKey(l), t));
     if (names.length) said.push(`桌面图标名称 ${names.map(([l, t]) => `${l}「${t}」`).join(" ")}`);
+  }
+  if (b.leaderboardOrder !== undefined) {
+    const order = b.leaderboardOrder;
+    if (
+      !Array.isArray(order) ||
+      order.length !== BOARD_KEYS.length ||
+      new Set(order).size !== BOARD_KEYS.length ||
+      order.some((k) => !BOARD_KEYS.includes(k as BoardKey))
+    )
+      throw badRequest("排行榜顺序格式不对");
+    writes.push(setSetting(c.env.DB, "leaderboard_order", order.join(",")));
+    said.push(`排行榜顺序 ${(order as BoardKey[]).map((k) => BOARD_NAME[k]).join("、")}`);
   }
   if (b.leaderboardBoards !== undefined) {
     if (!Array.isArray(b.leaderboardBoards)) throw badRequest("排行榜格式不对");

@@ -5424,6 +5424,36 @@ label.set-row {
   gap: 10px;
   padding: 12px 14px;
 }
+.board-handle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin: -8px 0 -8px -8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.board-handle svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.board-item.sorting {
+  background: var(--surface-raised);
+  box-shadow: inset 3px 0 var(--accent);
+}
+.board-item.sorting .board-handle {
+  color: var(--accent);
+  cursor: grabbing;
+}
 .board-open {
   display: flex;
   flex: 1;

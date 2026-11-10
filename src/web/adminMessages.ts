@@ -3,6 +3,11 @@
 // and then read over by hand. Kept apart from messages.ts only to keep each file a readable size.
 
 export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
+  "拖动调整「{name}」的顺序，或用上下方向键": {
+    tw: "拖動調整「{name}」的順序，或用上下方向鍵",
+    en: "Drag to reorder “{name}”, or use the up and down arrow keys",
+  },
+  排行榜顺序格式不对: { tw: "排行榜順序格式不對", en: "Invalid leaderboard order" },
   首页公开: { tw: "首頁公開", en: "On home page" },
   还没有人上榜: { tw: "還沒有人上榜", en: "Nobody yet" },
   "在首页公开「{name}」": { tw: "在首頁公開「{name}」", en: "Show “{name}” on the home page" },

@@ -224,7 +224,7 @@ export async function leaderboard(env: Env): Promise<Leaderboard> {
 /** Only the boards in `keys`; the others come back empty. */
 export function onlyBoards(b: Leaderboard, keys: BoardKey[]): Leaderboard {
   const empty = (k: BoardKey) => !keys.includes(k);
-  const out = { ...b, boards: BOARD_KEYS.filter((k) => keys.includes(k)), monthly: { ...b.monthly } };
+  const out = { ...b, boards: [...keys], monthly: { ...b.monthly } };
   for (const k of BOARD_KEYS)
     if (empty(k)) {
       out[k] = [];
@@ -234,8 +234,17 @@ export function onlyBoards(b: Leaderboard, keys: BoardKey[]): Leaderboard {
 }
 
 /** Which boards the home page shows, and whether visitors who aren't signed in see them. */
-export async function boardSettings(env: Env): Promise<{ public: BoardKey[]; anon: boolean }> {
-  const s = await getSettings(env.DB, ["leaderboard_boards", "show_leaderboard", "leaderboard_anon"]);
+export async function boardSettings(env: Env): Promise<{ public: BoardKey[]; order: BoardKey[]; anon: boolean }> {
+  const s = await getSettings(env.DB, [
+    "leaderboard_boards",
+    "show_leaderboard",
+    "leaderboard_anon",
+    "leaderboard_order",
+  ]);
+  const saved = (s.leaderboard_order ?? "").split(",");
+  const order = [...new Set([...saved, ...BOARD_KEYS])].filter((k): k is BoardKey =>
+    BOARD_KEYS.includes(k as BoardKey),
+  );
   // Before the per-board switches there was one: off meant no board, on the four boards then.
   const picked =
     s.leaderboard_boards !== undefined
@@ -243,7 +252,7 @@ export async function boardSettings(env: Env): Promise<{ public: BoardKey[]; ano
       : s.show_leaderboard === "0"
         ? []
         : DEFAULT_PUBLIC_BOARDS;
-  return { public: BOARD_KEYS.filter((k) => picked.includes(k)), anon: s.leaderboard_anon === "1" };
+  return { public: order.filter((k) => picked.includes(k)), order, anon: s.leaderboard_anon === "1" };
 }
 
 /** 个人统计: only on the member's own page. Spending is what they were billed (incl. friends). */
