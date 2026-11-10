@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { state } from "../ops/src/github";
+import { forget, state } from "../ops/src/github";
 import ops from "../ops/src/index";
 import { canMoveTo, compareTags, type Env, nextTag, pickSites, sign, sites, unsign } from "../ops/src/logic";
 
@@ -127,8 +127,12 @@ describe("release site", () => {
     expect(res.status).toBe(403);
   });
 
-  it("serves its script with a strict content policy", async () => {
+  it("serves its script with a strict content policy and working tag checks", async () => {
     const res = await call("/app.js");
+    const js = await res.clone().text();
+    const tagRe = new RegExp(JSON.parse(/new RegExp\((".*?")\)/.exec(js)![1]!));
+    expect(tagRe.test("v2026.11.09.2")).toBe(true);
+    expect(tagRe.test("vX026.11.09")).toBe(false);
     expect(res.headers.get("Content-Security-Policy")).toContain("script-src 'self'");
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
   });
@@ -165,6 +169,7 @@ describe("release site", () => {
       if (p === "/tags") return ok([{ name: "v2026.11.12" }]);
       throw new Error(`unexpected ${url}`);
     });
+    forget();
     const s = await state(ENV);
     expect(s.latest).toBe("v2026.11.12");
     expect(s.pending).toEqual(["新功能"]);

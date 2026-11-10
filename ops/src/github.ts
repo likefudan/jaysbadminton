@@ -66,8 +66,28 @@ interface Run {
   html_url: string;
 }
 
+// The page refreshes itself while a deploy runs; one answer serves every tab for a few seconds, which
+// keeps the token far under GitHub's hourly limit.
+let cached: { at: number; value: Promise<Awaited<ReturnType<typeof read>>> } | null = null;
+
 /** Everything the page shows. */
-export async function state(env: Env) {
+export function state(env: Env, now = Date.now()) {
+  if (!cached || now - cached.at > 15_000) {
+    const value = read(env);
+    cached = { at: now, value };
+    value.catch(() => {
+      if (cached?.value === value) cached = null;
+    });
+  }
+  return cached.value;
+}
+
+/** Forgets the cached answer, after a release starts. */
+export function forget() {
+  cached = null;
+}
+
+async function read(env: Env) {
   const all = sites(env);
   const [releases, tags, healths, mainCommit, ciRuns, deployRuns, releaseRuns] = await Promise.all([
     gh<{ tag_name: string; published_at: string; draft: boolean }[]>(env, "/releases?per_page=30"),
@@ -108,7 +128,7 @@ export async function state(env: Env) {
           const { jobs } = await gh<{ jobs: { name: string; conclusion: string | null; status: string }[] }>(
             env,
             `/actions/runs/${run.id}/jobs?per_page=50`,
-          );
+          ).catch(() => ({ jobs: [] }));
           const siteJobs = jobs
             .map((j) => {
               const id =
@@ -128,7 +148,8 @@ export async function state(env: Env) {
     ),
     // Which versions each site can move to without restoring a backup first.
     ...shown.map(async (v) => {
-      single[v.tag] = await perSite(env, v.tag).catch(() => false);
+      // When GitHub does not answer, let it through: release.yml checks again and refuses old ones.
+      single[v.tag] = await perSite(env, v.tag).catch(() => true);
     }),
     ...[...new Set([...shown.map((v) => v.tag), ...currents.filter((v) => v !== null)])].map(async (tag) => {
       newest[tag] = await newestAt(env, tag).catch(() => undefined);

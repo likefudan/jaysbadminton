@@ -1,3 +1,5 @@
+import { compareTags, TAG } from "./logic";
+
 // The release site's page: a shell, its stylesheet and its script (no inline code, so the content policy
 // allows only this site's own files). The script draws everything from /api/state.
 
@@ -79,13 +81,9 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 export const APP_JS = `"use strict";
 const app = document.getElementById("app");
 let data = null, panel = null, pollUntil = 0, timer = 0, chosen = null;
-const cmpTag = (a, b) => {
-  const p = (t) => [...t.slice(1).split(".").map(Number), 1].slice(0, 4);
-  const x = p(a), y = p(b);
-  for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] - y[i];
-  return 0;
-};
-const isTag = (t) => /^vd{4}.d{2}.d{2}(.d+)?$/.test(t || "");
+const cmpTag = ${compareTags.toString()};
+const TAG_RE = new RegExp(${JSON.stringify(TAG.source)});
+const isTag = (t) => TAG_RE.test(t || "");
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -126,7 +124,7 @@ async function load() {
       h("button", { class: "btn", onclick: load }, "再试一次")));
   }
   const busy = data && data.busy;
-  if (busy || Date.now() < pollUntil) timer = setTimeout(load, 20000);
+  if (busy || Date.now() < pollUntil) timer = setTimeout(load, 30000);
 }
 
 async function send(sites, tag) {
@@ -180,7 +178,7 @@ function siteCard(s) {
     ? h("div", {}, h("span", { class: "tag" }, s.version), dateOf(s.version) ? h("span", { class: "muted" }, " · " + when(dateOf(s.version))) : null)
     : h("div", { class: "muted" }, "版本未知（下次发布后显示）");
   const action = s.behind > 0 && s.movable.includes(data.latest)
-    ? h("button", { class: "btn p", onclick: () => send([s.id], data.latest) }, "升到最新")
+    ? h("button", { class: "btn p", onclick: async (e) => { e.target.disabled = true; if (!(await send([s.id], data.latest))) e.target.disabled = false; } }, "升到最新")
     : h("button", { class: "btn", onclick: () => openPanel(s) }, "更换版本 ▾");
   const card = h("div", { class: "card" },
     h("div", { class: "row" }, h("div", {}, h("span", { class: "dot", style: "background:" + s.color }), h("b", {}, s.name),
@@ -194,7 +192,7 @@ function deploysCard() {
   if (!data.deploys.length) return h("div", { class: "card muted" }, "还没有记录");
   return h("div", { class: "card" }, data.deploys.map((d) => {
     const mark = d.running ? "⏳" : d.ok ? "✓" : "✗";
-    if (!d.sites.length && !d.running && !d.ok) return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },
+    if (!d.tag) return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },
       h("div", { class: "row" }, h("span", { class: "warn" }, "✗ 发布没开始，点开看原因"), h("span", { class: "muted nowrap" }, when(d.at)))));
     const names = d.sites.length === data.sites.length ? "全部" : d.sites.length ? d.sites.map((j) => siteName(j.id).replace(/\\s*羽毛球$/, "")).join("、") : "没有部署";
     return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },

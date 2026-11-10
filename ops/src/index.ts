@@ -2,7 +2,7 @@
 // reads /api/state and asks /api/release to start the Release workflow, which backs up, migrates and
 // deploys the chosen sites exactly as when it is run by hand in GitHub.
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { release, state } from "./github";
+import { forget, release, state } from "./github";
 import { type Env, pickSites, randomToken, sha256, sign, sites, TAG, unsign } from "./logic";
 import { APP_CSS, APP_JS, page } from "./page";
 
@@ -158,6 +158,7 @@ export default {
       if (tag !== null && (typeof tag !== "string" || !TAG.test(tag))) return json({ error: "版本不对" }, 400);
       try {
         await release(env, chosen, tag);
+        forget();
         console.log(`ops: ${email} released ${tag ?? "a new version"} to ${chosen.join(",")}`);
         return json({ ok: true });
       } catch (err) {

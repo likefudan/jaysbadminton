@@ -115,7 +115,7 @@ export async function sign(key: string, value: string, seconds: number, now = Da
 /** The value of a cookie made by sign(), or null when it is forged, altered or expired. */
 export async function unsign(key: string, cookie: string | undefined, now = Date.now()): Promise<string | null> {
   const parts = cookie?.split("~");
-  if (!parts || parts.length !== 3) return null;
+  if (parts?.length !== 3) return null;
   const [value, exp, mac] = parts as [string, string, string];
   if (!same(mac, await hmac(key, `${value}~${exp}`))) return null;
   if (!(Number(exp) > now / 1000)) return null;
