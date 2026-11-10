@@ -123,7 +123,8 @@ async function load() {
     app.replaceChildren(h("div", { class: "card" }, h("b", {}, "读取失败"), h("p", { class: "muted" }, String(err.message || err)),
       h("button", { class: "btn", onclick: load }, "再试一次")));
   }
-  const busy = data && data.busy;
+  // Also while main is still being tested, so the 发布 button turns on by itself when it passes.
+  const busy = data && (data.busy || (data.pendingCount > 0 && data.mainCi === "running"));
   if (busy || Date.now() < pollUntil) timer = setTimeout(load, 30000);
 }
 
