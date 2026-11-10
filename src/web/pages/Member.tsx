@@ -23,6 +23,7 @@ import { useApi } from "../hooks";
 import { CardCornerIcons } from "../ShareCard";
 import { SwipeSection } from "../Swipe";
 import { MyStatsCard } from "../Stats";
+import { YearReviewCards } from "../YearReview";
 import { CalorieRow, FlameIcon, MyCaloriesCard, kcalText } from "../Calories";
 import { InstallPrompt } from "../Install";
 import { PushPrompt } from "../Push";
@@ -110,6 +111,7 @@ export function MemberProfilePage(props: { token?: string }) {
           <Load result={profile}>{(p) => <ProfileHero profile={p} />}</Load>
           <MyStatsCard base={base} />
           <MyCaloriesCard base={base} result={calories} reload={reloadCalories} />
+          {m.active && <YearReviewCards base={base} name={m.username} />}
           {profile.state === "ok" && (
             <>
               <SectionTitle>{t("活动记录")}</SectionTitle>

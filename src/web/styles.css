@@ -5474,3 +5474,160 @@ label.set-row {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* 年度回顾 (option P): the year's numbers on one card, then the badges and 最常一起打球. */
+.year-switch {
+  display: inline-flex;
+  gap: 6px;
+}
+.year-switch button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.year-switch button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.year-card {
+  position: relative;
+  padding: 16px;
+  border-radius: 20px;
+  background: linear-gradient(160deg, var(--acc), var(--acc-ink));
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+.year-card h3 {
+  margin: 2px 0 12px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.year-card .share-icon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  box-shadow: none;
+}
+.year-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.year-tiles div {
+  min-width: 0;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+}
+.year-tiles b {
+  display: block;
+  overflow: hidden;
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.year-tiles span {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.year-tiles .wide {
+  grid-column: 1 / 3;
+}
+.year-tiles .wide b {
+  font-size: 16px;
+}
+.card.medals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 6px;
+  padding: 14px 8px;
+}
+.medal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  text-align: center;
+}
+.medal-svg {
+  width: 58px;
+  height: 68px;
+  margin-bottom: 2px;
+}
+.medal-svg .hex {
+  fill: var(--surface-2);
+  stroke: var(--edge);
+}
+.medal-svg .ribbon {
+  fill: var(--edge);
+}
+.medal-svg .glyph {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.medal.locked .glyph {
+  stroke: var(--faint);
+}
+.medal-name {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.medal small {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.medal.locked .medal-name {
+  color: var(--faint);
+}
+.card.buddies {
+  padding: 0;
+}
+.buddy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  font-size: 15px;
+}
+.buddy + .buddy {
+  border-top: 1px solid var(--line);
+}
+.buddy .grow {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.buddy .muted {
+  font-size: 14px;
+}
+.buddy-av {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 14px;
+  font-weight: 700;
+}

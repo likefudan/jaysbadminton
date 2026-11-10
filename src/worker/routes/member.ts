@@ -12,7 +12,7 @@ import type {
 } from "../../shared/types";
 import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
-import { myStats } from "../stats";
+import { myStats, yearReview } from "../stats";
 import { can, eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payeeProfile } from "../organizers";
 import { ownerName, payeeName } from "../payees";
 import {
@@ -96,6 +96,11 @@ memberRoutes.get("/:token/me", async (c) => {
 });
 
 memberRoutes.get("/:token/stats", async (c) => c.json(await myStats(c.env, c.get("member").id)));
+
+// 年度回顾: their own year, ?year= for an earlier one.
+memberRoutes.get("/:token/year", async (c) =>
+  c.json(await yearReview(c.env, c.get("member").id, Number(c.req.query("year")) || undefined)),
+);
 
 // 个人信息: basics and the activity map; the admin's note never appears here.
 memberRoutes.get("/:token/profile", async (c) => c.json(await memberProfile(c.env, c.get("member"))));

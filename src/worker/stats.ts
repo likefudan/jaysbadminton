@@ -8,7 +8,9 @@ import {
   type MyStats,
   type RankEntry,
   type SpendEntry,
+  type YearReview,
 } from "../shared/types";
+import { MILESTONES, type MilestoneKey, tierOf } from "../shared/milestones";
 import { getSettings } from "./db";
 import type { Env } from "./env";
 
@@ -278,5 +280,98 @@ export async function myStats(env: Env, memberId: string): Promise<MyStats> {
       .reduce((t, b) => t + b.amount_due_cents, 0),
     today,
     history,
+  };
+}
+
+/**
+ * 年度回顾 (Ke Li 2026-11-10, option P): one year of their own numbers, read the same way the
+ * boards read them, the badges from all-time totals, and the members they played with most.
+ */
+export async function yearReview(env: Env, memberId: string, asked?: number): Promise<YearReview> {
+  const thisYear = Number(today().slice(0, 4));
+  const [mine, friends, early, queue, kcal, counted] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT e.id, e.date, e.start_at, e.end_at, e.location, r.arrive_at, r.leave_at
+       FROM registrations r JOIN events e ON e.id = r.event_id
+       WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index = 0 AND r.attended = 1`,
+    ).bind(memberId),
+    env.DB.prepare(
+      `SELECT e.date FROM registrations r JOIN events e ON e.id = r.event_id
+       WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index > 0 AND r.attended = 1`,
+    ).bind(memberId),
+    env.DB.prepare(
+      `SELECT x.date FROM (
+         SELECT r.member_id, r.attended, r.added_by_owner, e.date,
+           ROW_NUMBER() OVER (PARTITION BY r.event_id ORDER BY r.created_at, r.id) AS place
+         FROM registrations r JOIN events e ON e.id = r.event_id
+         WHERE ${COUNTED} AND r.friend_index = 0
+       ) x WHERE x.member_id = ? AND x.place <= ${EARLY_PLACES} AND x.attended = 1 AND x.added_by_owner = 0`,
+    ).bind(memberId),
+    env.DB.prepare(
+      `SELECT e.date FROM queue_credits q JOIN events e ON e.id = q.event_id WHERE ${COUNTED} AND q.member_id = ?`,
+    ).bind(memberId),
+    // The same as 我的卡路里: every event read that isn't cancelled, unless marked absent.
+    env.DB.prepare(
+      `SELECT e.date, c.kcal FROM calories c JOIN events e ON e.id = c.event_id
+       JOIN registrations r ON r.event_id = c.event_id AND r.member_id = c.member_id AND r.friend_index = 0
+       WHERE e.status != 'cancelled' AND r.attended = 1 AND c.member_id = ?`,
+    ).bind(memberId),
+    env.DB.prepare(`SELECT e.id FROM events e WHERE ${COUNTED} ORDER BY e.start_at`),
+  ]);
+  type Mine = Pick<Row, "date" | "start_at" | "end_at" | "arrive_at" | "leave_at"> & { id: number; location: string };
+  const came = mine!.results as Mine[];
+  const dates = (r: D1Result) => (r.results as { date: string }[]).map((x) => x.date);
+  const years = [...new Set([thisYear, ...came.map((r) => Number(r.date.slice(0, 4)))])].sort((a, b) => b - a);
+  const year = asked && years.includes(asked) ? asked : thisYear;
+  const inYear = (d: string) => d.startsWith(`${year}-`);
+  const yearRows = came.filter((r) => inYear(r.date));
+
+  const venues = new Map<string, number>();
+  for (const r of yearRows) venues.set(r.location, (venues.get(r.location) ?? 0) + 1);
+  const venue = [...venues].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+
+  const { results: buddies } = await env.DB.prepare(
+    `SELECT m.username AS name, COUNT(*) AS count
+     FROM registrations r JOIN events e ON e.id = r.event_id
+     JOIN registrations o ON o.event_id = r.event_id AND o.friend_index = 0 AND o.attended = 1 AND o.member_id != r.member_id
+     JOIN members m ON m.id = o.member_id
+     WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index = 0 AND r.attended = 1 AND e.date LIKE ? AND m.status = 'active'
+     GROUP BY o.member_id ORDER BY count DESC, m.username LIMIT 3`,
+  )
+    .bind(memberId, `${year}-%`)
+    .all<{ name: string; count: number }>();
+
+  const hours = (rows: Mine[]) => Math.round(rows.reduce((t, r) => t + stayMinutes(r), 0) / 6) / 10;
+  const kcalRows = kcal!.results as { date: string; kcal: number }[];
+  const yearKcal = kcalRows.filter((r) => inYear(r.date));
+
+  // 最长连续 over every counted event ever held, for the badge.
+  const present = new Set(came.map((r) => r.id));
+  let run = 0;
+  let best = 0;
+  for (const { id } of counted!.results as { id: number }[]) {
+    run = present.has(id) ? run + 1 : 0;
+    best = Math.max(best, run);
+  }
+  const totals: Record<MilestoneKey, number> = {
+    attendance: came.length,
+    hours: hours(came),
+    streak: best,
+    early: early!.results.length,
+    friends: friends!.results.length,
+    queue: queue!.results.length,
+  };
+  return {
+    year,
+    years,
+    count: yearRows.length,
+    hours: hours(yearRows),
+    kcal: yearKcal.length ? yearKcal.reduce((t, r) => t + r.kcal, 0) : null,
+    early: dates(early!).filter(inYear).length,
+    friends: dates(friends!).filter(inYear).length,
+    queue: dates(queue!).filter(inYear).length,
+    venue: venue ? { name: venue[0], count: venue[1] } : null,
+    buddies,
+    milestones: MILESTONES.map(({ key, tiers }) => ({ key, value: totals[key], tier: tierOf(tiers, totals[key]) })),
   };
 }

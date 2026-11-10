@@ -1,0 +1,66 @@
+import { expect, test } from "@playwright/test";
+
+const review = (year: number) => ({
+  year,
+  years: [2026, 2025],
+  count: year === 2026 ? 32 : 7,
+  hours: 68.5,
+  kcal: year === 2026 ? 14820 : null,
+  early: 9,
+  friends: 4,
+  queue: 12,
+  venue: { name: "Synergy Badminton Academy", count: 21 },
+  buddies: [
+    { name: "Lily", count: 18 },
+    { name: "arthur", count: 15 },
+  ],
+  milestones: [
+    { key: "attendance", value: 54, tier: 2 },
+    { key: "hours", value: 112, tier: 2 },
+    { key: "streak", value: 11, tier: 2 },
+    { key: "early", value: 9, tier: 1 },
+    { key: "friends", value: 4, tier: 0 },
+    { key: "queue", value: 230, tier: 3 },
+  ],
+});
+
+/** 年度回顾 on 个人信息 (option P): the year's card, earlier years, badges, 最常一起打球, 分享 as an image. */
+test("the year card switches years, shows the badges, and shares an image", async ({ page }) => {
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }),
+  );
+  await page.route("**/api/m/tok/me", (route) =>
+    route.fulfill({ json: { id: "M007", username: "Dafei", wechatNickname: "dafei", active: true, isOwner: false } }),
+  );
+  await page.route(/\/api\/m\/tok\/(profile|stats|calories|events)$/, (route) =>
+    route.fulfill({ status: 503, json: { error: { message: "x" } } }),
+  );
+  await page.route("**/api/m/tok/year*", (route) =>
+    route.fulfill({ json: review(new URL(route.request().url()).searchParams.get("year") === "2025" ? 2025 : 2026) }),
+  );
+  await page.goto("/m/tok/profile");
+  const card = page.locator(".year-card");
+  await expect(card).toContainText("你的 2026");
+  await expect(card).toContainText("14,820");
+  await expect(card).toContainText("Synergy Badminton Academy");
+
+  // Earlier years from the arrows; without calories that year, 带朋友 takes the tile.
+  await expect(page.getByRole("button", { name: "下一年" })).toBeDisabled();
+  await page.getByRole("button", { name: "上一年" }).click();
+  await expect(card).toContainText("你的 2025");
+  await expect(card).toContainText("人次带朋友");
+
+  // Each badge shows the level reached, or the first one greyed out, and the way to the next.
+  const medals = page.locator(".medal");
+  await expect(medals).toHaveCount(6);
+  await expect(medals.first()).toContainText("出勤 50 次");
+  await expect(medals.first()).toContainText("54 / 100");
+  await expect(page.locator(".medal.locked")).toHaveCount(1);
+  await expect(page.locator(".medal.locked")).toContainText("带朋友 5 人次");
+  await expect(medals.last()).toContainText("230");
+
+  await expect(page.locator(".buddy")).toHaveText([/Lily.*18/, /arthur.*15/]);
+
+  await card.getByRole("button", { name: "分享" }).click();
+  await expect(page.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png/);
+});

@@ -5,6 +5,23 @@
 import { ADMIN_MESSAGES } from "./adminMessages";
 
 const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
+  上一年: { tw: "上一年", en: "Previous year" },
+  下一年: { tw: "下一年", en: "Next year" },
+  年度回顾: { tw: "年度回顧", en: "Year in review" },
+  "你的 {year}": { tw: "你的 {year}", en: "Your {year}" },
+  "{name} 的 {year}": { tw: "{name} 的 {year}", en: "{name}'s {year}" },
+  "最常去的球馆 · {n} 次": { tw: "最常去的球館 · {n} 次", en: "Most visited gym · {n} times" },
+  里程碑: { tw: "里程碑", en: "Milestones" },
+  最常一起打球: { tw: "最常一起打球", en: "Played with most" },
+  "一起打了 {n} 次": { tw: "一起打了 {n} 次", en: "{n} times together" },
+  次活动: { tw: "次活動", en: "sessions" },
+  小时在场上: { tw: "小時在場上", en: "hours on court" },
+  人次带朋友: { tw: "人次帶朋友", en: "friends brought" },
+  次早鸟: { tw: "次早鳥", en: "early sign-ups" },
+  "图片生成失败，请刷新后再试。": {
+    tw: "圖片生成失敗，請重新整理後再試。",
+    en: "Couldn't make the image. Refresh and try again.",
+  },
   "从 iPhone「健康」读取的活动能量，在「个人信息」里加入": {
     tw: "從 iPhone「健康」讀取的活動能量，在「個人資訊」裡加入",
     en: "Active energy from iPhone Health; join from Profile",

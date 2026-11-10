@@ -2,6 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { toPacific } from "../src/shared/time";
 import { toCsv } from "../src/worker/export";
+import { tierOf } from "../src/shared/milestones";
 import { previousPeriod, stayMinutes, top } from "../src/worker/stats";
 import { Client, ORIGIN, approveMember, createTestEvent, futureDate, googleJoin, setUpAdmin } from "./helpers";
 
@@ -131,6 +132,47 @@ describe("leaderboard", () => {
     const counts = new Map(["A", "B", "C", "D"].map((name, i) => [name, { name, value: i === 0 ? 3 : 1 }]));
     expect(top(counts, 2).map((r) => `${r.rank}${r.name}`)).toEqual(["1A", "2B", "2C", "2D"]);
     expect(top(counts, 1).map((r) => `${r.rank}${r.name}`)).toEqual(["1A"]);
+  });
+});
+
+describe("年度回顾", () => {
+  it("sums their year, finds the venue and who they played with, and the badges' totals", async () => {
+    const { alice, bob, events } = await history();
+    await env.DB.prepare("INSERT INTO queue_credits (event_id, member_id, kind, created_at) VALUES (?, ?, 'court', ?)")
+      .bind(events[0].id, alice.id, new Date().toISOString())
+      .run();
+    const r = (await anon.call(`${alice.base}/year`)).data;
+    expect(r).toMatchObject({
+      year: Number(today.slice(0, 4)),
+      years: [Number(today.slice(0, 4))],
+      count: 3,
+      hours: 9,
+      kcal: null,
+      early: 3,
+      friends: 1,
+      queue: 1,
+      venue: { name: "Bay Badminton Center", count: 3 },
+      buddies: [{ name: "Bob", count: 1 }],
+    });
+    expect(r.milestones).toEqual([
+      { key: "attendance", value: 3, tier: 0 },
+      { key: "hours", value: 9, tier: 0 },
+      { key: "streak", value: 3, tier: 0 },
+      { key: "early", value: 3, tier: 0 },
+      { key: "friends", value: 1, tier: 0 },
+      { key: "queue", value: 1, tier: 0 },
+    ]);
+    // An earlier year they came: its own numbers; a year they didn't: this year's.
+    await env.DB.prepare("UPDATE events SET date = ? WHERE id = ?").bind(`${lastYear}-06-01`, events[0].id).run();
+    const before = (await anon.call(`${alice.base}/year?year=${lastYear}`)).data;
+    expect(before).toMatchObject({ year: Number(lastYear), count: 1, buddies: [{ name: "Bob", count: 1 }] });
+    expect(before.years).toEqual([Number(today.slice(0, 4)), Number(lastYear)]);
+    expect((await anon.call(`${alice.base}/year?year=1999`)).data.year).toBe(Number(today.slice(0, 4)));
+    expect((await anon.call(`${bob.base}/year?year=${lastYear}`)).data.buddies).toEqual([{ name: "Alice", count: 1 }]);
+  });
+
+  it("gives a badge its level at each threshold", () => {
+    expect([0, 9, 10, 49, 50, 100, 500].map((v) => tierOf([10, 50, 100], v))).toEqual([0, 0, 1, 1, 2, 3, 3]);
   });
 });
 
