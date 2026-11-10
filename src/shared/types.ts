@@ -1,5 +1,6 @@
 import type { PhotoUsage } from "./ai";
 import type { QueueInfo } from "./courtQueue";
+import type { MilestoneKey } from "./milestones";
 export type MemberStatus = "pending" | "active" | "inactive";
 
 export interface MemberSummary {
@@ -419,6 +420,25 @@ export interface LeaderboardAdmin {
   public: BoardKey[];
   /** 没登录也能看: off by default, members only (Ke Li 2026-11-10). */
   anon: boolean;
+}
+
+/** 年度回顾 on 个人信息 (option P): one year's numbers, the badges and who they played with most. */
+export interface YearReview {
+  year: number;
+  /** Years with a counted event they came to, newest first; this year always. */
+  years: number[];
+  count: number;
+  hours: number;
+  /** null when they read no calories that year. */
+  kcal: number | null;
+  early: number;
+  friends: number;
+  queue: number;
+  venue: { name: string; count: number } | null;
+  /** 最常一起打球: only on their own page, never in the share image. */
+  buddies: { name: string; count: number }[];
+  /** All-time totals for each badge, with the level reached (0–3). */
+  milestones: { key: MilestoneKey; value: number; tier: number }[];
 }
 
 /** 个人统计, shown only on the member's own page. */

@@ -8,7 +8,9 @@ import {
   type MyStats,
   type RankEntry,
   type SpendEntry,
+  type YearReview,
 } from "../shared/types";
+import { MILESTONES, type MilestoneKey, tierOf } from "../shared/milestones";
 import { getSettings } from "./db";
 import type { Env } from "./env";
 
@@ -112,16 +114,38 @@ interface Extra {
  * their own sign-up, as everywhere else (Ke Li, #161). */
 export const EARLY_PLACES = 5;
 
+/**
+ * 早鸟 places: who signed up among the first EARLY_PLACES of each counted event matching `where`,
+ * themselves (not added by an admin), and came; `only` keeps one member's.
+ */
+function earlyQuery(env: Env, where: string, bind: string, only?: string) {
+  return env.DB.prepare(
+    `SELECT x.member_id, x.date FROM (
+       SELECT r.member_id, r.attended, r.added_by_owner, e.date,
+         ROW_NUMBER() OVER (PARTITION BY r.event_id ORDER BY r.created_at, r.id) AS place
+       FROM registrations r JOIN events e ON e.id = r.event_id
+       WHERE ${COUNTED} AND ${where} AND r.friend_index = 0
+     ) x WHERE x.place <= ${EARLY_PLACES} AND x.attended = 1 AND x.added_by_owner = 0${only ? " AND x.member_id = ?" : ""}`,
+  ).bind(...(only ? [bind, only] : [bind]));
+}
+
+/** The longest run of events in a row (in `events`' order) that `present` has. */
+function longestRun(events: Iterable<number>, present: (id: number) => boolean): number {
+  let run = 0;
+  let best = 0;
+  for (const id of events) {
+    run = present(id) ? run + 1 : 0;
+    best = Math.max(best, run);
+  }
+  return best;
+}
+
+/** Minutes as hours to one decimal. */
+const toHours = (min: number) => Math.round(min / 6) / 10;
+
 async function extra(env: Env, since: string): Promise<Extra> {
   const [early, queue, calories, members] = await env.DB.batch([
-    env.DB.prepare(
-      `SELECT x.member_id, x.date FROM (
-         SELECT r.member_id, r.attended, r.added_by_owner, e.date,
-           ROW_NUMBER() OVER (PARTITION BY r.event_id ORDER BY r.created_at, r.id) AS place
-         FROM registrations r JOIN events e ON e.id = r.event_id
-         WHERE ${COUNTED} AND e.date >= ? AND r.friend_index = 0
-       ) x WHERE x.place <= ${EARLY_PLACES} AND x.attended = 1 AND x.added_by_owner = 0`,
-    ).bind(since),
+    earlyQuery(env, "e.date >= ?", since),
     env.DB.prepare(
       `SELECT q.member_id, e.date FROM queue_credits q JOIN events e ON e.id = q.event_id
        WHERE ${COUNTED} AND e.date >= ?`,
@@ -174,21 +198,14 @@ function boards(
   const present = new Set(
     all.filter((r) => r.friend_index === 0 && r.attended && inside(r.date)).map((r) => `${r.event_id}:${r.member_id}`),
   );
-  for (const [id, { name }] of tallies.attendance) {
-    let run = 0;
-    let best = 0;
-    for (const ev of events) {
-      run = present.has(`${ev}:${id}`) ? run + 1 : 0;
-      best = Math.max(best, run);
-    }
-    tallies.streak.set(id, { name, value: best });
-  }
+  for (const [id, { name }] of tallies.attendance)
+    tallies.streak.set(id, { name, value: longestRun(events, (ev) => present.has(`${ev}:${id}`)) });
   for (const e of x.early) if (inside(e.date)) add(tallies.early, e.member_id, x.names.get(e.member_id));
   for (const q of x.queue) if (inside(q.date)) add(tallies.queue, q.member_id, x.names.get(q.member_id));
   for (const c of x.calories) if (inside(c.date)) add(tallies.calories, c.member_id, x.names.get(c.member_id), c.kcal);
 
   // Hours to one decimal, from minutes, before ranking: the same hours shown share a rank.
-  for (const h of tallies.hours.values()) h.value = Math.round(h.value / 6) / 10;
+  for (const h of tallies.hours.values()) h.value = toHours(h.value);
   return Object.fromEntries(BOARD_KEYS.map((k) => [k, top(tallies[k])])) as Record<BoardKey, RankEntry[]>;
 }
 
@@ -278,5 +295,99 @@ export async function myStats(env: Env, memberId: string): Promise<MyStats> {
       .reduce((t, b) => t + b.amount_due_cents, 0),
     today,
     history,
+  };
+}
+
+/**
+ * 年度回顾 (Ke Li 2026-11-10, option P): one year of their own numbers, read the same way the
+ * boards read them, the badges from all-time totals, and the members they played with most.
+ */
+export async function yearReview(env: Env, memberId: string, asked?: number): Promise<YearReview> {
+  const thisYear = Number(today().slice(0, 4));
+  const [mine, friends, early, queue, kcal, counted] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT e.id, e.date, e.start_at, e.end_at, e.location, r.arrive_at, r.leave_at
+       FROM registrations r JOIN events e ON e.id = r.event_id
+       WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index = 0 AND r.attended = 1`,
+    ).bind(memberId),
+    env.DB.prepare(
+      `SELECT e.date FROM registrations r JOIN events e ON e.id = r.event_id
+       WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index > 0 AND r.attended = 1`,
+    ).bind(memberId),
+    // Only the events they were on: the places are counted within each.
+    earlyQuery(
+      env,
+      "e.id IN (SELECT event_id FROM registrations WHERE member_id = ? AND friend_index = 0)",
+      memberId,
+      memberId,
+    ),
+    env.DB.prepare(
+      `SELECT e.date FROM queue_credits q JOIN events e ON e.id = q.event_id WHERE ${COUNTED} AND q.member_id = ?`,
+    ).bind(memberId),
+    // The same as 我的卡路里: every event read that isn't cancelled, unless marked absent.
+    env.DB.prepare(
+      `SELECT e.date, c.kcal FROM calories c JOIN events e ON e.id = c.event_id
+       JOIN registrations r ON r.event_id = c.event_id AND r.member_id = c.member_id AND r.friend_index = 0
+       WHERE e.status != 'cancelled' AND r.attended = 1 AND c.member_id = ?`,
+    ).bind(memberId),
+    env.DB.prepare(`SELECT e.id FROM events e WHERE ${COUNTED} ORDER BY e.start_at`),
+  ]);
+  type Mine = Pick<Row, "date" | "start_at" | "end_at" | "arrive_at" | "leave_at"> & { id: number; location: string };
+  const came = mine!.results as Mine[];
+  const dates = (r: D1Result) => (r.results as { date: string }[]).map((x) => x.date);
+  const kcalRows = kcal!.results as { date: string; kcal: number }[];
+  // Any year with something on the card: came, brought friends, helped with the queue, read calories.
+  const any = [came, friends!.results, early!.results, queue!.results, kcalRows].flatMap((rows) =>
+    (rows as { date: string }[]).map((r) => Number(r.date.slice(0, 4))),
+  );
+  const years = [...new Set([thisYear, ...any])].sort((a, b) => b - a);
+  const year = asked && years.includes(asked) ? asked : thisYear;
+  const inYear = (d: string) => d.startsWith(`${year}-`);
+  const yearRows = came.filter((r) => inYear(r.date));
+
+  const venues = new Map<string, number>();
+  for (const r of yearRows) venues.set(r.location, (venues.get(r.location) ?? 0) + 1);
+  const venue = [...venues].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+
+  const { results: buddies } = await env.DB.prepare(
+    `SELECT m.username AS name, COUNT(*) AS count
+     FROM registrations r JOIN events e ON e.id = r.event_id
+     JOIN registrations o ON o.event_id = r.event_id AND o.friend_index = 0 AND o.attended = 1 AND o.member_id != r.member_id
+     JOIN members m ON m.id = o.member_id
+     WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index = 0 AND r.attended = 1 AND e.date LIKE ? AND m.status = 'active'
+     GROUP BY o.member_id ORDER BY count DESC, m.username LIMIT 3`,
+  )
+    .bind(memberId, `${year}-%`)
+    .all<{ name: string; count: number }>();
+
+  const hours = (rows: Mine[]) => toHours(rows.reduce((t, r) => t + stayMinutes(r), 0));
+  const yearKcal = kcalRows.filter((r) => inYear(r.date));
+
+  // 最长连续 over every counted event ever held, for the badge.
+  const present = new Set(came.map((r) => r.id));
+  const best = longestRun(
+    (counted!.results as { id: number }[]).map((e) => e.id),
+    (id) => present.has(id),
+  );
+  const totals: Record<MilestoneKey, number> = {
+    attendance: came.length,
+    hours: hours(came),
+    streak: best,
+    early: early!.results.length,
+    friends: friends!.results.length,
+    queue: queue!.results.length,
+  };
+  return {
+    year,
+    years,
+    count: yearRows.length,
+    hours: hours(yearRows),
+    kcal: yearKcal.length ? yearKcal.reduce((t, r) => t + r.kcal, 0) : null,
+    early: dates(early!).filter(inYear).length,
+    friends: dates(friends!).filter(inYear).length,
+    queue: dates(queue!).filter(inYear).length,
+    venue: venue ? { name: venue[0], count: venue[1] } : null,
+    buddies,
+    milestones: MILESTONES.map(({ key, tiers }) => ({ key, value: totals[key], tier: tierOf(tiers, totals[key]) })),
   };
 }

@@ -11,10 +11,11 @@ const H = 1560;
 const SC = `"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC"`;
 const TC = `"PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC"`;
 /** Traditional Chinese cards take the TC fonts first, so 掃碼報名 isn't drawn with Simplified glyph shapes. */
-const sans = () => `-apple-system, ${currentLang() === "zh-TW" ? `${TC}, ${SC}` : `${SC}, ${TC}`}, sans-serif`;
+export const shareSans = () =>
+  `-apple-system, ${currentLang() === "zh-TW" ? `${TC}, ${SC}` : `${SC}, ${TC}`}, sans-serif`;
 const MONO = `"Geist Mono Variable", ui-monospace, Menlo, monospace`;
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
@@ -24,14 +25,14 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** Cuts text to fit maxWidth, ending in "…". */
-function fit(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+export function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) return text;
   let s = text;
   while (s.length > 1 && ctx.measureText(`${s}…`).width > maxWidth) s = s.slice(0, -1);
   return `${s}…`;
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -47,7 +48,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
  * shows up here without touching this code.
  */
 export async function drawShareCard(siteTitle: string, text: CardText): Promise<string> {
-  const SANS = sans();
+  const SANS = shareSans();
   const [QRCode, logo] = await Promise.all([import("qrcode"), loadImage("/icon.svg")]);
   // Level H survives the logo covering the middle.
   const qr = QRCode.create(text.url, { errorCorrectionLevel: "H" }).modules;
@@ -88,19 +89,19 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
 
   ctx.fillStyle = "#fff";
   ctx.font = `700 76px ${SANS}`;
-  ctx.fillText(fit(ctx, siteTitle, W - 140), W / 2, 470);
+  ctx.fillText(fitText(ctx, siteTitle, W - 140), W / 2, 470);
 
   let y = 470;
   if (text.heading) {
     ctx.font = `600 50px ${SANS}`;
     y += 82;
-    ctx.fillText(fit(ctx, text.heading, W - 140), W / 2, y);
+    ctx.fillText(fitText(ctx, text.heading, W - 140), W / 2, y);
   }
   ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
   ctx.font = `400 38px ${SANS}`;
   for (const line of text.lines) {
     y += 60;
-    ctx.fillText(fit(ctx, line, W - 140), W / 2, y);
+    ctx.fillText(fitText(ctx, line, W - 140), W / 2, y);
   }
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -128,7 +129,7 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
   ctx.fillText(text.hint, W / 2, qy + Q + 80);
   ctx.fillStyle = "#bf6f52";
   ctx.font = `500 34px ${MONO}`;
-  ctx.fillText(fit(ctx, text.url.replace(/^https?:\/\//, "").replace(/\/$/, ""), pw - 80), W / 2, qy + Q + 140);
+  ctx.fillText(fitText(ctx, text.url.replace(/^https?:\/\//, "").replace(/\/$/, ""), pw - 80), W / 2, qy + Q + 140);
 
   return canvas.toDataURL("image/png");
 }
@@ -208,7 +209,7 @@ function drawQr(
 }
 
 /** The iOS share icon: a box with an arrow up. */
-function ShareGlyph() {
+export function ShareGlyph() {
   return (
     <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
       <path d="M8.5 9.5H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1.5" />
