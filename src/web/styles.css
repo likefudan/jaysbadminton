@@ -5562,6 +5562,12 @@ label.set-row {
   padding: 12px 6px;
 }
 .medal {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5704,4 +5710,89 @@ label.set-row {
 }
 .panel-body .kcal-card + .set-list {
   margin-top: 12px;
+}
+
+/* 里程碑: a badge explained, a small card in the middle */
+.badge-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.36);
+}
+.badge-info {
+  width: 100%;
+  max-width: 250px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.badge-info .medal-svg {
+  width: 46px;
+  height: 54px;
+}
+.badge-info h3 {
+  margin: 2px 0 2px;
+  font-size: 16px;
+}
+.badge-desc {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.badge-now {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.badge-now small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.badge-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.badge-tiers li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 2px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.badge-tiers b {
+  font-size: 13px;
+}
+.badge-tiers .got {
+  color: #fff;
+}
+.badge-tiers .got.tier-1 {
+  background: #b87444;
+}
+.badge-tiers .got.tier-2 {
+  background: #8d97a4;
+}
+.badge-tiers .got.tier-3 {
+  background: #c99320;
+}
+.badge-next {
+  margin: 0;
+  color: var(--acc-ink);
+  font-size: 12.5px;
+  font-weight: 600;
 }

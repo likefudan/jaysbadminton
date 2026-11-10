@@ -1,3 +1,4 @@
+import { createPortal } from "preact/compat";
 import { useEffect, useState } from "preact/hooks";
 import { MILESTONES, type MilestoneKey } from "../shared/milestones";
 import type { YearReview } from "../shared/types";
@@ -145,8 +146,9 @@ function YearInCard(props: { review: YearReview; name: string; pick: (y: number)
   );
 }
 
-/** The six badges in one row: the colour is the level, underneath the way to the next one. */
+/** The six badges in one row: the colour is the level, underneath the way to the next one. Tap one for what it means. */
 function Milestones(props: { review: YearReview }) {
+  const [open, setOpen] = useState<YearReview["milestones"][number] | null>(null);
   return (
     <>
       <SectionTitle>{t("里程碑")}</SectionTitle>
@@ -159,17 +161,89 @@ function Milestones(props: { review: YearReview }) {
           // The level's name in full for screen readers and on hover; the row only has room for the badge's.
           const title = `${t(b.name)} ${shown} ${t(b.unit)}`.trim();
           return (
-            <div key={m.key} class={m.tier ? "medal" : "medal locked"} title={title}>
+            <button
+              type="button"
+              key={m.key}
+              class={m.tier ? "medal" : "medal locked"}
+              title={title}
+              onClick={() => setOpen(m)}
+            >
               <Medal k={m.key} tier={m.tier} />
               <span class="medal-name">{t(b.name)}</span>
               <small>{next === undefined ? m.value : `${m.value} / ${next}`}</small>
-            </div>
+            </button>
           );
         })}
       </section>
+      {open && <BadgeInfo m={open} onClose={() => setOpen(null)} />}
     </>
   );
 }
+
+const TIER_NAMES = [tk("铜牌"), tk("银牌"), tk("金牌")];
+
+/**
+ * A badge explained (Ke Li 2026-11-10): what counts, that it adds up over all years, the three
+ * levels with the ones reached ticked, and how far the next one is. A small card in the middle;
+ * a tap anywhere (Ke Li: no 知道了 button) or Esc closes it.
+ */
+function BadgeInfo(props: { m: YearReview["milestones"][number]; onClose: () => void }) {
+  const { m } = props;
+  const b = BADGES[m.key];
+  const tiers = MILESTONES.find((x) => x.key === m.key)!.tiers;
+  const next = tiers[m.tier];
+  const unit = t(b.unit);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, []);
+  return createPortal(
+    // biome-ignore lint/a11y/noStaticElementInteractions: a tap closes it; Esc does too
+    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
+    <div class="badge-backdrop" onClick={props.onClose}>
+      <div class="badge-info" role="dialog" aria-label={t(b.name)}>
+        <Medal k={m.key} tier={m.tier} />
+        <h3>{t(b.name)}</h3>
+        <p class="badge-desc">{t(BADGE_DESC[m.key])}</p>
+        <p class="badge-now">
+          {t("累计 {amount}", { amount: `${m.value} ${unit}`.trim() })}
+          <small>{t("从入群到现在，不分年份")}</small>
+        </p>
+        <ol class="badge-tiers">
+          {tiers.map((need, i) => (
+            <li key={need} class={m.tier > i ? `got tier-${i + 1}` : `tier-${i + 1}`}>
+              <span>
+                {m.tier > i && "✓ "}
+                {t(TIER_NAMES[i]!)}
+              </span>
+              <b>{`${need} ${unit}`.trim()}</b>
+            </li>
+          ))}
+        </ol>
+        <p class="badge-next">
+          {next === undefined
+            ? t("三级都拿到了！")
+            : t("还差 {amount}升到{tier}", {
+                amount: `${next - m.value} ${unit}`.trim(),
+                tier: t(TIER_NAMES[m.tier]!),
+              })}
+        </p>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** What each badge counts (the same words as its 排行榜). */
+const BADGE_DESC: Record<MilestoneKey, string> = {
+  attendance: tk("来打球的次数"),
+  hours: tk("按报名时填的到/走时间算，没填按整场"),
+  streak: tk("连续参加活动的最长场数"),
+  early: tk("开放报名后前 5 个报名、并且来了的次数"),
+  friends: tk("带朋友来打球的人次"),
+  queue: tk("帮大家添加球馆账号、登记场地排队"),
+};
 
 /** 最常一起打球: up to five members side by side. */
 function Buddies(props: { review: YearReview }) {
