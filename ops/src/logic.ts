@@ -133,3 +133,90 @@ export function randomToken(): string {
 export async function sha256(s: string): Promise<string> {
   return b64url(await crypto.subtle.digest("SHA-256", enc.encode(s)));
 }
+
+/** A CI job as GitHub lists it, with its steps. */
+export interface Job {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  steps?: { name: string; status: string; conclusion: string | null }[];
+}
+
+/** The five steps every site goes through, shown as five segments. */
+export const STEPS = ["测试", "备份", "迁移", "部署", "检查"] as const;
+
+export interface SiteProgress {
+  /** Steps finished, 0–5. */
+  done: number;
+  label: string;
+  failed: boolean;
+}
+
+/** The sites a step named "Sites: jays, sbbc" (or "Check the sites: all") was asked for. */
+export function sitesFromStepName(name: string, ids: string[]): string[] | null {
+  const m = /^(?:Sites|Check the sites): (.*)$/.exec(name);
+  if (!m) return null;
+  const words = (m[1] ?? "")
+    .toLowerCase()
+    .split(/[\s,，、;；]+/)
+    .filter(Boolean);
+  if (words.length === 0 || words.includes("all")) return ids;
+  return ids.filter((id) => words.includes(id));
+}
+
+/** Which of the five steps a job's current step belongs to (1 backup, 2 migrate, 3 deploy, 4 check). */
+function stepOf(name: string, before: number): number {
+  if (/^Back up/.test(name)) return 1;
+  if (/migrations apply/.test(name)) return 2;
+  if (/wrangler deploy|sync-secrets/.test(name)) return 3;
+  if (/^Smoke test|^Tell the/.test(name)) return 4;
+  return before;
+}
+
+const TESTS = ["check", "unit-2", "e2e", "e2e-2"];
+const jobOf = (id: string) => (id === MAIN_SITE ? "deploy-production" : `deploy-sites (${id})`);
+
+/**
+ * Each chosen site's progress in one release run, from its jobs: the tests every site waits for, then
+ * the site's own job (Jay's goes first; the others wait for it when it is chosen too).
+ */
+export function progressOf(jobs: Job[], chosen: string[]): Record<string, SiteProgress> {
+  const tests = jobs.filter((j) => TESTS.includes(j.name));
+  const testsFailed = tests.some((j) => j.conclusion === "failure" || j.conclusion === "cancelled");
+  const testsDone = tests.every((j) => j.status === "completed" && j.conclusion !== "failure");
+  const out: Record<string, SiteProgress> = {};
+  for (const id of chosen) {
+    const job = jobs.find((j) => j.name === jobOf(id));
+    if (testsFailed) {
+      out[id] = { done: 0, label: "测试没通过", failed: true };
+    } else if (!job || job.status === "queued" || job.status === "waiting" || job.status === "pending") {
+      const jays = jobs.find((j) => j.name === "deploy-production");
+      const waitJays = id !== MAIN_SITE && chosen.includes(MAIN_SITE) && jays?.status !== "completed";
+      out[id] = !testsDone
+        ? { done: 0, label: "测试中", failed: false }
+        : waitJays
+          ? { done: 1, label: "等 Jay's 先发", failed: false }
+          : { done: 1, label: "排队中", failed: false };
+    } else if (job.status === "completed") {
+      const ok = job.conclusion === "success";
+      if (ok) out[id] = { done: 5, label: "完成", failed: false };
+      else if (job.conclusion === "skipped") out[id] = { done: 1, label: "没有部署", failed: true };
+      else {
+        let step = 1;
+        for (const s of job.steps ?? []) {
+          step = stepOf(s.name, step);
+          if (s.conclusion === "failure") break;
+        }
+        out[id] = { done: step, label: `${STEPS[step]}失败`, failed: true };
+      }
+    } else {
+      let step = 1;
+      for (const s of job.steps ?? []) {
+        step = stepOf(s.name, step);
+        if (s.status !== "completed") break;
+      }
+      out[id] = { done: step, label: `${STEPS[step]}中`, failed: false };
+    }
+  }
+  return out;
+}

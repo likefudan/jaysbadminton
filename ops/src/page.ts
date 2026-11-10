@@ -74,6 +74,17 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 .panel .foot{padding:12px 14px;padding-bottom:max(12px,env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
 .panel .foot .btn{width:100%}
 .back{border:0;background:none;color:var(--accent);font-size:16px;cursor:pointer;padding:0;font-family:inherit}
+.rows{padding:2px 14px}
+.siterow{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line);cursor:pointer;min-height:48px}
+.siterow:first-child{border-top:0}
+.siterow .name{width:112px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.siterow .mid{flex:1;display:flex;align-items:center;gap:6px;min-width:0}
+.siterow .lbl{font-size:12px;color:var(--muted);white-space:nowrap;width:78px;flex:none;text-align:right}.siterow .lbl.bad{color:var(--bad)}.siterow .lbl.ok{color:var(--ok)}
+.siterow .chev{font-size:18px}
+.seg{display:flex;gap:3px;flex:1}.seg i{flex:1;height:6px;border-radius:3px;background:var(--line)}
+.seg i.d{background:var(--accent)}.seg i.n{background:var(--accent);animation:pulse 1s infinite alternate}
+.seg i.f{background:var(--bad)}.seg.bad i.d{opacity:.35}.seg.ok i.d{background:var(--ok)}
+@keyframes pulse{from{opacity:.25}to{opacity:.8}}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:9;max-width:90vw}
 .login{text-align:center;padding:28px 14px}
 `;
@@ -125,7 +136,7 @@ async function load() {
   }
   // Also while main is still being tested, so the 发布 button turns on by itself when it passes.
   const busy = data && (data.busy || (data.pendingCount > 0 && data.mainCi === "running"));
-  if (busy || Date.now() < pollUntil) timer = setTimeout(load, 30000);
+  if (busy || Date.now() < pollUntil) timer = setTimeout(load, data && data.progress ? 15000 : 30000);
 }
 
 async function send(sites, tag) {
@@ -171,22 +182,50 @@ function heroCard() {
     h("div", { class: "row", style: "justify-content:flex-end" }, button));
 }
 
-function siteCard(s) {
-  const pill = !s.ok ? h("span", { class: "pill bad" }, "● 打不开")
-    : s.behind > 0 ? h("span", { class: "pill old" }, "落后 " + s.behind + " 个版本")
-    : h("span", { class: "pill" }, "● 正常");
-  const version = s.version
-    ? h("div", {}, h("span", { class: "tag" }, s.version), dateOf(s.version) ? h("span", { class: "muted" }, " · " + when(dateOf(s.version))) : null)
-    : h("div", { class: "muted" }, "版本未知（下次发布后显示）");
-  const action = s.behind > 0 && s.movable.includes(data.latest)
-    ? h("button", { class: "btn p", onclick: async (e) => { e.target.disabled = true; if (!(await send([s.id], data.latest))) e.target.disabled = false; } }, "升到最新")
-    : h("button", { class: "btn", onclick: () => openPanel(s) }, "更换版本 ▾");
-  const card = h("div", { class: "card" },
-    h("div", { class: "row" }, h("div", {}, h("span", { class: "dot", style: "background:" + s.color }), h("b", {}, s.name),
-      h("div", { class: "muted" }, s.domain)), pill),
-    h("div", { class: "row sitev" }, version, action));
-  if (s.behind > 0) card.append(h("div", { style: "text-align:right;margin-top:6px" }, h("button", { class: "link", onclick: () => openPanel(s) }, "选别的版本")));
-  return card;
+const short = (name) => name.replace(/\\s*羽毛球$/, "");
+const STEPS = ["测试", "备份", "迁移", "部署", "检查"];
+const live = (id) => data.progress && data.progress.sites[id];
+
+function seg(p) {
+  const cls = "seg" + (p.failed ? " bad" : p.done >= 5 ? " ok" : "");
+  return h("span", { class: cls, title: STEPS.join(" → ") }, STEPS.map((_, i) =>
+    h("i", { class: p.failed && i === Math.min(p.done, 4) ? "f" : i < p.done ? "d" : i === p.done ? "n" : "" })));
+}
+
+// One line per site (option C): its version and state, or, while it is being released, a lock and the
+// five steps. Tapping it opens the version list.
+function siteRow(s) {
+  const p = live(s.id);
+  const middle = p
+    ? h("span", { class: "mid" }, h("span", { class: "lock" }, "🔒"), seg(p))
+    : h("span", { class: "mid tag" }, s.version || "版本未知");
+  const right = p
+    ? h("span", { class: "lbl" + (p.failed ? " bad" : p.done >= 5 ? " ok" : "") }, p.label)
+    : !s.ok ? h("span", { class: "pill bad" }, "打不开")
+    : s.behind > 0 ? h("span", { class: "pill old" }, "落后 " + s.behind)
+    : !s.version ? h("span", { class: "muted" }, "下次发布后显示")
+    : h("span", { class: "pill" }, "正常");
+  return h("div", { class: "siterow", onclick: () => (p && !p.failed && p.done < 5 ? toast(short(s.name) + " 正在发布，完成后再换版本") : openPanel(s)) },
+    h("span", { class: "name" }, h("span", { class: "dot", style: "background:" + s.color }), short(s.name)),
+    middle, right, p ? null : h("span", { class: "muted chev" }, "›"));
+}
+
+function progressCard() {
+  const p = data.progress;
+  const n = Object.keys(p.sites).length;
+  const elapsed = h("span", {}, "");
+  const tick = () => {
+    const sec = Math.max(0, Math.round((Date.now() - new Date(p.at)) / 1000));
+    elapsed.textContent = "已用 " + Math.floor(sec / 60) + " 分 " + (sec % 60) + " 秒";
+  };
+  tick();
+  clearInterval(window.__tick);
+  window.__tick = setInterval(tick, 1000);
+  return h("div", { class: "card hero" },
+    h("div", { class: "row" }, h("b", {}, p.tag ? "正在发布 " + p.tag : "正在准备发布"),
+      h("a", { class: "muted", href: p.url, target: "_blank", rel: "noopener" }, "详情 ›")),
+    h("div", { class: "muted" }, (n ? n + " 个站点 · " : ""), elapsed, " · 一般 5 分钟左右"),
+    h("div", { class: "muted", style: "margin-top:6px" }, STEPS.join(" → ")));
 }
 
 function deploysCard() {
@@ -226,7 +265,7 @@ function openPanel(s) {
   panel = h("div", { class: "panel" },
     h("header", { class: "top" }, h("button", { class: "back", onclick: closePanel }, "‹ 返回"), h("b", {}, s.name), h("span", { style: "width:40px" })),
     h("div", { class: "list" },
-      h("p", { class: "muted", style: "margin:0 0 6px" }, (s.version ? "现在是 " + s.version + "。" : "") + "换版本前会自动备份这个站点的数据库。回滚到更早的版本，如果数据库已经有它不认识的改动，会被自动拒绝。"),
+      h("p", { class: "muted", style: "margin:0 0 6px" }, s.domain + (s.ok ? "" : "（现在打不开）") + "。" + (s.version ? "现在是 " + s.version + "。" : "") + "换版本前会自动备份这个站点的数据库。回滚到更早的版本，如果数据库已经有它不认识的改动，会被自动拒绝。"),
       rows),
     h("div", { class: "foot" }, go));
   document.body.append(panel);
@@ -241,7 +280,9 @@ function closePanel() {
 addEventListener("popstate", () => { if (panel) { panel.remove(); panel = null; } });
 
 function render() {
-  app.replaceChildren(heroCard(), h("h3", {}, "各站点"), ...data.sites.map(siteCard), h("h3", {}, "最近的部署"), deploysCard());
+  if (!data.progress) clearInterval(window.__tick);
+  app.replaceChildren(data.progress ? progressCard() : heroCard(), h("h3", {}, "各站点"),
+    h("div", { class: "card rows" }, data.sites.map(siteRow)), h("h3", {}, "最近的部署"), deploysCard());
 }
 load();
 `;

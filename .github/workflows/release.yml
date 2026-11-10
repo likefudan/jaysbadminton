@@ -55,7 +55,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Check the sites
+      # The release site reads the chosen sites from this step's name to show their progress.
+      - name: "Check the sites: ${{ inputs.sites || 'all' }}"
         env:
           SITES: ${{ inputs.sites }}
         run: node scripts/release-plan.mjs
