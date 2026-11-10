@@ -2,7 +2,19 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { forget, state } from "../ops/src/github";
 import ops from "../ops/src/index";
-import { canMoveTo, compareTags, type Env, nextTag, pickSites, sign, sites, unsign } from "../ops/src/logic";
+import {
+  canMoveTo,
+  compareTags,
+  type Env,
+  type Job,
+  nextTag,
+  pickSites,
+  progressOf,
+  sign,
+  sites,
+  sitesFromStepName,
+  unsign,
+} from "../ops/src/logic";
 
 /** 发布管理网站 badminton.llmat.dev: only Ke Li's account gets in, and it starts the Release workflow. */
 
@@ -233,5 +245,54 @@ describe("release site", () => {
     const notice = sent.find((m) => m.url === "https://api.telegram.org/botdev-bot/sendMessage");
     expect(notice?.body.chat_id).toBe("-100");
     expect(notice?.body.text).toContain("把 v2026.11.10 发到 SBBC 羽毛球、Coco 羽毛球");
+  });
+});
+
+describe("release progress", () => {
+  const ids = ["jays", "sbbc", "coco"];
+  const done = (name: string): Job => ({ name, status: "completed", conclusion: "success" });
+  const tests = ["check", "unit-2", "e2e", "e2e-2"].map(done);
+
+  it("reads the chosen sites from the step name", () => {
+    expect(sitesFromStepName("Sites: all", ids)).toEqual(ids);
+    expect(sitesFromStepName("Sites: ", ids)).toEqual(ids);
+    expect(sitesFromStepName("Check the sites: SBBC，coco", ids)).toEqual(["sbbc", "coco"]);
+    expect(sitesFromStepName("Run npm ci", ids)).toBeNull();
+  });
+
+  it("shows tests, then Jay's first, then each site's step", () => {
+    const running: Job[] = [{ name: "check", status: "in_progress", conclusion: null }];
+    expect(progressOf(running, ["jays", "sbbc"]).sbbc).toEqual({ done: 0, label: "测试中", failed: false });
+
+    const jays: Job = {
+      name: "deploy-production",
+      status: "in_progress",
+      conclusion: null,
+      steps: [
+        { name: "Back up the production database", status: "completed", conclusion: "success" },
+        { name: "Run npx wrangler d1 migrations apply DB --remote", status: "completed", conclusion: "success" },
+        { name: "Run npx wrangler deploy", status: "in_progress", conclusion: null },
+      ],
+    };
+    const p = progressOf([...tests, jays], ["jays", "sbbc"]);
+    expect(p.jays).toEqual({ done: 3, label: "部署中", failed: false });
+    expect(p.sbbc).toEqual({ done: 1, label: "等 Jay's 先发", failed: false });
+    expect(progressOf([...tests], ["sbbc"]).sbbc?.label).toBe("排队中");
+
+    const failed: Job = {
+      name: "deploy-sites (sbbc)",
+      status: "completed",
+      conclusion: "failure",
+      steps: [
+        { name: "Back up the site's database", status: "completed", conclusion: "success" },
+        { name: "Run npx wrangler d1 migrations apply DB --remote", status: "completed", conclusion: "failure" },
+      ],
+    };
+    const q = progressOf([...tests, done("deploy-production"), failed], ["jays", "sbbc"]);
+    expect(q.jays).toEqual({ done: 5, label: "完成", failed: false });
+    expect(q.sbbc).toEqual({ done: 2, label: "迁移失败", failed: true });
+
+    const red = progressOf([{ name: "e2e", status: "completed", conclusion: "failure" }], ["coco"]);
+    expect(red.coco).toEqual({ done: 0, label: "测试没通过", failed: true });
   });
 });

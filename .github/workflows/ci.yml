@@ -251,7 +251,9 @@ jobs:
             scripts
             sites.json
           sparse-checkout-cone-mode: false
-      - id: plan
+      # The release site reads the chosen sites from this step's name to show their progress.
+      - name: "Sites: ${{ inputs.sites || 'all' }}"
+        id: plan
         env:
           SITES: ${{ inputs.sites }}
           READY: ${{ secrets.SITES_KEY != '' && secrets.SITES_ADMIN_PASSWORD != '' }}

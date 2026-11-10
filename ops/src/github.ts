@@ -1,5 +1,17 @@
 // What the release site reads from and asks of GitHub, with the token in OPS_GITHUB_TOKEN.
-import { canMoveTo, compareTags, type Env, nextTag, type Site, sites, TAG } from "./logic";
+import {
+  canMoveTo,
+  compareTags,
+  type Env,
+  type Job,
+  nextTag,
+  progressOf,
+  type Site,
+  type SiteProgress,
+  sites,
+  sitesFromStepName,
+  TAG,
+} from "./logic";
 
 async function gh<T>(env: Env, path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}${path}`, {
@@ -126,10 +138,9 @@ async function read(env: Env) {
         .filter((run) => TAG.test(run.head_branch))
         .slice(0, 6)
         .map(async (run) => {
-          const { jobs } = await gh<{ jobs: { name: string; conclusion: string | null; status: string }[] }>(
-            env,
-            `/actions/runs/${run.id}/jobs?per_page=50`,
-          ).catch(() => ({ jobs: [] }));
+          const { jobs } = await gh<{ jobs: Job[] }>(env, `/actions/runs/${run.id}/jobs?per_page=50`).catch(() => ({
+            jobs: [] as Job[],
+          }));
           const siteJobs = jobs
             .map((j) => {
               const id =
@@ -144,6 +155,7 @@ async function read(env: Env) {
             running: run.status !== "completed",
             ok: run.conclusion === "success",
             sites: siteJobs,
+            jobs,
           };
         }),
     ),
@@ -172,7 +184,38 @@ async function read(env: Env) {
     .filter((r) => r.status === "completed" && r.conclusion === "failure")
     .map((r) => ({ tag: "", at: r.created_at, url: r.html_url, running: false, ok: false, sites: [] }));
   const runningRelease = releaseRuns.workflow_runs.some((r) => r.status !== "completed");
-  const recent = [...deploys, ...refused].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
+  const recent = [...deploys.map(({ jobs: _, ...d }) => d), ...refused]
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, 6);
+
+  // The release under way, if any: each chosen site's step (the sites come from a step's name, see
+  // the plan job in ci.yml and the Release workflow). Before its CI run starts, the Release run itself.
+  const ids = all.map((s) => s.id);
+  const chosenIn = (jobs: Job[]) =>
+    jobs
+      .flatMap((j) => j.steps ?? [])
+      .reduce<string[] | null>((found, st) => found ?? sitesFromStepName(st.name, ids), null);
+  let progress: { tag: string; url: string; at: string; sites: Record<string, SiteProgress> } | null = null;
+  const live = deploys.find((d) => d.running);
+  if (live) {
+    // A tag from before the sites were put in a step name: the sites that already have a job.
+    const chosen = chosenIn(live.jobs) ?? live.sites.map((s) => s.id);
+    progress = { tag: live.tag, url: live.url, at: live.at, sites: progressOf(live.jobs, chosen) };
+  } else {
+    const run = releaseRuns.workflow_runs.find((r) => r.status !== "completed");
+    if (run) {
+      const { jobs } = await gh<{ jobs: Job[] }>(env, `/actions/runs/${run.id}/jobs`).catch(() => ({
+        jobs: [] as Job[],
+      }));
+      const chosen = chosenIn(jobs) ?? [];
+      progress = {
+        tag: "",
+        url: run.html_url,
+        at: run.created_at,
+        sites: Object.fromEntries(chosen.map((id) => [id, { done: 0, label: "准备中", failed: false }])),
+      };
+    }
+  }
 
   return {
     sites: all.map((s, i) => {
@@ -196,6 +239,7 @@ async function read(env: Env) {
     mainCi,
     deploys: recent,
     busy: runningRelease || deploys.some((d) => d.running),
+    progress,
   };
 }
 
