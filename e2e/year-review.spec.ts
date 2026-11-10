@@ -15,11 +15,11 @@ const review = (year: number) => ({
     { name: "arthur", count: 15 },
   ],
   milestones: [
-    { key: "attendance", value: 54, tier: 2 },
+    { key: "attendance", value: 24, tier: 2 },
     { key: "hours", value: 112, tier: 2 },
     { key: "streak", value: 11, tier: 2 },
     { key: "early", value: 9, tier: 1 },
-    { key: "friends", value: 4, tier: 0 },
+    { key: "friends", value: 2, tier: 0 },
     { key: "queue", value: 230, tier: 3 },
   ],
 });
@@ -53,10 +53,10 @@ test("the year card switches years, shows the badges, and shares an image", asyn
   // Each badge shows the level reached, or the first one greyed out, and the way to the next.
   const medals = page.locator(".medal");
   await expect(medals).toHaveCount(6);
-  await expect(medals.first()).toContainText("出勤 50 次");
-  await expect(medals.first()).toContainText("54 / 100");
+  await expect(medals.first()).toContainText("出勤 20 次");
+  await expect(medals.first()).toContainText("24 / 50");
   await expect(page.locator(".medal.locked")).toHaveCount(1);
-  await expect(page.locator(".medal.locked")).toContainText("带朋友 5 人次");
+  await expect(page.locator(".medal.locked")).toContainText("带朋友 3 人次");
   await expect(medals.last()).toContainText("230");
 
   await expect(page.locator(".buddy")).toHaveText([/Lily.*18/, /arthur.*15/]);

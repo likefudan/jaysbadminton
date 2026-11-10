@@ -157,8 +157,8 @@ describe("年度回顾", () => {
     expect(r.milestones).toEqual([
       { key: "attendance", value: 3, tier: 0 },
       { key: "hours", value: 9, tier: 0 },
-      { key: "streak", value: 3, tier: 0 },
-      { key: "early", value: 3, tier: 0 },
+      { key: "streak", value: 3, tier: 1 },
+      { key: "early", value: 3, tier: 1 },
       { key: "friends", value: 1, tier: 0 },
       { key: "queue", value: 1, tier: 0 },
     ]);
@@ -172,7 +172,7 @@ describe("年度回顾", () => {
   });
 
   it("gives a badge its level at each threshold", () => {
-    expect([0, 9, 10, 49, 50, 100, 500].map((v) => tierOf([10, 50, 100], v))).toEqual([0, 0, 1, 1, 2, 3, 3]);
+    expect([0, 4, 5, 19, 20, 50, 500].map((v) => tierOf([5, 20, 50], v))).toEqual([0, 0, 1, 1, 2, 3, 3]);
   });
 });
 
