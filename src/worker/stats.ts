@@ -114,16 +114,38 @@ interface Extra {
  * their own sign-up, as everywhere else (Ke Li, #161). */
 export const EARLY_PLACES = 5;
 
+/**
+ * 早鸟 places: who signed up among the first EARLY_PLACES of each counted event matching `where`,
+ * themselves (not added by an admin), and came; `only` keeps one member's.
+ */
+function earlyQuery(env: Env, where: string, bind: string, only?: string) {
+  return env.DB.prepare(
+    `SELECT x.member_id, x.date FROM (
+       SELECT r.member_id, r.attended, r.added_by_owner, e.date,
+         ROW_NUMBER() OVER (PARTITION BY r.event_id ORDER BY r.created_at, r.id) AS place
+       FROM registrations r JOIN events e ON e.id = r.event_id
+       WHERE ${COUNTED} AND ${where} AND r.friend_index = 0
+     ) x WHERE x.place <= ${EARLY_PLACES} AND x.attended = 1 AND x.added_by_owner = 0${only ? " AND x.member_id = ?" : ""}`,
+  ).bind(...(only ? [bind, only] : [bind]));
+}
+
+/** The longest run of events in a row (in `events`' order) that `present` has. */
+function longestRun(events: Iterable<number>, present: (id: number) => boolean): number {
+  let run = 0;
+  let best = 0;
+  for (const id of events) {
+    run = present(id) ? run + 1 : 0;
+    best = Math.max(best, run);
+  }
+  return best;
+}
+
+/** Minutes as hours to one decimal. */
+const toHours = (min: number) => Math.round(min / 6) / 10;
+
 async function extra(env: Env, since: string): Promise<Extra> {
   const [early, queue, calories, members] = await env.DB.batch([
-    env.DB.prepare(
-      `SELECT x.member_id, x.date FROM (
-         SELECT r.member_id, r.attended, r.added_by_owner, e.date,
-           ROW_NUMBER() OVER (PARTITION BY r.event_id ORDER BY r.created_at, r.id) AS place
-         FROM registrations r JOIN events e ON e.id = r.event_id
-         WHERE ${COUNTED} AND e.date >= ? AND r.friend_index = 0
-       ) x WHERE x.place <= ${EARLY_PLACES} AND x.attended = 1 AND x.added_by_owner = 0`,
-    ).bind(since),
+    earlyQuery(env, "e.date >= ?", since),
     env.DB.prepare(
       `SELECT q.member_id, e.date FROM queue_credits q JOIN events e ON e.id = q.event_id
        WHERE ${COUNTED} AND e.date >= ?`,
@@ -176,21 +198,14 @@ function boards(
   const present = new Set(
     all.filter((r) => r.friend_index === 0 && r.attended && inside(r.date)).map((r) => `${r.event_id}:${r.member_id}`),
   );
-  for (const [id, { name }] of tallies.attendance) {
-    let run = 0;
-    let best = 0;
-    for (const ev of events) {
-      run = present.has(`${ev}:${id}`) ? run + 1 : 0;
-      best = Math.max(best, run);
-    }
-    tallies.streak.set(id, { name, value: best });
-  }
+  for (const [id, { name }] of tallies.attendance)
+    tallies.streak.set(id, { name, value: longestRun(events, (ev) => present.has(`${ev}:${id}`)) });
   for (const e of x.early) if (inside(e.date)) add(tallies.early, e.member_id, x.names.get(e.member_id));
   for (const q of x.queue) if (inside(q.date)) add(tallies.queue, q.member_id, x.names.get(q.member_id));
   for (const c of x.calories) if (inside(c.date)) add(tallies.calories, c.member_id, x.names.get(c.member_id), c.kcal);
 
   // Hours to one decimal, from minutes, before ranking: the same hours shown share a rank.
-  for (const h of tallies.hours.values()) h.value = Math.round(h.value / 6) / 10;
+  for (const h of tallies.hours.values()) h.value = toHours(h.value);
   return Object.fromEntries(BOARD_KEYS.map((k) => [k, top(tallies[k])])) as Record<BoardKey, RankEntry[]>;
 }
 
@@ -299,14 +314,13 @@ export async function yearReview(env: Env, memberId: string, asked?: number): Pr
       `SELECT e.date FROM registrations r JOIN events e ON e.id = r.event_id
        WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index > 0 AND r.attended = 1`,
     ).bind(memberId),
-    env.DB.prepare(
-      `SELECT x.date FROM (
-         SELECT r.member_id, r.attended, r.added_by_owner, e.date,
-           ROW_NUMBER() OVER (PARTITION BY r.event_id ORDER BY r.created_at, r.id) AS place
-         FROM registrations r JOIN events e ON e.id = r.event_id
-         WHERE ${COUNTED} AND r.friend_index = 0
-       ) x WHERE x.member_id = ? AND x.place <= ${EARLY_PLACES} AND x.attended = 1 AND x.added_by_owner = 0`,
-    ).bind(memberId),
+    // Only the events they were on: the places are counted within each.
+    earlyQuery(
+      env,
+      "e.id IN (SELECT event_id FROM registrations WHERE member_id = ? AND friend_index = 0)",
+      memberId,
+      memberId,
+    ),
     env.DB.prepare(
       `SELECT e.date FROM queue_credits q JOIN events e ON e.id = q.event_id WHERE ${COUNTED} AND q.member_id = ?`,
     ).bind(memberId),
@@ -321,7 +335,12 @@ export async function yearReview(env: Env, memberId: string, asked?: number): Pr
   type Mine = Pick<Row, "date" | "start_at" | "end_at" | "arrive_at" | "leave_at"> & { id: number; location: string };
   const came = mine!.results as Mine[];
   const dates = (r: D1Result) => (r.results as { date: string }[]).map((x) => x.date);
-  const years = [...new Set([thisYear, ...came.map((r) => Number(r.date.slice(0, 4)))])].sort((a, b) => b - a);
+  const kcalRows = kcal!.results as { date: string; kcal: number }[];
+  // Any year with something on the card: came, brought friends, helped with the queue, read calories.
+  const any = [came, friends!.results, early!.results, queue!.results, kcalRows].flatMap((rows) =>
+    (rows as { date: string }[]).map((r) => Number(r.date.slice(0, 4))),
+  );
+  const years = [...new Set([thisYear, ...any])].sort((a, b) => b - a);
   const year = asked && years.includes(asked) ? asked : thisYear;
   const inYear = (d: string) => d.startsWith(`${year}-`);
   const yearRows = came.filter((r) => inYear(r.date));
@@ -341,18 +360,15 @@ export async function yearReview(env: Env, memberId: string, asked?: number): Pr
     .bind(memberId, `${year}-%`)
     .all<{ name: string; count: number }>();
 
-  const hours = (rows: Mine[]) => Math.round(rows.reduce((t, r) => t + stayMinutes(r), 0) / 6) / 10;
-  const kcalRows = kcal!.results as { date: string; kcal: number }[];
+  const hours = (rows: Mine[]) => toHours(rows.reduce((t, r) => t + stayMinutes(r), 0));
   const yearKcal = kcalRows.filter((r) => inYear(r.date));
 
   // 最长连续 over every counted event ever held, for the badge.
   const present = new Set(came.map((r) => r.id));
-  let run = 0;
-  let best = 0;
-  for (const { id } of counted!.results as { id: number }[]) {
-    run = present.has(id) ? run + 1 : 0;
-    best = Math.max(best, run);
-  }
+  const best = longestRun(
+    (counted!.results as { id: number }[]).map((e) => e.id),
+    (id) => present.has(id),
+  );
   const totals: Record<MilestoneKey, number> = {
     attendance: came.length,
     hours: hours(came),

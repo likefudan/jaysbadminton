@@ -47,6 +47,7 @@ const TIER_COLOURS = [
 ] as const;
 
 const HEX = "M30 3l24 13.5v27L30 57 6 43.5v-27z";
+const RIBBON = "M19 50h22v18l-11-6-11 6z";
 
 /** One badge: the hexagon in its level's colour (grey until the first), a ribbon, the icon. */
 function Medal(props: { k: MilestoneKey; tier: number }) {
@@ -62,7 +63,7 @@ function Medal(props: { k: MilestoneKey; tier: number }) {
           </linearGradient>
         </defs>
       )}
-      <path class="ribbon" d="M19 50h22v18l-11-6-11 6z" style={c ? { fill: c[3] } : undefined} />
+      <path class="ribbon" d={RIBBON} style={c ? { fill: c[3] } : undefined} />
       <path class="hex" d={HEX} style={c ? { fill: `url(#${id})`, stroke: c[2] } : undefined} stroke-width="2" />
       <g transform="translate(16 15) scale(1.17)">
         <path class="glyph" d={BADGES[props.k].icon} />
@@ -156,8 +157,8 @@ function Review(props: { review: YearReview; name: string; pick: (y: number) => 
         <>
           <SectionTitle>{t("最常一起打球")}</SectionTitle>
           <section class="card buddies">
-            {r.buddies.map((b) => (
-              <div key={b.name} class="buddy">
+            {r.buddies.map((b, i) => (
+              <div key={`${i}-${b.name}`} class="buddy">
                 <span class="buddy-av" aria-hidden="true">
                   {[...b.name][0]!.toUpperCase()}
                 </span>
@@ -190,8 +191,15 @@ function YearShare(props: { review: YearReview; name: string; onClose: () => voi
   const [png, setPng] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
-    drawYearCard(site, props.name, props.review).then(setPng, () => setFailed(true));
-  }, [site, props.review.year]);
+    let alive = true;
+    drawYearCard(site, props.name, props.review).then(
+      (p) => alive && setPng(p),
+      () => alive && setFailed(true),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [site, props.name, props.review]);
   return (
     <Panel title={t("分享")} label={t("分享")} onClose={props.onClose}>
       {failed && <p class="muted">{t("图片生成失败，请刷新后再试。")}</p>}
@@ -297,7 +305,7 @@ function drawMedal(ctx: CanvasRenderingContext2D, key: MilestoneKey, tier: numbe
   ctx.translate(x, y);
   ctx.scale(s, s);
   ctx.fillStyle = c[3];
-  ctx.fill(new Path2D("M19 50h22v18l-11-6-11 6z"));
+  ctx.fill(new Path2D(RIBBON));
   const g = ctx.createLinearGradient(0, 3, 0, 57);
   g.addColorStop(0, c[0]);
   g.addColorStop(1, c[1]);
