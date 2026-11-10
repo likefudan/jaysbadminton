@@ -184,6 +184,7 @@ export async function detail(env: Env, e: EventRow, viewer: string | null): Prom
     dunningStopped: e.dunning_stopped === 1,
     deletable: isDeletable(e),
     autoEndAt: new Date(Date.parse(e.end_at) + NO_FEE_END_AFTER_MS).toISOString(),
+    deadlineOffsetMin: e.deadline_offset_min,
     payee: { id: payee, name: payeeLabel, isMe: !!payee && payee === viewer },
     manager: { id: manager, name: managerLabel, isMe: !!manager && manager === viewer },
     photoUsage: usage,

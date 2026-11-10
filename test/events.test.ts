@@ -130,6 +130,47 @@ describe("报名截止时间 off (no deadline)", () => {
     expect((await ctx.admin.call(`${ctx.base}/events/defaults`)).data.deadlineOn).toBe(true);
   });
 
+  it("turns the deadline off or on again from 修改活动, before Finalize", async () => {
+    const ctx = await setUpAdmin();
+    const date = futureDate(7);
+    const e = await createTestEvent(ctx, { date, deadlineDays: 1, deadlineHours: 0 });
+    expect(e.deadlineOffsetMin).toBe(1440);
+    const edit = (extra: Record<string, unknown>) =>
+      ctx.admin.call(`${ctx.base}/events/${e.id}/edit`, {
+        date,
+        startTime: "19:00",
+        endTime: "21:00",
+        location: e.location,
+        ...extra,
+      });
+    const end = Date.parse(pacificToUtc(date, "21:00"));
+    // Off: open until the end.
+    const off = await edit({ noDeadline: true, deadlineDays: 1, deadlineHours: 0 });
+    expect(off.data).toMatchObject({ status: "open", noDeadline: true, deadlineOffsetMin: 1440 });
+    expect(Date.parse(off.data.deadlineAt)).toBe(end);
+    // On again, 2 days 3 hours before the start.
+    const on = await edit({ noDeadline: false, deadlineDays: 2, deadlineHours: 3 });
+    expect(on.data).toMatchObject({ status: "open", noDeadline: false, deadlineOffsetMin: 2 * 1440 + 180 });
+    expect(Date.parse(on.data.deadlineAt)).toBe(Date.parse(pacificToUtc(date, "19:00")) - 51 * 3600_000);
+    // A deadline already gone is refused rather than closing sign-up by surprise.
+    const past = await edit({ noDeadline: false, deadlineDays: 14, deadlineHours: 0 });
+    expect(past.data.error.message).toBe("按这个提前量算出的截止时间已经过了，请调整");
+    // Closed when its deadline passed: switching it off opens sign-up again until the end.
+    await expire(e.id);
+    expect((await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.status).toBe("closed");
+    const reopened = await edit({ noDeadline: true });
+    expect(reopened.data).toMatchObject({ status: "open", noDeadline: true });
+    expect(Date.parse(reopened.data.deadlineAt)).toBe(end);
+    const { results } = await env.DB.prepare("SELECT detail FROM event_audit WHERE event_id = ? AND action = 'edit'")
+      .bind(e.id)
+      .all<{ detail: string }>();
+    expect(results.map((r) => r.detail).join("\n")).toContain("报名截止时间 开 → 关");
+    expect(results.map((r) => r.detail).join("\n")).toContain("重新开放报名");
+    // A plain edit (no deadline fields, as from an older page) leaves it as it is.
+    const plain = await edit({ notes: "x" });
+    expect(plain.data).toMatchObject({ status: "open", noDeadline: true });
+  });
+
   it("lets members sign up past where a deadline would have been", async () => {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx, { date: futureDate(1), noDeadline: true, deadlineDays: 3 });
