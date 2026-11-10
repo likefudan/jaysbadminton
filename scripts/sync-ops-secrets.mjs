@@ -16,7 +16,7 @@ const secrets = {};
 const optional = ["TELEGRAM_DEV_BOT_TOKEN", "TELEGRAM_DEV_CHAT_ID"];
 for (const name of ["OPS_GITHUB_TOKEN", "OPS_EMAIL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", ...optional]) {
   if (process.env[name]) secrets[name] = process.env[name].trim();
-  else if (!existing.has(name))
+  else if (!existing.has(name) && !optional.includes(name))
     console.log(`::warning::GitHub secret ${name} is not set: the release site waits for it`);
 }
 if (!existing.has("OPS_SESSION_KEY")) secrets.OPS_SESSION_KEY = randomBytes(32).toString("base64url");
