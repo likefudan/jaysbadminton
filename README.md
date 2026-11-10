@@ -27,31 +27,37 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 ## 一、项目特色
 
 **报名不用接龙**
+
 - 成员用 Google 账号登录（或群主私发的专属链接），点「报名」，可以带朋友并写上朋友的名字。
 - 报了名的人能看到完整名单（包括谁带了谁）；公开页面和微信分享卡片只显示人数，从不显示名字。
 - 一键加入 iPhone / Outlook / Google 日历，提前 2 小时提醒。
 - 报名中的活动可以生成分享名片：一张带日期、时间、场馆和二维码的图片（不含名字），长按保存后发到微信群；首页也能生成整个网站的名片。
 
 **算账不用计算器**
+
 - 群主勾选谁到了场，输入场地总费用、用球个数和单价，系统按规则算出每个人的金额：场地费所有报名的人平摊，球费到场的人平摊，带的朋友算在带他的人账上。
 - 金额全部用整数「分」计算并精确分摊，每人加起来正好等于总费用（除不尽的几分钱随机分给几份，每份最多多 1 分）；可以先预览再确认。
 
 **收款不用对账**
+
 - 每个人的付款页面有一个预填好收款人、金额和备注编号的 Venmo 按钮。
 - 群主的 Gmail 把 Venmo 的收款邮件转发给网站，网站校验 Venmo 的数字签名后按备注编号自动标记已付；部分付款、多付要退款、编号写错的都会单独列出来让群主确认。
 - 每一笔付款和退款都单独记录：多付的钱列在「需要退款」里，群主退款后点「已退款」记一笔退款；Finalize 后改了费用，已付款的人会显示还差多少或多付多少。
 - 所有人付清后自动归档，并给群主发一条带明细的收齐消息。
 
 **通知到 Telegram**
+
 - 截止前提醒、报名截止那一刻的名单、活动结束后提醒结算、每天的催款提醒、收齐存档、每周健康简报。
 - 每条通知里都附好了可以直接复制到微信群的文字。
 
 **每个人自己的页面**
+
 - 「我的活动」：自己报名的活动从新到旧排列，已经结束并付清的折叠进「历史活动」。
 - 「个人信息」：花费图表（可选 7 天到全部的时间范围）、GitHub 式的参加热力图、入群时间和联系邮箱。
 - 两种外观风格 × 4 种强调色，支持深色模式，每个人自己选。
 
 **零成本、好维护**
+
 - 全部运行在 Cloudflare 免费额度内（Workers + D1 数据库 + 定时任务 + 邮件路由），唯一的花费是域名。
 - 改动先自动部署到测试网站，确认没问题再打版本标签发布到正式网站；发布前自动备份数据库，出问题可以回滚代码，但不能早于最近一次新增数据库迁移的版本（见下方「回滚的限制」）。
 - 每天自动把数据同步一份到群主自己的 Google 表格。
@@ -70,17 +76,17 @@ A sign-up and fee-collection site for a weekly badminton group (about 50 members
 
 ### 群主
 
-| 要做的事 | 在哪里 |
-| --- | --- |
-| 第一次设置 | 打开 `/admin`，输入群主密码，收藏生成的管理链接。然后在「设置 → 用 Google 登录管理页」绑定自己的 Google 账号，以后用 Google 登录就能直接进管理页 |
-| 审核新成员 | 「待审核」→ 通过 / 拒绝。用 Google 申请的人通过后自己登录即可；用邮箱注册的人会自动收到专属链接的邮件（失败时可在成员列表重试，或把链接私发给对方） |
-| 管理成员 | 「成员」：点名字看个人信息、加只有自己能看到的备注名；停用、恢复、删除（删除后名字可以给新人用，旧记录显示为「名字（编号）」） |
-| 建活动、自己报名 | 「活动 → 新建活动」。自己打球在活动详情的「我的报名」里报名，不受带朋友上限限制 |
-| 改名单 | 活动详情：代加临时人员、删除（有人顶替就删掉原报名者再加顶替者）；立即截止、重新开放、修改时间地点 |
-| 结算 | 活动结束后：标记谁没到场 → 输入场地费、用球数和单价 → 预览每人金额 → Finalize |
-| 收款 | 「收款」看板自动更新；「待确认」里处理对不上的付款；也可以手动标记已付、记录退款 |
-| 通知 | 「设置 → 连接 Telegram」。给机器人发「管理页面」可以找回管理链接，发「语言」切换机器人的语言（简/繁/EN） |
-| 其他设置 | 收款账号（加锁）、入群不需要审核（默认关）、带朋友上限、提醒时间、默认外观、网站标题、排行榜开关、导出 CSV、Google 表格同步、备份网站密钥（存成 GitHub secret，见下面「部署配置」） |
+| 要做的事         | 在哪里                                                                                                                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 第一次设置       | 打开 `/admin`，输入群主密码，收藏生成的管理链接。然后在「设置 → 用 Google 登录管理页」绑定自己的 Google 账号，以后用 Google 登录就能直接进管理页                                    |
+| 审核新成员       | 「待审核」→ 通过 / 拒绝。用 Google 申请的人通过后自己登录即可；用邮箱注册的人会自动收到专属链接的邮件（失败时可在成员列表重试，或把链接私发给对方）                                 |
+| 管理成员         | 「成员」：点名字看个人信息、加只有自己能看到的备注名；停用、恢复、删除（删除后名字可以给新人用，旧记录显示为「名字（编号）」）                                                      |
+| 建活动、自己报名 | 「活动 → 新建活动」。自己打球在活动详情的「我的报名」里报名，不受带朋友上限限制                                                                                                     |
+| 改名单           | 活动详情：代加临时人员、删除（有人顶替就删掉原报名者再加顶替者）；立即截止、重新开放、修改时间地点                                                                                  |
+| 结算             | 活动结束后：标记谁没到场 → 输入场地费、用球数和单价 → 预览每人金额 → Finalize                                                                                                       |
+| 收款             | 「收款」看板自动更新；「待确认」里处理对不上的付款；也可以手动标记已付、记录退款                                                                                                    |
+| 通知             | 「设置 → 连接 Telegram」。给机器人发「管理页面」可以找回管理链接，发「语言」切换机器人的语言（简/繁/EN）                                                                            |
+| 其他设置         | 收款账号（加锁）、入群不需要审核（默认关）、带朋友上限、提醒时间、默认外观、网站标题、排行榜开关、导出 CSV、Google 表格同步、备份网站密钥（存成 GitHub secret，见下面「部署配置」） |
 
 管理页里的「使用指南」有逐项打勾的上线清单，第一次设置时照着走一遍即可。
 
@@ -112,16 +118,16 @@ flowchart LR
 
 一个 Cloudflare Worker 同时提供网页、JSON API、接收转发的 Venmo 邮件，并每 15 分钟运行一次定时任务（报名截止由每个活动自己的闹钟准时触发），所有数据都在一个 D1（SQLite）数据库里。
 
-| 部分 | 选择 |
-| --- | --- |
-| 前端 | Preact + Vite，中文界面，手机优先，没有 CSS 框架（照顾微信内置浏览器） |
-| 后端 | Hono，运行在 Cloudflare Workers 上 |
-| 数据库 | Cloudflare D1，`migrations/` 里按编号的 SQL 迁移 |
-| 登录 | Google OAuth（Authorization Code + PKCE）；或每人一个随机令牌的专属链接；管理页是管理链接 + 密码，或群主绑定的 Google 账号 |
-| 邮件 | Cloudflare Email Routing → Worker，自己校验 Venmo 的 DKIM 签名，`postal-mime` 解析 |
-| 通知 | Telegram Bot API |
-| 测试 | Vitest（在 Workers 运行时里跑，连本地 D1）+ Playwright 浏览器测试 |
-| 部署 | GitHub Actions：PR 跑检查；合并到 `main` 部署测试网站；`v*` 标签部署正式网站 |
+| 部分   | 选择                                                                                                                       |
+| ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| 前端   | Preact + Vite，中文界面，手机优先，没有 CSS 框架（照顾微信内置浏览器）                                                     |
+| 后端   | Hono，运行在 Cloudflare Workers 上                                                                                         |
+| 数据库 | Cloudflare D1，`migrations/` 里按编号的 SQL 迁移                                                                           |
+| 登录   | Google OAuth（Authorization Code + PKCE）；或每人一个随机令牌的专属链接；管理页是管理链接 + 密码，或群主绑定的 Google 账号 |
+| 邮件   | Cloudflare Email Routing → Worker，自己校验 Venmo 的 DKIM 签名，`postal-mime` 解析                                         |
+| 通知   | Telegram Bot API                                                                                                           |
+| 测试   | Vitest（在 Workers 运行时里跑，连本地 D1）+ Playwright 浏览器测试                                                          |
+| 部署   | GitHub Actions：PR 跑检查；合并到 `main` 部署测试网站；`v*` 标签部署正式网站                                               |
 
 ### 一些设计要点
 
@@ -137,15 +143,15 @@ flowchart LR
 
 ### 目录
 
-| 路径 | 内容 |
-| --- | --- |
-| `src/worker/` | Worker：Hono API、Google 登录、定时任务、邮件处理、结算、Telegram |
-| `src/web/` | Preact 前端（Vite 构建到 `dist/web`，作为静态资源提供） |
-| `src/shared/` | 前后端共用：类型、结算、时间、外观、日历、花费统计 |
-| `migrations/` | D1 数据库迁移 |
-| `test/`、`e2e/` | 单元 / 集成测试，浏览器测试 |
-| `scripts/` | CI 用的脚本：查找或创建 D1、同步 secrets、冒烟测试、本地测试服务器 |
-| `docs/` | 需求文档、技术设计、Google 登录配置、上线检查清单 |
+| 路径            | 内容                                                               |
+| --------------- | ------------------------------------------------------------------ |
+| `src/worker/`   | Worker：Hono API、Google 登录、定时任务、邮件处理、结算、Telegram  |
+| `src/web/`      | Preact 前端（Vite 构建到 `dist/web`，作为静态资源提供）            |
+| `src/shared/`   | 前后端共用：类型、结算、时间、外观、日历、花费统计                 |
+| `migrations/`   | D1 数据库迁移                                                      |
+| `test/`、`e2e/` | 单元 / 集成测试，浏览器测试                                        |
+| `scripts/`      | CI 用的脚本：查找或创建 D1、同步 secrets、冒烟测试、本地测试服务器 |
+| `docs/`         | 需求文档、技术设计、Google 登录配置、上线检查清单                  |
 
 ### 本地开发
 
@@ -165,10 +171,10 @@ npm run format                # Biome 自动格式化并修复
 
 ### 部署配置
 
-| | 地址 | 什么时候部署 | 数据库 |
-| --- | --- | --- | --- |
-| 测试网站 | https://staging.jaysbadminton.llmat.dev | 每次合并到 `main` | `jaysbadminton-staging` |
-| 正式网站 | https://jaysbadminton.llmat.dev | 推送 `vYYYY.MM.DD` 标签 | `jaysbadminton` |
+|          | 地址                                    | 什么时候部署            | 数据库                  |
+| -------- | --------------------------------------- | ----------------------- | ----------------------- |
+| 测试网站 | https://staging.jaysbadminton.llmat.dev | 每次合并到 `main`       | `jaysbadminton-staging` |
+| 正式网站 | https://jaysbadminton.llmat.dev         | 推送 `vYYYY.MM.DD` 标签 | `jaysbadminton`         |
 
 每次部署会找到或创建对应的 D1 数据库、执行迁移、`wrangler deploy`、同步 secrets，并从外部冒烟测试一遍。正式部署会拒绝不在 `main` 上的标签，并先把数据库导出为 Actions 的附件（保留 90 天）。
 
@@ -176,27 +182,27 @@ npm run format                # Biome 自动格式化并修复
 
 GitHub 仓库需要的 secrets：
 
-| Secret | 说明 |
-| --- | --- |
-| `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN` | Cloudflare 账号和 API 令牌（Workers 编辑 + D1 编辑权限） |
-| `ADMIN_PASSWORD` | 正式网站的初始群主密码，也是忘记密码时的重置方法 |
-| `ADMIN_PASSWORD_STAGING` | 测试网站的群主密码（不设置时沿用 `ADMIN_PASSWORD`） |
-| `TELEGRAM_BOT_TOKEN`、`TELEGRAM_BOT_TOKEN_STAGING` | 两个 Telegram 机器人（一个机器人只能有一个 webhook），可选 |
-| `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` | Google 登录，可选；配置方法见 [docs/google-login.zh.md](docs/google-login.zh.md) |
-| `TELEGRAM_DEV_BOT_TOKEN`、`TELEGRAM_DEV_CHAT_ID` | 可选：开发群通知。每个 PR 合并、每次正式发布（成功或失败）都发一条消息到开发者的 Telegram 群。用一个单独的机器人，不要用网站的机器人 |
-| `GOOGLE_MAPS_API_KEY` | 地址联想，可选；没有时使用免费的 Photon |
-| `RESEND_API_KEY`、`EMAIL_FROM` | 用邮箱注册的成员审核通过后自动发链接邮件、找回链接，可选 |
+| Secret                                               | 说明                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`      | Cloudflare 账号和 API 令牌（Workers 编辑 + D1 编辑权限）                                                                                                                                                                                                                                                           |
+| `ADMIN_PASSWORD`                                     | 正式网站的初始群主密码，也是忘记密码时的重置方法                                                                                                                                                                                                                                                                   |
+| `ADMIN_PASSWORD_STAGING`                             | 测试网站的群主密码（不设置时沿用 `ADMIN_PASSWORD`）                                                                                                                                                                                                                                                                |
+| `TELEGRAM_BOT_TOKEN`、`TELEGRAM_BOT_TOKEN_STAGING`   | 两个 Telegram 机器人（一个机器人只能有一个 webhook），可选                                                                                                                                                                                                                                                         |
+| `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`           | Google 登录，可选；配置方法见 [docs/google-login.zh.md](docs/google-login.zh.md)                                                                                                                                                                                                                                   |
+| `TELEGRAM_DEV_BOT_TOKEN`、`TELEGRAM_DEV_CHAT_ID`     | 可选：开发群通知。每个 PR 合并、每次正式发布（成功或失败）都发一条消息到开发者的 Telegram 群。用一个单独的机器人，不要用网站的机器人                                                                                                                                                                               |
+| `GOOGLE_MAPS_API_KEY`                                | 地址联想，可选；没有时使用免费的 Photon                                                                                                                                                                                                                                                                            |
+| `RESEND_API_KEY`、`EMAIL_FROM`                       | 用邮箱注册的成员审核通过后自动发链接邮件、找回链接，可选                                                                                                                                                                                                                                                           |
 | `LINK_ENCRYPTION_KEY`、`LINK_ENCRYPTION_KEY_STAGING` | 正式网站和测试网站 `TOKEN_KEY` 的备份。在管理页「设置 → 备份网站密钥」把密钥发到 Telegram 后存进来。每次部署都会核对它。核对在 `wrangler deploy` 之后进行，对不上时这次部署任务会失败，但新版本已经上线，后面的 `reset_admin_link` 步骤和冒烟测试也不会运行；万一 Worker 的 `TOKEN_KEY` 丢了，部署时自动用它填回去 |
 
 每个网站的 `TOKEN_KEY` 由 CI 在第一次部署时自动生成，之后不再更换（它加密保存成员链接、管理链接和 Google 表格同步的密钥，群主密码的哈希也由它派生；丢了的话，成员链接无法再显示或通过邮件找回（只能重新生成），Telegram 找回管理链接时会换一个新的，群主密码会被重置，Google 表格同步要重新生成密钥并粘贴新脚本）。Cloudflare 里看不到它的值，所以要用上面的 `LINK_ENCRYPTION_KEY` 备份。
 
 ### 文档
 
-| 文档 | 内容 |
-| --- | --- |
-| [docs/requirements.zh.md](docs/requirements.zh.md) | 需求文档：业务规则、页面、费用计算、对账、通知 |
-| [docs/technical-design.md](docs/technical-design.md) | 技术设计（英文）：架构、数据表、API、邮件处理、定时任务、部署 |
-| [docs/google-login.zh.md](docs/google-login.zh.md) | Google 登录：OAuth 配置、成员和群主的使用方式 |
+| 文档                                                 | 内容                                                                 |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| [docs/requirements.zh.md](docs/requirements.zh.md)   | 需求文档：业务规则、页面、费用计算、对账、通知                       |
+| [docs/technical-design.md](docs/technical-design.md) | 技术设计（英文）：架构、数据表、API、邮件处理、定时任务、部署        |
+| [docs/google-login.zh.md](docs/google-login.zh.md)   | Google 登录：OAuth 配置、成员和群主的使用方式                        |
 | [docs/launch-checklist.md](docs/launch-checklist.md) | 上线检查清单：交接、首次设置、真实环境验证、日常维护、打开组织者功能 |
 
 ### 测试站开发者登录
