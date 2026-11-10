@@ -62,21 +62,24 @@ export async function googleSession<E extends { Bindings: Env }>(c: Context<E>) 
 export const memberByGoogle = (env: Env, sub: string) =>
   env.DB.prepare("SELECT * FROM members WHERE google_sub = ? AND deleted_at IS NULL").bind(sub).first<MemberRow>();
 
-/** The active member signed in on this browser (Google, or the test site's developer), else null. */
-export async function signedInMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow | null> {
+/** The member signed in on this browser: the test site's developer, else the Google account's. */
+async function sessionMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow | null | "signed_out"> {
   const developer = await developerMember(c);
   if (developer) return developer;
   const session = await googleSession(c);
-  const m = session ? await memberByGoogle(c.env, session.google_sub) : null;
-  return m?.status === "active" ? m : null;
+  if (!session) return "signed_out";
+  return (await memberByGoogle(c.env, session.google_sub)) ?? null;
+}
+
+/** The active member signed in on this browser, else null: who may see the members-only 排行榜. */
+export async function signedInMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow | null> {
+  const m = await sessionMember(c);
+  return m !== "signed_out" && m?.status === "active" ? m : null;
 }
 
 export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow> {
-  const developer = await developerMember(c);
-  if (developer) return developer;
-  const session = await googleSession(c);
-  if (!session) throw loginRequired();
-  const m = await memberByGoogle(c.env, session.google_sub);
+  const m = await sessionMember(c);
+  if (m === "signed_out") throw loginRequired();
   if (!m) throw new HttpError(409, "profile_required", "请先完善成员资料");
   if (m.status === "pending")
     throw new HttpError(403, "pending_approval", "你的入群申请正在等待审核，通过后才能报名活动");

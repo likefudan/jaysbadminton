@@ -102,7 +102,7 @@ export function previousPeriod(day: string, unit: "year" | "month"): { from: str
 interface Extra {
   /** Who signed up among the first EARLY_PLACES of each counted event, by their own sign-up. */
   early: { member_id: string; date: string }[];
-  /** 排队: each 球馆账号 added and each court entry saved, by who did it (queue_credits). */
+  /** 排队: each 球馆账号 added and each court entry put in, by who did it (queue_credits). */
   queue: { member_id: string; date: string }[];
   calories: { member_id: string; date: string; kcal: number }[];
   names: Map<string, string>;
@@ -187,7 +187,7 @@ function boards(
   for (const c of x.calories) if (inside(c.date)) add(tallies.calories, c.member_id, x.names.get(c.member_id), c.kcal);
 
   // Hours to one decimal, from minutes, before ranking: the same hours shown share a rank.
-  for (const x of tallies.hours.values()) x.value = Math.round(x.value / 6) / 10;
+  for (const h of tallies.hours.values()) h.value = Math.round(h.value / 6) / 10;
   return Object.fromEntries(BOARD_KEYS.map((k) => [k, top(tallies[k])])) as Record<BoardKey, RankEntry[]>;
 }
 

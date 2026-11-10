@@ -623,9 +623,9 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   记录: { tw: "記錄", en: "Recorded" },
   平均每场: { tw: "平均每場", en: "Per event" },
   加入能量榜: { tw: "加入能量榜", en: "Join the Energy board" },
-  "首页排行榜会显示你的名字和千卡数，群里的成员都看得到。随时可以退出。": {
-    tw: "首頁排行榜會顯示你的名字和大卡數，群裡的成員都看得到。隨時可以退出。",
-    en: "The home page board shows your name and kcal to the group's members. You can leave any time.",
+  "首页排行榜会显示你的名字和千卡数。随时可以退出。": {
+    tw: "首頁排行榜會顯示你的名字和大卡數。隨時可以退出。",
+    en: "The home page board shows your name and kcal. You can leave any time.",
   },
   能量: { tw: "能量", en: "Energy" },
   "查看全部 {n} 人": { tw: "查看全部 {n} 人", en: "Show all {n}" },
