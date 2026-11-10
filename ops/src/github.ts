@@ -198,7 +198,8 @@ async function read(env: Env) {
   let progress: { tag: string; url: string; at: string; sites: Record<string, SiteProgress> } | null = null;
   const live = deploys.find((d) => d.running);
   if (live) {
-    const chosen = chosenIn(live.jobs) ?? [];
+    // A tag from before the sites were put in a step name: the sites that already have a job.
+    const chosen = chosenIn(live.jobs) ?? live.sites.map((s) => s.id);
     progress = { tag: live.tag, url: live.url, at: live.at, sites: progressOf(live.jobs, chosen) };
   } else {
     const run = releaseRuns.workflow_runs.find((r) => r.status !== "completed");
