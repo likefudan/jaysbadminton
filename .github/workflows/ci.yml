@@ -7,7 +7,9 @@ name: CI
 # Run workflow by hand: on main → redeploys staging; on a v* tag → deploys that release to the
 #   production sites named in `sites` (all of them by default). This is also how a site catches up
 #   to an older release or rolls back: run it on that tag with that site. A site whose database has
-#   run migrations the tag does not have is refused (scripts/check-migrations.mjs).
+#   run migrations the tag does not have is refused (scripts/check-migrations.mjs). `tested` skips
+#   the tests when this commit already passed them on main (the Release workflow checks that), so a
+#   rollback is not held up, or blocked, by re-running an old release's tests.
 on:
   pull_request:
   push:
@@ -23,6 +25,10 @@ on:
         description: "On a v* tag: which production sites to deploy. all = every site; or ids separated by commas: jays (Jay's site), then the ids in sites.json (e.g. sbbc, bewithyou, coco)"
         type: string
         default: all
+      tested:
+        description: "On a v* tag: skip the tests because this commit already passed them on main (Release sets this for an existing version)"
+        type: boolean
+        default: false
 
 # Read-only token: nothing here writes to the repository (deploys use the Cloudflare token).
 permissions:
@@ -36,6 +42,7 @@ concurrency:
 jobs:
   # Unit tests (in two halves) and the browser tests run side by side; deploys wait for all of them.
   check:
+    if: ${{ !(inputs.tested && startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -58,6 +65,7 @@ jobs:
       - run: npm test -- --maxWorkers=2 --shard=1/2
 
   unit-2:
+    if: ${{ !(inputs.tested && startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -78,6 +86,7 @@ jobs:
   # The browser tests in two halves at the same time: e2e runs flows.spec.ts, e2e-2 all the others.
   e2e:
     name: ${{ matrix.shard == 1 && 'e2e' || 'e2e-2' }}
+    if: ${{ !(inputs.tested && startsWith(github.ref, 'refs/tags/v')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -173,11 +182,13 @@ jobs:
           SITE_ORIGIN: https://staging.jaysbadminton.llmat.dev
 
   # The release site badminton.llmat.dev (ops/): Ke Li's page for releasing to chosen sites. A tool,
-  # not part of a release, so it follows main.
+  # not part of a release, so it follows main. Its failure does not turn CI on main red (a release needs
+  # that green, and the tool must not hold releases up); the developers' Telegram group hears of it.
   deploy-ops:
     needs: [check, unit-2, e2e]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    continue-on-error: true
     concurrency: deploy-ops
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -207,11 +218,20 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       - name: Smoke test the release site
         run: |
-          for i in 1 2 3 4 5 6; do
+          # Up to 3 minutes: a new domain's certificate takes a while.
+          for i in $(seq 18); do
             curl -fsS https://badminton.llmat.dev/health && exit 0
             sleep 10
           done
           exit 1
+      - name: Tell the developers when it failed
+        if: failure()
+        env:
+          TELEGRAM_DEV_BOT_TOKEN: ${{ secrets.TELEGRAM_DEV_BOT_TOKEN }}
+          TELEGRAM_DEV_CHAT_ID: ${{ secrets.TELEGRAM_DEV_CHAT_ID }}
+        run: |
+          scripts/notify-dev.sh "$(printf '⚠️ 发布管理网站 badminton.llmat.dev 部署失败（不影响正式站发布）：\n%s/%s/actions/runs/%s' \
+            "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
 
   # Which production sites this release goes to (the `sites` input; every site on a tag push).
   plan:
@@ -238,7 +258,10 @@ jobs:
 
   deploy-production:
     needs: [check, unit-2, e2e, plan]
-    if: needs.plan.outputs.main == 'true'
+    if: >-
+      !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.main == 'true' &&
+      (inputs.tested ||
+       (needs.check.result == 'success' && needs.unit-2.result == 'success' && needs.e2e.result == 'success'))
     runs-on: ubuntu-latest
     concurrency: deploy-production
     env:
@@ -265,7 +288,7 @@ jobs:
       - run: node scripts/resolve-d1.mjs production
       - name: The database is not newer than this release
         run: node scripts/check-migrations.mjs
-      # Encrypted with BACKUP_KEY: the repository is public, and so are its artifacts.
+      # Encrypted with BACKUP_KEY: the plain SQL never leaves this runner.
       - name: Back up the production database
         run: scripts/backup-db.sh "jaysbadminton-${GITHUB_REF_NAME}-$(date -u +%Y%m%dT%H%M%SZ)"
         env:
@@ -307,7 +330,8 @@ jobs:
     needs: [check, unit-2, e2e, plan, deploy-production]
     if: >-
       !cancelled() && needs.plan.outputs.sites != '[]' && needs.plan.result == 'success' &&
-      needs.check.result == 'success' && needs.unit-2.result == 'success' && needs.e2e.result == 'success' &&
+      (inputs.tested ||
+       (needs.check.result == 'success' && needs.unit-2.result == 'success' && needs.e2e.result == 'success')) &&
       (needs.deploy-production.result == 'success' ||
        (needs.deploy-production.result == 'skipped' && needs.plan.outputs.main != 'true'))
     runs-on: ubuntu-latest

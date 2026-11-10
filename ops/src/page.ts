@@ -131,9 +131,9 @@ async function send(sites, tag) {
   const names = sites.length === data.sites.length ? "全部 " + sites.length + " 个站点" : sites.map(siteName).join("、");
   const what = tag ? "把 " + tag : "从 main 打新版本 " + data.next + " 并";
   if (!confirm(what + " 发布到：" + names + "？\\n\\n每个站点发布前都会先备份数据库，约 3–5 分钟完成。")) return false;
-  const res = await fetch("/api/release", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sites, tag }) });
+  const res = await fetch("/api/release", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sites, tag, main: tag ? undefined : data.main }) });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) { toast(body.error || "没能开始发布"); return false; }
+  if (!res.ok) { toast(body.error || "没能开始发布"); if (body.moved) load(); return false; }
   toast("已开始发布，下面「最近的部署」会显示进度");
   pollUntil = Date.now() + 10 * 60000;
   clearTimeout(timer);
@@ -194,7 +194,12 @@ function deploysCard() {
     const mark = d.running ? "⏳" : d.ok ? "✓" : "✗";
     if (!d.tag) return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },
       h("div", { class: "row" }, h("span", { class: "warn" }, "✗ 发布没开始，点开看原因"), h("span", { class: "muted nowrap" }, when(d.at)))));
-    const names = d.sites.length === data.sites.length ? "全部" : d.sites.length ? d.sites.map((j) => siteName(j.id).replace(/\\s*羽毛球$/, "")).join("、") : "没有部署";
+    // When a site failed or is still going, each site says how it went.
+    const one = (j) => siteName(j.id).replace(/\\s*羽毛球$/, "");
+    const mixed = d.sites.some((j) => j.conclusion !== "success");
+    const names = !d.sites.length ? "没有部署"
+      : mixed ? d.sites.map((j) => one(j) + (j.conclusion === "success" ? " ✓" : j.status !== "completed" ? " ⏳" : " ✗")).join("、")
+      : d.sites.length === data.sites.length ? "全部" : d.sites.map(one).join("、");
     return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },
       h("div", { class: "row" }, h("span", {}, mark + " ", h("span", { class: "tag" }, d.tag), " → " + names), h("span", { class: "muted nowrap" }, when(d.at)))));
   }));
@@ -209,7 +214,7 @@ function openPanel(s) {
     const locked = !s.movable.includes(v.tag);
     const newer = isTag(s.version) && cmpTag(v.tag, s.version) > 0;
     const label = current ? h("span", { class: "muted" }, "当前")
-      : !v.perSite ? h("span", { class: "muted" }, "只能和全部站点一起发")
+      : !v.perSite ? h("span", { class: "muted" }, "太旧，不能在这里换")
       : locked ? h("span", { class: "muted" }, "要先恢复备份 🔒")
       : newer || !isTag(s.version) ? h("span", { class: "pill" }, v.tag === data.latest ? "最新" : "较新")
       : h("span", { class: "muted" }, "回滚");

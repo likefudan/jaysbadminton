@@ -32,8 +32,9 @@ async function newestAt(env: Env, tag: string): Promise<string | undefined> {
   return newestMigration.get(tag);
 }
 
-// Whether a tag can go to some sites only: releases before per-site releases run their own ci.yml,
-// which deploys every site. Same test as release.yml: that tag's ci.yml has the `sites` input.
+// Whether the Release workflow will deploy a tag: releases before per-site releases run their own
+// ci.yml, which deploys every site, checks no migrations and uploads the backup unencrypted, so
+// release.yml refuses them. Same test as there: that tag's ci.yml has the `sites` input.
 const perSiteTags = new Map<string, boolean>();
 async function perSite(env: Env, tag: string): Promise<boolean> {
   if (!perSiteTags.has(tag)) {
@@ -91,12 +92,12 @@ async function read(env: Env) {
   const all = sites(env);
   const [releases, tags, healths, mainCommit, ciRuns, deployRuns, releaseRuns] = await Promise.all([
     gh<{ tag_name: string; published_at: string; draft: boolean }[]>(env, "/releases?per_page=30"),
-    gh<{ name: string }[]>(env, "/tags?per_page=50"),
+    gh<{ name: string }[]>(env, "/tags?per_page=100"),
     Promise.all(all.map(health)),
     gh<{ sha: string }>(env, "/commits/main"),
     gh<{ workflow_runs: (Run & { head_sha: string })[] }>(
       env,
-      "/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=5",
+      "/actions/workflows/ci.yml/runs?branch=main&per_page=10",
     ),
     gh<{ workflow_runs: Run[] }>(env, "/actions/workflows/ci.yml/runs?event=workflow_dispatch&per_page=8"),
     gh<{ workflow_runs: Run[] }>(env, "/actions/workflows/release.yml/runs?per_page=5"),
@@ -160,8 +161,11 @@ async function read(env: Env) {
     .map((c) => (c.commit.message.split("\n")[0] ?? "").replace(/\s*\(#\d+\)$/, ""))
     .reverse()
     .slice(0, 12);
-  const mainRun = ciRuns.workflow_runs.find((r) => r.head_sha === mainCommit.sha);
-  const mainCi = !mainRun ? "none" : mainRun.status !== "completed" ? "running" : (mainRun.conclusion ?? "none");
+  // As the Release workflow judges it: the newest finished CI run of main's latest commit (a run
+  // started again by hand counts too).
+  const mainRuns = ciRuns.workflow_runs.filter((r) => r.head_sha === mainCommit.sha);
+  const finished = mainRuns.find((r) => r.status === "completed" && r.conclusion);
+  const mainCi = finished ? finished.conclusion! : mainRuns.length ? "running" : "none";
 
   // A Release run that stopped before deploying anything (a refused version, main not green) shows too.
   const refused = releaseRuns.workflow_runs
@@ -184,6 +188,8 @@ async function read(env: Env) {
     }),
     versions: shown.map((v) => ({ ...v, migration: newest[v.tag] ?? null, perSite: single[v.tag] ?? false })),
     latest,
+    // The commit a new release would tag; the page sends it back so nothing it did not list is released.
+    main: mainCommit.sha,
     next: nextTag(tags.map((t) => t.name)),
     pending,
     pendingCount,
@@ -193,14 +199,22 @@ async function read(env: Env) {
   };
 }
 
-/** Starts the Release workflow on main: a new version (no tag) or an existing one, to these sites. */
-export async function release(env: Env, chosen: string[], tag: string | null) {
+/** main moved on after the page was drawn: what it listed is no longer what would be released. */
+export class MainMoved extends Error {}
+
+/**
+ * Starts the Release workflow on main, to these sites: an existing version (`tag`), or a new one made
+ * from main, only while main's latest commit is still `expect`, the one whose changes the page listed
+ * (the workflow checks that again, in case main moves in between).
+ */
+export async function release(env: Env, chosen: string[], version: { tag: string } | { expect: string }) {
+  if ("expect" in version) {
+    const { sha } = await gh<{ sha: string }>(env, "/commits/main");
+    if (sha !== version.expect) throw new MainMoved();
+  }
   const everySite = chosen.length === sites(env).length;
   await gh(env, "/actions/workflows/release.yml/dispatches", {
     method: "POST",
-    body: JSON.stringify({
-      ref: "main",
-      inputs: { sites: everySite ? "all" : chosen.join(","), ...(tag ? { tag } : {}) },
-    }),
+    body: JSON.stringify({ ref: "main", inputs: { sites: everySite ? "all" : chosen.join(","), ...version } }),
   });
 }
