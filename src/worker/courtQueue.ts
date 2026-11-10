@@ -303,6 +303,22 @@ export async function removeCourts(env: Env, e: EventRow, body: Record<string, u
   return res.meta.changes ?? 0;
 }
 
+/**
+ * Cron: once an event's 球场排队 is over (3 hours after its end, as the card goes; cancelled; or the
+ * switch turned off), its 球馆账号 (usernames and passwords), the courts entered and the photos are
+ * deleted for good (Ke Li 2026-11-10): none of it is kept past the evening it was for.
+ */
+export async function purgeEndedQueues(env: Env, at = new Date()) {
+  const ended = `event_id IN (SELECT id FROM events
+     WHERE end_at <= ?1 OR status = 'cancelled' OR queue_round_min IS NULL)`;
+  const cutoff = new Date(at.getTime() - AFTER_END_MS).toISOString();
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM queue_accounts WHERE ${ended}`).bind(cutoff),
+    env.DB.prepare(`DELETE FROM queue_courts WHERE ${ended}`).bind(cutoff),
+    env.DB.prepare(`DELETE FROM queue_photos WHERE ${ended}`).bind(cutoff),
+  ]);
+}
+
 /** For deleteEvent: the event's courts, accounts and photos go with it. */
 export const deleteQueue = (env: Env, eventId: number): D1PreparedStatement[] => [
   env.DB.prepare("DELETE FROM queue_photos WHERE event_id = ?").bind(eventId),

@@ -31,6 +31,7 @@ import { publicRoutes } from "./routes/public";
 import { googleRoutes } from "./googleAuth";
 import { diagnoseOversizedEmail, purgePaymentDiagnostics } from "./paymentDiagnostics";
 import { purgeCourtPhotos } from "./courtPhoto";
+import { purgeEndedQueues } from "./courtQueue";
 import { sendReleaseNotices } from "./releaseNotice";
 import { saveUpload } from "./calories";
 
@@ -179,9 +180,10 @@ export default {
       console.error("payment diagnostic cleanup failed:", err);
     }
     try {
-      await purgeCourtPhotos(env); // 拍照登记 photos after 7 days
+      await purgeEndedQueues(env); // 球馆账号, courts and photos once the event's queue is over
+      await purgeCourtPhotos(env); // and any photo after 7 days
     } catch (err) {
-      console.error("court photo cleanup failed:", err);
+      console.error("court queue cleanup failed:", err);
     }
     try {
       await endDueNoFeeEvents(env); // 无需收款 events an hour past their end go to history
