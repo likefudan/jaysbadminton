@@ -39,7 +39,7 @@
 | --- | --- |
 | 试新功能 | 合并到 `main` 后自动部署到**测试环境** https://staging.jaysbadminton.llmat.dev （顶部有黄色「测试环境」横幅，数据和正式网站分开，可以随便试） |
 | 发布到正式网站 | 测试环境确认没问题后，运行 GitHub → Actions → **Release**（分支选 `main`）或让 Claude「发布」，自动打上 `vYYYY.MM.DD` 标签并发布 Release；也可以在 GitHub → Releases 手动新建标签。会先备份正式数据库，再部署，并自动检查线上网站 |
-| 回滚 | GitHub → Actions → CI → Run workflow → Use workflow from 选要回到的版本标签 → Run。会先跑一遍检查和测试再部署，约 2–3 分钟。只能回滚到 migrations 文件夹里已经包含数据库执行过的全部迁移的版本，也就是不早于最近一次新增迁移的那个版本（在那个标签上 `ls migrations/` 可以看到）；更早的版本要先用发布前的数据库备份恢复数据库（见 README「回滚的限制」） |
+| 回滚 | GitHub → Actions → Release → Run workflow，「版本」填要回到的版本标签，「站点」填要回滚的站点（或 `all`）；也可以 Actions → CI → Run workflow → Use workflow from 选那个版本标签。会先跑一遍检查和测试再部署，约 2–3 分钟。只能回滚到 migrations 文件夹里已经包含数据库执行过的全部迁移的版本，也就是不早于最近一次新增迁移的那个版本（在那个标签上 `ls migrations/` 可以看到）；更早的版本要先用发布前的数据库备份恢复数据库（见 README「回滚的限制」） |
 | 出问题看哪里 | GitHub → Actions 看部署记录；Cloudflare → Workers → jaysbadminton → Logs 看运行日志 |
 | 数据恢复 | Cloudflare D1 自带 7 天「时间回溯」；每次发布前的数据库备份在那次 Actions 运行的 Artifacts 里（`db-encrypted-…`，用 GitHub secret `BACKUP_KEY` 加密，保存 90 天；解密方法见 README「回滚的限制」）；开了 Google 表格同步的话，表格的「版本记录」里也有每天的数据 |
 | 忘记管理链接 | Telegram 给机器人发「管理页面」；或者 Actions → CI → Run workflow，Use workflow from 选**最新的版本标签**，勾选 `reset_admin_link`（正式环境）；测试环境则选 **main**。之后用当前的群主密码重新设置（没在管理页改过的话，正式环境是 `ADMIN_PASSWORD`，测试环境是 `ADMIN_PASSWORD_STAGING`） |

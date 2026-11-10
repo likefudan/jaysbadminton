@@ -1,5 +1,7 @@
-import { exports } from "cloudflare:workers";
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import worker from "../src/worker/index";
 
 describe("skeleton", () => {
   it("reports health with the migrated database", async () => {
@@ -9,6 +11,17 @@ describe("skeleton", () => {
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+  });
+
+  it("says which release is running once CI has set it", async () => {
+    const ctx = createExecutionContext();
+    const res = await worker.fetch(
+      new Request("https://example.com/api/health"),
+      { ...env, APP_VERSION: "v2026.11.10" },
+      ctx,
+    );
+    await waitOnExecutionContext(ctx);
+    expect(await res.json()).toEqual({ ok: true, version: "v2026.11.10" });
   });
 
   it("returns an empty home page payload", async () => {

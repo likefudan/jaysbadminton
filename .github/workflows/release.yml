@@ -2,16 +2,29 @@ name: Release
 
 # 一键发布: Actions → Release → Run workflow (on main). Tags the latest main as vYYYY.MM.DD
 # (Pacific date; .2, .3 … for later releases the same day), publishes a GitHub release with the
-# merged PRs as notes, then starts CI on that tag, which backs up the database and deploys
-# production (see ci.yml). Only a commit whose CI on main is green can be released.
+# merged PRs as notes, then starts CI on that tag, which backs up the database and deploys the
+# chosen production sites (see ci.yml). Only a commit whose CI on main is green can be released.
+#
+# 站点: "all" (the default) for every production site, or some of them, e.g. "jays, sbbc" (jays is
+# Jay's site, the others are the ids in sites.json). The sites left out stay on their release.
+# 版本: empty makes a new release from main; an existing tag, e.g. v2026.11.09, makes no release and
+# only deploys that one to the chosen sites (bring a site up to it, or roll a site back to it).
 #
 # The tag and release are created with this workflow's token, which does not fire the usual
 # tag-push run, so the last step starts that run itself.
 on:
   workflow_dispatch:
     inputs:
+      sites:
+        description: "发布到哪些站点：all = 全部；或者用逗号分开写站点代号：jays（Jay's 正式站）, sbbc, bewithyou, coco"
+        type: string
+        default: all
+      tag:
+        description: "版本：留空 = 用最新的 main 打一个新版本；填已有版本（如 v2026.11.09）= 不打新版本，只把它部署到上面的站点（补上或回滚）"
+        type: string
+        required: false
       notes:
-        description: "发布说明（Markdown，可留空；合并的 PR 列表总会附在后面）"
+        description: "发布说明（Markdown，可留空；合并的 PR 列表总会附在后面；只用于新版本）"
         type: string
         required: false
 
@@ -35,7 +48,23 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Check the sites
+        env:
+          SITES: ${{ inputs.sites }}
+        run: node scripts/release-plan.mjs
+      - name: The existing version
+        id: existing
+        if: inputs.tag != ''
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] || ! git rev-parse -q --verify "refs/tags/$TAG" > /dev/null; then
+            echo "::error::没有版本 $TAG（版本像 v2026.11.09，见 Releases）"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
       - name: main must be green and not released yet
+        if: inputs.tag == ''
         run: |
           state=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --json conclusion,headBranch \
             --jq '[.[] | select(.headBranch == "main" and .conclusion != "")][0].conclusion')
@@ -50,6 +79,7 @@ jobs:
           fi
       - name: Pick the version
         id: version
+        if: inputs.tag == ''
         run: |
           day=$(TZ=America/Los_Angeles date +%Y.%m.%d)
           tag="v$day"
@@ -60,17 +90,29 @@ jobs:
           done
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Tag and publish the release
+        if: inputs.tag == ''
         env:
           TAG: ${{ steps.version.outputs.tag }}
           NOTES: ${{ inputs.notes }}
         run: gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes "$NOTES" --generate-notes
       - name: Deploy it to production
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ steps.existing.outputs.tag || steps.version.outputs.tag }}
+          SITES: ${{ inputs.sites || 'all' }}
+          # The commit to deploy (a new tag exists only on GitHub so far, not in this checkout).
+          COMMIT: ${{ steps.existing.outputs.tag || github.sha }}
         run: |
-          gh workflow run ci.yml --ref "$TAG"
+          # Releases before per-site deploys run their own ci.yml, which knows no sites and deploys every site.
+          if git show "$COMMIT:.github/workflows/ci.yml" 2> /dev/null | grep -q '^      sites:$'; then
+            gh workflow run ci.yml --ref "$TAG" -f sites="$SITES"
+          elif [ "$SITES" = all ]; then
+            gh workflow run ci.yml --ref "$TAG"
+          else
+            echo "::error::$TAG 还不能按站点发布（它之前的版本都会部署到全部站点）；请选 all，或者用更新的版本"
+            exit 1
+          fi
           {
-            echo "### Released $TAG"
+            echo "### Released $TAG to: $SITES"
             echo
             echo "- Release: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG"
             echo "- Production deploy: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/ci.yml (the run on $TAG)"
