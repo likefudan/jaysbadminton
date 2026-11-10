@@ -649,12 +649,21 @@ function PhotoButton(props: { path: string; disabled: boolean; onRead: (url: str
       props.onRead(`data:image/jpeg;base64,${image}`, result);
     });
   }
+  const off = busy || props.disabled;
+  // Two inputs: Android's Chrome shows only the photo picker (no camera) for a plain image/* input,
+  // so the main button asks for the camera with capture; 相册 picks a photo already taken.
   return (
     <div class="cq-photo">
-      <label class={`button secondary block cq-photo-button${busy || props.disabled ? " disabled" : ""}`}>
-        <input type="file" accept="image/*" disabled={busy || props.disabled} onChange={pick} />
-        {busy ? t("识别中…") : t("📷 拍照登记")}
-      </label>
+      <div class="cq-photo-row">
+        <label class={`button secondary cq-photo-button cq-photo-camera${off ? " disabled" : ""}`}>
+          <input type="file" accept="image/*" capture="environment" disabled={off} onChange={pick} />
+          {busy ? t("识别中…") : t("📷 拍照登记")}
+        </label>
+        <label class={`button secondary cq-photo-button cq-photo-album${off ? " disabled" : ""}`}>
+          <input type="file" accept="image/*" disabled={off} onChange={pick} />
+          {t("相册")}
+        </label>
+      </div>
       {error && <p class="error">{error}</p>}
     </div>
   );

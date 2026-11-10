@@ -823,6 +823,7 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   搜索账号: { tw: "搜尋帳號", en: "Search accounts" },
   "📷 拍照登记": { tw: "📷 拍照登記", en: "📷 Read from photo" },
   "识别中…": { tw: "辨識中…", en: "Reading…" },
+  相册: { tw: "相簿", en: "Album" },
   "这张照片打不开，请重新拍一张": {
     tw: "這張照片打不開，請重新拍一張",
     en: "Couldn't open this photo. Please take another",

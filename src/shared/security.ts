@@ -33,7 +33,8 @@ export const SECURITY_HEADERS: Record<string, string> = {
   "X-Frame-Options": "DENY",
   // Member and admin links carry secret tokens in the path; keep them out of referrers.
   "Referrer-Policy": "no-referrer",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+  // camera=(self): 拍照登记 opens the phone camera from a file input (capture); nothing else uses it.
+  "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=()",
   "Strict-Transport-Security": HSTS,
   [CSP_HEADER]: CSP,
 };
