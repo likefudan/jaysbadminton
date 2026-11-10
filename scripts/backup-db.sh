@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Backs up a D1 database for an Actions artifact, ENCRYPTED: the repository is public and so are
-# its artifacts, so the plain SQL never leaves this runner. Writes backup/<stem>.sql.gz.enc.
+# Backs up a D1 database for an Actions artifact, ENCRYPTED, so the plain SQL never leaves this
+# runner (anyone who can read the repository's Actions can download its artifacts).
+# Writes backup/<stem>.sql.gz.enc.
 #
 # Usage: scripts/backup-db.sh <stem> [extra wrangler args, e.g. --config wrangler.sbbc.json]
 # Needs BACKUP_KEY (GitHub secret; keep a copy in a password manager, GitHub can't show it again).

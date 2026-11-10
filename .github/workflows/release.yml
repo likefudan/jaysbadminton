@@ -7,8 +7,11 @@ name: Release
 #
 # 站点: "all" (the default) for every production site, or some of them, e.g. "jays, sbbc" (jays is
 # Jay's site, the others are the ids in sites.json). The sites left out stay on their release.
-# 版本: empty makes a new release from main; an existing tag, e.g. v2026.11.09, makes no release and
+# 版本: empty makes a new release from main; an existing tag, e.g. v2026.11.12, makes no release and
 # only deploys that one to the chosen sites (bring a site up to it, or roll a site back to it).
+# Its tests are not run again when that commit passed them on main. Releases from before per-site
+# releases (v2026.11.09 and older) are refused: their own CI has no migration check and uploads the
+# database backup unencrypted (README「回滚」says how to go back to one by hand).
 #
 # The tag and release are created with this workflow's token, which does not fire the usual
 # tag-push run, so the last step starts that run itself.
@@ -20,7 +23,11 @@ on:
         type: string
         default: all
       tag:
-        description: "版本：留空 = 用最新的 main 打一个新版本；填已有版本（如 v2026.11.09）= 不打新版本，只把它部署到上面的站点（补上或回滚）"
+        description: "版本：留空 = 用最新的 main 打一个新版本；填已有版本（如 v2026.11.12）= 不打新版本，只把它部署到上面的站点（补上或回滚）"
+        type: string
+        required: false
+      expect:
+        description: "（发布管理网站用）只有 main 的最新提交是这个时才打新版本，可留空"
         type: string
         required: false
       notes:
@@ -62,10 +69,31 @@ jobs:
             echo "::error::没有版本 $TAG（版本像 v2026.11.09，见 Releases）"
             exit 1
           fi
+          # Deploying a tag runs that tag's own ci.yml and scripts.
+          ci=$(git show "$TAG:.github/workflows/ci.yml")
+          if ! grep -q '^      sites:$' <<< "$ci" ||
+            ! git cat-file -e "$TAG:scripts/check-migrations.mjs" || ! git cat-file -e "$TAG:scripts/backup-db.sh"; then
+            echo "::error::$TAG 太旧，不能在这里部署：它自己的发布流程没有数据库迁移检查，备份也不加密。请用更新的版本；一定要回到它，见 README「回滚」"
+            exit 1
+          fi
+          # Its tests need not run again when this commit passed CI on main.
+          tested=false
+          if grep -q '^      tested:$' <<< "$ci"; then
+            green=$(gh run list --workflow ci.yml --commit "$(git rev-list -n 1 "$TAG")" --json conclusion,headBranch \
+              --jq '[.[] | select(.headBranch == "main" and .conclusion == "success")] | length') || green=0
+            if [ "${green:-0}" -gt 0 ]; then tested=true; fi
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
       - name: main must be green and not released yet
         if: inputs.tag == ''
+        env:
+          EXPECT: ${{ inputs.expect }}
         run: |
+          if [ -n "$EXPECT" ] && [ "$EXPECT" != "$GITHUB_SHA" ]; then
+            echo "::error::main 已经有新的改动（现在是 ${GITHUB_SHA:0:7}），和发布管理网站上看到的不一样；请刷新页面再发布"
+            exit 1
+          fi
           state=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --json conclusion,headBranch \
             --jq '[.[] | select(.headBranch == "main" and .conclusion != "")][0].conclusion')
           if [ "$state" != "success" ]; then
@@ -74,7 +102,7 @@ jobs:
           fi
           already=$(git tag --points-at "$GITHUB_SHA" 'v*' | head -1)
           if [ -n "$already" ]; then
-            echo "::error::${GITHUB_SHA:0:7} is already released as $already. To redeploy it, run CI on that tag."
+            echo "::error::${GITHUB_SHA:0:7} 已经发布过了，版本是 $already。要把它部署到某些站点，在「版本」里填 $already 再运行"
             exit 1
           fi
       - name: Pick the version
@@ -99,17 +127,12 @@ jobs:
         env:
           TAG: ${{ steps.existing.outputs.tag || steps.version.outputs.tag }}
           SITES: ${{ inputs.sites || 'all' }}
-          # The commit to deploy (a new tag exists only on GitHub so far, not in this checkout).
-          COMMIT: ${{ steps.existing.outputs.tag || github.sha }}
+          TESTED: ${{ steps.existing.outputs.tested || 'false' }}
         run: |
-          # Releases before per-site deploys run their own ci.yml, which knows no sites and deploys every site.
-          if git show "$COMMIT:.github/workflows/ci.yml" 2> /dev/null | grep -q '^      sites:$'; then
-            gh workflow run ci.yml --ref "$TAG" -f sites="$SITES"
-          elif [ "$SITES" = all ]; then
-            gh workflow run ci.yml --ref "$TAG"
+          if [ "$TESTED" = true ]; then
+            gh workflow run ci.yml --ref "$TAG" -f sites="$SITES" -f tested=true
           else
-            echo "::error::$TAG 还不能按站点发布（它之前的版本都会部署到全部站点）；请选 all，或者用更新的版本"
-            exit 1
+            gh workflow run ci.yml --ref "$TAG" -f sites="$SITES"
           fi
           {
             echo "### Released $TAG to: $SITES"

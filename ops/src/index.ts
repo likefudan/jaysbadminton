@@ -2,7 +2,7 @@
 // reads /api/state and asks /api/release to start the Release workflow, which backs up, migrates and
 // deploys the chosen sites exactly as when it is run by hand in GitHub.
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { forget, release, state } from "./github";
+import { forget, MainMoved, release, state } from "./github";
 import { type Env, pickSites, randomToken, sha256, sign, sites, TAG, unsign } from "./logic";
 import { APP_CSS, APP_JS, page } from "./page";
 
@@ -72,7 +72,6 @@ async function startLogin(env: Env): Promise<Response> {
     nonce,
     code_challenge: await sha256(verifier),
     code_challenge_method: "S256",
-    login_hint: env.OPS_EMAIL!,
     prompt: "select_account",
   }).toString();
   const saved = await sign(env.OPS_SESSION_KEY!, `${state}.${nonce}.${verifier}`, 600);
@@ -151,17 +150,25 @@ export default {
       }
     }
     if (path === "/api/release" && req.method === "POST") {
-      const body = (await req.json().catch(() => null)) as { sites?: unknown; tag?: unknown } | null;
+      const body = (await req.json().catch(() => null)) as { sites?: unknown; tag?: unknown; main?: unknown } | null;
       const chosen = pickSites(body?.sites, sites(env));
       const tag = body?.tag ?? null;
+      const main = body?.main;
       if (!chosen) return json({ error: "请选择站点" }, 400);
       if (tag !== null && (typeof tag !== "string" || !TAG.test(tag))) return json({ error: "版本不对" }, 400);
+      // A new version names the commit the page listed the changes of.
+      if (tag === null && (typeof main !== "string" || !/^[0-9a-f]{40}$/.test(main)))
+        return json({ error: "请刷新页面再试" }, 400);
       try {
-        await release(env, chosen, tag);
+        await release(env, chosen, tag === null ? { expect: main as string } : { tag });
         forget();
         console.log(`ops: ${email} released ${tag ?? "a new version"} to ${chosen.join(",")}`);
         return json({ ok: true });
       } catch (err) {
+        if (err instanceof MainMoved) {
+          forget();
+          return json({ error: "main 上有了新的改动，页面已经刷新，请看过再发布", moved: true }, 409);
+        }
         console.error("ops release failed:", err);
         return json({ error: `没能开始发布：${(err as Error).message}` }, 502);
       }

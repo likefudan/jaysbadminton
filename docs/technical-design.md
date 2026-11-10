@@ -248,7 +248,7 @@ One TypeScript repository (`likefudan/jaysbadminton`) builds one Worker that ser
 | QR codes | `qrcode` npm package, rendered in the browser | Owner long-presses to save, as required |
 | Email parsing | `postal-mime` | Standard MIME parser for Email Workers |
 | Tests | Vitest + `@cloudflare/vitest-pool-workers`; Playwright browser tests (`e2e/`) | Unit/integration against a real local D1; browser tests drive the main flows on a local Worker with a fresh database (`scripts/e2e-server.sh`) |
-| CI/CD | GitHub Actions: lint (Biome), typecheck, test, build, browser tests; `main` → staging, `v*` tag → production (tag-on-main check, D1 export artifact encrypted with `BACKUP_KEY` (scripts/backup-db.sh; the repo and its artifacts are public), migrations, deploy, secret sync, smoke test); re-running on an older tag rolls back, but only to a release that already has every migration production has run (see README 回滚的限制); Dependabot opens monthly grouped update PRs | Uses a `CLOUDFLARE_API_TOKEN` repository secret |
+| CI/CD | GitHub Actions: lint (Biome), typecheck, test, build, browser tests; `main` → staging, `v*` tag → production (tag-on-main check, D1 export artifact encrypted with `BACKUP_KEY` (scripts/backup-db.sh), migrations, deploy, secret sync, smoke test); re-running on an older tag rolls back, but only to a release that already has every migration production has run (see README 回滚的限制); Dependabot opens monthly grouped update PRs | Uses a `CLOUDFLARE_API_TOKEN` repository secret |
 
 ```text
 docs/            requirements (Chinese), this design, Google sign-in setup, launch checklist

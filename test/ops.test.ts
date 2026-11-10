@@ -76,6 +76,9 @@ describe("release site", () => {
     const url = new URL(res.headers.get("Location")!);
     expect(url.host).toBe("accounts.google.com");
     expect(url.searchParams.get("redirect_uri")).toBe("https://badminton.llmat.dev/auth/callback");
+    // The allowed email is not shown to visitors.
+    expect(url.search).not.toContain("example.com");
+    expect(url.searchParams.get("login_hint")).toBeNull();
     expect(res.headers.get("Set-Cookie")).toMatch(/__Host-ops-oauth=.*HttpOnly; Secure/);
   });
 
@@ -111,11 +114,33 @@ describe("release site", () => {
       url: "https://api.github.com/repos/likefudan/jaysbadminton/actions/workflows/release.yml/dispatches",
       body: { ref: "main", inputs: { sites: "sbbc", tag: "v2026.11.09" } },
     });
-    expect((await post({ sites: sites(ENV).map((s) => s.id), tag: null })).status).toBe(200);
-    expect(asked[1]?.body).toEqual({ ref: "main", inputs: { sites: "all" } });
     expect((await post({ sites: ["sbbc"], tag: "main; rm" })).status).toBe(400);
     expect((await post({ sites: ["sbbcx"] })).status).toBe(400);
-    expect(asked).toHaveLength(2);
+    // A new version must name the commit the page listed.
+    expect((await post({ sites: ["sbbc"], tag: null })).status).toBe(400);
+    expect(asked).toHaveLength(1);
+  });
+
+  it("releases a new version only while main is the commit the page listed", async () => {
+    const sha = "a".repeat(40);
+    const dispatched: unknown[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/commits/main")) return Response.json({ sha });
+      dispatched.push(JSON.parse(String(init?.body)));
+      return new Response(null, { status: 204 });
+    });
+    const post = async (main: string) =>
+      call("/api/release", {
+        method: "POST",
+        headers: { Cookie: await signedIn(), Origin: ENV.OPS_ORIGIN, "Content-Type": "application/json" },
+        body: JSON.stringify({ sites: sites(ENV).map((s) => s.id), tag: null, main }),
+      });
+    const moved = await post("b".repeat(40));
+    expect(moved.status).toBe(409);
+    expect(await moved.json()).toMatchObject({ moved: true });
+    expect(dispatched).toHaveLength(0);
+    expect((await post(sha)).status).toBe(200);
+    expect(dispatched).toEqual([{ ref: "main", inputs: { sites: "all", expect: sha } }]);
   });
 
   it("refuses changes sent from another site", async () => {
@@ -174,6 +199,7 @@ describe("release site", () => {
     expect(s.latest).toBe("v2026.11.12");
     expect(s.pending).toEqual(["新功能"]);
     expect(s.mainCi).toBe("success");
+    expect(s.main).toBe("abc");
     const [jays, sbbc] = s.sites;
     expect(jays).toMatchObject({ version: "v2026.11.12", behind: 0, ok: true });
     // Jay's has run 0045: v2026.11.11 lacks it; v2026.11.09 predates per-site releases.
