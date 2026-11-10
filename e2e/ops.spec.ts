@@ -28,6 +28,12 @@ test("each site's row opens a usable version picker", async ({ page }) => {
     behind: 1,
     movable: tags.slice(0, 2),
   }));
+  const releases: unknown[] = [];
+  await page.route("**/api/release", (route) => {
+    expect(route.request().method()).toBe("POST");
+    releases.push(route.request().postDataJSON());
+    return route.fulfill({ json: { ok: true } });
+  });
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
   await page.route("**/api/state", (route) =>
@@ -58,8 +64,17 @@ test("each site's row opens a usable version picker", async ({ page }) => {
     await expect(page.locator(".opt input").nth(2)).toBeDisabled();
     await page.locator(".opt input").first().check();
     await expect(page.getByRole("button", { name: `换到 ${tags[0]}` })).toBeEnabled();
-    await page.getByRole("button", { name: "‹ 返回" }).click();
+    // Cancel first: no request is sent and the picker remains usable.
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.getByRole("button", { name: `换到 ${tags[0]}` }).click();
+    await expect(page.getByRole("button", { name: `换到 ${tags[0]}` })).toBeEnabled();
+    expect(releases).toHaveLength(Number(site.id));
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: `换到 ${tags[0]}` }).click();
     await expect(page.locator(".panel")).toHaveCount(0);
+    expect(releases).toHaveLength(Number(site.id) + 1);
+    expect(releases.at(-1)).toEqual({ sites: [site.id], tag: tags[0] });
   }
   expect(errors).toEqual([]);
 });
