@@ -1,4 +1,4 @@
-import { compareTags, TAG } from "./logic";
+import { TAG } from "./logic";
 
 // The release site's page: a shell, its stylesheet and its script (no inline code, so the content policy
 // allows only this site's own files). The script draws everything from /api/state.
@@ -92,7 +92,14 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 export const APP_JS = `"use strict";
 const app = document.getElementById("app");
 let data = null, panel = null, pollUntil = 0, timer = 0, chosen = null;
-const cmpTag = ${compareTags.toString()};
+// Keep browser code inside this script: serializing a bundled server function can leak
+// build helpers (such as __name) that do not exist in the browser.
+const cmpTag = (a, b) => {
+  const parts = (t) => [...t.slice(1).split(".").map(Number), 1].slice(0, 4);
+  const [x, y] = [parts(a), parts(b)];
+  for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return (x[i] ?? 0) - (y[i] ?? 0);
+  return 0;
+};
 const TAG_RE = new RegExp(${JSON.stringify(TAG.source)});
 const isTag = (t) => TAG_RE.test(t || "");
 
