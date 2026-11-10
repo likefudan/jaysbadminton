@@ -209,24 +209,11 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
   return (
     <Card title={t("新建活动")}>
       <form onSubmit={submit}>
-        <label class={`switch-card ${joinSelf ? "on" : ""}`}>
-          <span>
-            <strong>{t("我自己也报名")}</strong>
-          </span>
-          <input
-            type="checkbox"
-            role="switch"
-            aria-checked={joinSelf}
-            checked={joinSelf}
-            onChange={(e) => setJoinSelf((e.target as HTMLInputElement).checked)}
-          />
-        </label>
+        <OptionRows>
+          <OptionSwitch label={t("我自己也报名")} on={joinSelf} onOn={setJoinSelf} />
+        </OptionRows>
         <Field label={t("活动标题")} value={title} onInput={setTitle} />
-        <Field label={t("日期")} type="date" value={date} onInput={setDate} />
-        <div class="inline">
-          <Field label={t("开始")} type="time" value={startTime} onInput={setStart} />
-          <Field label={t("结束")} type="time" value={endTime} onInput={setEnd} />
-        </div>
+        <WhenRows date={date} start={startTime} end={endTime} onDate={setDate} onStart={setStart} onEnd={setEnd} />
         <VenueFields
           base={props.base}
           canForget={props.owner}
@@ -268,6 +255,40 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
  */
 function OptionRows(props: { children: ComponentChildren }) {
   return <div class="opt-group">{props.children}</div>;
+}
+
+/** 日期 and 时间 (start – end) as two rows of one box (Ke Li 2026-11-10, option A). */
+function WhenRows(props: {
+  date: string;
+  start: string;
+  end: string;
+  onDate: (v: string) => void;
+  onStart: (v: string) => void;
+  onEnd: (v: string) => void;
+}) {
+  const value = (on: (v: string) => void) => (e: Event) => on((e.target as HTMLInputElement).value);
+  return (
+    <OptionRows>
+      <label class="opt-row">
+        <span>{t("日期")}</span>
+        <input type="date" class="opt-value" value={props.date} onInput={value(props.onDate)} />
+      </label>
+      <div class="opt-row">
+        <span>{t("时间")}</span>
+        <span class="opt-range">
+          <input
+            type="time"
+            class="opt-value"
+            aria-label={t("开始")}
+            value={props.start}
+            onInput={value(props.onStart)}
+          />
+          –
+          <input type="time" class="opt-value" aria-label={t("结束")} value={props.end} onInput={value(props.onEnd)} />
+        </span>
+      </div>
+    </OptionRows>
+  );
 }
 
 function OptionSwitch(props: { label: string; on: boolean; onOn: (on: boolean) => void }) {
@@ -1292,11 +1313,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
     <Card title={t("修改活动（紧急情况）")}>
       <p class="warn">{t("只在场地变更、时间临时调整等紧急情况使用。修改后请在微信群里通知大家。")}</p>
       <Field label={t("活动标题")} value={title} onInput={setTitle} />
-      <Field label={t("日期")} type="date" value={date} onInput={setDate} />
-      <div class="inline">
-        <Field label={t("开始")} type="time" value={startTime} onInput={setStart} />
-        <Field label={t("结束")} type="time" value={endTime} onInput={setEnd} />
-      </div>
+      <WhenRows date={date} start={startTime} end={endTime} onDate={setDate} onStart={setStart} onEnd={setEnd} />
       <VenueFields
         base={props.eb.replace(/\/events\/\d+$/, "")}
         venues={[]}
