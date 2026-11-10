@@ -88,6 +88,26 @@ describe("release site", () => {
     expect((await call("/api/state")).status).toBe(401);
   });
 
+  it("preserves same-origin form origins and clears both login cookies on logout", async () => {
+    const page = await call("/", { headers: { Cookie: await signedIn() } });
+    expect(page.headers.get("Referrer-Policy")).toBe("same-origin");
+    const res = await call("/logout", {
+      method: "POST",
+      headers: { Cookie: await signedIn(), Origin: ENV.OPS_ORIGIN },
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/");
+    expect(res.headers.getSetCookie()).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("__Host-ops=; Path=/; Max-Age=0"),
+        expect.stringContaining("__Host-ops-oauth=; Path=/; Max-Age=0"),
+      ]),
+    );
+    for (const Origin of ["null", "https://evil.example"]) {
+      expect((await call("/logout", { method: "POST", headers: { Origin } })).status).toBe(403);
+    }
+  });
+
   it("sends sign-in to Google with this site's callback", async () => {
     const res = await call("/login");
     const url = new URL(res.headers.get("Location")!);
@@ -185,11 +205,16 @@ describe("release site", () => {
       "v2026.11.11": ["0044_a.sql"],
       "v2026.11.09": ["0044_a.sql"],
     };
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    let finishHealth!: () => void;
+    const healthGate = new Promise<void>((resolve) => {
+      finishHealth = resolve;
+    });
+    const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = new URL(String(input));
       const p = url.pathname.replace("/repos/likefudan/jaysbadminton", "");
       const ok = (body: unknown) => Response.json(body);
       if (p === "/api/health") {
+        await healthGate;
         const v = { "jaysbadminton.llmat.dev": "v2026.11.12", "sbbc.llmat.dev": "v2026.11.11" }[url.host];
         return url.host === "coco.llmat.dev" ? new Response("down", { status: 502 }) : ok({ ok: true, version: v });
       }
@@ -212,7 +237,15 @@ describe("release site", () => {
       throw new Error(`unexpected ${url}`);
     });
     forget();
-    const s = await state(ENV);
+    const reading = state(ENV);
+    try {
+      await vi.waitFor(() =>
+        expect(fetched.mock.calls.some(([url]) => String(url).includes("/contents/migrations"))).toBe(true),
+      );
+    } finally {
+      finishHealth();
+    }
+    const s = await reading;
     expect(s.latest).toBe("v2026.11.12");
     expect(s.pending).toEqual(["新功能"]);
     expect(s.mainCi).toBe("success");
@@ -224,6 +257,12 @@ describe("release site", () => {
     expect(sbbc).toMatchObject({ behind: 1, movable: ["v2026.11.12", "v2026.11.11"] });
     expect(s.sites.find((x) => x.id === "coco")).toMatchObject({ ok: false, version: null });
     expect(s.versions.find((v) => v.tag === "v2026.11.09")?.perSite).toBe(false);
+    // A fresh module has no in-memory metadata: the edge cache still avoids GitHub reads.
+    fetched.mockClear();
+    vi.resetModules();
+    const fresh = await import("../ops/src/github");
+    await fresh.state(ENV);
+    expect(fetched.mock.calls.some(([url]) => String(url).includes("/contents/"))).toBe(false);
   });
 
   it("tells the developers' group when a release is started here", async () => {

@@ -16,7 +16,7 @@ const SECURITY = {
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   "X-Frame-Options": "DENY",
   "X-Content-Type-Options": "nosniff",
-  "Referrer-Policy": "no-referrer",
+  "Referrer-Policy": "same-origin",
   "Cache-Control": "no-store",
 };
 
@@ -170,7 +170,8 @@ export default {
     const problem = ready(env);
     if (path === "/login") return problem ? redirect("/") : startLogin(env);
     if (path === "/auth/callback") return problem ? redirect("/") : finishLogin(req, env, ctx);
-    if (path === "/logout" && req.method === "POST") return redirect("/", [cookie(SESSION, "", 0)]);
+    if (path === "/logout" && req.method === "POST")
+      return redirect("/", [cookie(SESSION, "", 0), cookie(OAUTH, "", 0)]);
 
     const email = await who(req, env);
     if (path === "/")
@@ -182,7 +183,10 @@ export default {
 
     if (path === "/api/state" && req.method === "GET") {
       try {
-        return json(await state(env));
+        const started = performance.now();
+        const response = json(await state(env));
+        response.headers.set("Server-Timing", `state;dur=${Math.round(performance.now() - started)}`);
+        return response;
       } catch (err) {
         console.error("ops state failed:", err);
         return json({ error: `读取失败：${(err as Error).message}` }, 502);

@@ -29,19 +29,37 @@ async function gh<T>(env: Env, path: string, init?: RequestInit): Promise<T> {
   return (res.status === 204 ? null : await res.json()) as T;
 }
 
+// Tag metadata is stable across Worker instances. Keep it in the
+// edge cache too; the authenticated state response itself is never cached publicly.
+async function stable<T>(env: Env, path: string): Promise<T> {
+  const key = new Request(`https://ops-cache.invalid/${encodeURIComponent(env.GITHUB_REPO)}${path}`);
+  const hit = await caches.default.match(key).catch(() => undefined);
+  if (hit) return hit.json() as Promise<T>;
+  const value = await gh<T>(env, path);
+  await caches.default
+    .put(
+      key,
+      new Response(JSON.stringify(value), {
+        headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=86400" },
+      }),
+    )
+    .catch(() => {});
+  return value;
+}
+
 // Each tag's newest migration never changes, so it is looked up once per Worker instance.
 const newestMigration = new Map<string, string>();
 async function newestAt(env: Env, tag: string): Promise<string | undefined> {
-  if (!newestMigration.has(tag)) {
-    const files = await gh<{ name: string }[]>(env, `/contents/migrations?ref=${encodeURIComponent(tag)}`);
+  if (!newestMigration.has(`${env.GITHUB_REPO}:${tag}`)) {
+    const files = await stable<{ name: string }[]>(env, `/contents/migrations?ref=${encodeURIComponent(tag)}`);
     const newest = files
       .map((f) => f.name)
       .filter((n) => n.endsWith(".sql"))
       .sort()
       .at(-1);
-    if (newest) newestMigration.set(tag, newest);
+    if (newest) newestMigration.set(`${env.GITHUB_REPO}:${tag}`, newest);
   }
-  return newestMigration.get(tag);
+  return newestMigration.get(`${env.GITHUB_REPO}:${tag}`);
 }
 
 // Whether the Release workflow will deploy a tag: releases before per-site releases run their own
@@ -49,14 +67,14 @@ async function newestAt(env: Env, tag: string): Promise<string | undefined> {
 // release.yml refuses them. Same test as there: that tag's ci.yml has the `sites` input.
 const perSiteTags = new Map<string, boolean>();
 async function perSite(env: Env, tag: string): Promise<boolean> {
-  if (!perSiteTags.has(tag)) {
-    const file = await gh<{ content: string }>(
+  if (!perSiteTags.has(`${env.GITHUB_REPO}:${tag}`)) {
+    const file = await stable<{ content: string }>(
       env,
       `/contents/.github/workflows/ci.yml?ref=${encodeURIComponent(tag)}`,
     );
-    perSiteTags.set(tag, /^ {6}sites:$/m.test(atob(file.content.replace(/\s/g, ""))));
+    perSiteTags.set(`${env.GITHUB_REPO}:${tag}`, /^ {6}sites:$/m.test(atob(file.content.replace(/\s/g, ""))));
   }
-  return perSiteTags.get(tag)!;
+  return perSiteTags.get(`${env.GITHUB_REPO}:${tag}`)!;
 }
 
 /** The version a site runs, from its /api/health (sites deployed before per-site releases say none). */
@@ -102,10 +120,10 @@ export function forget() {
 
 async function read(env: Env) {
   const all = sites(env);
-  const [releases, tags, healths, mainCommit, ciRuns, deployRuns, releaseRuns] = await Promise.all([
+  const healthRead = Promise.all(all.map(health));
+  const [releases, tags, mainCommit, ciRuns, deployRuns, releaseRuns] = await Promise.all([
     gh<{ tag_name: string; published_at: string; draft: boolean }[]>(env, "/releases?per_page=30"),
     gh<{ name: string }[]>(env, "/tags?per_page=100"),
-    Promise.all(all.map(health)),
     gh<{ sha: string }>(env, "/commits/main"),
     gh<{ workflow_runs: (Run & { head_sha: string })[] }>(
       env,
@@ -121,10 +139,21 @@ async function read(env: Env) {
   const latest = versions[0]?.tag ?? null;
 
   const shown = versions.slice(0, 12);
-  const currents = healths.map((h) => (h.version && TAG.test(h.version) ? h.version : null));
   const single: Record<string, boolean> = {};
   const newest: Record<string, string | undefined> = {};
-  const [cmp, deploys] = await Promise.all([
+  // Older running versions may be outside the picker. Fetch their metadata as soon as
+  // health answers, alongside the other metadata, rather than adding another serial round.
+  const currentMetadata = healthRead.then(async (healths) => {
+    const extra = healths
+      .map((h) => h.version)
+      .filter((v): v is string => v !== null && TAG.test(v) && !shown.some((s) => s.tag === v));
+    await Promise.all(
+      [...new Set(extra)].map(async (tag) => {
+        newest[tag] = await newestAt(env, tag).catch(() => undefined);
+      }),
+    );
+  });
+  const [cmp, deploys, healths] = await Promise.all([
     // What main has that the newest release does not.
     latest
       ? gh<{ ahead_by: number; commits: { commit: { message: string } }[] }>(
@@ -159,15 +188,18 @@ async function read(env: Env) {
           };
         }),
     ),
+    healthRead,
+    currentMetadata,
     // Which versions each site can move to without restoring a backup first.
     ...shown.map(async (v) => {
       // When GitHub does not answer, let it through: release.yml checks again and refuses old ones.
       single[v.tag] = await perSite(env, v.tag).catch(() => true);
     }),
-    ...[...new Set([...shown.map((v) => v.tag), ...currents.filter((v) => v !== null)])].map(async (tag) => {
+    ...shown.map(async ({ tag }) => {
       newest[tag] = await newestAt(env, tag).catch(() => undefined);
     }),
   ]);
+  const currents = healths.map((h) => (h.version && TAG.test(h.version) ? h.version : null));
   const pendingCount = cmp?.ahead_by ?? 0;
   const pending = (cmp?.commits ?? [])
     .map((c) => (c.commit.message.split("\n")[0] ?? "").replace(/\s*\(#\d+\)$/, ""))
