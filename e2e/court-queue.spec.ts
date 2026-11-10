@@ -590,7 +590,11 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
   await page.emulateMedia({ colorScheme: "dark" });
   await page.screenshot({ path: test.info().outputPath("court-sheet-dark.png") });
   await page.emulateMedia({ colorScheme: "light" });
-  await sheet.locator(".cq-photo input[type=file]").setInputFiles("e2e/fixtures/queue-screen.jpg");
+  // Android's Chrome offers the camera only with capture; 相册 stays a plain picker for photos taken earlier.
+  await expect(sheet.locator(".cq-photo-camera input")).toHaveAttribute("capture", "environment");
+  await expect(sheet.locator(".cq-photo-album input")).not.toHaveAttribute("capture", /.*/);
+  await page.screenshot({ path: test.info().outputPath("court-queue-photo-buttons.png") });
+  await sheet.locator(".cq-photo-camera input").setInputFiles("e2e/fixtures/queue-screen.jpg");
 
   // The photo goes up shrunk to a JPEG of at most 1600 px.
   await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("16");
@@ -661,7 +665,7 @@ test("拍照登记: ✕ skips a court read wrongly, it isn't saved, and a tap br
   const sheet = page.getByRole("dialog");
   const courtNo = sheet.getByRole("spinbutton", { name: "场号" });
   const chips = sheet.locator(".cq-found-list .chip");
-  await sheet.locator(".cq-photo input[type=file]").setInputFiles("e2e/fixtures/queue-screen.jpg");
+  await sheet.locator(".cq-photo-camera input").setInputFiles("e2e/fixtures/queue-screen.jpg");
   await expect(courtNo).toHaveValue("16");
   await expect(sheet.locator(".cq-found-list .chip-remove")).toHaveCount(3);
   for (const scheme of ["light", "dark"] as const) {
@@ -710,7 +714,7 @@ test("拍照登记: skipping every court left closes the sheet", async ({ page }
   );
   await page.getByRole("button", { name: "＋ 登记球场" }).click();
   const sheet = page.getByRole("dialog");
-  await sheet.locator(".cq-photo input[type=file]").setInputFiles("e2e/fixtures/queue-screen.jpg");
+  await sheet.locator(".cq-photo-camera input").setInputFiles("e2e/fixtures/queue-screen.jpg");
   await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("5");
   const before = posts.length;
   await sheet.getByRole("button", { name: "跳过 5号" }).click();

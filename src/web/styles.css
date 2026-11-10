@@ -4768,6 +4768,16 @@ ul.audit li:first-child {
 .cq-photo {
   margin: 4px 0 6px;
 }
+.cq-photo-row {
+  display: flex;
+  gap: 8px;
+}
+.cq-photo-camera {
+  flex: 1;
+}
+.cq-photo-album {
+  flex: none;
+}
 .cq-photo-button {
   position: relative;
   cursor: pointer;
