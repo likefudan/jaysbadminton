@@ -172,6 +172,47 @@ jobs:
         env:
           SITE_ORIGIN: https://staging.jaysbadminton.llmat.dev
 
+  # The release site badminton.llmat.dev (ops/): Ke Li's page for releasing to chosen sites. A tool,
+  # not part of a release, so it follows main.
+  deploy-ops:
+    needs: [check, unit-2, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    concurrency: deploy-ops
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/cache@v6
+        id: deps
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
+      - run: npx wrangler deploy --config ops/wrangler.jsonc
+      - run: node scripts/sync-ops-secrets.mjs
+        env:
+          # Fine-grained token for this repository only: Actions read and write, Contents read.
+          OPS_GITHUB_TOKEN: ${{ secrets.OPS_GITHUB_TOKEN }}
+          # The one Google account allowed in.
+          OPS_EMAIL: ${{ secrets.OPS_EMAIL }}
+          # Same OAuth client; its redirect URIs must also list https://badminton.llmat.dev/auth/callback.
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      - name: Smoke test the release site
+        run: |
+          for i in 1 2 3 4 5 6; do
+            curl -fsS https://badminton.llmat.dev/health && exit 0
+            sleep 10
+          done
+          exit 1
+
   # Which production sites this release goes to (the `sites` input; every site on a tag push).
   plan:
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'

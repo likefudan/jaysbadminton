@@ -1,0 +1,19 @@
+// 发布管理网站 badminton.llmat.dev: Ke Li sees which release each production site runs and releases a
+// version to chosen sites (it starts the Release workflow). Deployed from main by CI (deploy-ops), not by
+// releases. Secrets (scripts/sync-ops-secrets.mjs): OPS_GITHUB_TOKEN, OPS_EMAIL, GOOGLE_CLIENT_ID,
+// GOOGLE_CLIENT_SECRET, OPS_SESSION_KEY (made once by CI).
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "jaysbadminton-ops",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "badminton.llmat.dev", "custom_domain": true }],
+  "vars": {
+    "OPS_ORIGIN": "https://badminton.llmat.dev",
+    "GITHUB_REPO": "likefudan/jaysbadminton",
+    // Jay's site: the production Worker from wrangler.jsonc; the others come from sites.json.
+    "MAIN_SITE_DOMAIN": "jaysbadminton.llmat.dev"
+  },
+  "observability": { "enabled": true }
+}
