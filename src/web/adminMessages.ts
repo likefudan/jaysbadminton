@@ -349,6 +349,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   我自己也报名: { tw: "我自己也報名", en: "Sign me up too" },
   活动标题: { tw: "活動標題", en: "Event title" },
   日期: { tw: "日期", en: "Date" },
+  时间: { tw: "時間", en: "Time" },
   开始: { tw: "開始", en: "Start" },
   结束: { tw: "結束", en: "End" },
   报名截止时间: { tw: "報名截止時間", en: "Sign-up deadline" },

@@ -133,7 +133,7 @@ test("the Owner creates an event and is signed up for it", async ({ page }) => {
   await openAdmin(page);
   await page.getByRole("button", { name: "＋ 新建活动" }).click();
   await expect(page.getByRole("switch", { name: /我自己也报名/ })).toBeChecked();
-  await field(page, "日期").fill(inAWeek());
+  await page.getByLabel("日期", { exact: true }).fill(inAWeek());
   await field(page, "场馆").fill(VENUE);
   await page.getByLabel("备注（选填）").fill("请自带球拍\n提前十分钟到场");
   await page.getByRole("button", { name: "创建活动" }).click();
@@ -180,7 +180,7 @@ test("the Owner forgets a venue from 最近的场馆 with its ✕", async ({ pag
   await page.reload();
   await openAdmin(page);
   await page.getByRole("button", { name: "＋ 新建活动" }).click();
-  await expect(field(page, "日期")).toBeVisible();
+  await expect(page.getByLabel("日期", { exact: true })).toBeVisible();
   await expect(page.getByText("最近的场馆")).toHaveCount(0);
 });
 
@@ -493,7 +493,7 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await expect(page.locator(".event-link", { hasText: VENUE })).toHaveCount(0);
   await page.getByRole("button", { name: "＋ 新建活动" }).click();
   await expect(page.locator(".chip-remove")).toHaveCount(0); // forgetting a venue is the Owner's
-  await field(page, "日期").fill(inAWeek());
+  await page.getByLabel("日期", { exact: true }).fill(inAWeek());
   await field(page, "场馆").fill("Ming Gym");
   await page.getByRole("button", { name: "创建活动" }).click();
   await expect(page.getByText("✓ 你已报名")).toBeVisible();

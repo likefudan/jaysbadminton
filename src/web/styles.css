@@ -1898,6 +1898,49 @@ input[role="switch"]:checked {
   padding: 0;
   border: 0;
 }
+.opt-row .opt-value {
+  display: inline-block;
+  width: auto;
+  min-width: 0;
+  height: 38px;
+  min-height: 38px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  box-shadow: none;
+}
+.opt-row > span:first-child {
+  flex: none;
+  white-space: nowrap;
+}
+.opt-row > .opt-value {
+  flex: 0 1 auto;
+}
+.opt-range {
+  display: flex;
+  flex: 0 1 auto;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-weight: 400;
+}
+.opt-range .opt-value {
+  flex: 1 1 0;
+  max-width: 8.5em;
+  padding: 0 8px;
+}
+/* Desktop Chrome's clock button would squeeze the time out of a narrow box; phones open their own picker. */
+.opt-range .opt-value::-webkit-calendar-picker-indicator {
+  display: none;
+}
 .opt-sub {
   display: flex;
   flex-wrap: wrap;
