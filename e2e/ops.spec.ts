@@ -1,0 +1,65 @@
+import { expect, test } from "@playwright/test";
+import { buildSync } from "esbuild";
+import { runInNewContext } from "node:vm";
+
+// Match Wrangler's keepNames transform, which previously leaked __name into app.js.
+const bundle = buildSync({
+  entryPoints: ["ops/src/page.ts"],
+  bundle: true,
+  write: false,
+  format: "cjs",
+  platform: "node",
+  keepNames: true,
+}).outputFiles[0].text;
+const output = { exports: {} as { APP_CSS: string; APP_JS: string } };
+runInNewContext(bundle, { module: output, exports: output.exports, TextEncoder });
+const { APP_CSS, APP_JS } = output.exports;
+
+// Exercise the version picker without real login or starting a production release.
+test("each site's row opens a usable version picker", async ({ page }) => {
+  const tags = ["v2026.11.10.2", "v2026.11.10", "v2026.11.09"];
+  const sites = ["Jay's", "SBBC", "Be With You", "Coco"].map((name, i) => ({
+    id: String(i),
+    name,
+    domain: "example.com",
+    color: "#e8664f",
+    ok: true,
+    version: tags[1],
+    behind: 1,
+    movable: tags.slice(0, 2),
+  }));
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.route("**/api/state", (route) =>
+    route.fulfill({
+      json: {
+        sites,
+        latest: tags[0],
+        pendingCount: 0,
+        deploys: [],
+        versions: tags.map((tag) => ({ tag, date: "2026-11-10T00:00:00Z", perSite: true })),
+      },
+    }),
+  );
+  await page.route("**/ops-picker-test", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<div id="app"></div>',
+    }),
+  );
+  await page.goto("/ops-picker-test");
+  await page.addStyleTag({ content: APP_CSS });
+  await page.addScriptTag({ content: APP_JS });
+  for (const site of sites) {
+    await page.locator(".siterow").filter({ hasText: site.name }).locator(".chev").tap();
+    await expect(page.locator(".panel")).toBeVisible();
+    await expect(page.getByRole("button", { name: "选一个版本" })).toBeDisabled();
+    await expect(page.locator(".opt input").nth(1)).toBeDisabled();
+    await expect(page.locator(".opt input").nth(2)).toBeDisabled();
+    await page.locator(".opt input").first().check();
+    await expect(page.getByRole("button", { name: `换到 ${tags[0]}` })).toBeEnabled();
+    await page.getByRole("button", { name: "‹ 返回" }).click();
+    await expect(page.locator(".panel")).toHaveCount(0);
+  }
+  expect(errors).toEqual([]);
+});
