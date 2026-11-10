@@ -26,6 +26,9 @@ export interface Env {
   AZURE_FOUNDRY_API_KEY?: string;
   /** Public site address, for links in messages sent by the cron job (which has no request). */
   SITE_ORIGIN: string;
+  /** The release this Worker runs (v2026.11.10 on production sites, main-<sha> on the test site), set by
+   *  CI on deploy and shown by /api/health; missing in local runs and tests. */
+  APP_VERSION?: string;
   /** An extra site's id in sites.json (each group's own site); missing on Jay's production and the test site. */
   SITE_ID?: string;
   /** The site's name until the Owner sets one in 设置; Jay's 羽毛球 when missing. */

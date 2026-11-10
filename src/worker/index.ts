@@ -68,10 +68,11 @@ for (const file of SITE_ICON_FILES)
     return new Response(res.body, res);
   });
 
-// Proves the Worker can reach the migrated database; says nothing about the group itself.
+// Proves the Worker can reach the migrated database; says nothing about the group itself. Also says
+// which release is running, so each site's version can be checked from outside.
 app.get("/api/health", async (c) => {
   await c.env.DB.prepare("SELECT 1 FROM members LIMIT 1").first();
-  return c.json({ ok: true });
+  return c.json(c.env.APP_VERSION ? { ok: true, version: c.env.APP_VERSION } : { ok: true });
 });
 
 // Browsers report what the content policy would have blocked; read them in the Worker logs.
