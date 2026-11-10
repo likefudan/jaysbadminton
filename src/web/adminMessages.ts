@@ -347,15 +347,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "负责人：{name}": { tw: "負責人：{name}", en: "Run by: {name}" },
   新建活动: { tw: "新建活動", en: "New event" },
   我自己也报名: { tw: "我自己也報名", en: "Sign me up too" },
-  创建后你会直接出现在报名名单里: {
-    tw: "建立後你會直接出現在報名名單裡",
-    en: "You'll be on the sign-up list as soon as it's created",
-  },
-  "标题（选填）": { tw: "標題（選填）", en: "Title (optional)" },
-  "特别的活动可以起个名字，例如「HappyTuesday 比赛」；不填就只显示日期": {
-    tw: "特別的活動可以起個名字，例如「HappyTuesday 比賽」；不填就只顯示日期",
-    en: 'Name a special event, e.g. "HappyTuesday tournament"; leave blank to show just the date',
-  },
+  活动标题: { tw: "活動標題", en: "Event title" },
   日期: { tw: "日期", en: "Date" },
   开始: { tw: "開始", en: "Start" },
   结束: { tw: "結束", en: "End" },
