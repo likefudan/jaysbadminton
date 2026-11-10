@@ -642,6 +642,29 @@ describe("event title and public leaderboard switch", () => {
     expect((await ctx.admin.call(`${ctx.base}/settings`)).data.publicBoards).toBe(0);
   });
 
+  it("saves board order independently of visibility and rejects invalid orders", async () => {
+    const ctx = await setUpAdmin();
+    const order = ["queue", "early", "friends", "streak", "progress", "hours", "attendance", "calories"];
+    const home = async () => (await anon.call("/api/public/home")).data.leaderboard;
+    expect(
+      (
+        await ctx.admin.call(`${ctx.base}/settings`, {
+          leaderboardOrder: order,
+          leaderboardBoards: ["hours", "queue"],
+          leaderboardAnon: true,
+        })
+      ).status,
+    ).toBe(200);
+    expect((await home()).boards).toEqual(["queue", "hours"]);
+    expect((await ctx.admin.call(`${ctx.base}/leaderboard`)).data.board.boards).toEqual(order);
+    await ctx.admin.call(`${ctx.base}/settings`, { leaderboardBoards: ["hours", "queue", "early"] });
+    expect((await home()).boards).toEqual(["queue", "early", "hours"]);
+    for (const invalid of [null, [], [...order, "unknown"], order.map(() => "hours")]) {
+      expect((await ctx.admin.call(`${ctx.base}/settings`, { leaderboardOrder: invalid })).status).toBe(400);
+    }
+    expect((await ctx.admin.call(`${ctx.base}/leaderboard`)).data.board.boards).toEqual(order);
+  });
+
   it("keeps the old switch's choice until the boards are picked", async () => {
     const ctx = await setUpAdmin();
     await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('show_leaderboard', '0')").run();

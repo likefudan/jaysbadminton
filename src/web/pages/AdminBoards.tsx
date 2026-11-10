@@ -1,5 +1,5 @@
-import { useState } from "preact/hooks";
-import { BOARD_KEYS, type BoardKey, type LeaderboardAdmin } from "../../shared/types";
+import { useEffect, useRef, useState } from "preact/hooks";
+import type { BoardKey, LeaderboardAdmin } from "../../shared/types";
 import { api } from "../api";
 import { BOARDS, BoardCard, type Period, PeriodSwitch, boardTitle, listOf, valueText } from "../Boards";
 import { Load, useAction } from "../components";
@@ -22,11 +22,104 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
   const [open, setOpen] = useState<BoardKey | null>(null);
   const [pub, setPub] = useState<BoardKey[]>(props.data.public);
   const [anon, setAnon] = useState(props.data.anon);
+  const [order, setOrder] = useState(board.boards);
+  const [dragging, setDragging] = useState<BoardKey | null>(null);
+  const drag = useRef<{
+    key: BoardKey;
+    before: BoardKey[];
+    next: BoardKey[];
+    pointerId: number;
+    y: number;
+    list: HTMLElement;
+  } | null>(null);
+  const scrollFrame = useRef(0);
   const { busy, error, run } = useAction();
+  useEffect(() => () => cancelAnimationFrame(scrollFrame.current), []);
+
+  async function saveOrder(next: BoardKey[], before: BoardKey[]) {
+    if (next.every((k, i) => k === before[i])) return;
+    if (!(await run(() => api(`${props.base}/settings`, { leaderboardOrder: next })))) setOrder(before);
+  }
+  function startDrag(e: PointerEvent, key: BoardKey) {
+    if (busy || drag.current || !e.isPrimary || e.button !== 0) return;
+    e.preventDefault();
+    const list = (e.currentTarget as HTMLElement).closest<HTMLElement>(".board-list")!;
+    list.setPointerCapture(e.pointerId);
+    drag.current = { key, before: order, next: order, pointerId: e.pointerId, y: e.clientY, list };
+    setOpen(null);
+    setDragging(key);
+    // Keep scrolling while the pointer is held at an edge, even when it stops moving.
+    const scroll = () => {
+      const d = drag.current;
+      if (!d) return;
+      const delta = d.y < 70 ? -10 : d.y > window.innerHeight - 70 ? 10 : 0;
+      if (delta) {
+        window.scrollBy({ top: delta, behavior: "instant" });
+        moveAt(d);
+      }
+      scrollFrame.current = requestAnimationFrame(scroll);
+    };
+    scrollFrame.current = requestAnimationFrame(scroll);
+  }
+  function moveAt(d: NonNullable<typeof drag.current>) {
+    const rows = d.list.querySelectorAll<HTMLElement>(".board-item");
+    const from = d.next.indexOf(d.key);
+    let to = from;
+    rows.forEach((row, i) => {
+      const rect = row.getBoundingClientRect();
+      const middle = rect.top + rect.height / 2;
+      if ((i < from && d.y < middle && to === from) || (i > from && d.y > middle)) to = i;
+    });
+    if (to !== from) {
+      const next = [...d.next];
+      next.splice(from, 1);
+      next.splice(to, 0, d.key);
+      d.next = next;
+      setOrder(next);
+    }
+  }
+  function moveDrag(e: PointerEvent) {
+    const d = drag.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    d.y = e.clientY;
+    moveAt(d);
+  }
+  function endDrag(e: PointerEvent, cancel = false) {
+    const d = drag.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    drag.current = null;
+    cancelAnimationFrame(scrollFrame.current);
+    setDragging(null);
+    if (cancel) setOrder(d.before);
+    else void saveOrder(d.next, d.before);
+    const list = e.currentTarget as HTMLElement;
+    if (list.hasPointerCapture(e.pointerId)) list.releasePointerCapture(e.pointerId);
+  }
+  function moveWithKeyboard(e: KeyboardEvent, key: BoardKey) {
+    if (busy || dragging || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    e.preventDefault();
+    const from = order.indexOf(key);
+    const to = from + (e.key === "ArrowUp" ? -1 : 1);
+    if (to < 0 || to >= order.length) return;
+    const next = [...order];
+    next.splice(from, 1);
+    next.splice(to, 0, key);
+    setOrder(next);
+    // Moving a keyed DOM node can drop focus. Keep keyboard users on the same handle.
+    const list = (e.currentTarget as HTMLElement).closest(".board-list")!;
+    requestAnimationFrame(() => list.querySelector<HTMLButtonElement>(`[data-board="${key}"] .board-handle`)?.focus());
+    void saveOrder(next, order).then(() => {
+      // A failed save moves the row back, which can also remove focus from its handle.
+      if (document.activeElement === document.body)
+        requestAnimationFrame(() =>
+          list.querySelector<HTMLButtonElement>(`[data-board="${key}"] .board-handle`)?.focus(),
+        );
+    });
+  }
 
   async function toggle(k: BoardKey, on: boolean) {
     const was = pub;
-    const next = BOARD_KEYS.filter((x) => (x === k ? on : was.includes(x)));
+    const next = order.filter((x) => (x === k ? on : was.includes(x)));
     setPub(next);
     if (!(await run(() => api(`${props.base}/settings`, { leaderboardBoards: next })))) setPub(was);
   }
@@ -42,13 +135,31 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
         <PeriodSwitch period={period} set={setPeriod} />
       </div>
       <div class="board-public">{t("首页公开")}</div>
-      <section class="card board-list">
-        {BOARD_KEYS.map((k) => {
+      <section
+        class="card board-list"
+        onPointerMove={moveDrag}
+        onPointerUp={(e) => endDrag(e)}
+        onPointerCancel={(e) => endDrag(e, true)}
+        onLostPointerCapture={(e) => endDrag(e, true)}
+      >
+        {order.map((k) => {
           const list = listOf(board, k, period);
           const shown = open === k;
           return (
-            <div class="board-item" key={k}>
+            <div class={`board-item${dragging === k ? " sorting" : ""}`} key={k} data-board={k}>
               <div class="board-line">
+                <button
+                  type="button"
+                  class="board-handle"
+                  aria-label={t("拖动调整「{name}」的顺序，或用上下方向键", { name: t(BOARDS[k].label) })}
+                  aria-disabled={busy || (dragging !== null && dragging !== k)}
+                  onPointerDown={(e) => startDrag(e, k)}
+                  onKeyDown={(e) => moveWithKeyboard(e, k)}
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                    <path d="M8 6h1m6 0h1M8 12h1m6 0h1M8 18h1m6 0h1" />
+                  </svg>
+                </button>
                 <button
                   type="button"
                   class="board-open"
@@ -82,7 +193,7 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
                   aria-label={t("在首页公开「{name}」", { name: t(BOARDS[k].label) })}
                   aria-checked={pub.includes(k)}
                   checked={pub.includes(k)}
-                  disabled={busy}
+                  disabled={busy || dragging !== null}
                   onChange={(e) => toggle(k, (e.target as HTMLInputElement).checked)}
                 />
               </div>
@@ -107,7 +218,7 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
               role="switch"
               aria-checked={anon}
               checked={anon}
-              disabled={busy}
+              disabled={busy || dragging !== null}
               onChange={(e) => toggleAnon((e.target as HTMLInputElement).checked)}
             />
           </label>
@@ -120,7 +231,11 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
             ? t("所有人打开首页都能看到公开的排行榜，包括没登录的访客。")
             : t("只有登录的成员能在首页看到公开的排行榜。")}
       </p>
-      {error && <p class="error">{error}</p>}
+      {error && (
+        <p class="error" role="alert">
+          {error}
+        </p>
+      )}
     </>
   );
 }
