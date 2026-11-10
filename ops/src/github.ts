@@ -29,29 +29,11 @@ async function gh<T>(env: Env, path: string, init?: RequestInit): Promise<T> {
   return (res.status === 204 ? null : await res.json()) as T;
 }
 
-// Tag metadata is stable across Worker instances. Keep it in the
-// edge cache too; the authenticated state response itself is never cached publicly.
-async function stable<T>(env: Env, path: string): Promise<T> {
-  const key = new Request(`https://ops-cache.invalid/${encodeURIComponent(env.GITHUB_REPO)}${path}`);
-  const hit = await caches.default.match(key).catch(() => undefined);
-  if (hit) return hit.json() as Promise<T>;
-  const value = await gh<T>(env, path);
-  await caches.default
-    .put(
-      key,
-      new Response(JSON.stringify(value), {
-        headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=86400" },
-      }),
-    )
-    .catch(() => {});
-  return value;
-}
-
 // Each tag's newest migration never changes, so it is looked up once per Worker instance.
 const newestMigration = new Map<string, string>();
 async function newestAt(env: Env, tag: string): Promise<string | undefined> {
   if (!newestMigration.has(`${env.GITHUB_REPO}:${tag}`)) {
-    const files = await stable<{ name: string }[]>(env, `/contents/migrations?ref=${encodeURIComponent(tag)}`);
+    const files = await gh<{ name: string }[]>(env, `/contents/migrations?ref=${encodeURIComponent(tag)}`);
     const newest = files
       .map((f) => f.name)
       .filter((n) => n.endsWith(".sql"))
@@ -68,13 +50,60 @@ async function newestAt(env: Env, tag: string): Promise<string | undefined> {
 const perSiteTags = new Map<string, boolean>();
 async function perSite(env: Env, tag: string): Promise<boolean> {
   if (!perSiteTags.has(`${env.GITHUB_REPO}:${tag}`)) {
-    const file = await stable<{ content: string }>(
+    const file = await gh<{ content: string }>(
       env,
       `/contents/.github/workflows/ci.yml?ref=${encodeURIComponent(tag)}`,
     );
     perSiteTags.set(`${env.GITHUB_REPO}:${tag}`, /^ {6}sites:$/m.test(atob(file.content.replace(/\s/g, ""))));
   }
   return perSiteTags.get(`${env.GITHUB_REPO}:${tag}`)!;
+}
+
+// One cache entry per picker, rather than per file: cold reads must stay within
+// the Worker's subrequest budget. Never cache a partial/failed GitHub answer.
+async function metadata(env: Env, tags: string[], includeWorkflow: boolean) {
+  const key = new Request(
+    `${env.OPS_ORIGIN}/__internal/version-metadata?repo=${encodeURIComponent(env.GITHUB_REPO)}&workflow=${includeWorkflow}&tags=${encodeURIComponent([...tags].sort().join(","))}`,
+  );
+  const hit = await caches.default.match(key).catch(() => undefined);
+  type Metadata = { newest: Record<string, string | undefined>; single: Record<string, boolean> };
+  if (hit) return hit.json() as Promise<Metadata>;
+  const value: Metadata = { newest: {}, single: {} };
+  let complete = true;
+  await Promise.all(
+    tags.map(async (tag) => {
+      await Promise.all([
+        newestAt(env, tag)
+          .then((m) => {
+            value.newest[tag] = m;
+          })
+          .catch(() => {
+            complete = false;
+          }),
+        includeWorkflow
+          ? perSite(env, tag)
+              .then((p) => {
+                value.single[tag] = p;
+              })
+              .catch(() => {
+                complete = false;
+                // The Release workflow checks again before deploying an old version.
+                value.single[tag] = true;
+              })
+          : null,
+      ]);
+    }),
+  );
+  if (complete)
+    await caches.default
+      .put(
+        key,
+        Response.json(value, {
+          headers: { "Cache-Control": "public, max-age=86400" },
+        }),
+      )
+      .catch(() => {});
+  return value;
 }
 
 /** The version a site runs, from its /api/health (sites deployed before per-site releases say none). */
@@ -147,11 +176,7 @@ async function read(env: Env) {
     const extra = healths
       .map((h) => h.version)
       .filter((v): v is string => v !== null && TAG.test(v) && !shown.some((s) => s.tag === v));
-    await Promise.all(
-      [...new Set(extra)].map(async (tag) => {
-        newest[tag] = await newestAt(env, tag).catch(() => undefined);
-      }),
-    );
+    if (extra.length) Object.assign(newest, (await metadata(env, [...new Set(extra)], false)).newest);
   });
   const [cmp, deploys, healths] = await Promise.all([
     // What main has that the newest release does not.
@@ -190,13 +215,13 @@ async function read(env: Env) {
     ),
     healthRead,
     currentMetadata,
-    // Which versions each site can move to without restoring a backup first.
-    ...shown.map(async (v) => {
-      // When GitHub does not answer, let it through: release.yml checks again and refuses old ones.
-      single[v.tag] = await perSite(env, v.tag).catch(() => true);
-    }),
-    ...shown.map(async ({ tag }) => {
-      newest[tag] = await newestAt(env, tag).catch(() => undefined);
+    metadata(
+      env,
+      shown.map((v) => v.tag),
+      true,
+    ).then((m) => {
+      Object.assign(newest, m.newest);
+      Object.assign(single, m.single);
     }),
   ]);
   const currents = healths.map((h) => (h.version && TAG.test(h.version) ? h.version : null));
