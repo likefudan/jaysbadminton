@@ -1,3 +1,4 @@
+import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { StayChart, stayText } from "../Stay";
 import { AI_PRICES, type PhotoUsage } from "../../shared/ai";
@@ -243,16 +244,18 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
           onKnown={knownVenue}
         />
         <NotesField value={notes} onInput={setNotes} />
-        <NoFeeField on={noFee} onOn={setNoFee} />
-        <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
-        <DeadlineField
-          on={deadlineOn}
-          days={days}
-          hours={hours}
-          onOn={setDeadlineOn}
-          onDays={setDays}
-          onHours={setHours}
-        />
+        <OptionRows>
+          <FeeField noFee={noFee} onNoFee={setNoFee} />
+          <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
+          <DeadlineField
+            on={deadlineOn}
+            days={days}
+            hours={hours}
+            onOn={setDeadlineOn}
+            onDays={setDays}
+            onHours={setHours}
+          />
+        </OptionRows>
         {error && <p class="error">{error}</p>}
         <button type="submit" class="button block" disabled={busy || !date}>
           {t("创建活动")}
@@ -266,16 +269,17 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
 }
 
 /**
- * 无需收款 (Ke Li 2026-11-04): for venues where everyone pays at the door. The event has no
- * fees, bills or payments; it ends by hand or by itself an hour after its end time.
+ * 需要收款 + 自动对账, 排队系统 and 报名截止时间 as one compact list (Ke Li 2026-11-10, option A):
+ * a row per switch, its setting on a short line under it, no explanation lines.
  */
-function NoFeeField(props: { on: boolean; onOn: (on: boolean) => void }) {
+function OptionRows(props: { children: ComponentChildren }) {
+  return <div class="opt-group">{props.children}</div>;
+}
+
+function OptionSwitch(props: { label: string; on: boolean; onOn: (on: boolean) => void }) {
   return (
-    <label class={`switch-card ${props.on ? "on" : ""}`}>
-      <span>
-        <strong>{t("无需收款")}</strong>
-        <small>{t("大家到球场各付各的，活动结束后不用结算和收款")}</small>
-      </span>
+    <label class="opt-row">
+      <span>{props.label}</span>
       <input
         type="checkbox"
         role="switch"
@@ -285,6 +289,15 @@ function NoFeeField(props: { on: boolean; onOn: (on: boolean) => void }) {
       />
     </label>
   );
+}
+
+/**
+ * 需要收款 + 自动对账 (Ke Li 2026-11-10), the 无需收款 switch the other way round: off is an event
+ * where everyone pays at the door, with no fees, bills or payments; it ends by hand or by itself
+ * an hour after its end time.
+ */
+function FeeField(props: { noFee: boolean; onNoFee: (noFee: boolean) => void }) {
+  return <OptionSwitch label={t("需要收款 + 自动对账")} on={!props.noFee} onOn={(on) => props.onNoFee(!on)} />;
 }
 
 /** 报名截止时间: on with how long before the start, or off (sign-up open until the end). */
@@ -298,54 +311,35 @@ function DeadlineField(props: {
 }) {
   return (
     <>
-      <label class={`switch-card ${props.on ? "on" : ""}`}>
-        <span>
-          <strong>{t("报名截止时间")}</strong>
-          <small>{props.on ? t("到截止时间就不能再报名") : t("不设截止：活动结束前都能报名（结算后就不能了）")}</small>
-        </span>
-        <input
-          type="checkbox"
-          role="switch"
-          aria-checked={props.on}
-          checked={props.on}
-          onChange={(e) => props.onOn((e.target as HTMLInputElement).checked)}
-        />
-      </label>
+      <OptionSwitch label={t("报名截止时间")} on={props.on} onOn={props.onOn} />
       {props.on && (
-        <>
-          <div class="field">
-            <span>{t("活动开始前")}</span>
-          </div>
-          <div class="inline">
-            <label class="field">
-              <select value={props.days} onChange={(e) => props.onDays(Number((e.target as HTMLSelectElement).value))}>
-                {Array.from({ length: 15 }, (_, i) => (
-                  <option key={i} value={i}>
-                    {t("{n} 天", { n: i })}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label class="field">
-              <select
-                value={props.hours}
-                onChange={(e) => props.onHours(Number((e.target as HTMLSelectElement).value))}
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>
-                    {t("{n} 小时", { n: i })}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </>
+        <div class="opt-sub">
+          <span>{t("活动开始前")}</span>
+          <select
+            aria-label={t("活动开始前")}
+            value={props.days}
+            onChange={(e) => props.onDays(Number((e.target as HTMLSelectElement).value))}
+          >
+            {Array.from({ length: 15 }, (_, i) => (
+              <option key={i} value={i}>
+                {t("{n} 天", { n: i })}
+              </option>
+            ))}
+          </select>
+          <select value={props.hours} onChange={(e) => props.onHours(Number((e.target as HTMLSelectElement).value))}>
+            {Array.from({ length: 24 }, (_, i) => (
+              <option key={i} value={i}>
+                {t("{n} 小时", { n: i })}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
     </>
   );
 }
 
-/** 排队系统: on for halls where courts are taken by queuing on the hall's computer, with the round length. */
+/** 排队系统: on for venues where courts are taken by queuing on the venue's computer, with the round length. */
 function QueueField(props: {
   on: boolean;
   minutes: string;
@@ -354,29 +348,21 @@ function QueueField(props: {
 }) {
   return (
     <>
-      <label class={`switch-card ${props.on ? "on" : ""}`}>
-        <span>
-          <strong>{t("排队系统")}</strong>
-        </span>
-        <input
-          type="checkbox"
-          role="switch"
-          aria-checked={props.on}
-          checked={props.on}
-          onChange={(e) => props.onOn((e.target as HTMLInputElement).checked)}
-        />
-      </label>
+      <OptionSwitch label={t("排队系统")} on={props.on} onOn={props.onOn} />
       {props.on && (
-        <Field
-          label={t("每轮多少分钟")}
-          type="number"
-          value={props.minutes}
-          onInput={props.onMinutes}
-          hint={t("用来估算排队的组大约多久上场，{QUEUE_ROUND_MIN}–{QUEUE_ROUND_MAX} 分钟", {
-            QUEUE_ROUND_MIN,
-            QUEUE_ROUND_MAX,
-          })}
-        />
+        <div class="opt-sub">
+          <span>{t("每轮")}</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={QUEUE_ROUND_MIN}
+            max={QUEUE_ROUND_MAX}
+            aria-label={t("每轮多少分钟")}
+            value={props.minutes}
+            onInput={(e) => props.onMinutes((e.target as HTMLInputElement).value)}
+          />
+          <span>{t("分钟")}</span>
+        </div>
       )}
     </>
   );
@@ -1326,18 +1312,20 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
         onAddress={setAddress}
       />
       <NotesField value={notes} onInput={setNotes} />
-      {feeOpen && <NoFeeField on={noFee} onOn={setNoFee} />}
-      <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
-      {feeOpen && (
-        <DeadlineField
-          on={deadlineOn}
-          days={days}
-          hours={hours}
-          onOn={setDeadlineOn}
-          onDays={setDays}
-          onHours={setHours}
-        />
-      )}
+      <OptionRows>
+        {feeOpen && <FeeField noFee={noFee} onNoFee={setNoFee} />}
+        <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
+        {feeOpen && (
+          <DeadlineField
+            on={deadlineOn}
+            days={days}
+            hours={hours}
+            onOn={setDeadlineOn}
+            onDays={setDays}
+            onHours={setHours}
+          />
+        )}
+      </OptionRows>
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy} onClick={save}>
         {t("保存修改")}

@@ -170,6 +170,8 @@ test("the Owner forgets a venue from 最近的场馆 with its ✕", async ({ pag
   await expect(queue).not.toBeChecked();
   await queue.check();
   await expect(page.getByLabel("每轮多少分钟")).toHaveValue("45");
+  // 需要收款 + 自动对账 is on unless the venue's last event collected nothing.
+  await expect(page.getByRole("switch", { name: "需要收款 + 自动对账" })).toBeChecked();
   await page.screenshot({ path: test.info().outputPath("create-queue.png"), fullPage: true });
   await page.getByRole("button", { name: VENUE, exact: true }).click();
   await expect(queue).not.toBeChecked();
