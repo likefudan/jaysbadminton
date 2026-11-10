@@ -30,6 +30,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "申请入群：你填写的用户名、微信名和给群主的留言（选填）；以前用邮箱注册的成员还有邮箱。",
             "Google 登录：Google 账号编号、邮箱和头像链接。网站只请求最基本的登录信息，读不到你的 Gmail 邮件、通讯录、云端硬盘或其他 Google 数据。",
+            "头像：默认用你 Google 账号的头像；你也可以上传一张照片（在手机上裁成小方图后再上传保存），或者选择不用头像。头像只给登录的成员看（排行榜和「最常一起打球」），没登录的访客看不到。",
             "活动记录：报名和取消、带的朋友（人数和你填的名字）、你填的到场和离开时间、出勤、应付金额和付款状态。",
             "球场排队（活动开了排队时）：成员填的球馆账号用户名和密码、登记的球场和排队情况，以及拍照登记时上传的球馆屏幕照片。照片会交给微软 Azure 上的 AI 模型识别，同时发过去的还有这场的球馆账号用户名（不含密码）；照片里可能有其他人的球馆用户名。",
             "付款通知：活动的收款人把 Venmo 收款通知邮件转发给网站，网站从中读出付款人名字、金额、备注和时间，用来自动对账，并保存邮件文字供收款人核对。付款人可能不是成员，例如替别人付款的人。Zelle 付款由收款人手动标记。网站碰不到你的银行或 Venmo 账户，也不保存你的银行卡号或 Venmo 密码。",
@@ -113,6 +114,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "申請入群：你填寫的使用者名稱、微信名和給群主的留言（選填）；以前用電子郵件註冊的成員還有電子郵件。",
             "Google 登入：Google 帳號編號、電子郵件和頭像連結。網站只請求最基本的登入資訊，讀不到你的 Gmail 郵件、聯絡人、雲端硬碟或其他 Google 資料。",
+            "頭像：預設用你 Google 帳號的頭像；你也可以上傳一張照片（在手機上裁成小方圖後再上傳儲存），或者選擇不用頭像。頭像只給登入的成員看（排行榜和「最常一起打球」），沒登入的訪客看不到。",
             "活動記錄：報名和取消、帶的朋友（人數和你填的名字）、你填的到場和離開時間、出席、應付金額和付款狀態。",
             "球場排隊（活動開了排隊時）：成員填的球館帳號使用者名稱和密碼、登記的球場和排隊情況，以及拍照登記時上傳的球館螢幕照片。照片會交給微軟 Azure 上的 AI 模型辨識，同時傳過去的還有這場的球館帳號使用者名稱（不含密碼）；照片裡可能有其他人的球館使用者名稱。",
             "付款通知：活動的收款人把 Venmo 收款通知郵件轉寄給網站，網站從中讀出付款人名字、金額、備註和時間，用來自動對帳，並保存郵件文字供收款人核對。付款人可能不是成員，例如替別人付款的人。Zelle 付款由收款人手動標記。網站碰不到你的銀行或 Venmo 帳戶，也不保存你的銀行卡號或 Venmo 密碼。",
@@ -196,6 +198,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "When you apply to join: the username, WeChat name and optional note to the group owner that you enter, plus the email address of members who signed up by email before.",
             "When you sign in with Google: your Google account ID, email address and profile photo link. The site asks only for basic sign-in information and cannot read your Gmail, contacts, Drive or any other Google data.",
+            "Profile photo: your Google account's photo by default; you can instead upload a photo (cropped to a small square on your phone before it is uploaded and stored), or choose none. Only signed-in members see it (on the leaderboards and in Played with most); visitors who aren't signed in don't.",
             "Event records: sign-ups and cancellations, friends you bring (how many, and any names you enter), the arrival and leaving times you enter, attendance, amounts owed and payment status.",
             "Court queue (when an event uses it): the gym account usernames and passwords members enter, the courts and queue places recorded, and photos of the gym's screen taken with photo entry. Photos are read by an AI model on Microsoft Azure, together with the event's gym account usernames (never the passwords); a photo may show other people's gym usernames.",
             "Payment notices: an event's payee forwards their Venmo payment notification emails to the site, which reads the payer's name, the amount, the note and the time to match payments automatically, and keeps the email text so the payee can check it. A payer may not be a member, for example someone paying on another person's behalf. Zelle payments are marked by hand by the payee. The site never touches your bank or Venmo account and stores no card numbers or Venmo passwords.",

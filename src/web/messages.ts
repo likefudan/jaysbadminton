@@ -5,6 +5,32 @@
 import { ADMIN_MESSAGES } from "./adminMessages";
 
 const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
+  头像: { tw: "頭像", en: "Profile photo" },
+  "这张照片打不开，请换一张": { tw: "這張照片打不開，請換一張", en: "That photo can't be opened. Please pick another" },
+  "用的是你上传的照片。": { tw: "用的是你上傳的照片。", en: "Using the photo you uploaded." },
+  "现在不显示头像。": { tw: "現在不顯示頭像。", en: "No profile photo is shown." },
+  "现在用的是 Google 账号的头像。": { tw: "現在用的是 Google 帳號的頭像。", en: "Using your Google account's photo." },
+  "还没有头像。": { tw: "還沒有頭像。", en: "No profile photo yet." },
+  "头像会显示在排行榜和「最常一起打球」里，只有群里的成员看得到。": {
+    tw: "頭像會顯示在排行榜和「最常一起打球」裡，只有群裡的成員看得到。",
+    en: "It shows on the leaderboards and in Played with most, to group members only.",
+  },
+  换一张照片: { tw: "換一張照片", en: "Change photo" },
+  上传照片: { tw: "上傳照片", en: "Upload photo" },
+  "用 Google 头像": { tw: "用 Google 頭像", en: "Use Google photo" },
+  不用头像: { tw: "不用頭像", en: "No photo" },
+  "拖动、双指缩放，把脸放进圆圈里。": {
+    tw: "拖動、雙指縮放，把臉放進圓圈裡。",
+    en: "Drag and pinch to fit your face in the circle.",
+  },
+  缩放: { tw: "縮放", en: "Zoom" },
+  "照片格式不对，请换一张": {
+    tw: "照片格式不對，請換一張",
+    en: "That photo's format isn't supported. Please pick another",
+  },
+  "照片太大了，请换一张": { tw: "照片太大了，請換一張", en: "That photo is too large. Please pick another" },
+  请选择头像: { tw: "請選擇頭像", en: "Please choose a profile photo" },
+  找不到这个头像: { tw: "找不到這個頭像", en: "Profile photo not found" },
   上一年: { tw: "上一年", en: "Previous year" },
   下一年: { tw: "下一年", en: "Next year" },
   年度回顾: { tw: "年度回顧", en: "Year in review" },

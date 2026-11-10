@@ -52,8 +52,16 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use("*", async (c, next) => {
   await next();
-  // Member and admin links carry secret tokens in the path; keep them out of caches. The icons have none.
-  c.header("Cache-Control", SITE_ICON_FILES.includes(c.req.path) ? "public, max-age=3600" : "no-store");
+  // Member and admin links carry secret tokens in the path; keep them out of caches. The icons have none,
+  // and a 头像 photo's address changes with every upload, so it is kept for good.
+  c.header(
+    "Cache-Control",
+    SITE_ICON_FILES.includes(c.req.path)
+      ? "public, max-age=3600"
+      : c.req.path.startsWith("/api/public/avatars/") && c.res.ok
+        ? "public, max-age=31536000, immutable"
+        : "no-store",
+  );
   // Same as public/_headers, now that the Worker also serves the home and event pages.
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) c.header(name, value);
   if (isStaging(c.env)) c.header("X-Robots-Tag", "noindex, nofollow");

@@ -147,7 +147,14 @@ export interface MeResponse {
   canAdmin: boolean;
   /** False for a disabled member: the page only shows bills. */
   active: boolean;
+  /** 头像: the URL to show (null: the empty one), where it comes from, and whether Google has one. */
+  avatar: string | null;
+  avatarMode: AvatarMode;
+  googlePicture: boolean;
 }
+
+/** 头像: their own photo, their Google account's picture (the default), or none. */
+export type AvatarMode = "own" | "google" | "none";
 
 export type EventStatus = "open" | "closed" | "finalized" | "settled" | "cancelled";
 
@@ -376,6 +383,8 @@ export interface RankEntry {
   rank: number; // ties share a rank, the next one skips (1, 1, 1, 4)
   name: string;
   value: number;
+  /** Their 头像's URL; null or missing: the empty one (always left out for visitors not signed in). */
+  avatar?: string | null;
 }
 
 /** 排行榜, in the order the tabs show (能量 first, Ke Li). */
@@ -436,7 +445,7 @@ export interface YearReview {
   queue: number;
   venue: { name: string; count: number } | null;
   /** 最常一起打球: only on their own page, never in the share image. */
-  buddies: { name: string; count: number }[];
+  buddies: { name: string; count: number; avatar: string | null }[];
   /** All-time totals for each badge, with the level reached (0–3). */
   milestones: { key: MilestoneKey; value: number; tier: number }[];
 }

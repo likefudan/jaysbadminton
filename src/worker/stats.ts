@@ -11,6 +11,7 @@ import {
   type YearReview,
 } from "../shared/types";
 import { MILESTONES, type MilestoneKey, tierOf } from "../shared/milestones";
+import { avatarsById, avatarUrl } from "./avatars";
 import { getSettings } from "./db";
 import type { Env } from "./env";
 
@@ -54,16 +55,24 @@ async function rows(env: Env, since: string): Promise<Row[]> {
  * Top n with ties sharing a rank and the next rank skipping (1, 1, 1, 4); tied people go by
  * name. Everyone tied with the last place shown stays on the board.
  */
-export function top(counts: Map<string, { name: string; value: number }>, n = 10): RankEntry[] {
-  const sorted = [...counts.values()]
-    .filter((x) => x.value > 0)
-    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+export function top(
+  counts: Map<string, { name: string; value: number }>,
+  n = 10,
+  avatars?: Map<string, string | null>,
+): RankEntry[] {
+  const sorted = [...counts.entries()]
+    .filter(([, x]) => x.value > 0)
+    .sort(([, a], [, b]) => b.value - a.value || a.name.localeCompare(b.name));
   const out: RankEntry[] = [];
-  for (const [i, x] of sorted.entries()) {
+  for (const [i, [id, x]] of sorted.entries()) {
     const prev = out[i - 1];
     const rank = prev && prev.value === x.value ? prev.rank : i + 1;
     if (rank > n) break;
-    out.push({ rank, name: x.name, value: x.value });
+    out.push(
+      avatars
+        ? { rank, name: x.name, value: x.value, avatar: avatars.get(id) ?? null }
+        : { rank, name: x.name, value: x.value },
+    );
   }
   return out;
 }
@@ -174,6 +183,7 @@ function boards(
   from: string,
   to: string,
   before: { from: string; to: string },
+  avatars?: Map<string, string | null>,
 ): Record<BoardKey, RankEntry[]> {
   const inside = (d: string) => d >= from && d <= to;
   const tallies = Object.fromEntries(BOARD_KEYS.map((k) => [k, new Map()])) as Record<BoardKey, Tally>;
@@ -206,18 +216,25 @@ function boards(
 
   // Hours to one decimal, from minutes, before ranking: the same hours shown share a rank.
   for (const h of tallies.hours.values()) h.value = toHours(h.value);
-  return Object.fromEntries(BOARD_KEYS.map((k) => [k, top(tallies[k])])) as Record<BoardKey, RankEntry[]>;
+  return Object.fromEntries(BOARD_KEYS.map((k) => [k, top(tallies[k], 10, avatars)])) as Record<BoardKey, RankEntry[]>;
 }
 
-/** 排行榜: every board for this year and this month. Members only, never money. */
-export async function leaderboard(env: Env): Promise<Leaderboard> {
+/**
+ * 排行榜: every board for this year and this month. Members only, never money. Each entry carries
+ * the member's 头像 unless `avatars` is false (visitors who aren't signed in).
+ */
+export async function leaderboard(env: Env, opts: { avatars?: boolean } = {}): Promise<Leaderboard> {
   const day = today();
   const year = day.slice(0, 4);
   const month = day.slice(0, 7);
   // 进步 compares attendance with last year; the other boards only need this year.
-  const [all, x] = await Promise.all([rows(env, `${Number(year) - 1}-01-01`), extra(env, `${year}-01-01`)]);
-  const yearly = boards(all, x, `${year}-01-01`, day, previousPeriod(day, "year"));
-  const monthly = boards(all, x, `${month}-01`, day, previousPeriod(day, "month"));
+  const [all, x, faces] = await Promise.all([
+    rows(env, `${Number(year) - 1}-01-01`),
+    extra(env, `${year}-01-01`),
+    opts.avatars === false ? undefined : avatarsById(env),
+  ]);
+  const yearly = boards(all, x, `${year}-01-01`, day, previousPeriod(day, "year"), faces);
+  const monthly = boards(all, x, `${month}-01`, day, previousPeriod(day, "month"), faces);
   return { year: Number(year), month: Number(day.slice(5, 7)), boards: [...BOARD_KEYS], ...yearly, monthly };
 }
 
@@ -359,7 +376,7 @@ export async function yearReview(env: Env, memberId: string, asked?: number): Pr
   const venue = [...venues].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
 
   const { results: buddies } = await env.DB.prepare(
-    `SELECT m.username AS name, COUNT(*) AS count
+    `SELECT m.username AS name, COUNT(*) AS count, m.avatar, m.google_picture
      FROM registrations r JOIN events e ON e.id = r.event_id
      JOIN registrations o ON o.event_id = r.event_id AND o.friend_index = 0 AND o.attended = 1 AND o.member_id != r.member_id
      JOIN members m ON m.id = o.member_id
@@ -367,7 +384,7 @@ export async function yearReview(env: Env, memberId: string, asked?: number): Pr
      GROUP BY o.member_id ORDER BY count DESC, m.username LIMIT 3`,
   )
     .bind(memberId, `${year}-%`)
-    .all<{ name: string; count: number }>();
+    .all<{ name: string; count: number; avatar: string | null; google_picture: string | null }>();
 
   const hours = (rows: Mine[]) => toHours(rows.reduce((t, r) => t + stayMinutes(r), 0));
   const yearKcal = kcalRows.filter((r) => inYear(r.date));
@@ -396,7 +413,7 @@ export async function yearReview(env: Env, memberId: string, asked?: number): Pr
     friends: dates(friends!).filter(inYear).length,
     queue: dates(queue!).filter(inYear).length,
     venue: venue ? { name: venue[0], count: venue[1] } : null,
-    buddies,
+    buddies: buddies.map((b) => ({ name: b.name, count: b.count, avatar: avatarUrl(b) })),
     milestones: MILESTONES.map(({ key, tiers }) => ({ key, value: totals[key], tier: tierOf(tiers, totals[key]) })),
   };
 }

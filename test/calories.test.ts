@@ -176,23 +176,23 @@ describe("卡路里", () => {
     const board = async () => (await ctx.admin.call(`${ctx.base}/leaderboard`)).data.board.calories;
     await anon.call(`${alice.base}/calories/board`, { on: true });
     // The same total as 我的卡路里, before the event is settled too; a cancelled event drops out.
-    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 700 }]);
+    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 700, avatar: null }]);
     await env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e2.id).run();
-    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 400 }]);
+    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 400, avatar: null }]);
     await env.DB.prepare("UPDATE events SET status = 'settled' WHERE id IN (?, ?)").bind(e.id, e2.id).run();
-    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 700 }]);
+    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 700, avatar: null }]);
     await anon.call(`${bob.base}/calories/board`, { on: true });
     expect(await board()).toEqual([
-      { rank: 1, name: "Alice", value: 700 },
-      { rank: 2, name: "Bob", value: 500 },
+      { rank: 1, name: "Alice", value: 700, avatar: null },
+      { rank: 2, name: "Bob", value: 500, avatar: null },
     ]);
     // Marked absent: off the board for that event.
     await env.DB.prepare("UPDATE registrations SET attended = 0 WHERE event_id = ? AND member_id = ?")
       .bind(e2.id, alice.id)
       .run();
-    expect((await board())[0]).toEqual({ rank: 1, name: "Bob", value: 500 });
+    expect((await board())[0]).toEqual({ rank: 1, name: "Bob", value: 500, avatar: null });
     await anon.call(`${bob.base}/calories/board`, { on: false });
-    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 400 }]);
+    expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 400, avatar: null }]);
 
     // 已结清 shows it too.
     const { history } = (await anon.call(`${bob.base}/events`)).data;

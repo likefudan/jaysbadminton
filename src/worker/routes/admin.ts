@@ -1,3 +1,4 @@
+import { forgetAvatar } from "../avatars";
 import { endDeveloperSession } from "../developer";
 import { sendApprovalEmail } from "../approvalEmail";
 import { type Context, Hono } from "hono";
@@ -435,6 +436,7 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
       "UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL, username = ? WHERE id = ? AND deleted_at IS NULL",
     ).bind(now(), deletedName(m), m.id),
     forgetPush(c.env.DB, m.id),
+    ...forgetAvatar(c.env.DB, m.id),
   ]);
   // A second click finds them deleted already: nothing more to record.
   if (deleted?.meta.changes) await groupAudit(c.env, c.get("actor"), "delete", m.id, `删除成员 ${m.username}`);

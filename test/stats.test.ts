@@ -63,19 +63,19 @@ describe("leaderboard", () => {
     expect(board.year).toBe(Number(today.slice(0, 4)));
     expect(board.month).toBe(Number(today.slice(5, 7)));
     const two = (a: number, b: number) => [
-      { rank: 1, name: "Alice", value: a },
-      { rank: 2, name: "Bob", value: b },
+      { rank: 1, name: "Alice", value: a, avatar: null },
+      { rank: 2, name: "Bob", value: b, avatar: null },
     ];
     for (const b of [board, board.monthly]) {
       expect(b.attendance).toEqual(two(3, 1));
       expect(b.streak).toEqual(two(3, 1));
-      expect(b.friends).toEqual([{ rank: 1, name: "Alice", value: 1 }]);
+      expect(b.friends).toEqual([{ rank: 1, name: "Alice", value: 1, avatar: null }]);
       // 9:00–13:00 (1.5 h of it), 10:00–13:00 and 11:00–13:00; Bob the whole first one.
       expect(b.hours).toEqual(two(6.5, 4));
       expect(b.progress).toEqual(two(3, 1));
       // Both among the first five at every event they came to; the cancelled one doesn't count.
       expect(b.early).toEqual(two(3, 1));
-      expect(b.queue).toEqual([{ rank: 1, name: "Bob", value: 1 }]);
+      expect(b.queue).toEqual([{ rank: 1, name: "Bob", value: 1, avatar: null }]);
     }
   });
 
@@ -168,7 +168,9 @@ describe("年度回顾", () => {
     expect(before).toMatchObject({ year: Number(lastYear), count: 1, buddies: [{ name: "Bob", count: 1 }] });
     expect(before.years).toEqual([Number(today.slice(0, 4)), Number(lastYear)]);
     expect((await anon.call(`${alice.base}/year?year=1999`)).data.year).toBe(Number(today.slice(0, 4)));
-    expect((await anon.call(`${bob.base}/year?year=${lastYear}`)).data.buddies).toEqual([{ name: "Alice", count: 1 }]);
+    expect((await anon.call(`${bob.base}/year?year=${lastYear}`)).data.buddies).toEqual([
+      { name: "Alice", count: 1, avatar: null },
+    ]);
   });
 
   it("gives a badge its level at each threshold", () => {

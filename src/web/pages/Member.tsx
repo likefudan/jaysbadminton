@@ -17,6 +17,7 @@ import { CourtsLine, EventHero, FeeLine, MiniEventCard, friendCount, mapLink, mi
 import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
 import { Heatmap, MeCard, ProfileSettings, activityCounts } from "../Profile";
+import { AvatarForm } from "../Avatar";
 import { RosterList } from "../Roster";
 import { StayPicker } from "../Stay";
 import { CourtQueue } from "../CourtQueue";
@@ -107,7 +108,7 @@ export function MemberProfilePage(props: { token?: string }) {
   const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
   const [stats] = useApi<MyStats>(`${base}/stats`);
   const [calories, reloadCalories] = useApi<MyCalories>(`${base}/calories`);
-  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "settings" | null>(null);
+  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "settings" | "avatar" | null>(null);
   const close = () => setOpen(null);
   const p = profile.state === "ok" ? profile.data : null;
   const s = stats.state === "ok" && stats.data.history.length > 0 ? stats.data : null;
@@ -119,7 +120,9 @@ export function MemberProfilePage(props: { token?: string }) {
           name: m.username,
           wechat: m.wechatNickname,
           joinedAt: p?.joinedAt,
+          avatar: m.avatar,
           onSettings: () => setOpen("settings"),
+          onAvatar: () => setOpen("avatar"),
         };
         const spent = s && thisYear(s);
         const days = p && activityCounts(p.activity);
@@ -187,6 +190,13 @@ export function MemberProfilePage(props: { token?: string }) {
             {open === "calories" && c && (
               <Panel title={t("我的卡路里")} label={t("我的卡路里")} onClose={close}>
                 <CaloriesPage c={c} base={base} onChange={reloadCalories} />
+              </Panel>
+            )}
+            {open === "avatar" && (
+              <Panel title={t("头像")} label={t("头像")} onClose={close}>
+                <section class="card">
+                  <AvatarForm base={base} me={m} onDone={reloadMe} />
+                </section>
               </Panel>
             )}
             {open === "settings" && (

@@ -160,7 +160,7 @@ describe("带群友", () => {
       .run();
     const leaderboard = (await s.admin.call(`${s.base}/leaderboard`)).data.board;
     expect(leaderboard.attendance.map((r: { name: string }) => r.name).sort()).toEqual(["Ke", "arthur"]);
-    expect(leaderboard.friends).toEqual([{ rank: 1, name: "Ke", value: 1 }]);
+    expect(leaderboard.friends).toEqual([{ rank: 1, name: "Ke", value: 1, avatar: null }]);
   });
 
   it("lets the admin page hang a group member under someone", async () => {

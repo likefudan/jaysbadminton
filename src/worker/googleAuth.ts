@@ -1,3 +1,4 @@
+import { syncGooglePicture } from "./avatars";
 import { developerMember, endDeveloperSession } from "./developer";
 import { applyToJoin } from "./joining";
 import { Hono, type Context } from "hono";
@@ -216,6 +217,7 @@ googleRoutes.get("/google/callback", async (c) => {
       c.env.DB.prepare(
         "INSERT INTO member_sessions (id_hash, google_sub, email, expires_at, picture) VALUES (?, ?, ?, ?, ?)",
       ).bind(await sha256(raw), payload.sub, payload.email, expires.toISOString(), profilePicture(payload.picture)),
+      syncGooglePicture(c.env.DB, payload.sub, profilePicture(payload.picture)),
     ]);
     setCookie(c, MEMBER_COOKIE, raw, { ...cookieOptions(c), expires });
     return c.redirect(next);
@@ -246,6 +248,7 @@ googleRoutes.post("/register", async (c) => {
     googleSub: session.google_sub,
     googleEmail: session.email,
   });
+  await syncGooglePicture(c.env.DB, session.google_sub, session.picture).run();
   return c.json({ id: member.id, pending: !approved });
 });
 googleRoutes.post("/link", async (c) => {
@@ -262,9 +265,9 @@ googleRoutes.post("/link", async (c) => {
   try {
     const result = await c.env.DB.prepare(
       // Bound to Google, the old link stops working: 专属链接 are going away (Ke Li 2026-11-04).
-      "UPDATE members SET google_sub = ?, google_email = ?, token_hash = NULL, token_enc = NULL WHERE id = ? AND google_sub IS NULL AND deleted_at IS NULL",
+      "UPDATE members SET google_sub = ?, google_email = ?, google_picture = ?, token_hash = NULL, token_enc = NULL WHERE id = ? AND google_sub IS NULL AND deleted_at IS NULL",
     )
-      .bind(session.google_sub, session.email, m.id)
+      .bind(session.google_sub, session.email, session.picture, m.id)
       .run();
     if (!result.meta.changes) throw new Error("already linked");
   } catch {
