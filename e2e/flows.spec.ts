@@ -204,10 +204,13 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   const names = card.locator(".roster-fold");
   await expect(names.locator("summary")).toHaveText("名单（3 人）");
   await expect(names.locator(".names li")).toHaveText(["Jay", "小明（我）", "阿强（小明带）"]);
-  // Folded by default; opening it is remembered on this device, so a refresh keeps it open.
+  // Folded by default; opening it is remembered on this device for this event alone, so a refresh
+  // keeps it open while other events' lists stay folded.
   await expect(names).not.toHaveAttribute("open");
   await names.locator("summary").click();
   await expect(names).toHaveAttribute("open");
+  const remembered = await page.evaluate(() => JSON.parse(localStorage.getItem("roster-open-events") ?? "[]"));
+  expect(remembered).toHaveLength(1);
   await page.reload();
   await expect(card.locator(".roster-fold")).toHaveAttribute("open");
   await card.locator(".roster-fold summary").click();

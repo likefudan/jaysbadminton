@@ -363,6 +363,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {!e.roster?.length && <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>}
         {e.roster && e.roster.length > 0 && (
           <RosterList
+            eventId={String(e.id)}
             roster={e.roster}
             open={e.status === "open" || e.status === "closed"}
             start={e.startTime}
