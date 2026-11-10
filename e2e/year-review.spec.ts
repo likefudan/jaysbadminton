@@ -39,7 +39,9 @@ test("the year card switches years, shows the badges, and shares an image", asyn
     route.fulfill({ json: review(new URL(route.request().url()).searchParams.get("year") === "2025" ? 2025 : 2026) }),
   );
   await page.goto("/m/tok/profile");
-  const card = page.locator(".year-card");
+  // Inside the top card, under their name (option C).
+  const card = page.locator(".me-card .year-card");
+  await expect(page.locator(".me-card")).toContainText("Dafei");
   await expect(card).toContainText("你的 2026");
   await expect(card).toContainText("14,820");
   await expect(card).toContainText("Synergy Badminton Academy");
@@ -53,10 +55,11 @@ test("the year card switches years, shows the badges, and shares an image", asyn
   // Each badge shows the level reached, or the first one greyed out, and the way to the next.
   const medals = page.locator(".medal");
   await expect(medals).toHaveCount(6);
-  await expect(medals.first()).toContainText("出勤 20 次");
+  await expect(medals.first()).toContainText("出勤");
+  await expect(medals.first()).toHaveAttribute("title", "出勤 20 次");
   await expect(medals.first()).toContainText("24 / 50");
   await expect(page.locator(".medal.locked")).toHaveCount(1);
-  await expect(page.locator(".medal.locked")).toContainText("带朋友 3 人次");
+  await expect(page.locator(".medal.locked")).toHaveAttribute("title", "带朋友 3 人次");
   await expect(medals.last()).toContainText("230");
 
   await expect(page.locator(".buddy")).toHaveText([/Lily.*18/, /arthur.*15/]);

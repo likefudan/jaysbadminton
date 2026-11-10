@@ -45,6 +45,8 @@ test("the member picks a range and the spending chart and figures follow", async
     }),
   );
   await page.goto("/m/tok/profile");
+  // 我的数据 → 我的花费 opens the chart on a page of its own.
+  await page.getByRole("button", { name: /我的花费/ }).click();
   const card = page.locator(".card.spend");
   const figures = card.locator(".spend-figures");
 
@@ -71,6 +73,7 @@ test("the member picks a range and the spending chart and figures follow", async
 
   // The choice is remembered.
   await page.reload();
+  await page.getByRole("button", { name: /我的花费/ }).click();
   await expect(page.locator(".card.spend").getByRole("button", { name: "30D" })).toHaveAttribute(
     "aria-pressed",
     "true",

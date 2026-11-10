@@ -63,7 +63,8 @@ test("不用了 keeps the offer off 我的活动, 个人信息 still has it", as
   await expect(offer(page)).toBeHidden();
 
   await page.getByRole("link", { name: "个人信息" }).click();
-  await page.locator(".set-list").getByRole("button", { name: "添加到主屏幕" }).click();
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByRole("dialog", { name: "设置" }).getByRole("button", { name: "添加到主屏幕" }).click();
   expect(await page.evaluate(() => (window as any).prompted)).toBe(true);
 });
 
@@ -86,6 +87,7 @@ test.describe("iPhone", () => {
     await page.waitForFunction(() => !history.state?.panel);
 
     await page.goto("/m/tok/profile");
+    await page.getByRole("button", { name: "设置" }).click();
     await page.getByRole("link", { name: "添加到主屏幕" }).click();
     await expect(guide).toBeVisible();
     // What Safari adds is 我的活动 itself, not the ?add=1 that opened the steps.
@@ -99,6 +101,7 @@ test.describe("iPhone", () => {
     await expect(page.getByRole("heading", { name: "你好，Dafei" })).toBeVisible();
     await expect(offer(page)).toBeHidden();
     await page.goto("/m/tok/profile");
+    await page.getByRole("button", { name: "设置" }).click();
     await expect(page.getByRole("button", { name: /推送通知/ })).toBeVisible();
     await expect(page.getByText("添加到主屏幕")).toBeHidden();
   });

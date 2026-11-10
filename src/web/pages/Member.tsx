@@ -7,24 +7,26 @@ import type {
   MyCalories,
   MyEvent,
   MyEventsResponse,
+  MyStats,
   PaymentStatus,
 } from "../../shared/types";
 import { statusZh } from "../../shared/types";
 import { api } from "../api";
-import { Card, Empty, Load, Page, SectionTitle, useAction } from "../components";
+import { Card, Empty, Load, Page, SectionTitle, SettingRow, useAction } from "../components";
 import { CourtsLine, EventHero, FeeLine, MiniEventCard, friendCount, mapLink, mineStatus, onCard } from "../events";
 import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
-import { Heatmap, ProfileHero, ProfileSettings } from "../Profile";
+import { Heatmap, MeCard, ProfileSettings, activityCounts } from "../Profile";
 import { RosterList } from "../Roster";
 import { StayPicker } from "../Stay";
 import { CourtQueue } from "../CourtQueue";
 import { useApi } from "../hooks";
 import { CardCornerIcons } from "../ShareCard";
 import { SwipeSection } from "../Swipe";
-import { MyStatsCard } from "../Stats";
-import { YearReviewCards } from "../YearReview";
-import { CalorieRow, FlameIcon, MyCaloriesCard, kcalText } from "../Calories";
+import { SpendingCard, thisYear } from "../Stats";
+import { YearReviewTop } from "../YearReview";
+import { CalorieRow, CaloriesPage, FlameIcon, FlameOutline, caloriesShown, kcalText } from "../Calories";
+import { Panel } from "../Panel";
 import { InstallPrompt } from "../Install";
 import { PushPrompt } from "../Push";
 import { GoogleLink } from "./Account";
@@ -94,51 +96,135 @@ function MemberNav(props: { token?: string; admin: boolean; current: "events" | 
 }
 
 /**
- * 个人信息 (Ke Li's pick of three designs): who they are and the year at a glance on top, then
- * spending, the activity map, and 资料与设置 as one list of rows.
+ * 个人信息 (Ke Li 2026-11-10, option C): what members come for first (who they are and their
+ * year, the badges, who they play with), then 我的数据, one line each that opens a page of its
+ * own, and 设置 behind the gear in the top card.
  */
 export function MemberProfilePage(props: { token?: string }) {
   const base = `/api/m/${props.token ?? "session"}`;
   const home = props.token ? `/m/${props.token}` : "/me";
   const [me, reloadMe] = useApi<MeResponse>(`${base}/me`);
   const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
+  const [stats] = useApi<MyStats>(`${base}/stats`);
   const [calories, reloadCalories] = useApi<MyCalories>(`${base}/calories`);
+  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "settings" | null>(null);
+  const close = () => setOpen(null);
+  const p = profile.state === "ok" ? profile.data : null;
+  const s = stats.state === "ok" && stats.data.history.length > 0 ? stats.data : null;
+  const c = calories.state === "ok" && caloriesShown(calories.data) ? calories.data : null;
   return (
     <Load result={me}>
-      {(m) => (
-        <Page title={t("个人信息")}>
-          <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
-          <Load result={profile}>{(p) => <ProfileHero profile={p} />}</Load>
-          <MyStatsCard base={base} />
-          <MyCaloriesCard base={base} result={calories} reload={reloadCalories} />
-          {m.active && <YearReviewCards base={base} name={m.username} />}
-          {profile.state === "ok" && (
-            <>
-              <SectionTitle>{t("活动记录")}</SectionTitle>
-              <Card>
-                <Heatmap activity={profile.data.activity} summary={false} />
-              </Card>
-            </>
-          )}
-          <SectionTitle>{t("资料与设置")}</SectionTitle>
-          {/* Here even if the profile didn't load: push and the home screen don't need it. */}
-          <ProfileSettings
-            me={m}
-            profile={profile.state === "ok" ? profile.data : null}
-            base={base}
-            home={home}
-            shortcut={calories.state === "ok" ? calories.data.shortcut : null}
-            onChange={() => {
-              reloadProfile();
-              reloadMe();
-            }}
-          />
-          {props.token && <GoogleLink token={props.token} />}
-        </Page>
-      )}
+      {(m) => {
+        const card = {
+          name: m.username,
+          wechat: m.wechatNickname,
+          joinedAt: p?.joinedAt,
+          onSettings: () => setOpen("settings"),
+        };
+        const spent = s && thisYear(s);
+        const days = p && activityCounts(p.activity);
+        return (
+          <Page title={t("个人信息")}>
+            <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
+            {m.active ? <YearReviewTop base={base} me={card} /> : <MeCard {...card} />}
+            {(s || p || c) && (
+              <>
+                <SectionTitle>{t("我的数据")}</SectionTitle>
+                <section class="card set-list">
+                  {spent && (
+                    <SettingRow
+                      icon={<ChartIcon />}
+                      label={t("我的花费")}
+                      sub={
+                        spent.avgCents === null
+                          ? t("今年 {n} 次", { n: spent.count })
+                          : t("今年 {n} 次 · 平均 {avg}", { n: spent.count, avg: `$${dollars(spent.avgCents)}` })
+                      }
+                      value={wholeDollars(spent.cents)}
+                      onClick={() => setOpen("spend")}
+                    />
+                  )}
+                  {days && (
+                    <SettingRow
+                      icon={<CalendarIcon />}
+                      label={t("活动记录")}
+                      sub={days.absent ? t("今年 · 缺席 {n} 次", { n: days.absent }) : t("今年")}
+                      value={t("{n} 次", { n: days.done })}
+                      onClick={() => setOpen("activity")}
+                    />
+                  )}
+                  {c && (
+                    <SettingRow
+                      icon={<FlameOutline />}
+                      label={t("我的卡路里")}
+                      sub={
+                        c.yearCount > 0
+                          ? `${t("{year} 年 {n} 场", { year: c.year, n: c.yearCount })}${c.board ? ` · ${t("已加入能量榜")}` : ""}`
+                          : c.board
+                            ? t("已加入能量榜")
+                            : undefined
+                      }
+                      value={c.yearCount > 0 ? t("{n} 千卡", { n: kcalText(c.yearKcal) }) : undefined}
+                      onClick={() => setOpen("calories")}
+                    />
+                  )}
+                </section>
+              </>
+            )}
+            {props.token && <GoogleLink token={props.token} />}
+            {open === "spend" && s && (
+              <Panel title={t("我的花费")} label={t("我的花费")} onClose={close}>
+                <SpendingCard stats={s} />
+              </Panel>
+            )}
+            {open === "activity" && p && (
+              <Panel title={t("活动记录")} label={t("活动记录")} onClose={close}>
+                <Card>
+                  <Heatmap activity={p.activity} />
+                </Card>
+              </Panel>
+            )}
+            {open === "calories" && c && (
+              <Panel title={t("我的卡路里")} label={t("我的卡路里")} onClose={close}>
+                <CaloriesPage c={c} base={base} onChange={reloadCalories} />
+              </Panel>
+            )}
+            {open === "settings" && (
+              <Panel title={t("设置")} label={t("设置")} onClose={close}>
+                {/* Here even if the profile didn't load: push and the home screen don't need it. */}
+                <ProfileSettings
+                  me={m}
+                  profile={p}
+                  base={base}
+                  home={home}
+                  onChange={() => {
+                    reloadProfile();
+                    reloadMe();
+                  }}
+                />
+              </Panel>
+            )}
+          </Page>
+        );
+      }}
     </Load>
   );
 }
+
+/** "$1,563": the year's total at a glance; the page behind it has the cents. */
+const wholeDollars = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+
+const ChartIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />
+  </svg>
+);
+const CalendarIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <rect x="3.5" y="5" width="17" height="15" rx="3" />
+    <path d="M3.5 10h17M8 3v4M16 3v4" />
+  </svg>
+);
 
 const byTime = (a: { date: string; startTime?: string }, b: { date: string; startTime?: string }) =>
   `${a.date} ${a.startTime ?? ""}`.localeCompare(`${b.date} ${b.startTime ?? ""}`);
@@ -330,34 +416,32 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {/* Right under the top, near the 报名 / 修改 button that opens it. */}
         {e.canEdit && editing && (
           <div class="ev-edit">
-            <>
-              {!brought && (
-                <>
-                  <StayPicker start={e.startTime} end={e.endTime} value={stay} onChange={setStay} />
-                  <FriendsEditor
-                    friends={friends}
-                    max={Math.max(e.friendCap, nFriends)}
-                    onChange={setFriends}
-                    choices={choices}
-                  />
-                </>
-              )}
-              {error && <p class="error">{error}</p>}
-              {!brought && (
-                <button type="button" class="button block" disabled={busy} onClick={save}>
-                  {signedUp ? t("保存修改") : t("确认报名")}
-                </button>
-              )}
-              {/* 取消报名 only shows once they tap 修改 (Ke Li 2026-11-07). */}
-              {(signedUp || friendsOnly || brought) && (
-                <button type="button" class="button danger block" disabled={busy} onClick={cancel}>
-                  {brought ? t("我不去了") : friendsOnly ? t("去掉这些朋友") : t("取消报名")}
-                </button>
-              )}
-              <button type="button" class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
-                {t("返回")}
+            {!brought && (
+              <>
+                <StayPicker start={e.startTime} end={e.endTime} value={stay} onChange={setStay} />
+                <FriendsEditor
+                  friends={friends}
+                  max={Math.max(e.friendCap, nFriends)}
+                  onChange={setFriends}
+                  choices={choices}
+                />
+              </>
+            )}
+            {error && <p class="error">{error}</p>}
+            {!brought && (
+              <button type="button" class="button block" disabled={busy} onClick={save}>
+                {signedUp ? t("保存修改") : t("确认报名")}
               </button>
-            </>
+            )}
+            {/* 取消报名 only shows once they tap 修改 (Ke Li 2026-11-07). */}
+            {(signedUp || friendsOnly || brought) && (
+              <button type="button" class="button danger block" disabled={busy} onClick={cancel}>
+                {brought ? t("我不去了") : friendsOnly ? t("去掉这些朋友") : t("取消报名")}
+              </button>
+            )}
+            <button type="button" class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
+              {t("返回")}
+            </button>
           </div>
         )}
         {!e.roster?.length && <div class="ev-meta">{tx("{n} 人已报名", { n: <b>{e.headcount}</b> })}</div>}

@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { toPacific } from "../shared/time";
-import type { ActivityDay, MeResponse, MemberProfile, MyCalories } from "../shared/types";
+import type { ComponentChildren } from "preact";
+import type { ActivityDay, MeResponse, MemberProfile } from "../shared/types";
 import { checkUsername } from "../shared/rules";
 import { api } from "./api";
 import { Card, Field, SettingRow, useAction } from "./components";
-import { ShortcutRow } from "./Calories";
 import { InstallRow } from "./Install";
 import { PushRow } from "./Push";
 import { fmtDate, fmtDay, month, t, tk, tx } from "./i18n";
@@ -191,54 +191,67 @@ export function ProfileCard(props: {
   );
 }
 
+export interface MeCardProps {
+  name: string;
+  wechat: string;
+  /** Unknown while the profile loads (or if it failed). */
+  joinedAt?: string;
+  onSettings: () => void;
+}
+
 /**
  * The top of a member's own 个人信息, in the accent like the next-event card on 我的活动: who they
- * are, and the year at a glance (the same counts as the activity map).
+ * are, 设置 behind the gear, and the year (年度回顾) underneath.
  */
-export function ProfileHero(props: { profile: MemberProfile }) {
-  const p = props.profile;
-  const nums: [number, string][] = [
-    [countOf(p.activity, "done"), t("过去一年打球")],
-    [countOf(p.activity, "absent"), t("缺席")],
-    [countOf(p.activity, "upcoming"), t("即将参加")],
-  ];
+export function MeCard(props: MeCardProps & { children?: ComponentChildren }) {
   return (
     <section class="card ev-card tone-hero me-card">
       <div class="ev-head">
         <div class="me-top">
           <span class="me-avatar" aria-hidden="true">
-            {[...p.username][0]?.toUpperCase()}
+            {[...props.name][0]?.toUpperCase()}
           </span>
-          <div>
-            <h2 class="me-name">{p.username}</h2>
+          <div class="grow">
+            <h2 class="me-name">{props.name}</h2>
             <p class="me-sub">
-              {t("微信名 {name}", { name: p.wechatNickname })} ·{" "}
-              {t("{date}入群", { date: fmtDay(toPacific(p.joinedAt).date) })}
+              {t("微信名 {name}", { name: props.wechat })}
+              {props.joinedAt && ` · ${t("{date}入群", { date: fmtDay(toPacific(props.joinedAt).date) })}`}
             </p>
           </div>
+          <button type="button" class="share-icon me-gear" aria-label={t("设置")} onClick={props.onSettings}>
+            <GearIcon />
+          </button>
         </div>
-        <dl class="me-nums">
-          {nums.map(([n, label]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{n}</dd>
-            </div>
-          ))}
-        </dl>
+        {props.children}
       </div>
     </section>
   );
 }
 
-/** 资料与设置 on a member's own 个人信息: one row each, opening underneath to change it. */
+const GearIcon = () => (
+  <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+  </svg>
+);
+
+/**
+ * 我的数据 → 活动记录 before it opens: this year's counts, the same stretch as 我的花费 and 年度回顾
+ * next to it (the map itself goes a year back).
+ */
+export function activityCounts(activity: ActivityDay[]) {
+  const year = toPacific(new Date()).date.slice(0, 4);
+  const mine = activity.filter((a) => a.date.startsWith(year));
+  return { done: countOf(mine, "done"), absent: countOf(mine, "absent") };
+}
+
+/** 设置 (the gear on 个人信息): one row each, opening underneath to change it. */
 export function ProfileSettings(props: {
   me: MeResponse;
   /** Null while it loads (or if it failed): the rest doesn't need it. */
   profile: MemberProfile | null;
   base: string;
   home: string;
-  /** 卡路里快捷指令 (null while it loads). */
-  shortcut: MyCalories["shortcut"] | null;
   onChange: () => void;
 }) {
   const p = props.profile;
@@ -270,7 +283,6 @@ export function ProfileSettings(props: {
       )}
       <InstallRow home={props.home} />
       <PushRow base={props.base} home={props.home} memberId={props.me.id} />
-      <ShortcutRow shortcut={props.shortcut} />
     </section>
   );
 }

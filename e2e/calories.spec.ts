@@ -158,9 +158,10 @@ test.describe("on iPhone, 个人信息", () => {
   test.use({ userAgent: IPHONE });
 
   test("always has 卡路里快捷指令, to install the Shortcut again after deleting it", async ({ page }) => {
-    // Nothing read yet and off the board: 我的卡路里 is hidden, the row is still there.
+    // Nothing read yet and off the board: 我的数据 → 我的卡路里 is still there, for the Shortcut.
     await calorieMocks(page, { empty: true });
     await page.goto("/m/tok/profile");
+    await page.getByRole("button", { name: /我的卡路里/ }).click();
     await expect(page.locator(".kcal-card")).toHaveCount(0);
     const row = page.getByRole("button", { name: "卡路里快捷指令" });
     await expect(row).not.toContainText("有新版本");
@@ -180,6 +181,7 @@ test.describe("on iPhone, 个人信息", () => {
   test("says 有新版本 when theirs is older", async ({ page }) => {
     await calorieMocks(page, { update: true });
     await page.goto("/m/tok/profile");
+    await page.getByRole("button", { name: /我的卡路里/ }).click();
     const row = page.getByRole("button", { name: /卡路里快捷指令/ });
     await expect(row).toContainText("有新版本");
     await row.click();
@@ -198,14 +200,19 @@ test("not on iPhone, a number read shows but there's no 读取", async ({ page }
 test("个人信息 shows this year's calories and the 卡路里榜 switch", async ({ page }) => {
   await calorieMocks(page);
   await page.goto("/m/tok/profile");
-  const card = page.locator(".kcal-card");
+  // 我的数据 says this year's total before it opens.
+  const open = page.getByRole("button", { name: /我的卡路里/ });
+  await expect(open).toContainText("8,640 千卡");
+  await open.click();
+  const panel = page.getByRole("dialog", { name: "我的卡路里" });
+  const card = panel.locator(".kcal-card");
   await expect(card).toContainText("8,640千卡");
   await expect(card).toContainText("21场");
   await expect(card).toContainText("411千卡");
-  const sw = card.getByRole("switch");
+  const sw = panel.getByRole("switch");
   await expect(sw).not.toBeChecked();
   const saved = page.waitForRequest("**/api/m/tok/calories/board");
-  await card.locator(".switch-card").click();
+  await panel.locator(".switch-card").click();
   expect((await saved).postDataJSON()).toEqual({ on: true });
   await expect(sw).toBeChecked();
   // The Shortcut only runs on iPhone and iPad.
@@ -215,7 +222,8 @@ test("个人信息 shows this year's calories and the 卡路里榜 switch", asyn
 test("个人信息 deletes one event's calories or all of them, after asking", async ({ page }) => {
   await calorieMocks(page);
   await page.goto("/m/tok/profile");
-  const card = page.locator(".kcal-card");
+  await page.getByRole("button", { name: /我的卡路里/ }).click();
+  const card = page.getByRole("dialog", { name: "我的卡路里" });
   await card.getByText("明细（2 场）").click();
   const asked: string[] = [];
   page.on("dialog", (d) => {

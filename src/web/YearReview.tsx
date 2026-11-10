@@ -2,10 +2,11 @@ import { useEffect, useState } from "preact/hooks";
 import { MILESTONES, type MilestoneKey } from "../shared/milestones";
 import type { YearReview } from "../shared/types";
 import { kcalText } from "./Calories";
-import { Load, SectionTitle } from "./components";
+import { SectionTitle } from "./components";
 import { useApi } from "./hooks";
 import { t, tk } from "./i18n";
 import { Panel } from "./Panel";
+import { MeCard, type MeCardProps } from "./Profile";
 import { ShareGlyph, fitText, loadImage, roundRect, shareSans } from "./ShareCard";
 import { useSiteTitle } from "./site";
 
@@ -73,103 +74,119 @@ function Medal(props: { k: MilestoneKey; tier: number }) {
 }
 
 /**
- * 年度回顾 (Ke Li 2026-11-10, option P): the year's numbers on one card, any earlier year from the
- * arrows, 分享 as an image; then the badges and the members they played with most (only here).
+ * The top of a member's own 个人信息 (Ke Li 2026-11-10, option C): who they are with the year's
+ * numbers inside the same accent card (any earlier year from the arrows, 分享 as an image), then
+ * the badges in one row and the members they played with most (only here, never in the image).
+ * Earlier the year was a card of its own under the profile card, whose counts didn't match it.
  */
-export function YearReviewCards(props: { base: string; name: string }) {
+export function YearReviewTop(props: { base: string; me: MeCardProps }) {
   const [year, setYear] = useState<number | null>(null);
   const [res] = useApi<YearReview>(`${props.base}/year${year ? `?year=${year}` : ""}`);
-  return <Load result={res}>{(r) => <Review review={r} name={props.name} pick={setYear} />}</Load>;
+  const r = res.state === "ok" ? res.data : null;
+  return (
+    <>
+      <MeCard {...props.me}>{r && <YearInCard review={r} name={props.me.name} pick={setYear} />}</MeCard>
+      {r && <Milestones review={r} />}
+      {r && r.buddies.length > 0 && <Buddies review={r} />}
+    </>
+  );
 }
 
-function Review(props: { review: YearReview; name: string; pick: (y: number) => void }) {
+function YearInCard(props: { review: YearReview; name: string; pick: (y: number) => void }) {
   const r = props.review;
   const [sharing, setSharing] = useState(false);
   const i = r.years.indexOf(r.year);
   const older = r.years[i + 1];
   const newer = r.years[i - 1];
-  const tiles = yearTiles(r);
   return (
-    <>
-      <SectionTitle
-        more={
-          r.years.length > 1 && (
-            <span class="year-switch">
-              <button
-                type="button"
-                aria-label={t("上一年")}
-                disabled={older === undefined}
-                onClick={() => older && props.pick(older)}
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                aria-label={t("下一年")}
-                disabled={newer === undefined}
-                onClick={() => newer && props.pick(newer)}
-              >
-                ›
-              </button>
-            </span>
-          )
-        }
-      >
-        {t("年度回顾")}
-      </SectionTitle>
-      <section class="year-card">
+    <div class="year-card me-year">
+      <div class="me-year-head">
+        <h3>{t("你的 {year}", { year: r.year })}</h3>
+        {r.years.length > 1 && (
+          <span class="year-switch">
+            <button
+              type="button"
+              aria-label={t("上一年")}
+              disabled={older === undefined}
+              onClick={() => older && props.pick(older)}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              aria-label={t("下一年")}
+              disabled={newer === undefined}
+              onClick={() => newer && props.pick(newer)}
+            >
+              ›
+            </button>
+          </span>
+        )}
         <button type="button" class="share-icon" aria-label={t("分享")} onClick={() => setSharing(true)}>
           <ShareGlyph />
         </button>
-        <h3>{t("你的 {year}", { year: r.year })}</h3>
-        <div class="year-tiles">
-          {tiles.map((x) => (
-            <div key={x.label}>
-              <b>{x.value}</b>
-              <span>{x.label}</span>
-            </div>
-          ))}
-          {r.venue && (
-            <div class="wide">
-              <b>{r.venue.name}</b>
-              <span>{t("最常去的球馆 · {n} 次", { n: r.venue.count })}</span>
-            </div>
-          )}
-        </div>
-      </section>
+      </div>
+      <div class="year-tiles">
+        {yearTiles(r).map((x) => (
+          <div key={x.label}>
+            <b>{x.value}</b>
+            <span>{x.label}</span>
+          </div>
+        ))}
+        {r.venue && (
+          <div class="wide">
+            <b>{r.venue.name}</b>
+            <span>{t("最常去的球馆 · {n} 次", { n: r.venue.count })}</span>
+          </div>
+        )}
+      </div>
+      {sharing && <YearShare review={r} name={props.name} onClose={() => setSharing(false)} />}
+    </div>
+  );
+}
+
+/** The six badges in one row: the colour is the level, underneath the way to the next one. */
+function Milestones(props: { review: YearReview }) {
+  return (
+    <>
       <SectionTitle>{t("里程碑")}</SectionTitle>
       <section class="card medals">
-        {r.milestones.map((m) => {
+        {props.review.milestones.map((m) => {
           const tiers = MILESTONES.find((x) => x.key === m.key)!.tiers;
           const b = BADGES[m.key];
           const shown = tiers[Math.max(0, m.tier - 1)]!;
           const next = tiers[m.tier];
+          // The level's name in full for screen readers and on hover; the row only has room for the badge's.
+          const title = `${t(b.name)} ${shown} ${t(b.unit)}`.trim();
           return (
-            <div key={m.key} class={m.tier ? "medal" : "medal locked"}>
+            <div key={m.key} class={m.tier ? "medal" : "medal locked"} title={title}>
               <Medal k={m.key} tier={m.tier} />
-              <span class="medal-name">{`${t(b.name)} ${shown} ${t(b.unit)}`.trim()}</span>
+              <span class="medal-name">{t(b.name)}</span>
               <small>{next === undefined ? m.value : `${m.value} / ${next}`}</small>
             </div>
           );
         })}
       </section>
-      {r.buddies.length > 0 && (
-        <>
-          <SectionTitle>{t("最常一起打球")}</SectionTitle>
-          <section class="card buddies">
-            {r.buddies.map((b, i) => (
-              <div key={`${i}-${b.name}`} class="buddy">
-                <span class="buddy-av" aria-hidden="true">
-                  {[...b.name][0]!.toUpperCase()}
-                </span>
-                <span class="grow">{b.name}</span>
-                <span class="muted">{t("一起打了 {n} 次", { n: b.count })}</span>
-              </div>
-            ))}
-          </section>
-        </>
-      )}
-      {sharing && <YearShare review={r} name={props.name} onClose={() => setSharing(false)} />}
+    </>
+  );
+}
+
+/** 最常一起打球: up to five members side by side. */
+function Buddies(props: { review: YearReview }) {
+  return (
+    <>
+      <SectionTitle>{t("最常一起打球")}</SectionTitle>
+      <section class="card buddies">
+        {props.review.buddies.map((b, i) => (
+          <div key={`${i}-${b.name}`} class="buddy">
+            <span class="buddy-av" aria-hidden="true">
+              {[...b.name][0]!.toUpperCase()}
+            </span>
+            <b>{b.name}</b>
+            <small>{t("{n} 次", { n: b.count })}</small>
+          </div>
+        ))}
+      </section>
     </>
   );
 }

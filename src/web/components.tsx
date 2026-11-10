@@ -145,6 +145,8 @@ export function SectionTitle(props: { children: ComponentChildren; more?: Compon
 export function SettingRow(props: {
   icon?: ComponentChildren;
   label: string;
+  /** A short line under the label (我的数据: what's inside before it opens). */
+  sub?: ComponentChildren;
   value?: ComponentChildren;
   href?: string;
   onClick?: () => void;
@@ -158,7 +160,10 @@ export function SettingRow(props: {
           {props.icon}
         </span>
       )}
-      <span class="set-label">{props.label}</span>
+      <span class="set-label">
+        {props.label}
+        {props.sub && <span class="set-sub">{props.sub}</span>}
+      </span>
       <span class="set-value">{props.value}</span>
       <svg class={open ? "set-chev open" : "set-chev"} viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
         <path d="M9 6l6 6-6 6" />
