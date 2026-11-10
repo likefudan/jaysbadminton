@@ -14,7 +14,7 @@
 - `sponsor`（可不写）：页脚「AI 服务由 … 赞助」那一行。不写就和正式站一样（Z3 Enterprise）；写 `null` 不显示；写 `{ "name": "…", "url": "https://…" }` 换成别的赞助商。
 - `icon`（可不写）：图标颜色。不写就是正式站的珊瑚色；写 `"blue"`、`"green"` 或 `"purple"` 用 `src/web/public/site-icons/<颜色>/` 里的蓝色、绿色或淡紫色图标（标签页、主屏幕 App、分享卡、链接预览和顶栏 logo 都换）。要别的颜色，先用 `node scripts/site-icons.cjs <名字> <浅色> <深色> <山的颜色>` 生成一套。
 
-每次发布（Actions → Release）先部署正式站，再对列表里的每个站点各做一遍：备份数据库（`db-backup-<id>-<版本>`）、迁移、部署、冒烟测试、给这个站点的群主和管理员发更新通知。
+每次发布（Actions → Release）先部署正式站，再对列表里的每个站点各做一遍：备份数据库（`db-encrypted-<id>-<版本>`，用 `BACKUP_KEY` 加密）、迁移、部署、冒烟测试、给这个站点的群主和管理员发更新通知。
 
 ## 共用的两个 GitHub secret（只设一次）
 
