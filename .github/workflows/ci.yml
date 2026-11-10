@@ -216,6 +216,9 @@ jobs:
           # Same OAuth client; its redirect URIs must also list https://badminton.llmat.dev/auth/callback.
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          # The developers' group hears of every sign-in and every release started from the site.
+          TELEGRAM_DEV_BOT_TOKEN: ${{ secrets.TELEGRAM_DEV_BOT_TOKEN }}
+          TELEGRAM_DEV_CHAT_ID: ${{ secrets.TELEGRAM_DEV_CHAT_ID }}
       - name: Smoke test the release site
         run: |
           # Up to 3 minutes: a new domain's certificate takes a while.

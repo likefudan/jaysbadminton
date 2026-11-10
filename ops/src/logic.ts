@@ -12,6 +12,10 @@ export interface Env {
   OPS_EMAIL?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  /** The developers' Telegram group (the same bot and chat as CI's notices): told of every sign-in and
+   *  every release started here. Off while missing. */
+  TELEGRAM_DEV_BOT_TOKEN?: string;
+  TELEGRAM_DEV_CHAT_ID?: string;
   /** Signs the login and OAuth cookies; made once by CI. */
   OPS_SESSION_KEY?: string;
 }
