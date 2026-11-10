@@ -29,6 +29,7 @@ const TABLES = [
   "queue_photos",
   "queue_courts",
   "queue_accounts",
+  "queue_credits",
   "events",
   "locations",
   "admin_sessions",

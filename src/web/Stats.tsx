@@ -6,14 +6,6 @@ import { Card, Load, SectionTitle } from "./components";
 import { useApi } from "./hooks";
 import { dateText, fmtDate, t, tk } from "./i18n";
 
-/** 能量 first and shown first (Ke Li). */
-export const BOARDS = [
-  { key: "calories", label: tk("能量"), unit: tk("千卡") },
-  { key: "attendance", label: tk("出勤次数"), unit: tk("次") },
-  { key: "streak", label: tk("最长连续"), unit: tk("场") },
-  { key: "friends", label: tk("带朋友"), unit: tk("人次") },
-] as const;
-
 /** 个人统计: visible only on the member's own page. */
 export function MyStatsCard(props: { base: string }) {
   const [res] = useApi<MyStats>(`${props.base}/stats`);

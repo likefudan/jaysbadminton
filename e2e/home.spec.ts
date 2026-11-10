@@ -15,6 +15,17 @@ const event = (o: object) => ({
   ...o,
 });
 
+type Rank = { rank: number; name: string; value: number };
+const KEYS = ["calories", "attendance", "hours", "progress", "streak", "friends", "queue", "early"];
+/** A leaderboard as /api/public/home sends it: the given boards' year lists, months empty. */
+const board = (lists: Record<string, Rank[]>, boards = ["calories", "attendance", "streak", "friends"]) => ({
+  year: 2026,
+  month: 11,
+  boards,
+  ...Object.fromEntries(KEYS.map((k) => [k, lists[k] ?? []])),
+  monthly: Object.fromEntries(KEYS.map((k) => [k, []])),
+});
+
 /** 首页: the next event as one big card, 排行榜 and 历史活动 as rows that scroll sideways, not the page. */
 test("the home page leads with the next event and scrolls the small cards sideways", async ({ page }) => {
   const names = ["arthur", "Dafei", "Jayx", "Johnzhang", "joseff", "Lily", "Tom", "Kevin"];
@@ -28,13 +39,13 @@ test("the home page leads with the next event and scrolls the small cards sidewa
         pastEvents: [1, 2, 3, 4].map((i) =>
           event({ id: 10 + i, code: `P${i}`, date: `2026-09-0${i}`, status: "settled" }),
         ),
-        leaderboard: {
-          year: 2026,
-          attendance: names.map((name, i) => ({ rank: i + 1, name, value: 9 - i })),
-          streak: [],
-          friends: [],
-          calories: [],
-        },
+        leaderboard: board(
+          {
+            attendance: names.map((name, i) => ({ rank: i + 1, name, value: 9 - i })),
+            hours: [{ rank: 1, name: "Lily", value: 12.5 }],
+          },
+          ["calories", "attendance", "hours", "streak"],
+        ),
       },
     }),
   );
@@ -49,10 +60,14 @@ test("the home page leads with the next event and scrolls the small cards sidewa
 
   // 能量 is the first board and the one shown first (Ke Li).
   const tabs = page.locator(".board-tabs button");
-  await expect(tabs).toHaveText(["能量", "出勤次数", "最长连续", "带朋友"]);
+  // Only the public boards, as tabs.
+  await expect(tabs).toHaveText(["能量", "出勤", "时长", "连续"]);
   await expect(tabs.first()).toHaveClass(/\bon\b/);
   await expect(page.locator("main")).toContainText("还没有人加入能量榜");
-  await page.getByRole("button", { name: "出勤次数" }).click();
+  await page.getByRole("tab", { name: "时长" }).click();
+  await expect(page.locator(".board-desc")).toHaveText("按报名时填的到/走时间算，没填按整场");
+  await expect(page.locator(".podium .p1 .value")).toHaveText("12.5小时");
+  await page.getByRole("tab", { name: "出勤" }).click();
   // A podium for the top three (2nd, 1st, 3rd from the left), rows below it, the rest behind 查看全部.
   await expect(page.locator(".podium .who")).toHaveText(["Dafei", "arthur", "Jayx"]);
   await expect(page.locator(".podium .crown")).toHaveCount(1);
@@ -66,8 +81,13 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await expect(page.locator(".mini-card")).toHaveCount(4);
 
-  await page.getByRole("button", { name: "最长连续" }).click();
-  await expect(page.locator("main")).toContainText("还没有出勤记录");
+  await page.getByRole("tab", { name: "连续" }).click();
+  await expect(page.locator("main")).toContainText("这段时间还没有人上榜");
+  // 月度 shows this month's lists, under its own title.
+  await page.getByRole("tab", { name: "出勤" }).click();
+  await page.getByRole("button", { name: "月度" }).click();
+  await expect(page.locator(".section-title", { hasText: "2026 年 11 月排行榜" })).toBeVisible();
+  await expect(page.locator("main")).toContainText("这段时间还没有人上榜");
 });
 
 /** Signed in: every current event in the same card, soonest first, coloured as on 我的活动 (Ke Li). */
@@ -148,12 +168,12 @@ test("ties on the leaderboard share a rank", async ({ page }) => {
       json: {
         currentEvents: [],
         pastEvents: [],
-        leaderboard: { year: 2026, attendance, streak: [], friends: [], calories: [] },
+        leaderboard: board({ attendance }),
       },
     }),
   );
   await page.goto("/");
-  await page.getByRole("button", { name: "出勤次数" }).click();
+  await page.getByRole("tab", { name: "出勤" }).click();
   // The podium shows 2nd, 1st, 3rd from the left; tied places share a number.
   await expect(page.locator(".podium .step")).toHaveText(["2", "1", "2"]);
   await expect(page.locator(".podium .place").nth(2)).toHaveClass(/\bp2\b/);
@@ -173,13 +193,7 @@ test.describe("with a mouse", () => {
           pastEvents: Array.from({ length: 8 }, (_, i) =>
             event({ id: 10 + i, code: `P${i}`, date: `2026-09-0${i + 1}`, status: "settled" }),
           ),
-          leaderboard: {
-            year: 2026,
-            attendance: [],
-            streak: [],
-            friends: [],
-            calories: [{ name: "arthur", value: 1522, rank: 1 }],
-          },
+          leaderboard: board({ calories: [{ name: "arthur", value: 1522, rank: 1 }] }),
         },
       }),
     );

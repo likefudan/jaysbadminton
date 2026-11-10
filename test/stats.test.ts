@@ -2,7 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { toPacific } from "../src/shared/time";
 import { toCsv } from "../src/worker/export";
-import { top } from "../src/worker/stats";
+import { previousPeriod, stayMinutes, top } from "../src/worker/stats";
 import { Client, ORIGIN, approveMember, createTestEvent, futureDate, googleJoin, setUpAdmin } from "./helpers";
 
 const anon = new Client();
@@ -44,19 +44,65 @@ async function history() {
 }
 
 describe("leaderboard", () => {
-  it("ranks attendance, streaks and friends from settled events only", async () => {
-    await history();
-    const { leaderboard } = (await anon.call("/api/public/home")).data;
-    expect(leaderboard.year).toBe(Number(today.slice(0, 4)));
-    expect(leaderboard.attendance).toEqual([
-      { rank: 1, name: "Alice", value: 3 },
-      { rank: 2, name: "Bob", value: 1 },
-    ]);
-    expect(leaderboard.streak).toEqual([
-      { rank: 1, name: "Alice", value: 3 },
-      { rank: 2, name: "Bob", value: 1 },
-    ]);
-    expect(leaderboard.friends).toEqual([{ rank: 1, name: "Alice", value: 1 }]);
+  it("ranks every board from settled events only, for the year and the month", async () => {
+    const { ctx, alice, bob, events } = await history();
+    const [e1] = events;
+    // Alice only stayed 10:00–11:30 at the first one; Bob put in a gym account there.
+    await env.DB.prepare(
+      "UPDATE registrations SET arrive_at = '10:00', leave_at = '11:30' WHERE event_id = ? AND member_id = ?",
+    )
+      .bind(e1.id, alice.id)
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO queue_credits (event_id, member_id, kind, created_at) VALUES (?, ?, 'account', ?)",
+    )
+      .bind(e1.id, bob.id, new Date().toISOString())
+      .run();
+    const { board } = (await ctx.admin.call(`${ctx.base}/leaderboard`)).data;
+    expect(board.year).toBe(Number(today.slice(0, 4)));
+    expect(board.month).toBe(Number(today.slice(5, 7)));
+    const two = (a: number, b: number) => [
+      { rank: 1, name: "Alice", value: a },
+      { rank: 2, name: "Bob", value: b },
+    ];
+    for (const b of [board, board.monthly]) {
+      expect(b.attendance).toEqual(two(3, 1));
+      expect(b.streak).toEqual(two(3, 1));
+      expect(b.friends).toEqual([{ rank: 1, name: "Alice", value: 1 }]);
+      // 9:00–13:00 (1.5 h of it), 10:00–13:00 and 11:00–13:00; Bob the whole first one.
+      expect(b.hours).toEqual(two(6.5, 4));
+      expect(b.progress).toEqual(two(3, 1));
+      // Both among the first five at every event they came to; the cancelled one doesn't count.
+      expect(b.early).toEqual(two(3, 1));
+      expect(b.queue).toEqual([{ rank: 1, name: "Bob", value: 1 }]);
+    }
+  });
+
+  it("measures progress against the same stretch a period back", async () => {
+    const { ctx, events } = await history();
+    // Alice came once at this time last year: two more this year.
+    await env.DB.prepare("UPDATE events SET date = ? WHERE id = ?")
+      .bind(`${lastYear}${today.slice(4)}`, events[0].id)
+      .run();
+    const { board } = (await ctx.admin.call(`${ctx.base}/leaderboard`)).data;
+    expect(board.attendance.find((r: { name: string }) => r.name === "Alice").value).toBe(2);
+    expect(board.progress.find((r: { name: string }) => r.name === "Alice").value).toBe(1);
+  });
+
+  it("finds the period before, up to the same day or that month's last", () => {
+    expect(previousPeriod("2026-03-31", "month")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+    expect(previousPeriod("2026-01-15", "month")).toEqual({ from: "2025-12-01", to: "2025-12-15" });
+    expect(previousPeriod("2028-02-29", "year")).toEqual({ from: "2027-01-01", to: "2027-02-28" });
+  });
+
+  it("counts time on court from 到/走, the whole event when empty, clipped to it", () => {
+    const ev = { start_at: "2026-11-11T04:30:00.000Z", end_at: "2026-11-11T06:30:00.000Z" }; // 20:30–22:30 PST
+    expect(stayMinutes({ ...ev, arrive_at: null, leave_at: null })).toBe(120);
+    expect(stayMinutes({ ...ev, arrive_at: "21:00", leave_at: null })).toBe(90);
+    expect(stayMinutes({ ...ev, arrive_at: "21:00", leave_at: "22:00" })).toBe(60);
+    expect(stayMinutes({ ...ev, arrive_at: "20:00", leave_at: "23:00" })).toBe(120);
+    // A 走 at or before 到 (the event's times changed) counts to the end, as 各时段人数 does.
+    expect(stayMinutes({ ...ev, arrive_at: "21:30", leave_at: "21:00" })).toBe(60);
   });
 
   it("gives ties the same rank, skips the next one, and orders tied people by name", () => {

@@ -158,7 +158,7 @@ describe("带群友", () => {
     await env.DB.prepare("UPDATE events SET status = 'settled', date = ? WHERE id = ?")
       .bind(toPacific(new Date()).date, s.e.id)
       .run();
-    const { leaderboard } = (await anon.call("/api/public/home")).data;
+    const leaderboard = (await s.admin.call(`${s.base}/leaderboard`)).data.board;
     expect(leaderboard.attendance.map((r: { name: string }) => r.name).sort()).toEqual(["Ke", "arthur"]);
     expect(leaderboard.friends).toEqual([{ rank: 1, name: "Ke", value: 1 }]);
   });

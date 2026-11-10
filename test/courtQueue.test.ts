@@ -15,6 +15,15 @@ import worker from "../src/worker/index";
 import { Client, ORIGIN, appoint, approveMember, googleCookie, createTestEvent, request, setUpAdmin } from "./helpers";
 
 const anon = new Client();
+/** 排队功臣 credits on an event, by kind. */
+async function credits(eventId: number) {
+  const { results } = await env.DB.prepare(
+    "SELECT kind, COUNT(*) AS n FROM queue_credits WHERE event_id = ? GROUP BY kind ORDER BY kind",
+  )
+    .bind(eventId)
+    .all<{ kind: string; n: number }>();
+  return Object.fromEntries(results.map((r) => [r.kind, r.n]));
+}
 const minutesFrom = (iso: string) => Math.round((Date.parse(iso) - Date.now()) / 60_000);
 
 /** An event with 球场排队 on, Alice signed up and Bob not. */
@@ -118,6 +127,7 @@ describe("球场排队", () => {
       ],
     });
     expect(r.data).toEqual({ added: 2, skipped: ["mark"] });
+    expect(await credits(e.id)).toEqual({ account: 3 });
     const accounts = (await card(alice.base))!.queue.accounts as { username: string; password: string }[];
     expect(accounts.map((a) => [a.username, a.password]).sort()).toEqual([
       ["Coco", "2468"],
@@ -156,7 +166,10 @@ describe("球场排队", () => {
     expect(seen.accounts.map((a: any) => a.mine)).toEqual([false, false]);
     const markId = seen.accounts[0].id;
     expect((await anon.call(`${bob.base}${q}/accounts/${markId}/remove`, {})).status).toBe(400);
+    expect(await credits(e.id)).toEqual({ account: 2 });
     expect((await anon.call(`${alice.base}${q}/accounts/${markId}/remove`, {})).status).toBe(200);
+    // Taken off again, it no longer counts for 排队功臣.
+    expect(await credits(e.id)).toEqual({ account: 1 });
     expect((await card(alice.base))!.queue.accounts.map((a: any) => a.username)).toEqual(["Coco"]);
 
     // An organizer who doesn't run this event still can't; an admin can remove anyone's.
@@ -193,7 +206,7 @@ describe("球场排队", () => {
   });
 
   it("enters, corrects and removes courts, counting from now", async () => {
-    const { alice, q, card } = await scenario(45);
+    const { alice, q, card, e } = await scenario(45);
     for (const username of ["Mark", "Ben", "Coco", "Yixing", "Zhichun"])
       await anon.call(`${alice.base}${q}/accounts`, { username, password: "1" });
 
@@ -227,6 +240,8 @@ describe("球场排队", () => {
     });
     expect(fix.status).toBe(200);
     await anon.call(`${alice.base}${q}/courts/${courts[0].id}/remove`, {});
+    // 排队功臣: 5 accounts and 2 new entries; the correction doesn't count again.
+    expect(await credits(e.id)).toEqual({ account: 5, court: 2 });
     courts = (await card(alice.base))!.queue.courts;
     expect(courts).toHaveLength(1);
     expect(courts[0]).toMatchObject({ court: 8, position: 1, accounts: ["Zhichun", "Mark"] });
@@ -406,10 +421,12 @@ describe("球场排队", () => {
     await ctx.admin.call(`${ctx.base}/events/${e.id}/cancel`, {});
     const gone = await ctx.admin.call(`${ctx.base}/events/${e.id}/delete`, { password: "initial-password" });
     expect(gone.status).toBe(200);
-    const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM queue_accounts WHERE event_id = ?")
-      .bind(e.id)
-      .first<{ n: number }>();
-    expect(left?.n).toBe(0);
+    for (const t of ["queue_accounts", "queue_credits"]) {
+      const left = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE event_id = ?`)
+        .bind(e.id)
+        .first<{ n: number }>();
+      expect(left?.n, t).toBe(0);
+    }
   });
 });
 
@@ -717,13 +734,14 @@ describe("拍照登记", () => {
       const n = async (t: string) =>
         (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE event_id = ?`).bind(e.id).first<{ n: number }>())!
           .n;
-      return [await n("queue_accounts"), await n("queue_courts"), await n("queue_photos")];
+      return [await n("queue_accounts"), await n("queue_courts"), await n("queue_photos"), await n("queue_credits")];
     };
     const end = Date.parse(endAt);
     await purgeEndedQueues(env, new Date(end + 2 * 3600_000)); // the card still shows them
-    expect(await rows()).toEqual([1, 1, 1]);
+    expect(await rows()).toEqual([1, 1, 1, 1]);
+    // 排队功臣 keeps Alice's credit for the account after the queue is gone.
     await purgeEndedQueues(env, new Date(end + 3 * 3600_000 + 60_000));
-    expect(await rows()).toEqual([0, 0, 0]);
+    expect(await rows()).toEqual([0, 0, 0, 1]);
   });
 
   it("forgets photos after 7 days", async () => {

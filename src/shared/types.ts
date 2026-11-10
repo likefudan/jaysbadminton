@@ -368,7 +368,7 @@ export interface EventDefaults {
 export interface HomeResponse {
   currentEvents: EventSummary[];
   pastEvents: EventSummary[];
-  leaderboard: Leaderboard | null; // null when the Owner hides it
+  leaderboard: Leaderboard | null; // null when no board is public, or for visitors not signed in unless allowed
 }
 
 export interface RankEntry {
@@ -377,13 +377,48 @@ export interface RankEntry {
   value: number;
 }
 
-/** 公开排行榜 (members only, no money). */
-export interface Leaderboard {
+/** 排行榜, in the order the tabs show (能量 first, Ke Li). */
+export const BOARD_KEYS = [
+  "calories",
+  "attendance",
+  "hours",
+  "progress",
+  "streak",
+  "friends",
+  "queue",
+  "early",
+] as const;
+export type BoardKey = (typeof BOARD_KEYS)[number];
+/** Each board's name in Chinese, for the 操作记录 and the Telegram notices. */
+export const BOARD_NAME: Record<BoardKey, string> = {
+  calories: "能量",
+  attendance: "出勤",
+  hours: "时长",
+  progress: "进步",
+  streak: "连续",
+  friends: "带朋友",
+  queue: "排队功臣",
+  early: "早鸟",
+};
+/** Shown on the home page until the Owner or an admin picks (the four boards there were before). */
+export const DEFAULT_PUBLIC_BOARDS: BoardKey[] = ["calories", "attendance", "streak", "friends"];
+
+/** 排行榜 (members only, no money): each board for this year and for this month. */
+export type Leaderboard = {
   year: number;
-  attendance: RankEntry[]; // this year
-  streak: RankEntry[]; // longest consecutive run, all time
-  friends: RankEntry[]; // friends brought this year
-  calories: RankEntry[]; // 千卡 this year, members who chose to be on it
+  month: number;
+  /** The boards to show, in tab order: on the home page the public ones, for admins all of them. */
+  boards: BoardKey[];
+  /** This month's lists; the year's are the top-level ones. */
+  monthly: Record<BoardKey, RankEntry[]>;
+} & Record<BoardKey, RankEntry[]>;
+
+/** 管理页「排行榜」: every board, and which ones the home page shows to whom. */
+export interface LeaderboardAdmin {
+  board: Leaderboard;
+  public: BoardKey[];
+  /** 没登录也能看: off by default, members only (Ke Li 2026-11-10). */
+  anon: boolean;
 }
 
 /** 个人统计, shown only on the member's own page. */

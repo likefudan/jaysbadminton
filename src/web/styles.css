@@ -2677,9 +2677,52 @@ a.ev-meta {
 .swipe-note {
   margin: 0 2px;
 }
-/* 排行榜: a podium for the top three, rows for the rest. */
+/* 排行榜: tabs that scroll sideways, a podium for the top three, rows for the rest. */
 .board-tabs {
-  margin-bottom: 10px;
+  display: flex;
+  gap: 6px;
+  margin: 0 -16px 8px;
+  padding: 0 16px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.board-tabs::-webkit-scrollbar {
+  display: none;
+}
+.board-tabs button {
+  flex: none;
+  padding: 6px 13px;
+  border: 1px solid var(--edge);
+  border-radius: 99px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.board-tabs button.on {
+  border-color: var(--acc);
+  background: var(--acc);
+  color: #fff;
+  font-weight: 600;
+}
+.board-desc {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.seg.tiny {
+  flex: none;
+  margin: 0;
+  padding: 2px;
+}
+.seg.tiny button {
+  flex: none;
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 12.5px;
 }
 .card.board {
   padding: 0;
@@ -5355,4 +5398,79 @@ label.set-row {
   font-size: 15px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* 管理页「排行榜」: one row per board with its top three and the 公开 switch. */
+.section-title:has(.period-seg) {
+  align-items: center;
+}
+.boards-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 2px 8px;
+}
+.board-list {
+  padding: 0;
+  overflow: hidden;
+}
+.board-list .board-item + .board-item {
+  border-top: 1px solid var(--line);
+}
+.board-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.board-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.board-open .name {
+  flex: none;
+  width: 68px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.board-open .top3 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.board-open .top3 b {
+  color: var(--text);
+  font-weight: 600;
+}
+.board-open .set-chev {
+  flex: none;
+}
+.board-item .board-desc {
+  margin: 0 14px 8px;
+}
+.board-item .card.board,
+.board-item .empty {
+  margin: 0 12px 12px;
+}
+.board-public {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 14px;
+  color: var(--muted);
+  font-size: 12px;
 }

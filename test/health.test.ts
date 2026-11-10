@@ -29,7 +29,8 @@ describe("skeleton", () => {
     expect(await res.json()).toEqual({
       currentEvents: [],
       pastEvents: [],
-      leaderboard: { year: expect.any(Number), attendance: [], streak: [], friends: [], calories: [] },
+      // Members only by default (没登录也能看 off).
+      leaderboard: null,
     });
   });
 
