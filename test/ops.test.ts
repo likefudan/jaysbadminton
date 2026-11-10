@@ -158,8 +158,11 @@ describe("release site", () => {
       if (p.startsWith("/compare/"))
         return ok({ ahead_by: 1, commits: [{ commit: { message: "新功能 (#300)\n\nbody" } }] });
       if (p === "/contents/migrations") return ok(migrations[url.searchParams.get("ref")!]!.map((name) => ({ name })));
-      if (p === "/contents/scripts/release-plan.mjs")
-        return url.searchParams.get("ref") === "v2026.11.09" ? new Response("{}", { status: 404 }) : ok({});
+      if (p === "/contents/.github/workflows/ci.yml") {
+        const inputs = url.searchParams.get("ref") === "v2026.11.09" ? "" : "      sites:\n        type: string\n";
+        return ok({ content: btoa(`on:\n  workflow_dispatch:\n    inputs:\n${inputs}`) });
+      }
+      if (p === "/tags") return ok([{ name: "v2026.11.12" }]);
       throw new Error(`unexpected ${url}`);
     });
     const s = await state(ENV);

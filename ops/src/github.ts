@@ -33,17 +33,15 @@ async function newestAt(env: Env, tag: string): Promise<string | undefined> {
 }
 
 // Whether a tag can go to some sites only: releases before per-site releases run their own ci.yml,
-// which deploys every site (release.yml refuses them unless all sites are chosen).
+// which deploys every site. Same test as release.yml: that tag's ci.yml has the `sites` input.
 const perSiteTags = new Map<string, boolean>();
 async function perSite(env: Env, tag: string): Promise<boolean> {
   if (!perSiteTags.has(tag)) {
-    try {
-      await gh(env, `/contents/scripts/release-plan.mjs?ref=${encodeURIComponent(tag)}`);
-      perSiteTags.set(tag, true);
-    } catch (err) {
-      if (!String(err).endsWith(": 404")) throw err;
-      perSiteTags.set(tag, false);
-    }
+    const file = await gh<{ content: string }>(
+      env,
+      `/contents/.github/workflows/ci.yml?ref=${encodeURIComponent(tag)}`,
+    );
+    perSiteTags.set(tag, /^ {6}sites:$/m.test(atob(file.content.replace(/\s/g, ""))));
   }
   return perSiteTags.get(tag)!;
 }
@@ -71,8 +69,9 @@ interface Run {
 /** Everything the page shows. */
 export async function state(env: Env) {
   const all = sites(env);
-  const [releases, healths, mainCommit, ciRuns, deployRuns, releaseRuns] = await Promise.all([
+  const [releases, tags, healths, mainCommit, ciRuns, deployRuns, releaseRuns] = await Promise.all([
     gh<{ tag_name: string; published_at: string; draft: boolean }[]>(env, "/releases?per_page=30"),
+    gh<{ name: string }[]>(env, "/tags?per_page=50"),
     Promise.all(all.map(health)),
     gh<{ sha: string }>(env, "/commits/main"),
     gh<{ workflow_runs: (Run & { head_sha: string })[] }>(
@@ -88,86 +87,83 @@ export async function state(env: Env) {
     .sort((a, b) => compareTags(b.tag, a.tag));
   const latest = versions[0]?.tag ?? null;
 
-  // What main has that the newest release does not, and whether main's CI is green (Release needs it).
-  let pending: string[] = [];
-  let pendingCount = 0;
-  if (latest) {
-    const cmp = await gh<{ ahead_by: number; commits: { commit: { message: string } }[] }>(
-      env,
-      `/compare/${encodeURIComponent(latest)}...main`,
-    );
-    pending = cmp.commits
-      .map((c) => (c.commit.message.split("\n")[0] ?? "").replace(/\s*\(#\d+\)$/, ""))
-      .reverse()
-      .slice(0, 12);
-    pendingCount = cmp.ahead_by;
-  }
+  const shown = versions.slice(0, 12);
+  const currents = healths.map((h) => (h.version && TAG.test(h.version) ? h.version : null));
+  const single: Record<string, boolean> = {};
+  const newest: Record<string, string | undefined> = {};
+  const [cmp, deploys] = await Promise.all([
+    // What main has that the newest release does not.
+    latest
+      ? gh<{ ahead_by: number; commits: { commit: { message: string } }[] }>(
+          env,
+          `/compare/${encodeURIComponent(latest)}...main`,
+        )
+      : null,
+    // Which sites each recent hand-started CI run on a release tag deployed (deploy-production = Jay's).
+    Promise.all(
+      deployRuns.workflow_runs
+        .filter((run) => TAG.test(run.head_branch))
+        .slice(0, 6)
+        .map(async (run) => {
+          const { jobs } = await gh<{ jobs: { name: string; conclusion: string | null; status: string }[] }>(
+            env,
+            `/actions/runs/${run.id}/jobs?per_page=50`,
+          );
+          const siteJobs = jobs
+            .map((j) => {
+              const id =
+                j.name === "deploy-production" ? "jays" : (/^deploy-sites \((.+)\)$/.exec(j.name)?.[1] ?? null);
+              return id && j.conclusion !== "skipped" ? { id, status: j.status, conclusion: j.conclusion } : null;
+            })
+            .filter((j) => j !== null);
+          return {
+            tag: run.head_branch,
+            at: run.created_at,
+            url: run.html_url,
+            running: run.status !== "completed",
+            ok: run.conclusion === "success",
+            sites: siteJobs,
+          };
+        }),
+    ),
+    // Which versions each site can move to without restoring a backup first.
+    ...shown.map(async (v) => {
+      single[v.tag] = await perSite(env, v.tag).catch(() => false);
+    }),
+    ...[...new Set([...shown.map((v) => v.tag), ...currents.filter((v) => v !== null)])].map(async (tag) => {
+      newest[tag] = await newestAt(env, tag).catch(() => undefined);
+    }),
+  ]);
+  const pendingCount = cmp?.ahead_by ?? 0;
+  const pending = (cmp?.commits ?? [])
+    .map((c) => (c.commit.message.split("\n")[0] ?? "").replace(/\s*\(#\d+\)$/, ""))
+    .reverse()
+    .slice(0, 12);
   const mainRun = ciRuns.workflow_runs.find((r) => r.head_sha === mainCommit.sha);
   const mainCi = !mainRun ? "none" : mainRun.status !== "completed" ? "running" : (mainRun.conclusion ?? "none");
-
-  // Which sites each recent hand-started CI run deployed (deploy-production = Jay's, deploy-sites (id)).
-  const deploys = await Promise.all(
-    deployRuns.workflow_runs.slice(0, 6).map(async (run) => {
-      const { jobs } = await gh<{ jobs: { name: string; conclusion: string | null; status: string }[] }>(
-        env,
-        `/actions/runs/${run.id}/jobs?per_page=50`,
-      );
-      const siteJobs = jobs
-        .map((j) => {
-          const id = j.name === "deploy-production" ? "jays" : (/^deploy-sites \((.+)\)$/.exec(j.name)?.[1] ?? null);
-          return id && j.conclusion !== "skipped" ? { id, status: j.status, conclusion: j.conclusion } : null;
-        })
-        .filter((j) => j !== null);
-      return {
-        tag: run.head_branch,
-        at: run.created_at,
-        url: run.html_url,
-        running: run.status !== "completed",
-        ok: run.conclusion === "success",
-        sites: siteJobs,
-      };
-    }),
-  );
 
   // A Release run that stopped before deploying anything (a refused version, main not green) shows too.
   const refused = releaseRuns.workflow_runs
     .filter((r) => r.status === "completed" && r.conclusion === "failure")
-    .map((r) => ({ tag: "发布没开始", at: r.created_at, url: r.html_url, running: false, ok: false, sites: [] }));
+    .map((r) => ({ tag: "", at: r.created_at, url: r.html_url, running: false, ok: false, sites: [] }));
   const runningRelease = releaseRuns.workflow_runs.some((r) => r.status !== "completed");
   const recent = [...deploys, ...refused].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
-
-  // Which versions each site can move to without restoring a backup first.
-  const shown = versions.slice(0, 12);
-  const single: Record<string, boolean> = {};
-  await Promise.all(
-    shown.map(async (v) => {
-      single[v.tag] = await perSite(env, v.tag).catch(() => false);
-    }),
-  );
-  const newest: Record<string, string | undefined> = {};
-  await Promise.all(
-    [...new Set([...shown.map((v) => v.tag), ...healths.map((h) => h.version).filter((v) => v && TAG.test(v))])].map(
-      async (tag) => {
-        newest[tag as string] = await newestAt(env, tag as string).catch(() => undefined);
-      },
-    ),
-  );
 
   return {
     sites: all.map((s, i) => {
       const h = healths[i] ?? { ok: false, version: null };
-      const current = h.version && TAG.test(h.version) ? h.version : null;
+      const current = currents[i] ?? null;
       return {
         ...s,
         ok: h.ok,
         version: h.version,
-        behind: current && latest ? versions.findIndex((v) => v.tag === current) : null,
+        behind: current ? versions.filter((v) => compareTags(v.tag, current) > 0).length : null,
         movable: shown.filter((v) => single[v.tag] && canMoveTo(current, newest, v.tag)).map((v) => v.tag),
       };
     }),
     versions: shown.map((v) => ({ ...v, migration: newest[v.tag] ?? null, perSite: single[v.tag] ?? false })),
     latest,
-    next: nextTag(versions.map((v) => v.tag)),
+    next: nextTag(tags.map((t) => t.name)),
     pending,
     pendingCount,
     mainCi,

@@ -78,7 +78,14 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 
 export const APP_JS = `"use strict";
 const app = document.getElementById("app");
-let data = null, panel = null, pollUntil = 0;
+let data = null, panel = null, pollUntil = 0, timer = 0, chosen = null;
+const cmpTag = (a, b) => {
+  const p = (t) => [...t.slice(1).split(".").map(Number), 1].slice(0, 4);
+  const x = p(a), y = p(b);
+  for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] - y[i];
+  return 0;
+};
+const isTag = (t) => /^vd{4}.d{2}.d{2}(.d+)?$/.test(t || "");
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -106,6 +113,7 @@ function toast(text) {
 }
 
 async function load() {
+  clearTimeout(timer);
   try {
     const res = await fetch("/api/state");
     const body = await res.json();
@@ -118,7 +126,7 @@ async function load() {
       h("button", { class: "btn", onclick: load }, "再试一次")));
   }
   const busy = data && data.busy;
-  if (busy || Date.now() < pollUntil) setTimeout(load, 20000);
+  if (busy || Date.now() < pollUntil) timer = setTimeout(load, 20000);
 }
 
 async function send(sites, tag) {
@@ -130,7 +138,8 @@ async function send(sites, tag) {
   if (!res.ok) { toast(body.error || "没能开始发布"); return false; }
   toast("已开始发布，下面「最近的部署」会显示进度");
   pollUntil = Date.now() + 10 * 60000;
-  setTimeout(load, 8000);
+  clearTimeout(timer);
+  timer = setTimeout(load, 8000);
   return true;
 }
 
@@ -140,15 +149,16 @@ function heroCard() {
       h("div", { class: "muted" }, "main 上的改动都已经在 " + (data.latest || "最新版本") + " 里了"));
   }
   const ci = { success: "测试站已通过", running: "测试站还在测试", failure: "测试没通过，先别发布", none: "还没有测试结果" }[data.mainCi] || data.mainCi;
-  const chosen = new Set(data.sites.map((s) => s.id));
-  const button = h("button", { class: "btn p", disabled: data.mainCi !== "success" }, "发布 " + data.next);
+  // The ticks survive the page refreshing itself while a deploy runs.
+  if (!chosen) chosen = new Set(data.sites.map((s) => s.id));
+  const button = h("button", { class: "btn p", disabled: !chosen.size || data.mainCi !== "success" }, "发布 " + data.next);
   button.addEventListener("click", async () => {
     if (!chosen.size) return toast("请至少选一个站点");
     button.disabled = true;
     if (!(await send(data.sites.map((s) => s.id).filter((id) => chosen.has(id)), null))) button.disabled = false;
   });
   const chips = data.sites.map((s) => {
-    const box = h("input", { type: "checkbox", checked: true });
+    const box = h("input", { type: "checkbox", checked: chosen.has(s.id) });
     box.addEventListener("change", () => { box.checked ? chosen.add(s.id) : chosen.delete(s.id); button.disabled = !chosen.size || data.mainCi !== "success"; });
     return h("label", { class: "chip" }, box, h("span", { class: "dot", style: "background:" + s.color + ";margin:0 0 0 2px" }), s.name.replace(/\\s*羽毛球$/, ""));
   });
@@ -199,11 +209,11 @@ function openPanel(s) {
   const rows = data.versions.map((v) => {
     const current = v.tag === s.version;
     const locked = !s.movable.includes(v.tag);
-    const newer = s.version && data.versions.findIndex((x) => x.tag === v.tag) < data.versions.findIndex((x) => x.tag === s.version);
+    const newer = isTag(s.version) && cmpTag(v.tag, s.version) > 0;
     const label = current ? h("span", { class: "muted" }, "当前")
       : !v.perSite ? h("span", { class: "muted" }, "只能和全部站点一起发")
       : locked ? h("span", { class: "muted" }, "要先恢复备份 🔒")
-      : newer || !s.version ? h("span", { class: "pill" }, v.tag === data.latest ? "最新" : "较新")
+      : newer || !isTag(s.version) ? h("span", { class: "pill" }, v.tag === data.latest ? "最新" : "较新")
       : h("span", { class: "muted" }, "回滚");
     const radio = h("input", { type: "radio", name: "v", disabled: current || locked });
     radio.addEventListener("change", () => { pick = v.tag; go.disabled = false; go.textContent = "换到 " + v.tag; });
