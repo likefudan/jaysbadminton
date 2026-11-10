@@ -84,8 +84,6 @@ if (process.env.GOOGLE_CLIENT_SECRET) secrets.GOOGLE_CLIENT_SECRET = process.env
 
 if (process.env.RESEND_API_KEY) secrets.RESEND_API_KEY = process.env.RESEND_API_KEY;
 if (process.env.EMAIL_FROM) secrets.EMAIL_FROM = process.env.EMAIL_FROM;
-// Cloudflare Turnstile on the public forms: off until the secret is set (src/worker/turnstile.ts).
-if (process.env.TURNSTILE_SECRET) secrets.TURNSTILE_SECRET = process.env.TURNSTILE_SECRET;
 // 拍照登记 and 发版说明 run on the models picked in 设置 → AI 模型, on Ke Li's Azure (src/worker/ai.ts);
 // 拍照登记 stays hidden until the key is set.
 if (process.env.AZURE_FOUNDRY_API_KEY) secrets.AZURE_FOUNDRY_API_KEY = process.env.AZURE_FOUNDRY_API_KEY;

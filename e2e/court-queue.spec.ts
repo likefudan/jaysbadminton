@@ -595,7 +595,9 @@ test("拍照登记 fills the form from the photo, one court at a time, with unsu
   // The photo goes up shrunk to a JPEG of at most 1600 px.
   await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("16");
   const size = await page.evaluate(async (b64) => {
-    const img = await createImageBitmap(await (await fetch(`data:image/jpeg;base64,${b64}`)).blob());
+    // Decoded here, not fetched from a data: URL, which the content policy blocks (connect-src).
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const img = await createImageBitmap(new Blob([bytes], { type: "image/jpeg" }));
     return [img.width, img.height];
   }, sent!.image);
   expect(Math.max(...size)).toBeLessThanOrEqual(1600);

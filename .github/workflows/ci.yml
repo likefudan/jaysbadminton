@@ -157,7 +157,6 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
           AZURE_FOUNDRY_API_KEY: ${{ secrets.AZURE_FOUNDRY_API_KEY }}
       - if: inputs.reset_admin_link
         run: npx wrangler d1 execute DB --remote --env staging --command "DELETE FROM settings WHERE key IN ('admin_token_hash', 'admin_token_enc')"
@@ -216,7 +215,6 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
           AZURE_FOUNDRY_API_KEY: ${{ secrets.AZURE_FOUNDRY_API_KEY }}
       - if: inputs.reset_admin_link
         run: npx wrangler d1 execute DB --remote --command "DELETE FROM settings WHERE key IN ('admin_token_hash', 'admin_token_enc')"
@@ -295,8 +293,6 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          # Same Turnstile widget; its hostnames must also list this site.
-          TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
           AZURE_FOUNDRY_API_KEY: ${{ secrets.AZURE_FOUNDRY_API_KEY }}
       # site-config.mjs set SITE_ORIGIN for the steps below.
       - name: Smoke test the site

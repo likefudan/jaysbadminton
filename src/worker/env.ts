@@ -21,10 +21,6 @@ export interface Env {
   EMAIL_FROM?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
-  /** Cloudflare Turnstile on the public forms (turnstile.ts): the site key is a public var, the secret
-   *  is pushed from the GitHub secret; the check is off until both are set. */
-  TURNSTILE_SITE_KEY?: string;
-  TURNSTILE_SECRET?: string;
   /** Ke Li's Azure (Microsoft Foundry) key: the models picked in 设置 → AI 模型 (ai.ts); 拍照登记 is
    *  hidden while it is missing. Pushed from the GitHub secret. */
   AZURE_FOUNDRY_API_KEY?: string;

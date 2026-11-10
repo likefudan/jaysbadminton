@@ -269,7 +269,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
 
 export const TERMS: Record<Lang, LegalDoc> = {
   "zh-CN": {
-    updated: "最后更新：2026 年 10 月 21 日",
+    updated: "最后更新：2026 年 11 月 10 日",
     sections: [
       {
         h: "服务是什么",
@@ -283,7 +283,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
         body: [
           [
             "每人一个账号，请用群里能认出你的名字，并提供真实的资料。",
-            "你的专属链接相当于密码：拿到链接的人可以用你的身份报名和取消。请不要转发；如果泄露了，请联系群主重新生成。",
+            "请保管好你用来登录的 Google 账号：能登录它的人就能用你的身份报名和取消。以前发给你的专属链接也一样，请不要转发；如果泄露了，请联系群主。",
             "不要冒用他人身份、反复提交申请或干扰网站运行。群主可以停用或删除违反这些条款的账号。",
           ],
         ],
@@ -293,7 +293,8 @@ export const TERMS: Record<Lang, LegalDoc> = {
         body: [
           [
             "活动的时间、地点、名额和带朋友的上限以网站上的信息为准。",
-            "截止前可以随时修改或取消报名。截止后名单锁定，需要修改请联系活动的组织者。",
+            "报名截止前（活动没设截止时间的，到活动结束前）可以随时修改或取消报名。截止后名单锁定，需要修改请联系活动的组织者。",
+            "活动开了球场排队时，你填的球馆账号必须是你自己有权使用、也同意分享给这场报名的人的；它的密码这场报名的人都能看到，请不要填在其他地方也用的密码。共享账号是否符合球馆的规定，由你自己负责。",
             "最终名单上的人（包括朋友）平摊场地费，实际到场的人再平摊球费。报了名没来，仍要付场地费。",
             "你带的朋友的费用算在你的账单上。取消报名时，你名下的朋友会一起取消。",
             "活动取消不收费。每个人的金额以结算后网站上的账单为准。",
@@ -329,7 +330,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
     ],
   },
   "zh-TW": {
-    updated: "最後更新：2026 年 10 月 21 日",
+    updated: "最後更新：2026 年 11 月 10 日",
     sections: [
       {
         h: "服務是什麼",
@@ -343,7 +344,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
         body: [
           [
             "每人一個帳號，請用群裡能認出你的名字，並提供真實的資料。",
-            "你的專屬連結相當於密碼：拿到連結的人可以用你的身分報名和取消。請不要轉傳；如果外洩了，請聯絡群主重新產生。",
+            "請保管好你用來登入的 Google 帳號：能登入它的人就能用你的身分報名和取消。以前傳給你的專屬連結也一樣，請不要轉傳；如果外洩了，請聯絡群主。",
             "不要冒用他人身分、反覆提交申請或干擾網站運作。群主可以停用或刪除違反這些條款的帳號。",
           ],
         ],
@@ -353,7 +354,8 @@ export const TERMS: Record<Lang, LegalDoc> = {
         body: [
           [
             "活動的時間、地點、名額和帶朋友的上限以網站上的資訊為準。",
-            "截止前可以隨時修改或取消報名。截止後名單鎖定，需要修改請聯絡活動的組織者。",
+            "報名截止前（活動沒設截止時間的，到活動結束前）可以隨時修改或取消報名。截止後名單鎖定，需要修改請聯絡活動的組織者。",
+            "活動開了球場排隊時，你填的球館帳號必須是你自己有權使用、也同意分享給這場報名的人的；它的密碼這場報名的人都能看到，請不要填在其他地方也用的密碼。共享帳號是否符合球館的規定，由你自己負責。",
             "最終名單上的人（包括朋友）平攤場地費，實際到場的人再平攤球費。報了名沒來，仍要付場地費。",
             "你帶的朋友的費用算在你的帳單上。取消報名時，你名下的朋友會一起取消。",
             "活動取消不收費。每個人的金額以結算後網站上的帳單為準。",
@@ -389,7 +391,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
     ],
   },
   en: {
-    updated: "Last updated: October 21, 2026",
+    updated: "Last updated: November 10, 2026",
     sections: [
       {
         h: "What the service is",
@@ -403,7 +405,7 @@ export const TERMS: Record<Lang, LegalDoc> = {
         body: [
           [
             "One account per person. Use a name the group recognizes you by, and give accurate details.",
-            "Your personal link works like a password: anyone who has it can sign up and cancel as you. Don't share it; if it gets out, ask the group owner to make a new one.",
+            "Keep the Google account you sign in with safe: anyone who can sign in to it can sign up and cancel as you. The same goes for any personal link you were sent before: don't share it, and if it gets out, contact the group owner.",
             "Don't pretend to be someone else, submit applications over and over, or interfere with the site. The group owner may deactivate or delete accounts that break these terms.",
           ],
         ],
@@ -413,7 +415,8 @@ export const TERMS: Record<Lang, LegalDoc> = {
         body: [
           [
             "Event times, places, spots and the limit on friends are as shown on the site.",
-            "You can change or cancel your sign-up any time before the deadline. After the deadline the roster is locked; to change it, contact the event's organizer.",
+            "You can change or cancel your sign-up any time before the sign-up deadline (or, for an event without one, before it ends). After the deadline the roster is locked; to change it, contact the event's organizer.",
+            "When an event uses the court queue, any gym account you enter must be one you may use and agree to share with the people signed up for that event; they can all see its password, so don't enter a password you use anywhere else. Whether sharing the account is allowed by the gym's rules is your own responsibility.",
             "Everyone on the final roster, friends included, splits the court fee, and everyone who actually comes also splits the cost of shuttlecocks. If you sign up and don't come, you still pay your share of the court fee.",
             "Friends you bring are billed to you. If you cancel, the friends under your name are cancelled too.",
             "A cancelled event costs nothing. What each person owes is the bill shown on the site after the event is settled.",
