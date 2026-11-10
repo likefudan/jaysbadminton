@@ -10,6 +10,7 @@ import {
   replacedBy,
 } from "../src/shared/courtQueue";
 import { purgeCourtPhotos, toPhotoResult } from "../src/worker/courtPhoto";
+import { purgeEndedQueues } from "../src/worker/courtQueue";
 import worker from "../src/worker/index";
 import { Client, ORIGIN, appoint, approveMember, googleCookie, createTestEvent, request, setUpAdmin } from "./helpers";
 
@@ -695,6 +696,34 @@ describe("拍照登记", () => {
     // Nothing priced at all: no price rather than $0.
     await env.DB.prepare("DELETE FROM ai_usage WHERE model != 'gpt-6.1-sol'").run();
     expect(await page()).toMatchObject({ photos: 1, tokens: 1100, cost: null });
+  });
+
+  it("deletes the hall accounts, courts and photos once the event's queue is over", async () => {
+    const { e, alice, q } = await scenario();
+    const endAt = (await env.DB.prepare("SELECT end_at FROM events WHERE id = ?")
+      .bind(e.id)
+      .first<{ end_at: string }>())!.end_at;
+    expect((await anon.call(`${alice.base}${q}/accounts`, { username: "ann", password: "pw1" })).status).toBe(200);
+    await env.DB.prepare(
+      `INSERT INTO queue_courts (event_id, court, position, ends_at, accounts, created_by, updated_by, created_at, updated_at)
+       VALUES (?, 3, 0, ?, '["ann"]', ?, ?, ?, ?)`,
+    )
+      .bind(e.id, endAt, alice.id, alice.id, endAt, endAt)
+      .run();
+    await env.DB.prepare("INSERT INTO queue_photos (event_id, member_id, image, created_at) VALUES (?, ?, ?, ?)")
+      .bind(e.id, alice.id, new Uint8Array([0xff, 0xd8]), endAt)
+      .run();
+    const rows = async () => {
+      const n = async (t: string) =>
+        (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE event_id = ?`).bind(e.id).first<{ n: number }>())!
+          .n;
+      return [await n("queue_accounts"), await n("queue_courts"), await n("queue_photos")];
+    };
+    const end = Date.parse(endAt);
+    await purgeEndedQueues(env, new Date(end + 2 * 3600_000)); // the card still shows them
+    expect(await rows()).toEqual([1, 1, 1]);
+    await purgeEndedQueues(env, new Date(end + 3 * 3600_000 + 60_000));
+    expect(await rows()).toEqual([0, 0, 0]);
   });
 
   it("forgets photos after 7 days", async () => {

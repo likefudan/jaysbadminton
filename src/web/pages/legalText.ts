@@ -15,12 +15,12 @@ const CONTACT = "likefudan@gmail.com";
 
 export const PRIVACY: Record<Lang, LegalDoc> = {
   "zh-CN": {
-    updated: "最后更新：2026 年 11 月 4 日",
+    updated: "最后更新：2026 年 11 月 10 日",
     sections: [
       {
         h: "这个网站是谁的",
         body: [
-          "{site}（{host}）是一个休闲羽毛球群自己用的报名和记账网站，由群主个人运营，不是公司，也不营利。本政策说明网站收集哪些信息、拿来做什么、谁能看到、保存多久。",
+          "{site}（{host}）是一个休闲羽毛球群自己用的报名和记账网站，由这个群的群主个人运营，不是公司，也不营利。网站的程序和服务器由网站维护者（见下面的「联系我们」）提供和维护；维护者能接触到网站的全部数据，只用于维护网站。本政策说明网站收集哪些信息、拿来做什么、谁能看到、保存多久。",
           "本网站不向华盛顿州提供服务。如果你住在华盛顿州，请不要注册或使用本网站。",
         ],
       },
@@ -30,11 +30,12 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "申请入群：你填写的用户名、微信名和给群主的留言（选填）；以前用邮箱注册的成员还有邮箱。",
             "Google 登录：Google 账号编号、邮箱和头像链接。网站只请求最基本的登录信息，读不到你的 Gmail 邮件、通讯录、云端硬盘或其他 Google 数据。",
-            "活动记录：报名和取消、带的朋友（人数和你填的名字）、出勤、应付金额和付款状态。",
-            "付款通知：活动的收款人把 Venmo 收款通知邮件转发给网站，网站从中读出付款人名字、金额、备注和时间，用来自动对账，并保存邮件文字供收款人核对。付款人可能不是成员，例如替别人付款的人。Zelle 付款由收款人手动标记。网站碰不到你的银行或 Venmo 账户，也不保存卡号或密码。",
+            "活动记录：报名和取消、带的朋友（人数和你填的名字）、你填的到场和离开时间、出勤、应付金额和付款状态。",
+            "球场排队（活动开了排队时）：成员填的球馆账号用户名和密码、登记的球场和排队情况，以及拍照登记时上传的球馆屏幕照片。照片会交给微软 Azure 上的 AI 模型识别，同时发过去的还有这场的球馆账号用户名（不含密码）；照片里可能有其他人的球馆用户名。",
+            "付款通知：活动的收款人把 Venmo 收款通知邮件转发给网站，网站从中读出付款人名字、金额、备注和时间，用来自动对账，并保存邮件文字供收款人核对。付款人可能不是成员，例如替别人付款的人。Zelle 付款由收款人手动标记。网站碰不到你的银行或 Venmo 账户，也不保存你的银行卡号或 Venmo 密码。",
             "推送通知：你开启推送时，保存浏览器提供的推送地址和密钥。",
             "卡路里（自愿）：你在 iPhone 上点「读取」时，快捷指令从「健康」读出这场活动时间段内的活动能量，网站只保存一个总数，只有你自己看得到；你选择加入能量榜后，首页会显示你的名字和今年的总数。网站读不到「健康」里的其他数据。你可以在「个人信息」里删除某一场或全部卡路里记录。",
-            "技术信息：登录用的 Cookie；语言、外观等偏好只存在你自己的浏览器里。网站没有广告，也不用第三方统计工具。",
+            "技术信息：登录用的 Cookie；语言、外观等偏好只存在你自己的浏览器里。网站没有广告，也不用第三方统计工具；网站不跟踪你在其他网站上的活动，所以对浏览器的「请勿跟踪」（Do Not Track）信号不做区别处理。",
           ],
         ],
       },
@@ -49,7 +50,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         body: [
           [
             "所有人（不用登录）：活动的时间、地点和报名人数，不显示谁报了名。如果群主打开了出勤排行榜，首页会显示成员名字和出勤次数，不含金额。",
-            "其他成员：报了名的成员能看到这场活动的完整名单，包括名字和带的朋友。别人看不到你的账单、邮箱或微信名。",
+            "其他成员：报了名的成员能看到这场活动的完整名单，包括名字、带的朋友和填的到场离开时间；活动开了球场排队时，还能看到大家填的球馆账号和密码。别人看不到你的账单、邮箱或微信名。",
             "群主：能看到全部信息，用于管理活动和成员。",
             "管理员（如果群主任命了管理员）：能看到所有成员和入群申请的资料、普通成员和组织者的专属链接、所有活动的费用和付款，用于帮群主管理活动和成员。",
             "组织者（如果群主任命了组织者）：可以查看所有成员和入群申请的资料，包括邮箱、微信名、申请留言、群主写的备注名和出勤记录，但看不到成员的专属链接；还能看到他们自己负责的活动的费用和付款，以及付到他们自己 Venmo 或 Zelle 账户的收款。",
@@ -59,10 +60,11 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
             "Cloudflare：网站托管、数据库和接收转发的付款邮件。Cloudflare 会记录 IP 地址等访问日志。",
             "Google：Google 登录。",
             "Resend：发送审核结果和专属链接邮件。",
-            "Telegram：给群主和组织者发活动通知，内容包括成员名字和金额。",
+            "Telegram：给群主、管理员和组织者发活动通知，内容包括成员名字和金额。",
+            "微软 Azure：拍照登记时识别球馆屏幕照片的 AI 模型。",
             "浏览器的推送服务（Apple、Google 或 Mozilla）：转送推送通知，内容是加密的。",
             "Google 表格：群主自己的 Google 表格每天同步一份网站数据，作为备份和对账用。",
-            "GitHub：每次发布新版本前备份一次数据库，备份保存 90 天。",
+            "GitHub：每次发布新版本前备份一次数据库，备份加密后保存 90 天。",
           ],
         ],
       },
@@ -72,6 +74,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "成员资料和活动记录：在你是成员期间一直保存。",
             "卡路里：保存到你自己删除为止，删除后立即从网站移除。",
+            "球场排队：球馆账号（用户名和密码）、登记的球场和照片只在这场活动期间保存，活动结束 3 小时后（排队卡片消失时）全部删除。",
             "删除成员后：专属链接、Google 账号关联和推送订阅立即删除；你的名字会加上成员编号留在过去的名单和账单里，因为账目需要完整。",
             "登录状态保存 30 天；移到回收站的 Venmo 收款 30 天后永久删除；付款邮件的处理日志（只有时间和结果）120 天后删除；群主开启付款记录诊断后，还会保存邮件标题、付款人、交易编号、备注和处理步骤，仅群主可见，不保存完整邮件正文，诊断记录 14 天后删除；数据库备份 90 天后删除。",
           ],
@@ -95,12 +98,12 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
     ],
   },
   "zh-TW": {
-    updated: "最後更新：2026 年 11 月 4 日",
+    updated: "最後更新：2026 年 11 月 10 日",
     sections: [
       {
         h: "這個網站是誰的",
         body: [
-          "{site}（{host}）是一個休閒羽毛球群自己用的報名和記帳網站，由群主個人經營，不是公司，也不營利。本政策說明網站收集哪些資訊、拿來做什麼、誰能看到、保存多久。",
+          "{site}（{host}）是一個休閒羽毛球群自己用的報名和記帳網站，由這個群的群主個人經營，不是公司，也不營利。網站的程式和伺服器由網站維護者（見下面的「聯絡我們」）提供和維護；維護者能接觸到網站的全部資料，只用於維護網站。本政策說明網站收集哪些資訊、拿來做什麼、誰能看到、保存多久。",
           "本網站不向華盛頓州提供服務。如果你住在華盛頓州，請不要註冊或使用本網站。",
         ],
       },
@@ -110,11 +113,12 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "申請入群：你填寫的使用者名稱、微信名和給群主的留言（選填）；以前用電子郵件註冊的成員還有電子郵件。",
             "Google 登入：Google 帳號編號、電子郵件和頭像連結。網站只請求最基本的登入資訊，讀不到你的 Gmail 郵件、聯絡人、雲端硬碟或其他 Google 資料。",
-            "活動記錄：報名和取消、帶的朋友（人數和你填的名字）、出席、應付金額和付款狀態。",
-            "付款通知：活動的收款人把 Venmo 收款通知郵件轉寄給網站，網站從中讀出付款人名字、金額、備註和時間，用來自動對帳，並保存郵件文字供收款人核對。付款人可能不是成員，例如替別人付款的人。Zelle 付款由收款人手動標記。網站碰不到你的銀行或 Venmo 帳戶，也不保存卡號或密碼。",
+            "活動記錄：報名和取消、帶的朋友（人數和你填的名字）、你填的到場和離開時間、出席、應付金額和付款狀態。",
+            "球場排隊（活動開了排隊時）：成員填的球館帳號使用者名稱和密碼、登記的球場和排隊情況，以及拍照登記時上傳的球館螢幕照片。照片會交給微軟 Azure 上的 AI 模型辨識，同時傳過去的還有這場的球館帳號使用者名稱（不含密碼）；照片裡可能有其他人的球館使用者名稱。",
+            "付款通知：活動的收款人把 Venmo 收款通知郵件轉寄給網站，網站從中讀出付款人名字、金額、備註和時間，用來自動對帳，並保存郵件文字供收款人核對。付款人可能不是成員，例如替別人付款的人。Zelle 付款由收款人手動標記。網站碰不到你的銀行或 Venmo 帳戶，也不保存你的銀行卡號或 Venmo 密碼。",
             "推播通知：你開啟推播時，保存瀏覽器提供的推播位址和金鑰。",
             "卡路里（自願）：你在 iPhone 上點「讀取」時，捷徑從「健康」讀出這場活動時間段內的活動能量，網站只保存一個總數，只有你自己看得到；你選擇加入能量榜後，首頁會顯示你的名字和今年的總數。網站讀不到「健康」裡的其他資料。你可以在「個人資訊」裡刪除某一場或全部卡路里記錄。",
-            "技術資訊：登入用的 Cookie；語言、外觀等偏好只存在你自己的瀏覽器裡。網站沒有廣告，也不用第三方統計工具。",
+            "技術資訊：登入用的 Cookie；語言、外觀等偏好只存在你自己的瀏覽器裡。網站沒有廣告，也不用第三方統計工具；網站不追蹤你在其他網站上的活動，所以對瀏覽器的「不要追蹤」（Do Not Track）訊號不做區別處理。",
           ],
         ],
       },
@@ -129,7 +133,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         body: [
           [
             "所有人（不用登入）：活動的時間、地點和報名人數，不顯示誰報了名。如果群主打開了出席排行榜，首頁會顯示成員名字和出席次數，不含金額。",
-            "其他成員：報了名的成員能看到這場活動的完整名單，包括名字和帶的朋友。別人看不到你的帳單、電子郵件或微信名。",
+            "其他成員：報了名的成員能看到這場活動的完整名單，包括名字、帶的朋友和填的到場離開時間；活動開了球場排隊時，還能看到大家填的球館帳號和密碼。別人看不到你的帳單、電子郵件或微信名。",
             "群主：能看到全部資訊，用於管理活動和成員。",
             "管理員（如果群主任命了管理員）：能看到所有成員和入群申請的資料、一般成員和組織者的專屬連結、所有活動的費用和付款，用於幫群主管理活動和成員。",
             "組織者（如果群主任命了組織者）：可以查看所有成員和入群申請的資料，包括電子郵件、微信名、申請留言、群主寫的備註名和出席記錄，但看不到成員的專屬連結；還能看到他們自己負責的活動的費用和付款，以及付到他們自己 Venmo 或 Zelle 帳戶的收款。",
@@ -139,10 +143,11 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
             "Cloudflare：網站託管、資料庫和接收轉寄的付款郵件。Cloudflare 會記錄 IP 位址等存取日誌。",
             "Google：Google 登入。",
             "Resend：寄送審核結果和專屬連結郵件。",
-            "Telegram：給群主和組織者傳送活動通知，內容包括成員名字和金額。",
+            "Telegram：給群主、管理員和組織者傳送活動通知，內容包括成員名字和金額。",
+            "微軟 Azure：拍照登記時辨識球館螢幕照片的 AI 模型。",
             "瀏覽器的推播服務（Apple、Google 或 Mozilla）：轉送推播通知，內容是加密的。",
             "Google 試算表：群主自己的 Google 試算表每天同步一份網站資料，作為備份和對帳用。",
-            "GitHub：每次發布新版本前備份一次資料庫，備份保存 90 天。",
+            "GitHub：每次發布新版本前備份一次資料庫，備份加密後保存 90 天。",
           ],
         ],
       },
@@ -152,6 +157,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "成員資料和活動記錄：在你是成員期間一直保存。",
             "卡路里：保存到你自己刪除為止，刪除後立即從網站移除。",
+            "球場排隊：球館帳號（使用者名稱和密碼）、登記的球場和照片只在這場活動期間保存，活動結束 3 小時後（排隊卡片消失時）全部刪除。",
             "刪除成員後：專屬連結、Google 帳號連結和推播訂閱立即刪除；你的名字會加上成員編號留在過去的名單和帳單裡，因為帳目需要完整。",
             "登入狀態保存 30 天；移到資源回收筒的 Venmo 收款 30 天後永久刪除；付款郵件的處理日誌（只有時間和結果）120 天後刪除；群主開啟付款記錄診斷後，還會保存郵件標題、付款人、交易編號、備註和處理步驟，僅群主可見，不保存完整郵件正文，診斷記錄 14 天後刪除；資料庫備份 90 天後刪除。",
           ],
@@ -175,12 +181,12 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
     ],
   },
   en: {
-    updated: "Last updated: November 4, 2026",
+    updated: "Last updated: November 10, 2026",
     sections: [
       {
         h: "Who runs this site",
         body: [
-          "{site} ({host}) is the sign-up and bookkeeping site of a casual badminton group. It is run by the group owner as an individual, not by a company, and makes no money. This policy explains what the site collects, what it is used for, who can see it, and how long it is kept.",
+          "{site} ({host}) is the sign-up and bookkeeping site of a casual badminton group. It is run by the group's owner as an individual, not by a company, and makes no money. The site's software and servers are provided and maintained by the site maintainer (see \"Contact\" below), who can access all of the site's data and uses it only to keep the site running. This policy explains what the site collects, what it is used for, who can see it, and how long it is kept.",
           "This site does not offer its service in Washington State. If you live in Washington State, please do not sign up for or use this site.",
         ],
       },
@@ -190,11 +196,12 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "When you apply to join: the username, WeChat name and optional note to the group owner that you enter, plus the email address of members who signed up by email before.",
             "When you sign in with Google: your Google account ID, email address and profile photo link. The site asks only for basic sign-in information and cannot read your Gmail, contacts, Drive or any other Google data.",
-            "Event records: sign-ups and cancellations, friends you bring (how many, and any names you enter), attendance, amounts owed and payment status.",
-            "Payment notices: an event's payee forwards their Venmo payment notification emails to the site, which reads the payer's name, the amount, the note and the time to match payments automatically, and keeps the email text so the payee can check it. A payer may not be a member, for example someone paying on another person's behalf. Zelle payments are marked by hand by the payee. The site never touches your bank or Venmo account and stores no card numbers or passwords.",
+            "Event records: sign-ups and cancellations, friends you bring (how many, and any names you enter), the arrival and leaving times you enter, attendance, amounts owed and payment status.",
+            "Court queue (when an event uses it): the gym account usernames and passwords members enter, the courts and queue places recorded, and photos of the gym's screen taken with photo entry. Photos are read by an AI model on Microsoft Azure, together with the event's gym account usernames (never the passwords); a photo may show other people's gym usernames.",
+            "Payment notices: an event's payee forwards their Venmo payment notification emails to the site, which reads the payer's name, the amount, the note and the time to match payments automatically, and keeps the email text so the payee can check it. A payer may not be a member, for example someone paying on another person's behalf. Zelle payments are marked by hand by the payee. The site never touches your bank or Venmo account and stores no card numbers or Venmo passwords.",
             "Push notifications: if you turn them on, the push address and keys your browser provides.",
             'Calories (optional): when you tap "Read" on an iPhone, a shortcut reads the active energy during that event from Apple Health and the site keeps only the total, visible only to you. If you join the Energy board, the home page shows your name and this year\'s total. The site can\'t read anything else in Apple Health. You can delete one event\'s calories or all of them under "Profile".',
-            "Technical information: cookies that keep you signed in. Preferences such as language and appearance stay in your own browser. The site has no ads and no third-party analytics.",
+            "Technical information: cookies that keep you signed in. Preferences such as language and appearance stay in your own browser. The site has no ads and no third-party analytics. It does not track you across other sites, so it does not respond differently to a browser's Do Not Track signal.",
           ],
         ],
       },
@@ -209,7 +216,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         body: [
           [
             "Anyone, without signing in: each event's time, place and number of sign-ups, but not who signed up. If the group owner turns on the attendance leaderboard, the home page shows members' names and how many times they came, with no amounts.",
-            "Other members: members signed up for an event see its full roster, with names and the friends each person brings. Nobody else sees your bills, email address or WeChat name.",
+            "Other members: members signed up for an event see its full roster, with names, the friends each person brings and the arrival and leaving times entered; when the event uses the court queue, they also see the gym accounts and passwords everyone entered. Nobody else sees your bills, email address or WeChat name.",
             "The group owner: everything, to manage events and members.",
             "Admins, if the group owner appoints any: the details of all members and applicants, the personal links of members and organizers, and every event's costs and payments, to help manage events and members.",
             "Organizers, if the group owner appoints any: the details of all members and applicants, including email addresses, WeChat names, application notes, the owner's notes and attendance, but not members' personal links; and, for the events they run, the costs and payments, plus the payments made to their own Venmo or Zelle account.",
@@ -219,10 +226,11 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
             "Cloudflare: hosting, the database and receiving forwarded payment emails. Cloudflare keeps access logs such as IP addresses.",
             "Google: Google sign-in.",
             "Resend: sending application-result and personal-link emails.",
-            "Telegram: event notifications to the group owner and organizers, which include member names and amounts.",
+            "Telegram: event notifications to the group owner, admins and organizers, which include member names and amounts.",
+            "Microsoft Azure: the AI model that reads gym screen photos taken with photo entry.",
             "Your browser's push service (Apple, Google or Mozilla): delivers push notifications, whose content is encrypted.",
             "Google Sheets: the group owner's own Google Sheet receives a daily copy of the site's data, as a backup and for bookkeeping.",
-            "GitHub: a backup of the database is made before each new version of the site is released, and kept for 90 days.",
+            "GitHub: an encrypted backup of the database is made before each new version of the site is released, and kept for 90 days.",
           ],
         ],
       },
@@ -232,6 +240,7 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
           [
             "Member details and event records: for as long as you are a member.",
             "Calories: until you delete them; deleting removes them from the site at once.",
+            "Court queue: gym accounts (usernames and passwords), recorded courts and photos are kept only for the event, and all deleted 3 hours after it ends (when the queue card goes away).",
             "When a member is deleted: their personal link, Google account link and push subscriptions are removed at once; their name stays on past rosters and bills with their member number added, because the accounts must stay complete.",
             "Sign-ins last 30 days. Venmo payments moved to the trash are deleted for good after 30 days. The payment email log (time and outcome only) is deleted after 120 days. If the Owner enables payment diagnostics, email subjects, payer names, transaction IDs, notes and processing steps are also stored, visible only to the Owner; full email bodies are not retained, and diagnostic records are deleted after 14 days. Database backups are deleted after 90 days.",
           ],
