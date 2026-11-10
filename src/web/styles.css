@@ -5423,9 +5423,18 @@ label.set-row {
   stroke-width: 3;
   stroke-linecap: round;
 }
+.board-item {
+  position: relative;
+  transition:
+    background-color 150ms,
+    box-shadow 150ms;
+}
 .board-item.sorting {
+  z-index: 1;
   background: var(--surface-raised);
-  box-shadow: inset 3px 0 var(--accent);
+  box-shadow:
+    inset 3px 0 var(--accent),
+    0 6px 18px rgb(0 0 0 / 0.16);
 }
 .board-item.sorting .board-handle {
   color: var(--accent);

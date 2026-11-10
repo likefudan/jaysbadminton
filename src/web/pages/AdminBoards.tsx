@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { BoardKey, LeaderboardAdmin } from "../../shared/types";
 import { api } from "../api";
 import { BOARDS, BoardCard, type Period, PeriodSwitch, boardTitle, listOf, valueText } from "../Boards";
@@ -11,6 +11,12 @@ import { t } from "../i18n";
  * with its top three and a 首页公开 switch; tapping a row opens the whole board under it.
  * 没登录也能看 is off by default, so names stay inside the group.
  */
+/** A row's top on screen without the slide it may be in the middle of. */
+function layoutTop(row: HTMLElement) {
+  const shift = new DOMMatrixReadOnly(getComputedStyle(row).transform).m42;
+  return row.getBoundingClientRect().top - shift;
+}
+
 export function BoardsPage(props: { base: string }) {
   const [res] = useApi<LeaderboardAdmin>(`${props.base}/leaderboard`);
   return <Load result={res}>{(d) => <Boards base={props.base} data={d} />}</Load>;
@@ -30,22 +36,72 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
     next: BoardKey[];
     pointerId: number;
     y: number;
+    /** Where in the row the pointer took hold, so the row stays under the finger. */
+    grab: number;
     list: HTMLElement;
   } | null>(null);
   const scrollFrame = useRef(0);
+  const listRef = useRef<HTMLElement>(null);
+  /** Where each row was on screen before the order changed, for the slide into its new place. */
+  const before = useRef(new Map<string, number>());
   const { busy, error, run } = useAction();
   useEffect(() => () => cancelAnimationFrame(scrollFrame.current), []);
 
+  /** Note where the rows are now (but the one being dragged), before the order changes. */
+  function remember(skip?: BoardKey) {
+    for (const row of rows())
+      if (row.dataset.board !== skip) before.current.set(row.dataset.board!, row.getBoundingClientRect().top);
+  }
+  function rows() {
+    return [...(listRef.current?.querySelectorAll<HTMLElement>(".board-item") ?? [])];
+  }
+  // After a reorder, slide every row from where it was to where it is now. The row being
+  // dragged instead follows the pointer.
+  useLayoutEffect(() => {
+    const moved = before.current;
+    before.current = new Map();
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    for (const row of rows()) {
+      const was = moved.get(row.dataset.board!);
+      if (was === undefined || row.dataset.board === drag.current?.key) continue;
+      row.style.transition = "none";
+      row.style.transform = "";
+      const shift = was - row.getBoundingClientRect().top;
+      if (!shift || still) continue;
+      row.style.transform = `translateY(${shift}px)`;
+      row.getBoundingClientRect();
+      row.style.transition = "transform 200ms cubic-bezier(.2,.8,.2,1)";
+      row.style.transform = "";
+    }
+    if (drag.current) follow(drag.current);
+  }, [order, dragging]);
+
+  /** Put the dragged row under the pointer, kept inside the list. */
+  function follow(d: NonNullable<typeof drag.current>) {
+    const row = d.list.querySelector<HTMLElement>(`[data-board="${d.key}"]`);
+    if (!row) return;
+    const top = layoutTop(row);
+    const box = d.list.getBoundingClientRect();
+    const shift = Math.min(Math.max(d.y - d.grab - top, box.top - top), box.bottom - top - row.offsetHeight);
+    row.style.transition = "none";
+    row.style.transform = `translateY(${shift}px)`;
+  }
+
   async function saveOrder(next: BoardKey[], before: BoardKey[]) {
     if (next.every((k, i) => k === before[i])) return;
-    if (!(await run(() => api(`${props.base}/settings`, { leaderboardOrder: next })))) setOrder(before);
+    if (!(await run(() => api(`${props.base}/settings`, { leaderboardOrder: next })))) {
+      remember();
+      setOrder(before);
+    }
   }
   function startDrag(e: PointerEvent, key: BoardKey) {
     if (busy || drag.current || !e.isPrimary || e.button !== 0) return;
     e.preventDefault();
     const list = (e.currentTarget as HTMLElement).closest<HTMLElement>(".board-list")!;
     list.setPointerCapture(e.pointerId);
-    drag.current = { key, before: order, next: order, pointerId: e.pointerId, y: e.clientY, list };
+    const row = (e.currentTarget as HTMLElement).closest<HTMLElement>(".board-item")!;
+    const grab = e.clientY - row.getBoundingClientRect().top;
+    drag.current = { key, before: order, next: order, pointerId: e.pointerId, y: e.clientY, grab, list };
     setOpen(null);
     setDragging(key);
     // Keep scrolling while the pointer is held at an edge, even when it stops moving.
@@ -65,9 +121,9 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
     const rows = d.list.querySelectorAll<HTMLElement>(".board-item");
     const from = d.next.indexOf(d.key);
     let to = from;
+    // Compare with where the rows sit in the list, not where a slide has them for now.
     rows.forEach((row, i) => {
-      const rect = row.getBoundingClientRect();
-      const middle = rect.top + rect.height / 2;
+      const middle = layoutTop(row) + row.offsetHeight / 2;
       if ((i < from && d.y < middle && to === from) || (i > from && d.y > middle)) to = i;
     });
     if (to !== from) {
@@ -75,8 +131,9 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
       next.splice(from, 1);
       next.splice(to, 0, d.key);
       d.next = next;
+      remember(d.key);
       setOrder(next);
-    }
+    } else follow(d);
   }
   function moveDrag(e: PointerEvent) {
     const d = drag.current;
@@ -89,6 +146,8 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
     if (!d || d.pointerId !== e.pointerId) return;
     drag.current = null;
     cancelAnimationFrame(scrollFrame.current);
+    // Let go: the row settles into its place and the others slide back if cancelled.
+    remember();
     setDragging(null);
     if (cancel) setOrder(d.before);
     else void saveOrder(d.next, d.before);
@@ -104,6 +163,7 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
     const next = [...order];
     next.splice(from, 1);
     next.splice(to, 0, key);
+    remember();
     setOrder(next);
     // Moving a keyed DOM node can drop focus. Keep keyboard users on the same handle.
     const list = (e.currentTarget as HTMLElement).closest(".board-list")!;
@@ -136,6 +196,7 @@ function Boards(props: { base: string; data: LeaderboardAdmin }) {
       </div>
       <div class="board-public">{t("首页公开")}</div>
       <section
+        ref={listRef}
         class="card board-list"
         onPointerMove={moveDrag}
         onPointerUp={(e) => endDrag(e)}
