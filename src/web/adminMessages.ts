@@ -360,21 +360,14 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   开始: { tw: "開始", en: "Start" },
   结束: { tw: "結束", en: "End" },
   报名截止时间: { tw: "報名截止時間", en: "Sign-up deadline" },
-  到截止时间就不能再报名: { tw: "到截止時間就不能再報名", en: "No sign-ups after the deadline" },
-  "不设截止：活动结束前都能报名（结算后就不能了）": {
-    tw: "不設截止：活動結束前都能報名（結算後就不能了）",
-    en: "No deadline: people can sign up until the event ends (not after Finalize)",
-  },
   活动开始前: { tw: "活動開始前", en: "Before the event starts" },
   "{n} 天": { tw: "{n} 天", en: "{n} days" },
   "{n} 小时": { tw: "{n} 小時", en: "{n} hours" },
   创建活动: { tw: "建立活動", en: "Create event" },
   排队系统: { tw: "排隊系統", en: "Court queue" },
   每轮多少分钟: { tw: "每輪多少分鐘", en: "Minutes per round" },
-  "用来估算排队的组大约多久上场，{QUEUE_ROUND_MIN}–{QUEUE_ROUND_MAX} 分钟": {
-    tw: "用來估算排隊的組大約多久上場，{QUEUE_ROUND_MIN}–{QUEUE_ROUND_MAX} 分鐘",
-    en: "Used to estimate when queued groups get on court, {QUEUE_ROUND_MIN}–{QUEUE_ROUND_MAX} minutes",
-  },
+  每轮: { tw: "每輪", en: "Each round" },
+  "需要收款 + 自动对账": { tw: "需要收款 + 自動對帳", en: "Collect fees + auto-match payments" },
   "备注（选填）": { tw: "備註（選填）", en: "Notes (optional)" },
   最近的场馆: { tw: "最近的場館", en: "Recent venues" },
   "从最近的场馆中删除「{name}」": { tw: "從最近的場館中刪除「{name}」", en: 'Remove "{name}" from recent venues' },
@@ -810,15 +803,15 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   给管理员的说明: { tw: "給管理員的說明", en: "Notes for admins" },
   给组织者的说明: { tw: "給組織者的說明", en: "Notes for organizers" },
   "一、开始前要做的事": { tw: "一、開始前要做的事", en: "1. Before you start" },
-  "{b}（「设置 › 收款设置」）：要收场地费才需要。填 Venmo 用户名和通知邮箱，Zelle 选填，成员把钱付到这里。不填也能办「无需收款」的活动。":
+  "{b}（「设置 › 收款设置」）：要收场地费才需要。填 Venmo 用户名和通知邮箱，Zelle 选填，成员把钱付到这里。不填也能办不收款的活动。":
     {
-      tw: "{b}（「設定 › 收款設定」）：要收場地費才需要。填 Venmo 使用者名稱和通知電子郵件，Zelle 選填，成員把錢付到這裡。不填也能辦「無需收款」的活動。",
-      en: '{b} ("Settings › Payment settings"): only needed to collect court fees. Enter your Venmo username and notification email (Zelle optional); members pay you there. Without it you can still run "No fees to collect" events.',
+      tw: "{b}（「設定 › 收款設定」）：要收場地費才需要。填 Venmo 使用者名稱和通知電子郵件，Zelle 選填，成員把錢付到這裡。不填也能辦不收款的活動。",
+      en: '{b} ("Settings › Payment settings"): only needed to collect court fees. Enter your Venmo username and notification email (Zelle optional); members pay you there. Without it you can still run events with no fees.',
     },
-  "{b}（上面的「我的收款设置」）：要收场地费才需要。填 Venmo 用户名和通知邮箱，Zelle 选填，成员把钱付到这里。不填也能办「无需收款」的活动。":
+  "{b}（上面的「我的收款设置」）：要收场地费才需要。填 Venmo 用户名和通知邮箱，Zelle 选填，成员把钱付到这里。不填也能办不收款的活动。":
     {
-      tw: "{b}（上面的「我的收款設定」）：要收場地費才需要。填 Venmo 使用者名稱和通知電子郵件，Zelle 選填，成員把錢付到這裡。不填也能辦「無需收款」的活動。",
-      en: '{b} ("My payment settings" above): only needed to collect court fees. Enter your Venmo username and notification email (Zelle optional); members pay you there. Without it you can still run "No fees to collect" events.',
+      tw: "{b}（上面的「我的收款設定」）：要收場地費才需要。填 Venmo 使用者名稱和通知電子郵件，Zelle 選填，成員把錢付到這裡。不填也能辦不收款的活動。",
+      en: '{b} ("My payment settings" above): only needed to collect court fees. Enter your Venmo username and notification email (Zelle optional); members pay you there. Without it you can still run events with no fees.',
     },
   填好收款设置: { tw: "填好收款設定", en: "Fill in payment settings" },
   "{b}（「设置 › 收款设置」里的步骤）：要收场地费才需要，设好后付款自动记账，第一封收款邮件到了会显示「已生效」。": {
@@ -844,10 +837,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: '{b}: "Events › ＋ New event"; you\'re its manager and payee. Then tap "Copy event link" and post it in the group.',
   },
   新建: { tw: "新建", en: "Create" },
-  "{b}：「无需收款」是每人到场自付，活动结束 1 小时后自动结束，不用结算；「排队系统」打开球场排队；「报名截止时间」关掉的话，活动结束前一直能报名。{x}":
+  "{b}：「需要收款 + 自动对账」关掉的话，每人到场自付，活动结束 1 小时后自动结束，不用结算；「排队系统」打开球场排队；「报名截止时间」关掉的话，活动结束前一直能报名。{x}":
     {
-      tw: "{b}：「無需收款」是每人到場自付，活動結束 1 小時後自動結束，不用結算；「排隊系統」打開球場排隊；「報名截止時間」關掉的話，活動結束前一直能報名。{x}",
-      en: '{b}: with "No fees to collect", everyone pays at the venue and the event ends by itself 1 hour after it finishes, with no billing. "Court queue" turns on court queuing. With "Sign-up deadline" off, people can sign up until the event ends. {x}',
+      tw: "{b}：「需要收款 + 自動對帳」關掉的話，每人到場自付，活動結束 1 小時後自動結束，不用結算；「排隊系統」打開球場排隊；「報名截止時間」關掉的話，活動結束前一直能報名。{x}",
+      en: '{b}: with "Collect fees + auto-match payments" off, everyone pays at the venue and the event ends by itself 1 hour after it finishes, with no billing. "Court queue" turns on court queuing. With "Sign-up deadline" off, people can sign up until the event ends. {x}',
     },
   三个开关: { tw: "三個開關", en: "Three switches" },
   "已经开始的活动也能补建，建好就是截止状态，不发通知。": {
@@ -1484,10 +1477,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "The daily limit for automatic joins must be 1–{n}",
   },
   无需收款: { tw: "無需收款", en: "No fees to collect" },
-  "大家到球场各付各的，活动结束后不用结算和收款": {
-    tw: "大家到球場各付各的，活動結束後不用結算和收款",
-    en: "Everyone pays the venue at the door; nothing to settle or collect afterwards",
-  },
   "大家在球场各付各的，这次活动不用结算。活动结束 1 小时后（{time}）会自动结束，存进历史活动。": {
     tw: "大家在球場各付各的，這次活動不用結算。活動結束 1 小時後（{time}）會自動結束，存進歷史活動。",
     en: "Everyone pays the venue themselves, so there is nothing to settle. The event ends by itself 1 hour after it finishes ({time}) and moves to past events.",
