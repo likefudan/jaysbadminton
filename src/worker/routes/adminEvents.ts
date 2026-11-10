@@ -47,6 +47,8 @@ import {
   insertGuest,
   memberNames,
   type EventRow,
+  deadlineFor,
+  deadlineOffset,
 } from "../events";
 import { endNoFeeEvent } from "../noFee";
 import { SETTLE_DEADLINE_MAX_HOURS, settleDeadline } from "../settleDeadline";
@@ -480,7 +482,8 @@ adminEventRoutes.post("/events/:id/close-now", async (c) => {
 /**
  * Emergency edit of date, times and location. The event code stays the same so links and
  * payment codes already sent out keep working. An open event's deadline moves with the start
- * (never past the end); if it has already passed, sign-up closes. Closed events stay closed.
+ * (never past the end); if it has already passed, sign-up closes. Closed events stay closed, unless
+ * 报名截止时间 is switched or changed to a time still ahead, which opens sign-up again until then.
  */
 adminEventRoutes.post("/events/:id/edit", async (c) => {
   await closeExpired(c.env);
@@ -507,22 +510,17 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   const live = e.status === "open" || e.status === "closed";
   const noDeadline = b.noDeadline === undefined || !live ? e.no_deadline === 1 : b.noDeadline === true;
   let offsetMin = e.deadline_offset_min;
-  if (live && !noDeadline && b.deadlineDays !== undefined) {
-    const days = Math.floor(num(b.deadlineDays));
-    const hours = Math.floor(num(b.deadlineHours));
-    if (!(days >= 0 && days <= 14 && hours >= 0 && hours <= 23))
-      throw badRequest("截止时间请选择提前 0–14 天、0–23 小时");
-    offsetMin = days * 1440 + hours * 60;
-  }
+  if (live && !noDeadline && b.deadlineDays !== undefined)
+    offsetMin = deadlineOffset(num(b.deadlineDays), num(b.deadlineHours));
   const deadlineSet = noDeadline !== (e.no_deadline === 1) || (!noDeadline && offsetMin !== e.deadline_offset_min);
   if (deadlineSet) {
-    deadline = noDeadline ? endAt : new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
+    deadline = deadlineFor(startAt, endAt, noDeadline, offsetMin);
     if (deadline > endAt) deadline = endAt;
-    if (deadline > now()) status = "open";
-    // Never closes sign-up by surprise: a deadline set in the past is refused while it is open, and
-    // a closed event keeps the deadline it closed at (so no second 报名截止 notice goes out).
-    else if (e.status === "open") throw badRequest("按这个提前量算出的截止时间已经过了，请调整");
-    else deadline = e.deadline_at;
+    // A deadline already gone is refused rather than closing sign-up by surprise (or, on a closed
+    // event, being saved without taking effect).
+    if (deadline <= now())
+      throw badRequest(noDeadline ? "这个活动已经结束了" : "按这个提前量算出的截止时间已经过了，请调整");
+    status = "open";
   } else if (e.status === "open") {
     // The deadline moves with the start, keeping its lead time: the usual offset, or whatever
     // 重新开放报名 set (which may run past the start), so a title or venue fix changes nothing.

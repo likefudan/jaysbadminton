@@ -1268,7 +1268,18 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
 
   if (!open) {
     return (
-      <button type="button" class="link-button" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        class="link-button"
+        onClick={() => {
+          // As the event is now (a 重新开放报名 since this was first shown changes it), so saving
+          // something else never undoes it.
+          setDeadlineOn(!props.e.noDeadline);
+          setDays(Math.floor(props.e.deadlineOffsetMin / 1440));
+          setHours(Math.floor((props.e.deadlineOffsetMin % 1440) / 60));
+          setOpen(true);
+        }}
+      >
         {t("修改活动标题、时间、地点、备注、排队系统或报名截止")}
       </button>
     );

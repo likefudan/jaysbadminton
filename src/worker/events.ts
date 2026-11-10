@@ -275,6 +275,19 @@ export interface CreateEventInput {
   pastDays?: number;
 }
 
+/** 报名截止 as minutes before the start, from the form's days and hours (0–14 天、0–23 小时). */
+export function deadlineOffset(deadlineDays: number, deadlineHours: number): number {
+  const days = Math.floor(deadlineDays);
+  const hours = Math.floor(deadlineHours);
+  if (!(days >= 0 && days <= 14 && hours >= 0 && hours <= 23))
+    throw badRequest("截止时间请选择提前 0–14 天、0–23 小时");
+  return days * 1440 + hours * 60;
+}
+
+/** When sign-up closes: offsetMin before the start, or at the end when 报名截止时间 is off. */
+export const deadlineFor = (startAt: string, endAt: string, noDeadline: boolean, offsetMin: number): string =>
+  noDeadline ? endAt : new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
+
 export function validateEventInput(i: CreateEventInput): {
   startAt: string;
   endAt: string;
@@ -286,16 +299,12 @@ export function validateEventInput(i: CreateEventInput): {
   if (!isDate(i.date)) throw badRequest("请选择日期");
   if (!isTime(i.startTime) || !isTime(i.endTime)) throw badRequest("请填写开始和结束时间");
   checkVenue(i.location, i.address);
-  const days = Math.floor(i.deadlineDays);
-  const hours = Math.floor(i.deadlineHours);
-  if (!(days >= 0 && days <= 14 && hours >= 0 && hours <= 23))
-    throw badRequest("截止时间请选择提前 0–14 天、0–23 小时");
+  const offsetMin = deadlineOffset(i.deadlineDays, i.deadlineHours);
   const startAt = pacificToUtc(i.date, i.startTime);
   let endAt = pacificToUtc(i.date, i.endTime);
   // An end time earlier than the start means the session runs past midnight.
   if (endAt <= startAt) endAt = new Date(Date.parse(endAt) + 86400_000).toISOString();
-  const offsetMin = days * 1440 + hours * 60;
-  const deadlineAt = i.noDeadline ? endAt : new Date(Date.parse(startAt) - offsetMin * 60_000).toISOString();
+  const deadlineAt = deadlineFor(startAt, endAt, !!i.noDeadline, offsetMin);
   const ts = now();
   const started = !!i.pastDays && i.pastDays > 0 && startAt <= ts;
   if (deadlineAt <= ts && !started)
