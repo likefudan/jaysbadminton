@@ -212,7 +212,6 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
         <label class={`switch-card ${joinSelf ? "on" : ""}`}>
           <span>
             <strong>{t("我自己也报名")}</strong>
-            <small>{t("创建后你会直接出现在报名名单里")}</small>
           </span>
           <input
             type="checkbox"
@@ -222,12 +221,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
             onChange={(e) => setJoinSelf((e.target as HTMLInputElement).checked)}
           />
         </label>
-        <Field
-          label={t("标题（选填）")}
-          value={title}
-          onInput={setTitle}
-          hint={t("特别的活动可以起个名字，例如「HappyTuesday 比赛」；不填就只显示日期")}
-        />
+        <Field label={t("活动标题")} value={title} onInput={setTitle} />
         <Field label={t("日期")} type="date" value={date} onInput={setDate} />
         <div class="inline">
           <Field label={t("开始")} type="time" value={startTime} onInput={setStart} />
@@ -1297,7 +1291,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   return (
     <Card title={t("修改活动（紧急情况）")}>
       <p class="warn">{t("只在场地变更、时间临时调整等紧急情况使用。修改后请在微信群里通知大家。")}</p>
-      <Field label={t("标题（选填）")} value={title} onInput={setTitle} />
+      <Field label={t("活动标题")} value={title} onInput={setTitle} />
       <Field label={t("日期")} type="date" value={date} onInput={setDate} />
       <div class="inline">
         <Field label={t("开始")} type="time" value={startTime} onInput={setStart} />
