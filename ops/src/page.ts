@@ -230,14 +230,27 @@ function progressCard() {
 
 function deploysCard() {
   if (!data.deploys.length) return h("div", { class: "card muted" }, "还没有记录");
-  return h("div", { class: "card" }, data.deploys.map((d) => {
+  // One version sent to more sites later (补发) is one line: back-to-back runs of the same tag merge.
+  const merged = [];
+  for (const d of data.deploys) {
+    const last = merged[merged.length - 1];
+    if (d.tag && last && last.tag === d.tag) {
+      const seen = new Set(last.sites.map((j) => j.id));
+      last.sites = [...last.sites, ...d.sites.filter((j) => !seen.has(j.id))];
+      last.running = last.running || d.running;
+      last.ok = last.ok && d.ok;
+    } else merged.push({ ...d, sites: [...d.sites] });
+  }
+  const order = (j) => data.sites.findIndex((s) => s.id === j.id);
+  for (const d of merged) d.sites.sort((x, y) => order(x) - order(y));
+  return h("div", { class: "card" }, merged.map((d) => {
     const mark = d.running ? "⏳" : d.ok ? "✓" : "✗";
     if (!d.tag) return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },
       h("div", { class: "row" }, h("span", { class: "warn" }, "✗ 发布没开始，点开看原因"), h("span", { class: "muted nowrap" }, when(d.at)))));
     // When a site failed or is still going, each site says how it went.
     const one = (j) => siteName(j.id).replace(/\\s*羽毛球$/, "");
     const mixed = d.sites.some((j) => j.conclusion !== "success");
-    const names = !d.sites.length ? "没有部署"
+    const names = !d.sites.length ? (d.running ? "准备中" : "没有部署")
       : mixed ? d.sites.map((j) => one(j) + (j.conclusion === "success" ? " ✓" : j.status !== "completed" ? " ⏳" : " ✗")).join("、")
       : d.sites.length === data.sites.length ? "全部" : d.sites.map(one).join("、");
     return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },
