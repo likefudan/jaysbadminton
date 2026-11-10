@@ -42,6 +42,7 @@ import { developerMember } from "../developer";
 import { pushBrought, pushGuestLeft, pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
 import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
+import { avatarMode, avatarUrl, setAvatarMode, uploadAvatar } from "../avatars";
 import {
   calorieReadDays,
   caloriesOf,
@@ -92,7 +93,21 @@ memberRoutes.get("/:token/me", async (c) => {
       m.status === "active" &&
       memberRole(c.env, m) !== "member",
     active: m.status === "active",
+    avatar: avatarUrl(m),
+    avatarMode: avatarMode(m),
+    googlePicture: !!m.google_picture,
   });
+});
+
+// 头像: a photo cropped and shrunk on the phone, or back to the Google picture, or none.
+memberRoutes.post("/:token/avatar", async (c) => {
+  const body = await readJson(c.req.raw);
+  return c.json({ avatar: await uploadAvatar(c.env, c.get("member"), body.image) });
+});
+memberRoutes.post("/:token/avatar/mode", async (c) => {
+  const body = await readJson(c.req.raw);
+  await setAvatarMode(c.env, c.get("member"), body.mode);
+  return c.json({ ok: true });
 });
 
 memberRoutes.get("/:token/stats", async (c) => c.json(await myStats(c.env, c.get("member").id)));

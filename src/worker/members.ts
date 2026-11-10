@@ -32,6 +32,10 @@ export interface MemberRow {
   /** 1: on the 卡路里榜 (their own choice). */
   calorie_board: number;
   calorie_shortcut_v: number | null;
+  /** The picture of their Google account, from the last sign-in (avatars.ts). */
+  google_picture: string | null;
+  /** NULL: the Google picture; 'none': no avatar; else their own photo's id (avatars.ts). */
+  avatar: string | null;
 }
 
 export const toSummary = (m: MemberRow): MemberSummary => ({

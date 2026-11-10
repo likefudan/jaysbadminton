@@ -178,6 +178,9 @@ describe("member links", () => {
       isOwner: false,
       canAdmin: false,
       active: true,
+      avatar: null,
+      avatarMode: "google",
+      googlePicture: false,
     });
     const shown = await admin.call(`${base}/members/${id}/link`);
     expect(tokenOf(shown.data.link)).toBe(token);

@@ -7,6 +7,7 @@ import { SectionTitle } from "./components";
 import { useApi } from "./hooks";
 import { t, tk } from "./i18n";
 import { Panel } from "./Panel";
+import { Avatar } from "./Avatar";
 import { MeCard, type MeCardProps } from "./Profile";
 import { ShareGlyph, fitText, loadImage, roundRect, shareSans } from "./ShareCard";
 import { useSiteTitle } from "./site";
@@ -253,9 +254,7 @@ function Buddies(props: { review: YearReview }) {
       <section class="card buddies">
         {props.review.buddies.map((b, i) => (
           <div key={`${i}-${b.name}`} class="buddy">
-            <span class="buddy-av" aria-hidden="true">
-              {[...b.name][0]!.toUpperCase()}
-            </span>
+            <Avatar src={b.avatar} size={46} class="buddy-av" />
             <b>{b.name}</b>
             <small>{t("{n} 次", { n: b.count })}</small>
           </div>

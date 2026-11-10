@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import type { BoardKey, Leaderboard, RankEntry } from "../shared/types";
+import { Avatar } from "./Avatar";
 import { kcalText } from "./Calories";
 import { Empty, SectionTitle } from "./components";
 import { t, tk } from "./i18n";
@@ -67,6 +68,8 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
       <small>{t(b.unit)}</small>
     </span>
   );
+  // 头像 only reach signed-in members; visitors see the names alone, laid out as before.
+  const withFaces = list.some((r) => r.avatar !== undefined);
   // 2nd, 1st, 3rd from left to right; a missing place stays an empty column.
   const podium = [list[1], list[0], list[2]];
   const rest = list.slice(3, all ? undefined : SHOWN);
@@ -81,6 +84,7 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
                   👑
                 </span>
               )}
+              {withFaces && <Avatar src={r.avatar} size={r.rank === 1 ? 56 : 46} class="podium-av" />}
               <span class="who">{r.name}</span>
               {value(r.value)}
               <span class="step">{r.rank}</span>
@@ -95,6 +99,7 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
           {rest.map((r) => (
             <li key={r.name}>
               <span class="rank-no">{r.rank}</span>
+              {withFaces && <Avatar src={r.avatar} size={30} />}
               <span class="who">{r.name}</span>
               {value(r.value)}
             </li>

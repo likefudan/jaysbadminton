@@ -8,6 +8,7 @@ import { HttpError, readJson, str } from "../http";
 import { appNames, isStaging, siteTheme } from "../site";
 import { boardSettings, leaderboard, onlyBoards } from "../stats";
 import { signedInMember } from "../googleAuth";
+import { readAvatar } from "../avatars";
 import { createMember } from "../members";
 import { autoJoinEnabled } from "../joining";
 
@@ -50,9 +51,18 @@ publicRoutes.get("/home", async (c) => {
 async function publicBoard(c: Context<{ Bindings: Env }>) {
   const s = await boardSettings(c.env);
   if (s.public.length === 0) return null;
-  if (!s.anon && !(await signedInMember(c))) return null;
-  return onlyBoards(await leaderboard(c.env), s.public);
+  const member = await signedInMember(c);
+  if (!s.anon && !member) return null;
+  // Faces stay inside the group: visitors who aren't signed in see the names only.
+  return onlyBoards(await leaderboard(c.env, { avatars: !!member }), s.public);
 }
+
+/** 头像: a member's own photo, under a random id that changes on every upload. */
+publicRoutes.get("/avatars/:id", async (c) => {
+  const image = await readAvatar(c.env, c.req.param("id"));
+  if (!image) throw new HttpError(404, "not_found", "找不到这个头像");
+  return c.body(image, 200, { "Content-Type": "image/jpeg" });
+});
 
 publicRoutes.get("/events/:code", async (c) => {
   const e = await c.env.DB.prepare("SELECT * FROM events WHERE code = ? ORDER BY start_at DESC LIMIT 1")

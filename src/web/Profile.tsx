@@ -4,6 +4,7 @@ import type { ComponentChildren } from "preact";
 import type { ActivityDay, MeResponse, MemberProfile } from "../shared/types";
 import { checkUsername } from "../shared/rules";
 import { api } from "./api";
+import { Avatar, AvatarForm } from "./Avatar";
 import { Card, Field, SettingRow, useAction } from "./components";
 import { InstallRow } from "./Install";
 import { PushRow } from "./Push";
@@ -196,7 +197,11 @@ export interface MeCardProps {
   wechat: string;
   /** Unknown while the profile loads (or if it failed). */
   joinedAt?: string;
+  /** 头像: null for the empty one. */
+  avatar: string | null;
   onSettings: () => void;
+  /** A tap on the avatar opens 头像 (left out where it can't be changed). */
+  onAvatar?: () => void;
 }
 
 /**
@@ -208,9 +213,13 @@ export function MeCard(props: MeCardProps & { children?: ComponentChildren }) {
     <section class="card ev-card tone-hero me-card">
       <div class="ev-head">
         <div class="me-top">
-          <span class="me-avatar" aria-hidden="true">
-            {[...props.name][0]?.toUpperCase()}
-          </span>
+          {props.onAvatar ? (
+            <button type="button" class="me-avatar-btn" aria-label={t("头像")} onClick={props.onAvatar}>
+              <Avatar src={props.avatar} size={56} class="me-avatar" />
+            </button>
+          ) : (
+            <Avatar src={props.avatar} size={56} class="me-avatar" />
+          )}
           <div class="grow">
             <h2 class="me-name">{props.name}</h2>
             <p class="me-sub">
@@ -257,6 +266,12 @@ export function ProfileSettings(props: {
   const p = props.profile;
   return (
     <section class="card set-list">
+      <SettingRow
+        icon={<FaceIcon />}
+        label={t("头像")}
+        value={<Avatar src={props.me.avatar} size={30} />}
+        panel={() => <AvatarForm base={props.base} me={props.me} onDone={props.onChange} />}
+      />
       <SettingRow
         icon={<UserIcon />}
         label={t("名字")}
@@ -353,6 +368,13 @@ const UserIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     <circle cx="12" cy="8" r="4" />
     <path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+  </svg>
+);
+const FaceIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="10" r="3" />
+    <path d="M6.5 18.5c1.3-2.2 3.2-3.3 5.5-3.3s4.2 1.1 5.5 3.3" />
   </svg>
 );
 const MailIcon = () => (
