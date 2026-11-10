@@ -209,11 +209,16 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   await expect(names).not.toHaveAttribute("open");
   await names.locator("summary").click();
   await expect(names).toHaveAttribute("open");
-  const remembered = await page.evaluate(() => JSON.parse(localStorage.getItem("roster-open-events") ?? "[]"));
-  expect(remembered).toHaveLength(1);
+  // The toggle event fires after the attribute changes, so wait for it to be saved.
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("roster-open-events") ?? "[]")))
+    .toHaveLength(1);
   await page.reload();
   await expect(card.locator(".roster-fold")).toHaveAttribute("open");
   await card.locator(".roster-fold summary").click();
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("roster-open-events") ?? "[]")))
+    .toHaveLength(0);
   await page.reload();
   await expect(card.locator(".roster-fold")).not.toHaveAttribute("open");
 
