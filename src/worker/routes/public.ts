@@ -1,13 +1,13 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { calendarEntry, icsFile } from "../../shared/calendar";
 import type { HomeResponse, PublicEvent } from "../../shared/types";
 import { summaries, type EventRow } from "../events";
-import { getSettings } from "../db";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
 import { appNames, isStaging, siteTheme } from "../site";
-import { leaderboard } from "../stats";
+import { boardSettings, leaderboard, onlyBoards } from "../stats";
+import { signedInMember } from "../googleAuth";
 import { createMember } from "../members";
 import { autoJoinEnabled } from "../joining";
 
@@ -39,10 +39,20 @@ publicRoutes.get("/home", async (c) => {
   return c.json<HomeResponse>({
     currentEvents: await summaries(c.env, current.results),
     pastEvents: await summaries(c.env, past.results),
-    leaderboard:
-      (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard === "0" ? null : await leaderboard(c.env),
+    leaderboard: await publicBoard(c),
   });
 });
+
+/**
+ * 首页排行榜: the boards the Owner or an admin made public, to signed-in members only unless
+ * 没登录也能看 is on (Ke Li 2026-11-10: names stay inside the group by default).
+ */
+async function publicBoard(c: Context<{ Bindings: Env }>) {
+  const s = await boardSettings(c.env);
+  if (s.public.length === 0) return null;
+  if (!s.anon && !(await signedInMember(c))) return null;
+  return onlyBoards(await leaderboard(c.env), s.public);
+}
 
 publicRoutes.get("/events/:code", async (c) => {
   const e = await c.env.DB.prepare("SELECT * FROM events WHERE code = ? ORDER BY start_at DESC LIMIT 1")

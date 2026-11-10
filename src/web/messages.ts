@@ -5,6 +5,38 @@
 import { ADMIN_MESSAGES } from "./adminMessages";
 
 const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
+  "从 iPhone「健康」读取的活动能量，在「个人信息」里加入": {
+    tw: "從 iPhone「健康」讀取的活動能量，在「個人資訊」裡加入",
+    en: "Active energy from iPhone Health; join from Profile",
+  },
+  出勤: { tw: "出席", en: "Attendance" },
+  来打球的次数: { tw: "來打球的次數", en: "Times you came to play" },
+  时长: { tw: "時長", en: "Hours" },
+  小时: { tw: "小時", en: "h" },
+  "按报名时填的到/走时间算，没填按整场": {
+    tw: "按報名時填的到/走時間算，沒填按整場",
+    en: "From the arrive/leave times picked at sign-up; the whole session if left empty",
+  },
+  进步: { tw: "進步", en: "Most improved" },
+  比去年同期多来了几次: { tw: "比去年同期多來了幾次", en: "How many more times than the same stretch last year" },
+  比上个月同期多来了几次: { tw: "比上個月同期多來了幾次", en: "How many more times than the same stretch last month" },
+  连续: { tw: "連續", en: "Streak" },
+  连续参加活动的最长场数: { tw: "連續參加活動的最長場數", en: "Most sessions in a row" },
+  带朋友来打球的人次: { tw: "帶朋友來打球的人次", en: "Friends brought along" },
+  排队功臣: { tw: "排隊功臣", en: "Queue helpers" },
+  "帮大家添加球馆账号、登记场地排队": {
+    tw: "幫大家添加球館帳號、登記場地排隊",
+    en: "Added gym accounts and logged court queues for everyone",
+  },
+  早鸟: { tw: "早鳥", en: "Early birds" },
+  "开放报名后前 5 个报名、并且来了的次数": {
+    tw: "開放報名後前 5 個報名、並且來了的次數",
+    en: "Times among the first 5 to sign up who then came",
+  },
+  年度: { tw: "年度", en: "Year" },
+  月度: { tw: "月度", en: "Month" },
+  "{year} 年 {month} 月排行榜": { tw: "{year} 年 {month} 月排行榜", en: "{month}/{year} leaderboard" },
+  这段时间还没有人上榜: { tw: "這段時間還沒有人上榜", en: "Nobody on this board yet" },
   "Apple 日历 / Outlook": { tw: "Apple 日曆 / Outlook", en: "Apple Calendar / Outlook" },
   "Google 日历": { tw: "Google 日曆", en: "Google Calendar" },
   "Google 登录未完成，请重试。若持续失败，请联系群主。": {
@@ -130,7 +162,6 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   关闭: { tw: "關閉", en: "Close" },
   关闭推送: { tw: "關閉推播", en: "Turn off notifications" },
   再输一次邮箱: { tw: "再輸入一次電子郵件", en: "Email again" },
-  出勤次数: { tw: "出勤次數", en: "Attendance" },
   分享: { tw: "分享", en: "Share" },
   切换为普通成员: { tw: "切換為普通成員", en: "Switch to member view" },
   切换为管理员: { tw: "切換為管理員", en: "Switch to admin view" },
@@ -317,7 +348,6 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "最近 30 天": { tw: "最近 30 天", en: "past 30 days" },
   "最近 6 个月": { tw: "最近 6 個月", en: "past 6 months" },
   "最近 7 天": { tw: "最近 7 天", en: "past 7 days" },
-  最长连续: { tw: "最長連續", en: "Streak" },
   // 带群友: friends who are group members, and what someone brought sees.
   "朋友 {n}": { tw: "朋友 {n}", en: "Friend {n}" },
   群友: { tw: "群友", en: "Member" },
@@ -446,7 +476,6 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   近期活动: { tw: "近期活動", en: "Upcoming events" },
   返回: { tw: "返回", en: "Back" },
   返回活动管理页面: { tw: "返回活動管理頁面", en: "Back to event admin" },
-  还没有出勤记录: { tw: "還沒有出勤記錄", en: "No attendance yet" },
   还没有历史活动: { tw: "還沒有歷史活動", en: "No past events yet" },
   还没有报名过活动: { tw: "還沒有報名過活動", en: "No sign-ups yet" },
   "这个浏览器不支持推送通知（比如微信里打开的网页）。请用 Chrome、Safari 或 Edge 打开。": {
@@ -594,9 +623,9 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   记录: { tw: "記錄", en: "Recorded" },
   平均每场: { tw: "平均每場", en: "Per event" },
   加入能量榜: { tw: "加入能量榜", en: "Join the Energy board" },
-  "首页排行榜会显示你的名字和今年的总千卡，所有人都看得到。随时可以退出。": {
-    tw: "首頁排行榜會顯示你的名字和今年的總大卡，所有人都看得到。隨時可以退出。",
-    en: "The home page board shows your name and this year's total kcal to everyone. You can leave any time.",
+  "首页排行榜会显示你的名字和千卡数，群里的成员都看得到。随时可以退出。": {
+    tw: "首頁排行榜會顯示你的名字和大卡數，群裡的成員都看得到。隨時可以退出。",
+    en: "The home page board shows your name and kcal to the group's members. You can leave any time.",
   },
   能量: { tw: "能量", en: "Energy" },
   "查看全部 {n} 人": { tw: "查看全部 {n} 人", en: "Show all {n}" },
@@ -895,7 +924,6 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "新活動、報名變動、帳單出來時通知你。",
     en: "Get notified about new events, sign-up changes and bills.",
   },
-  "在「个人信息」里加入": { tw: "在「個人資訊」裡加入", en: "Join from Profile" },
   "{n} 个朋友的费用算在你账上": { tw: "{n} 個朋友的費用算在你帳上", en: "You pay for {n} friend(s)" },
   "{adder}在你名下加了 {n} 个朋友，费用算在你账上": {
     tw: "{adder}在你名下加了 {n} 個朋友，費用算在你帳上",

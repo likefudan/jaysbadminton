@@ -173,7 +173,7 @@ describe("卡路里", () => {
     expect(mine).toMatchObject({ yearKcal: 700, yearCount: 2, board: false });
     expect(mine.events.map((x: { kcal: number }) => x.kcal)).toEqual([300, 400]);
 
-    const board = async () => (await anon.call("/api/public/home")).data.leaderboard.calories;
+    const board = async () => (await ctx.admin.call(`${ctx.base}/leaderboard`)).data.board.calories;
     await anon.call(`${alice.base}/calories/board`, { on: true });
     // The same total as 我的卡路里, before the event is settled too; a cancelled event drops out.
     expect(await board()).toEqual([{ rank: 1, name: "Alice", value: 700 }]);

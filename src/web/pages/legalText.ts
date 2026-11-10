@@ -49,8 +49,8 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         h: "谁能看到",
         body: [
           [
-            "所有人（不用登录）：活动的时间、地点和报名人数，不显示谁报了名。如果群主打开了出勤排行榜，首页会显示成员名字和出勤次数，不含金额。",
-            "其他成员：报了名的成员能看到这场活动的完整名单，包括名字、带的朋友和填的到场离开时间；活动开了球场排队时，还能看到大家填的球馆账号和密码。别人看不到你的账单、邮箱或微信名。",
+            "所有人（不用登录）：活动的时间、地点和报名人数，不显示谁报了名。如果群主或管理员打开了「没登录也能看」，首页还会显示公开的排行榜，包括成员名字和上榜的数字（比如出勤次数、在场时长），不含金额。这个开关默认关闭。",
+            "其他成员：报了名的成员能看到这场活动的完整名单，包括名字、带的朋友和填的到场离开时间；活动开了球场排队时，还能看到大家填的球馆账号和密码。登录的成员能在首页看到群主或管理员公开的排行榜：出勤、在场时长、进步、连续、带朋友、排队帮忙、早报名的次数和名次，以及自愿加入的能量榜。别人看不到你的账单、邮箱或微信名。",
             "群主：能看到全部信息，用于管理活动和成员。",
             "管理员（如果群主任命了管理员）：能看到所有成员和入群申请的资料、普通成员和组织者的专属链接、所有活动的费用和付款，用于帮群主管理活动和成员。",
             "组织者（如果群主任命了组织者）：可以查看所有成员和入群申请的资料，包括邮箱、微信名、申请留言、群主写的备注名和出勤记录，但看不到成员的专属链接；还能看到他们自己负责的活动的费用和付款，以及付到他们自己 Venmo 或 Zelle 账户的收款。",
@@ -132,8 +132,8 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         h: "誰能看到",
         body: [
           [
-            "所有人（不用登入）：活動的時間、地點和報名人數，不顯示誰報了名。如果群主打開了出席排行榜，首頁會顯示成員名字和出席次數，不含金額。",
-            "其他成員：報了名的成員能看到這場活動的完整名單，包括名字、帶的朋友和填的到場離開時間；活動開了球場排隊時，還能看到大家填的球館帳號和密碼。別人看不到你的帳單、電子郵件或微信名。",
+            "所有人（不用登入）：活動的時間、地點和報名人數，不顯示誰報了名。如果群主或管理員打開了「沒登入也能看」，首頁還會顯示公開的排行榜，包括成員名字和上榜的數字（比如出席次數、在場時長），不含金額。這個開關預設關閉。",
+            "其他成員：報了名的成員能看到這場活動的完整名單，包括名字、帶的朋友和填的到場離開時間；活動開了球場排隊時，還能看到大家填的球館帳號和密碼。登入的成員能在首頁看到群主或管理員公開的排行榜：出席、在場時長、進步、連續、帶朋友、排隊幫忙、早報名的次數和名次，以及自願加入的能量榜。別人看不到你的帳單、電子郵件或微信名。",
             "群主：能看到全部資訊，用於管理活動和成員。",
             "管理員（如果群主任命了管理員）：能看到所有成員和入群申請的資料、一般成員和組織者的專屬連結、所有活動的費用和付款，用於幫群主管理活動和成員。",
             "組織者（如果群主任命了組織者）：可以查看所有成員和入群申請的資料，包括電子郵件、微信名、申請留言、群主寫的備註名和出席記錄，但看不到成員的專屬連結；還能看到他們自己負責的活動的費用和付款，以及付到他們自己 Venmo 或 Zelle 帳戶的收款。",
@@ -215,8 +215,8 @@ export const PRIVACY: Record<Lang, LegalDoc> = {
         h: "Who can see it",
         body: [
           [
-            "Anyone, without signing in: each event's time, place and number of sign-ups, but not who signed up. If the group owner turns on the attendance leaderboard, the home page shows members' names and how many times they came, with no amounts.",
-            "Other members: members signed up for an event see its full roster, with names, the friends each person brings and the arrival and leaving times entered; when the event uses the court queue, they also see the gym accounts and passwords everyone entered. Nobody else sees your bills, email address or WeChat name.",
+            "Anyone, without signing in: each event's time, place and number of sign-ups, but not who signed up. If the group owner or an admin turns on “Visible without signing in”, the home page also shows the public leaderboards, with members' names and their numbers (such as times attended or hours played), never amounts. This switch is off by default.",
+            "Other members: members signed up for an event see its full roster, with names, the friends each person brings and the arrival and leaving times entered; when the event uses the court queue, they also see the gym accounts and passwords everyone entered. Signed-in members see the leaderboards the group owner or an admin made public on the home page: ranks and counts for attendance, hours played, improvement, streaks, bringing friends, helping with the court queue and signing up early, and the opt-in Energy board. Nobody else sees your bills, email address or WeChat name.",
             "The group owner: everything, to manage events and members.",
             "Admins, if the group owner appoints any: the details of all members and applicants, the personal links of members and organizers, and every event's costs and payments, to help manage events and members.",
             "Organizers, if the group owner appoints any: the details of all members and applicants, including email addresses, WeChat names, application notes, the owner's notes and attendance, but not members' personal links; and, for the events they run, the costs and payments, plus the payments made to their own Venmo or Zelle account.",

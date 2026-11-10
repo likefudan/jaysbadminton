@@ -1,5 +1,14 @@
 import { toPacific } from "../shared/time";
-import type { Leaderboard, MyStats, RankEntry, SpendEntry } from "../shared/types";
+import {
+  BOARD_KEYS,
+  type BoardKey,
+  DEFAULT_PUBLIC_BOARDS,
+  type Leaderboard,
+  type MyStats,
+  type RankEntry,
+  type SpendEntry,
+} from "../shared/types";
+import { getSettings } from "./db";
 import type { Env } from "./env";
 
 /**
@@ -8,26 +17,35 @@ import type { Env } from "./env";
  */
 const COUNTED = "e.status IN ('finalized', 'settled')";
 
+/** A day as "YYYY-MM-DD" in Pacific time; periods are Pacific calendar years and months. */
+const today = () => toPacific(new Date()).date;
+
 interface Row {
   event_id: number;
   date: string;
+  start_at: string;
+  end_at: string;
   member_id: string;
   username: string;
   friend_index: number;
   attended: number;
+  arrive_at: string | null;
+  leave_at: string | null;
 }
 
-async function rows(env: Env): Promise<Row[]> {
+/** Counted registrations from the start of last year on (进步 compares with last year). */
+async function rows(env: Env, since: string): Promise<Row[]> {
   const { results } = await env.DB.prepare(
-    `SELECT r.event_id, e.date, r.member_id, m.username, r.friend_index, r.attended
+    `SELECT r.event_id, e.date, e.start_at, e.end_at, r.member_id, m.username, r.friend_index, r.attended,
+       r.arrive_at, r.leave_at
      FROM registrations r JOIN events e ON e.id = r.event_id JOIN members m ON m.id = r.member_id
-     WHERE ${COUNTED} AND m.status = 'active'
+     WHERE ${COUNTED} AND m.status = 'active' AND e.date >= ?
      ORDER BY e.start_at`,
-  ).all<Row>();
+  )
+    .bind(since)
+    .all<Row>();
   return results;
 }
-
-const thisYear = () => toPacific(new Date()).date.slice(0, 4);
 
 /**
  * Top n with ties sharing a rank and the next rank skipping (1, 1, 1, 4); tied people go by
@@ -47,60 +65,174 @@ export function top(counts: Map<string, { name: string; value: number }>, n = 10
   return out;
 }
 
-/** 公开排行榜: members only, never money. */
-export async function leaderboard(env: Env): Promise<Leaderboard> {
-  const year = thisYear();
-  const all = await rows(env);
-  const attendance = new Map<string, { name: string; value: number }>();
-  const friends = new Map<string, { name: string; value: number }>();
-  for (const r of all) {
-    if (r.date.slice(0, 4) !== year || !r.attended) continue;
-    const map = r.friend_index === 0 ? attendance : friends;
-    const cur = map.get(r.member_id) ?? { name: r.username, value: 0 };
-    cur.value++;
-    map.set(r.member_id, cur);
-  }
+type Tally = Map<string, { name: string; value: number }>;
+function add(map: Tally, id: string, name: string | undefined, by = 1) {
+  if (name === undefined) return; // not an active member
+  const cur = map.get(id) ?? { name, value: 0 };
+  cur.value += by;
+  map.set(id, cur);
+}
 
-  // Longest run of consecutive counted events attended, over all events ever held.
-  const events = [...new Set(all.map((r) => r.event_id))];
+const minutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+/**
+ * 在场时长 in minutes: the 到/走 they picked, the whole event for a time left empty (only 到 means
+ * until the end), clipped to the event. A time is taken within 12 hours either side of the start,
+ * so one past midnight still lands after it.
+ */
+export function stayMinutes(r: Pick<Row, "start_at" | "end_at" | "arrive_at" | "leave_at">): number {
+  const start = Date.parse(r.start_at);
+  const end = Date.parse(r.end_at);
+  const s = minutes(toPacific(r.start_at).time);
+  const at = (hhmm: string | null, fallback: number) =>
+    hhmm ? start + (((minutes(hhmm) - s + 2160) % 1440) - 720) * 60_000 : fallback;
+  const from = Math.max(at(r.arrive_at, start), start);
+  const to = Math.min(at(r.leave_at, end), end);
+  return Math.max(0, Math.round((to - from) / 60_000));
+}
+
+/** The same stretch one period back: last month or last year, up to the same day (or its last). */
+export function previousPeriod(day: string, unit: "year" | "month"): { from: string; to: string } {
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  const py = unit === "year" ? y - 1 : m === 1 ? y - 1 : y;
+  const pm = unit === "year" ? m : m === 1 ? 12 : m - 1;
+  const last = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const to = `${py}-${pad(pm)}-${pad(Math.min(d, last))}`;
+  return { from: unit === "year" ? `${py}-01-01` : `${py}-${pad(pm)}-01`, to };
+}
+
+interface Extra {
+  /** Who signed up among the first EARLY_PLACES of each counted event, by their own sign-up. */
+  early: { member_id: string; date: string }[];
+  /** 排队: each 球馆账号 added and each court entry put in, by who did it. */
+  queue: { member_id: string; date: string }[];
+  calories: { member_id: string; date: string; kcal: number }[];
+  names: Map<string, string>;
+}
+
+/** 早鸟: one of the first five to sign up themselves (not added by an admin), and came. A member someone brought counts as
+ * their own sign-up, as everywhere else (Ke Li, #161). */
+export const EARLY_PLACES = 5;
+
+async function extra(env: Env, since: string): Promise<Extra> {
+  const [early, queue, calories, members] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT x.member_id, x.date FROM (
+         SELECT r.member_id, r.attended, e.date,
+           ROW_NUMBER() OVER (PARTITION BY r.event_id ORDER BY r.created_at, r.id) AS place
+         FROM registrations r JOIN events e ON e.id = r.event_id
+         WHERE ${COUNTED} AND e.date >= ? AND r.friend_index = 0 AND r.added_by_owner = 0
+       ) x WHERE x.place <= ${EARLY_PLACES} AND x.attended = 1`,
+    ).bind(since),
+    env.DB.prepare(
+      `SELECT q.member_id, e.date FROM queue_accounts q JOIN events e ON e.id = q.event_id
+         WHERE e.status != 'cancelled' AND e.date >= ?
+       UNION ALL
+       SELECT q.created_by AS member_id, e.date FROM queue_courts q JOIN events e ON e.id = q.event_id
+         WHERE e.status != 'cancelled' AND e.date >= ?`,
+    ).bind(since, since),
+    // 能量: the same total as 我的卡路里 shows them, for the members who chose to be on it.
+    env.DB.prepare(
+      `SELECT c.member_id, e.date, c.kcal
+       FROM calories c JOIN events e ON e.id = c.event_id JOIN members m ON m.id = c.member_id
+       JOIN registrations r ON r.event_id = c.event_id AND r.member_id = c.member_id AND r.friend_index = 0
+       WHERE e.status != 'cancelled' AND m.calorie_board = 1 AND r.attended = 1 AND e.date >= ?`,
+    ).bind(since),
+    env.DB.prepare("SELECT id, username FROM members WHERE status = 'active'"),
+  ]);
+  return {
+    early: early!.results as Extra["early"],
+    queue: queue!.results as Extra["queue"],
+    calories: calories!.results as Extra["calories"],
+    names: new Map((members!.results as { id: string; username: string }[]).map((m) => [m.id, m.username])),
+  };
+}
+
+/** Every board for one period: the dates from `from` to `to`, and the stretch before it for 进步. */
+function boards(
+  all: Row[],
+  x: Extra,
+  from: string,
+  to: string,
+  before: { from: string; to: string },
+): Record<BoardKey, RankEntry[]> {
+  const inside = (d: string) => d >= from && d <= to;
+  const tallies = Object.fromEntries(BOARD_KEYS.map((k) => [k, new Map()])) as Record<BoardKey, Tally>;
+  const earlier: Tally = new Map();
+  for (const r of all) {
+    if (!r.attended) continue;
+    if (r.friend_index > 0) {
+      if (inside(r.date)) add(tallies.friends, r.member_id, r.username);
+      continue;
+    }
+    if (inside(r.date)) {
+      add(tallies.attendance, r.member_id, r.username);
+      add(tallies.hours, r.member_id, r.username, stayMinutes(r));
+    } else if (r.date >= before.from && r.date <= before.to) add(earlier, r.member_id, r.username);
+  }
+  for (const [id, now] of tallies.attendance)
+    tallies.progress.set(id, { name: now.name, value: now.value - (earlier.get(id)?.value ?? 0) });
+
+  // 最长连续: the longest run of counted events in a row in this period.
+  const events = [...new Set(all.filter((r) => inside(r.date)).map((r) => r.event_id))];
   const present = new Set(
-    all.filter((r) => r.friend_index === 0 && r.attended).map((r) => `${r.event_id}:${r.member_id}`),
+    all.filter((r) => r.friend_index === 0 && r.attended && inside(r.date)).map((r) => `${r.event_id}:${r.member_id}`),
   );
-  const names = new Map(all.map((r) => [r.member_id, r.username]));
-  const streak = new Map<string, { name: string; value: number }>();
-  for (const [id, name] of names) {
+  for (const [id, { name }] of tallies.attendance) {
     let run = 0;
     let best = 0;
     for (const ev of events) {
       run = present.has(`${ev}:${id}`) ? run + 1 : 0;
       best = Math.max(best, run);
     }
-    streak.set(id, { name, value: best });
+    tallies.streak.set(id, { name, value: best });
   }
-  return {
-    year: Number(year),
-    attendance: top(attendance),
-    streak: top(streak),
-    friends: top(friends),
-    calories: await calorieBoard(env, year),
-  };
+  for (const e of x.early) if (inside(e.date)) add(tallies.early, e.member_id, x.names.get(e.member_id));
+  for (const q of x.queue) if (inside(q.date)) add(tallies.queue, q.member_id, x.names.get(q.member_id));
+  for (const c of x.calories) if (inside(c.date)) add(tallies.calories, c.member_id, x.names.get(c.member_id), c.kcal);
+
+  const out = Object.fromEntries(BOARD_KEYS.map((k) => [k, top(tallies[k])])) as Record<BoardKey, RankEntry[]>;
+  // Hours to one decimal, from minutes.
+  out.hours = out.hours.map((r) => ({ ...r, value: Math.round(r.value / 6) / 10 }));
+  return out;
 }
 
-/**
- * 卡路里榜: this year's 千卡 of the members who chose to be on it, the same total as 我的卡路里 shows
- * them: every event read that isn't cancelled, unless they were marked absent.
- */
-async function calorieBoard(env: Env, year: string): Promise<RankEntry[]> {
-  const { results } = await env.DB.prepare(
-    `SELECT c.member_id, m.username, SUM(c.kcal) AS kcal
-     FROM calories c JOIN events e ON e.id = c.event_id JOIN members m ON m.id = c.member_id
-     JOIN registrations r ON r.event_id = c.event_id AND r.member_id = c.member_id AND r.friend_index = 0
-     WHERE e.status != 'cancelled' AND m.status = 'active' AND m.calorie_board = 1 AND r.attended = 1 AND e.date LIKE ?
-     GROUP BY c.member_id`,
-  )
-    .bind(`${year}-%`)
-    .all<{ member_id: string; username: string; kcal: number }>();
-  return top(new Map(results.map((r) => [r.member_id, { name: r.username, value: r.kcal }])));
+/** 排行榜: every board for this year and this month. Members only, never money. */
+export async function leaderboard(env: Env): Promise<Leaderboard> {
+  const day = today();
+  const year = day.slice(0, 4);
+  const month = day.slice(0, 7);
+  const since = `${Number(year) - 1}-01-01`;
+  const [all, x] = await Promise.all([rows(env, since), extra(env, since)]);
+  const yearly = boards(all, x, `${year}-01-01`, day, previousPeriod(day, "year"));
+  const monthly = boards(all, x, `${month}-01`, day, previousPeriod(day, "month"));
+  return { year: Number(year), month: Number(day.slice(5, 7)), boards: [...BOARD_KEYS], ...yearly, monthly };
+}
+
+/** Only the boards in `keys`; the others come back empty. */
+export function onlyBoards(b: Leaderboard, keys: BoardKey[]): Leaderboard {
+  const empty = (k: BoardKey) => !keys.includes(k);
+  const out = { ...b, boards: BOARD_KEYS.filter((k) => keys.includes(k)), monthly: { ...b.monthly } };
+  for (const k of BOARD_KEYS)
+    if (empty(k)) {
+      out[k] = [];
+      out.monthly[k] = [];
+    }
+  return out;
+}
+
+/** Which boards the home page shows, and whether visitors who aren't signed in see them. */
+export async function boardSettings(env: Env): Promise<{ public: BoardKey[]; anon: boolean }> {
+  const s = await getSettings(env.DB, ["leaderboard_boards", "show_leaderboard", "leaderboard_anon"]);
+  // Before the per-board switches there was one: off meant no board, on the four boards then.
+  const picked =
+    s.leaderboard_boards !== undefined
+      ? s.leaderboard_boards.split(",")
+      : s.show_leaderboard === "0"
+        ? []
+        : DEFAULT_PUBLIC_BOARDS;
+  return { public: BOARD_KEYS.filter((k) => picked.includes(k)), anon: s.leaderboard_anon === "1" };
 }
 
 /** 个人统计: only on the member's own page. Spending is what they were billed (incl. friends). */

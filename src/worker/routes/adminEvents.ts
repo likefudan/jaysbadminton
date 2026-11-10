@@ -1,6 +1,15 @@
 import { Hono } from "hono";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
-import type { AdminEventSummary, EventDefaults, InboundResponse, SettlementView } from "../../shared/types";
+import {
+  type AdminEventSummary,
+  BOARD_KEYS,
+  BOARD_NAME,
+  type EventDefaults,
+  type InboundResponse,
+  type LeaderboardAdmin,
+  type SettlementView,
+} from "../../shared/types";
+import { boardSettings, leaderboard } from "../stats";
 import {
   addReceipt,
   assertCostsShared,
@@ -777,6 +786,12 @@ adminEventRoutes.post("/events/:id/roster/:rid/remove", async (c) => {
   return c.json(await detail(c.env, e, c.get("actor").memberId));
 });
 
+/** 管理页「排行榜」: every board whether public or not, and the switches. */
+adminEventRoutes.get("/leaderboard", async (c) => {
+  const s = await boardSettings(c.env);
+  return c.json<LeaderboardAdmin>({ board: await leaderboard(c.env), public: s.public, anon: s.anon });
+});
+
 adminEventRoutes.get("/settings", async (c) => {
   // The Owner's own payment settings are theirs (owner): left out for an admin, not shown as empty.
   const s = await getSettings(c.env.DB, ["venmo_username", "venmo_email", "zelle_account"]);
@@ -796,7 +811,7 @@ adminEventRoutes.get("/settings", async (c) => {
     // Empty until set: the icon then carries Simplified's name, or the site title.
     appNames: site.names,
     theme: await siteTheme(c.env),
-    showLeaderboard: (await getSettings(c.env.DB, ["show_leaderboard"])).show_leaderboard !== "0",
+    publicBoards: (await boardSettings(c.env)).public.length,
     autoJoin: await autoJoinEnabled(c.env),
     autoJoinCap: await autoJoinCap(c.env),
     ...(await notifySettings(c.env)),
@@ -895,9 +910,15 @@ adminEventRoutes.post("/settings", async (c) => {
     for (const [l, t] of names) writes.push(setSetting(c.env.DB, appNameKey(l), t));
     if (names.length) said.push(`桌面图标名称 ${names.map(([l, t]) => `${l}「${t}」`).join(" ")}`);
   }
-  if (b.showLeaderboard !== undefined) {
-    writes.push(setSetting(c.env.DB, "show_leaderboard", b.showLeaderboard === false ? "0" : "1"));
-    said.push(`排行榜 ${onOff(b.showLeaderboard)}`);
+  if (b.leaderboardBoards !== undefined) {
+    if (!Array.isArray(b.leaderboardBoards)) throw badRequest("排行榜格式不对");
+    const keys = BOARD_KEYS.filter((k) => (b.leaderboardBoards as unknown[]).includes(k));
+    writes.push(setSetting(c.env.DB, "leaderboard_boards", keys.join(",")));
+    said.push(`首页排行榜 ${keys.length ? keys.map((k) => BOARD_NAME[k]).join("、") : "全关"}`);
+  }
+  if (b.leaderboardAnon !== undefined) {
+    writes.push(setSetting(c.env.DB, "leaderboard_anon", b.leaderboardAnon === true ? "1" : "0"));
+    said.push(`排行榜没登录也能看 ${b.leaderboardAnon === true ? "开" : "关"}`);
   }
   if (b.autoJoin !== undefined) {
     writes.push(setSetting(c.env.DB, "auto_join", b.autoJoin === true ? "1" : "0"));

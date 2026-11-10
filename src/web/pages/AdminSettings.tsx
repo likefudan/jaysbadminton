@@ -19,12 +19,13 @@ import { signOutGoogle } from "../GoogleAccount";
 import { revokeSummary } from "../organizers";
 import { type Loaded, useApi } from "../hooks";
 import { setAppNames, setSiteTheme, setSiteTitle, useAppearance } from "../site";
+import { BoardsPage } from "./AdminBoards";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
 import { DunningCard, SettleDeadlineCard, RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
 import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
 
-const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames"] as const;
+const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames", "boards"] as const;
 type Sub = (typeof SUBS)[number];
 
 /**
@@ -83,8 +84,18 @@ function SheetsRow(props: { readOnly?: boolean; open: () => void }) {
 }
 
 /** The group settings both the Owner and admins change, by sub-page. */
-function GroupSubPage(props: { base: string; sub: "looks" | "join" | "appNames"; open: (s: Sub | null) => void }) {
+function GroupSubPage(props: {
+  base: string;
+  sub: "looks" | "join" | "appNames" | "boards";
+  open: (s: Sub | null) => void;
+}) {
   const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
+  if (props.sub === "boards")
+    return (
+      <SubPage title={t("排行榜")} back={() => props.open("looks")} backLabel={t("‹ 外观和公共页面")}>
+        <BoardsPage base={props.base} />
+      </SubPage>
+    );
   if (props.sub === "appNames")
     return (
       <SubPage title={t("名称")} back={() => props.open("looks")} backLabel={t("‹ 外观和公共页面")}>
@@ -96,7 +107,13 @@ function GroupSubPage(props: { base: string; sub: "looks" | "join" | "appNames";
       <SubPage title={t("外观和公共页面")} back={() => props.open(null)}>
         <ThemeCard base={props.base} />
         <Load result={s}>
-          {(v) => <PublicPageCard base={props.base} initial={v} openNames={() => props.open("appNames")} />}
+          {(v) => (
+            <PublicPageCard
+              initial={v}
+              openNames={() => props.open("appNames")}
+              openBoards={() => props.open("boards")}
+            />
+          )}
         </Load>
       </SubPage>
     );
@@ -165,7 +182,7 @@ export function Settings(props: { base: string; viaGoogle: boolean }) {
     location.reload();
   }
 
-  if (sub === "looks" || sub === "join" || sub === "appNames")
+  if (sub === "looks" || sub === "join" || sub === "appNames" || sub === "boards")
     return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
   if (sub === "sheets")
     return (
@@ -409,7 +426,7 @@ export function AdminRoleSettings(props: { base: string }) {
   });
   const home = () => open(null);
 
-  if (sub === "looks" || sub === "join" || sub === "appNames")
+  if (sub === "looks" || sub === "join" || sub === "appNames" || sub === "boards")
     return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
   if (sub === "sheets")
     return (
@@ -780,7 +797,7 @@ function ResetAll(props: { base: string }) {
 interface GeneralSettings {
   siteTitle: string;
   appNames: AppNames;
-  showLeaderboard: boolean;
+  publicBoards: number;
   autoJoin: boolean;
   autoJoinCap: number;
   friendCap: number;
@@ -797,35 +814,17 @@ interface GeneralSettings {
 
 /**
  * 公共页面 (Ke Li 2026-11-05, option C): one list like the 设置 menu. 名称 opens the page that holds
- * both the site title and the 桌面图标名称; the leaderboard switch sits in its row.
+ * both the site title and the 桌面图标名称; 排行榜 opens its own page.
  */
-function PublicPageCard(props: { base: string; initial: GeneralSettings; openNames: () => void }) {
-  const [board, setBoard] = useState(props.initial.showLeaderboard);
-  const { busy, error, run } = useAction();
-  async function toggleBoard(on: boolean) {
-    setBoard(on);
-    if (!(await run(() => api(`${props.base}/settings`, { showLeaderboard: on })))) setBoard(!on);
-  }
+function PublicPageCard(props: { initial: GeneralSettings; openNames: () => void; openBoards: () => void }) {
+  const n = props.initial.publicBoards;
   return (
     <>
       <h3 class="set-head">{t("公共页面")}</h3>
       <section class="card set-list bare">
         <SettingRow label={t("名称")} value={props.initial.siteTitle} onClick={props.openNames} />
-        <div class="set-item">
-          <label class="set-row">
-            <span class="set-label grow">{t("展示排行榜")}</span>
-            <input
-              type="checkbox"
-              role="switch"
-              aria-checked={board}
-              checked={board}
-              disabled={busy}
-              onChange={(e) => toggleBoard((e.target as HTMLInputElement).checked)}
-            />
-          </label>
-        </div>
+        <SettingRow label={t("排行榜")} value={n ? t("公开 {n} 个", { n }) : t("不公开")} onClick={props.openBoards} />
       </section>
-      {error && <p class="error">{error}</p>}
     </>
   );
 }

@@ -3,6 +3,22 @@
 // and then read over by hand. Kept apart from messages.ts only to keep each file a readable size.
 
 export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
+  首页公开: { tw: "首頁公開", en: "On home page" },
+  还没有人上榜: { tw: "還沒有人上榜", en: "Nobody yet" },
+  "在首页公开「{name}」": { tw: "在首頁公開「{name}」", en: "Show “{name}” on the home page" },
+  没登录也能看: { tw: "沒登入也能看", en: "Visible without signing in" },
+  "首页不显示排行榜。": { tw: "首頁不顯示排行榜。", en: "The home page shows no leaderboard." },
+  "所有人打开首页都能看到公开的排行榜，包括没登录的访客。": {
+    tw: "所有人打開首頁都能看到公開的排行榜，包括沒登入的訪客。",
+    en: "Everyone who opens the home page sees the public boards, visitors who aren't signed in too.",
+  },
+  "只有登录的成员能在首页看到公开的排行榜。": {
+    tw: "只有登入的成員能在首頁看到公開的排行榜。",
+    en: "Only signed-in members see the public boards on the home page.",
+  },
+  排行榜: { tw: "排行榜", en: "Leaderboard" },
+  "公开 {n} 个": { tw: "公開 {n} 個", en: "{n} public" },
+  不公开: { tw: "不公開", en: "Hidden" },
   地址: { tw: "地址", en: "Address" },
   "搜索中…": { tw: "搜尋中…", en: "Searching…" },
   "输入地址或球馆名，会自动联想": {
@@ -1173,7 +1189,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   桌面图标名称: { tw: "桌面圖示名稱", en: "Home-screen icon name" },
   "桌面图标名称最多 {n} 个字": { tw: "桌面圖示名稱最多 {n} 個字", en: "Each icon name can be at most {n} characters" },
-  展示排行榜: { tw: "展示排行榜", en: "Show leaderboard" },
   入群设置: { tw: "入群設定", en: "Joining" },
   入群不需要审核: { tw: "入群不需要審核", en: "Join without approval" },
   "打开后，申请加入的人直接成为成员，不用在「待审核」里通过": {

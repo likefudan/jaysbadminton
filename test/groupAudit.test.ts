@@ -90,7 +90,7 @@ describe("群操作记录", () => {
     await owner(`/members/${alice.id}/demote-admin`, {});
     await owner(`/members/${carol.id}/revoke`, {});
     expect((await request(`${GOOGLE}/organizer/retire`, org, {})).status).toBe(200);
-    await owner("/settings", { friendCap: 3, showLeaderboard: false });
+    await owner("/settings", { friendCap: 3, leaderboardBoards: ["attendance", "queue"], leaderboardAnon: false });
     await owner("/export/members.csv");
     await owner("/sheets/enable", {});
     const e = await createTestEvent(ctx);
@@ -104,7 +104,7 @@ describe("群操作记录", () => {
       "Jay: 把 Alice 从管理员降为组织者",
       "Jay: 撤销 Carol 的管理员身份",
       "Alice: Alice 不再当组织者",
-      "Jay: 修改设置：带朋友上限 3，排行榜 关",
+      "Jay: 修改设置：带朋友上限 3，首页排行榜 出勤、排队功臣，排行榜没登录也能看 关",
       "Jay: 导出「成员」",
       "Jay: 开启 Google 表格同步（生成新的同步密钥）",
       "Jay: 任命 Bob 为组织者",

@@ -3,7 +3,16 @@ import { env } from "cloudflare:workers";
 import worker from "../src/worker/index";
 import { describe, expect, it } from "vitest";
 import { pacificToUtc } from "../src/shared/time";
-import { Client, approveMember, billingScenario, createTestEvent, futureDate, setUpAdmin, tokenOf } from "./helpers";
+import {
+  Client,
+  approveMember,
+  billingScenario,
+  createTestEvent,
+  futureDate,
+  googleJoin,
+  setUpAdmin,
+  tokenOf,
+} from "./helpers";
 
 const anon = new Client();
 const expire = (id: number) =>
@@ -600,12 +609,43 @@ describe("event title and public leaderboard switch", () => {
     expect((await new Client().call(`/api/public/events/${e.code}`)).data.title).toBe("决赛");
   });
 
-  it("hides the leaderboard from the public page when the Owner turns it off", async () => {
+  it("shows the public boards to signed-in members, and to visitors only when allowed", async () => {
     const ctx = await setUpAdmin();
-    expect((await new Client().call("/api/public/home")).data.leaderboard).not.toBeNull();
-    await ctx.admin.call(`${ctx.base}/settings`, { showLeaderboard: false });
-    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.showLeaderboard).toBe(false);
-    expect((await new Client().call("/api/public/home")).data.leaderboard).toBeNull();
+    const anon = new Client();
+    const joined = await googleJoin("Mia", "Mia微信");
+    const member = new Client();
+    member.cookie = joined.cookie;
+    const home = async (c: Client) => (await c.call("/api/public/home")).data.leaderboard;
+    // Pending applicants are not members yet.
+    expect(await home(member)).toBeNull();
+    await ctx.admin.call(`${ctx.base}/members/${joined.data.id}/approve`, {});
+    // The four boards there were before, members only.
+    expect((await home(member)).boards).toEqual(["calories", "attendance", "streak", "friends"]);
+    expect(await home(anon)).toBeNull();
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.publicBoards).toBe(4);
+
+    await ctx.admin.call(`${ctx.base}/settings`, {
+      leaderboardBoards: ["queue", "hours", "nope"],
+      leaderboardAnon: true,
+    });
+    const b = await home(anon);
+    expect(b.boards).toEqual(["hours", "queue"]);
+    expect(Object.keys(b.monthly).sort()).toEqual(
+      [...b.boards, "attendance", "calories", "early", "friends", "progress", "streak"].sort(),
+    );
+    const admin = (await ctx.admin.call(`${ctx.base}/leaderboard`)).data;
+    expect(admin).toMatchObject({ public: ["hours", "queue"], anon: true });
+    expect(admin.board.boards).toHaveLength(8);
+
+    await ctx.admin.call(`${ctx.base}/settings`, { leaderboardBoards: [] });
+    expect(await home(member)).toBeNull();
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.publicBoards).toBe(0);
+  });
+
+  it("keeps the old switch's choice until the boards are picked", async () => {
+    const ctx = await setUpAdmin();
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('show_leaderboard', '0')").run();
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.publicBoards).toBe(0);
   });
 });
 
