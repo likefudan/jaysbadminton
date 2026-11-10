@@ -62,6 +62,16 @@ test("the year card switches years, shows the badges, and shares an image", asyn
   await expect(page.locator(".medal.locked")).toHaveAttribute("title", "带朋友 3 人次");
   await expect(medals.last()).toContainText("230");
 
+  // Tapping a badge explains it: what counts, all-time, the three levels, how far the next is.
+  await medals.first().click();
+  const info = page.getByRole("dialog", { name: "出勤" });
+  await expect(info).toContainText("来打球的次数");
+  await expect(info).toContainText("累计 24 次");
+  await expect(info.locator(".badge-tiers .got")).toHaveCount(2);
+  await expect(info).toContainText("还差 26 次升到金牌");
+  await page.mouse.click(10, 10);
+  await expect(info).toBeHidden();
+
   await expect(page.locator(".buddy")).toHaveText([/Lily.*18/, /arthur.*15/]);
 
   await card.getByRole("button", { name: "分享" }).click();
