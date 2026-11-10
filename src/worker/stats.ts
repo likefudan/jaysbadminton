@@ -165,6 +165,7 @@ function boards(
       add(tallies.hours, r.member_id, r.username, stayMinutes(r));
     } else if (r.date >= before.from && r.date <= before.to) add(earlier, r.member_id, r.username);
   }
+  // Fewer or the same come out at 0 or below, which top() leaves off the board.
   for (const [id, now] of tallies.attendance)
     tallies.progress.set(id, { name: now.name, value: now.value - (earlier.get(id)?.value ?? 0) });
 
