@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { offsetOf } from "../shared/stay";
 import type { MyRosterEntry } from "../shared/types";
 import { t } from "./i18n";
@@ -7,10 +7,12 @@ import { StayChart, stayText } from "./Stay";
 /**
  * 名单 on a member's own event card: everyone signed up, each member followed by the friends they
  * bring. Shown only to members on the list. Folded by default, since a big list is a lot to scroll
- * past (Ke Li 2026-11-10); while the event is upcoming, opening or folding it is remembered on
- * this device for every card, so a refresh keeps the viewer's choice. Past events stay folded.
+ * past (Ke Li 2026-11-10). While the event is upcoming, opening or folding it is remembered on
+ * this device for that event alone, so a refresh keeps the viewer's choice. Past events stay folded.
  */
 export function RosterList(props: {
+  /** The event, so each card's fold is remembered on its own. */
+  eventId: string;
   roster: MyRosterEntry[];
   open: boolean;
   /** 在场时间: the event's start and end, and the viewer's own time. */
@@ -23,12 +25,7 @@ export function RosterList(props: {
   const timed = props.roster.some((r) => r.arrive);
   const list = timed ? [...props.roster].sort((a, b) => key(props.start, a) - key(props.start, b)) : props.roster;
   const absent = list.filter((r) => r.absent).length;
-  const [remembered, setRemembered] = useState(readOpen);
-  useEffect(() => {
-    const sync = () => setRemembered(readOpen());
-    addEventListener(FOLD_EVENT, sync);
-    return () => removeEventListener(FOLD_EVENT, sync);
-  }, []);
+  const [remembered, setRemembered] = useState(() => readOpen().includes(props.eventId));
   const open = props.open && remembered;
   return (
     <details
@@ -37,7 +34,7 @@ export function RosterList(props: {
       onToggle={(ev) => {
         const now = (ev.currentTarget as HTMLDetailsElement).open;
         if (!props.open || now === open) return; // a past event, or the render that set it
-        writeOpen(now);
+        writeOpen(props.eventId, now);
         setRemembered(now);
       }}
     >
@@ -67,22 +64,24 @@ export function RosterList(props: {
 const key = (start: string, r: MyRosterEntry) => (r.arrive ? offsetOf(start, r.arrive) : Number.POSITIVE_INFINITY);
 const stays = (list: MyRosterEntry[]) => list.map((r) => ({ arrive: r.arrive, leave: r.leave }));
 
-/** Whether the viewer last left upcoming events' 名单 open, kept on this device only. */
-const FOLD_KEY = "roster-open";
-const FOLD_EVENT = "roster-fold";
-function readOpen(): boolean {
+/** Upcoming events whose 名单 the viewer left open, newest last, kept on this device only. */
+const FOLD_KEY = "roster-open-events";
+const FOLD_KEEP = 50; // old events drop off the front
+function readOpen(): string[] {
   try {
-    return localStorage.getItem(FOLD_KEY) === "1";
+    const v: unknown = JSON.parse(localStorage.getItem(FOLD_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
   } catch {
-    return false;
+    return [];
   }
 }
-function writeOpen(open: boolean) {
+function writeOpen(eventId: string, open: boolean) {
+  const ids = readOpen().filter((id) => id !== eventId);
+  if (open) ids.push(eventId);
   try {
-    if (open) localStorage.setItem(FOLD_KEY, "1");
-    else localStorage.removeItem(FOLD_KEY);
+    localStorage.setItem(FOLD_KEY, JSON.stringify(ids.slice(-FOLD_KEEP)));
+    localStorage.removeItem("roster-open"); // the earlier one-for-all choice (#229)
   } catch {
     // Private mode or blocked storage: the choice still holds for this visit.
   }
-  dispatchEvent(new Event(FOLD_EVENT)); // other cards on the page follow along
 }
