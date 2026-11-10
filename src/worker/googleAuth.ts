@@ -62,13 +62,13 @@ export async function googleSession<E extends { Bindings: Env }>(c: Context<E>) 
 export const memberByGoogle = (env: Env, sub: string) =>
   env.DB.prepare("SELECT * FROM members WHERE google_sub = ? AND deleted_at IS NULL").bind(sub).first<MemberRow>();
 
-/** The approved member signed in on this browser (Google, or the test site's developer), else null. */
+/** The active member signed in on this browser (Google, or the test site's developer), else null. */
 export async function signedInMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow | null> {
   const developer = await developerMember(c);
   if (developer) return developer;
   const session = await googleSession(c);
   const m = session ? await memberByGoogle(c.env, session.google_sub) : null;
-  return m && m.status !== "pending" ? m : null;
+  return m?.status === "active" ? m : null;
 }
 
 export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow> {

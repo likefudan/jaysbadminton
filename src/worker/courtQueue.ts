@@ -129,7 +129,17 @@ export async function addAccount(env: Env, e: EventRow, memberId: string, body: 
     .bind(e.id, memberId, username, password, now())
     .run();
   if (!res.meta.changes) throw badRequest(`账号 ${username} 已经有人填过了`);
+  await credit(env, e.id, memberId, "account").run();
 }
+
+/** 排队功臣: one credit per account put in or court entry saved; it outlasts the purged queue. */
+const credit = (env: Env, eventId: number, memberId: string, kind: "account" | "court") =>
+  env.DB.prepare("INSERT INTO queue_credits (event_id, member_id, kind, created_at) VALUES (?, ?, ?, ?)").bind(
+    eventId,
+    memberId,
+    kind,
+    now(),
+  );
 
 /**
  * 批量添加: several accounts at once, as parsed on the phone from a pasted list. Usernames already
@@ -174,6 +184,7 @@ export async function addAccounts(
         ).bind(e.id, memberId, a.username, a.password, ts),
       ),
     );
+    await env.DB.batch(fresh.map(() => credit(env, e.id, memberId, "account")));
   }
   return { added: fresh.length, skipped };
 }
@@ -283,6 +294,7 @@ export async function saveCourt(env: Env, e: EventRow, memberId: string, body: R
   ).bind(e.id, id);
   const [, , , res] = await env.DB.batch([replaced, moved, emptied, write]);
   if (editing && !res!.meta.changes) throw new HttpError(404, "not_found", "这条记录已经被删掉了");
+  await credit(env, e.id, memberId, "court").run();
 }
 
 /** Anyone on the event may take a court off: the list is everyone's to keep current. */
@@ -319,9 +331,10 @@ export async function purgeEndedQueues(env: Env, at = new Date()) {
   ]);
 }
 
-/** For deleteEvent: the event's courts, accounts and photos go with it. */
+/** For deleteEvent: the event's courts, accounts, photos and 排队功臣 credits go with it. */
 export const deleteQueue = (env: Env, eventId: number): D1PreparedStatement[] => [
   env.DB.prepare("DELETE FROM queue_photos WHERE event_id = ?").bind(eventId),
   env.DB.prepare("DELETE FROM queue_courts WHERE event_id = ?").bind(eventId),
   env.DB.prepare("DELETE FROM queue_accounts WHERE event_id = ?").bind(eventId),
+  env.DB.prepare("DELETE FROM queue_credits WHERE event_id = ?").bind(eventId),
 ];

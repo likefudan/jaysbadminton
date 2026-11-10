@@ -406,10 +406,12 @@ describe("球场排队", () => {
     await ctx.admin.call(`${ctx.base}/events/${e.id}/cancel`, {});
     const gone = await ctx.admin.call(`${ctx.base}/events/${e.id}/delete`, { password: "initial-password" });
     expect(gone.status).toBe(200);
-    const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM queue_accounts WHERE event_id = ?")
-      .bind(e.id)
-      .first<{ n: number }>();
-    expect(left?.n).toBe(0);
+    for (const t of ["queue_accounts", "queue_credits"]) {
+      const left = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE event_id = ?`)
+        .bind(e.id)
+        .first<{ n: number }>();
+      expect(left?.n, t).toBe(0);
+    }
   });
 });
 
@@ -717,13 +719,14 @@ describe("拍照登记", () => {
       const n = async (t: string) =>
         (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE event_id = ?`).bind(e.id).first<{ n: number }>())!
           .n;
-      return [await n("queue_accounts"), await n("queue_courts"), await n("queue_photos")];
+      return [await n("queue_accounts"), await n("queue_courts"), await n("queue_photos"), await n("queue_credits")];
     };
     const end = Date.parse(endAt);
     await purgeEndedQueues(env, new Date(end + 2 * 3600_000)); // the card still shows them
-    expect(await rows()).toEqual([1, 1, 1]);
+    expect(await rows()).toEqual([1, 1, 1, 1]);
+    // 排队功臣 keeps Alice's credit for the account after the queue is gone.
     await purgeEndedQueues(env, new Date(end + 3 * 3600_000 + 60_000));
-    expect(await rows()).toEqual([0, 0, 0]);
+    expect(await rows()).toEqual([0, 0, 0, 1]);
   });
 
   it("forgets photos after 7 days", async () => {

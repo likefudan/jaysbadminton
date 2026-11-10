@@ -54,7 +54,7 @@ describe("leaderboard", () => {
       .bind(e1.id, alice.id)
       .run();
     await env.DB.prepare(
-      "INSERT INTO queue_accounts (event_id, member_id, username, password, created_at) VALUES (?, ?, 'b1', 'x', ?)",
+      "INSERT INTO queue_credits (event_id, member_id, kind, created_at) VALUES (?, ?, 'account', ?)",
     )
       .bind(e1.id, bob.id, new Date().toISOString())
       .run();
@@ -101,6 +101,8 @@ describe("leaderboard", () => {
     expect(stayMinutes({ ...ev, arrive_at: "21:00", leave_at: null })).toBe(90);
     expect(stayMinutes({ ...ev, arrive_at: "21:00", leave_at: "22:00" })).toBe(60);
     expect(stayMinutes({ ...ev, arrive_at: "20:00", leave_at: "23:00" })).toBe(120);
+    // A 走 at or before 到 (the event's times changed) counts to the end, as 各时段人数 does.
+    expect(stayMinutes({ ...ev, arrive_at: "21:30", leave_at: "21:00" })).toBe(60);
   });
 
   it("gives ties the same rank, skips the next one, and orders tied people by name", () => {

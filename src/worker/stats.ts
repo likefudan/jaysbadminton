@@ -1,4 +1,5 @@
-import { toPacific } from "../shared/time";
+import { eventLength, offsetOf } from "../shared/stay";
+import { isTime, toPacific } from "../shared/time";
 import {
   BOARD_KEYS,
   type BoardKey,
@@ -73,22 +74,18 @@ function add(map: Tally, id: string, name: string | undefined, by = 1) {
   map.set(id, cur);
 }
 
-const minutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
-
 /**
- * 在场时长 in minutes: the 到/走 they picked, the whole event for a time left empty (only 到 means
- * until the end), clipped to the event. A time is taken within 12 hours either side of the start,
- * so one past midnight still lands after it.
+ * 在场时长 in minutes, read the way 各时段人数 reads a stay: the 到/走 they picked, from the start
+ * when 到 is empty or outside the event, to the end when 走 is empty or doesn't fit.
  */
 export function stayMinutes(r: Pick<Row, "start_at" | "end_at" | "arrive_at" | "leave_at">): number {
-  const start = Date.parse(r.start_at);
-  const end = Date.parse(r.end_at);
-  const s = minutes(toPacific(r.start_at).time);
-  const at = (hhmm: string | null, fallback: number) =>
-    hhmm ? start + (((minutes(hhmm) - s + 2160) % 1440) - 720) * 60_000 : fallback;
-  const from = Math.max(at(r.arrive_at, start), start);
-  const to = Math.min(at(r.leave_at, end), end);
-  return Math.max(0, Math.round((to - from) / 60_000));
+  const start = toPacific(r.start_at).time;
+  const len = eventLength(start, toPacific(r.end_at).time);
+  let a = r.arrive_at && isTime(r.arrive_at) ? offsetOf(start, r.arrive_at) : 0;
+  if (a >= len) a = 0;
+  let l = r.leave_at && isTime(r.leave_at) ? offsetOf(start, r.leave_at) : len;
+  if (l <= a || l > len) l = len;
+  return l - a;
 }
 
 /** The same stretch one period back: last month or last year, up to the same day (or its last). */
@@ -105,13 +102,13 @@ export function previousPeriod(day: string, unit: "year" | "month"): { from: str
 interface Extra {
   /** Who signed up among the first EARLY_PLACES of each counted event, by their own sign-up. */
   early: { member_id: string; date: string }[];
-  /** 排队: each 球馆账号 added and each court entry put in, by who did it. */
+  /** 排队: each 球馆账号 added and each court entry saved, by who did it (queue_credits). */
   queue: { member_id: string; date: string }[];
   calories: { member_id: string; date: string; kcal: number }[];
   names: Map<string, string>;
 }
 
-/** 早鸟: one of the first five to sign up themselves (not added by an admin), and came. A member someone brought counts as
+/** 早鸟: one of the first five on the list who signed up themselves (not added by an admin), and came. A member someone brought counts as
  * their own sign-up, as everywhere else (Ke Li, #161). */
 export const EARLY_PLACES = 5;
 
@@ -119,19 +116,16 @@ async function extra(env: Env, since: string): Promise<Extra> {
   const [early, queue, calories, members] = await env.DB.batch([
     env.DB.prepare(
       `SELECT x.member_id, x.date FROM (
-         SELECT r.member_id, r.attended, e.date,
+         SELECT r.member_id, r.attended, r.added_by_owner, e.date,
            ROW_NUMBER() OVER (PARTITION BY r.event_id ORDER BY r.created_at, r.id) AS place
          FROM registrations r JOIN events e ON e.id = r.event_id
-         WHERE ${COUNTED} AND e.date >= ? AND r.friend_index = 0 AND r.added_by_owner = 0
-       ) x WHERE x.place <= ${EARLY_PLACES} AND x.attended = 1`,
+         WHERE ${COUNTED} AND e.date >= ? AND r.friend_index = 0
+       ) x WHERE x.place <= ${EARLY_PLACES} AND x.attended = 1 AND x.added_by_owner = 0`,
     ).bind(since),
     env.DB.prepare(
-      `SELECT q.member_id, e.date FROM queue_accounts q JOIN events e ON e.id = q.event_id
-         WHERE e.status != 'cancelled' AND e.date >= ?
-       UNION ALL
-       SELECT q.created_by AS member_id, e.date FROM queue_courts q JOIN events e ON e.id = q.event_id
-         WHERE e.status != 'cancelled' AND e.date >= ?`,
-    ).bind(since, since),
+      `SELECT q.member_id, e.date FROM queue_credits q JOIN events e ON e.id = q.event_id
+       WHERE ${COUNTED} AND e.date >= ?`,
+    ).bind(since),
     // 能量: the same total as 我的卡路里 shows them, for the members who chose to be on it.
     env.DB.prepare(
       `SELECT c.member_id, e.date, c.kcal
@@ -192,10 +186,9 @@ function boards(
   for (const q of x.queue) if (inside(q.date)) add(tallies.queue, q.member_id, x.names.get(q.member_id));
   for (const c of x.calories) if (inside(c.date)) add(tallies.calories, c.member_id, x.names.get(c.member_id), c.kcal);
 
-  const out = Object.fromEntries(BOARD_KEYS.map((k) => [k, top(tallies[k])])) as Record<BoardKey, RankEntry[]>;
-  // Hours to one decimal, from minutes.
-  out.hours = out.hours.map((r) => ({ ...r, value: Math.round(r.value / 6) / 10 }));
-  return out;
+  // Hours to one decimal, from minutes, before ranking: the same hours shown share a rank.
+  for (const x of tallies.hours.values()) x.value = Math.round(x.value / 6) / 10;
+  return Object.fromEntries(BOARD_KEYS.map((k) => [k, top(tallies[k])])) as Record<BoardKey, RankEntry[]>;
 }
 
 /** 排行榜: every board for this year and this month. Members only, never money. */
@@ -203,8 +196,8 @@ export async function leaderboard(env: Env): Promise<Leaderboard> {
   const day = today();
   const year = day.slice(0, 4);
   const month = day.slice(0, 7);
-  const since = `${Number(year) - 1}-01-01`;
-  const [all, x] = await Promise.all([rows(env, since), extra(env, since)]);
+  // 进步 compares attendance with last year; the other boards only need this year.
+  const [all, x] = await Promise.all([rows(env, `${Number(year) - 1}-01-01`), extra(env, `${year}-01-01`)]);
   const yearly = boards(all, x, `${year}-01-01`, day, previousPeriod(day, "year"));
   const monthly = boards(all, x, `${month}-01`, day, previousPeriod(day, "month"));
   return { year: Number(year), month: Number(day.slice(5, 7)), boards: [...BOARD_KEYS], ...yearly, monthly };

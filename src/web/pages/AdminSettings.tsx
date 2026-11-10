@@ -89,13 +89,18 @@ function GroupSubPage(props: {
   sub: "looks" | "join" | "appNames" | "boards";
   open: (s: Sub | null) => void;
 }) {
-  const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
   if (props.sub === "boards")
     return (
       <SubPage title={t("排行榜")} back={() => props.open("looks")} backLabel={t("‹ 外观和公共页面")}>
         <BoardsPage base={props.base} />
       </SubPage>
     );
+  return <SettingsSubPage base={props.base} sub={props.sub} open={props.open} />;
+}
+
+/** The group sub-pages built on the general settings. */
+function SettingsSubPage(props: { base: string; sub: "looks" | "join" | "appNames"; open: (s: Sub | null) => void }) {
+  const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
   if (props.sub === "appNames")
     return (
       <SubPage title={t("名称")} back={() => props.open("looks")} backLabel={t("‹ 外观和公共页面")}>
