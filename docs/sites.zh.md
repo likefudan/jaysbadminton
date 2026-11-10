@@ -27,10 +27,9 @@
 
 1. 在 `sites.json` 加一行，合并，然后发布。第一次发布会自动建 Worker、数据库和域名。
 2. Google 登录：Google Cloud → 凭据 → 现有的 OAuth 客户端 → 已获授权的重定向 URI，加上 `https://<domain>/api/auth/google/callback`。
-3. Turnstile：Cloudflare → Turnstile → 现有的小组件 → 主机名，加上 `<domain>`。
-4. Google Maps key 如果限制了网站来源，加上 `https://<domain>/*`。
-5. 收 Venmo 邮件：Cloudflare → `llmat.dev` → Email Routing，给子域名 `<domain>` 开启邮件路由，再加规则 `venmo@<domain>` → Send to a Worker → `jaysbadminton-<id>`。
-6. 新群的群主打开 `https://<domain>/admin`，用 `SITES_ADMIN_PASSWORD` 完成首次设置，然后在「设置」里：改密码、填 Venmo、在「Telegram 通知」里粘贴自己用 @BotFather 建的机器人 token 并连接。
-7. 群主在自己的 Gmail 里加过滤器，把 `venmo@venmo.com` 的邮件转发到 `venmo@<domain>`。
+3. Google Maps key 如果限制了网站来源，加上 `https://<domain>/*`。
+4. 收 Venmo 邮件：Cloudflare → `llmat.dev` → Email Routing，给子域名 `<domain>` 开启邮件路由，再加规则 `venmo@<domain>` → Send to a Worker → `jaysbadminton-<id>`。
+5. 新群的群主打开 `https://<domain>/admin`，用 `SITES_ADMIN_PASSWORD` 完成首次设置，然后在「设置」里：改密码、填 Venmo、在「Telegram 通知」里粘贴自己用 @BotFather 建的机器人 token 并连接。
+6. 群主在自己的 Gmail 里加过滤器，把 `venmo@venmo.com` 的邮件转发到 `venmo@<domain>`。
 
 站点的加密密钥不需要再备份（设置里的「备份网站密钥」会说明这一点）。

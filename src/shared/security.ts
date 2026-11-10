@@ -3,17 +3,14 @@
  * pages); src/web/public/_headers repeats them for the static pages Cloudflare serves directly,
  * and a test keeps the two the same.
  *
- * The content policy is report-only for now: violations are reported to /api/csp-report (and
- * show up in the Worker logs) but nothing is blocked. Switch the header name to
- * Content-Security-Policy once the logs stay quiet.
+ * The content policy is enforced (Ke Li 2026-11-10; report-only from 2026-10-03 until then):
+ * anything it blocks is still reported to /api/csp-report and shows up in the Worker logs.
  */
-export const CSP_HEADER = "Content-Security-Policy-Report-Only";
+export const CSP_HEADER = "Content-Security-Policy";
 
 export const CSP = [
   "default-src 'self'",
-  // Cloudflare Turnstile (人机验证) on 申请加入 / 找回链接: its script, and the iframe it draws.
-  "script-src 'self' https://challenges.cloudflare.com",
-  "frame-src https://challenges.cloudflare.com",
+  "script-src 'self'",
   // Inline style attributes (theme swatches, chart bars).
   "style-src 'self' 'unsafe-inline'",
   // QR codes are data: URLs; Google profile pictures come from googleusercontent.com.
