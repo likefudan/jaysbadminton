@@ -211,6 +211,8 @@ export interface EventDetail extends EventSummary {
   photoUsage: PhotoUsage | null;
   /** 无需收款: when it ends by itself (an hour after its end time), UTC ISO. */
   autoEndAt: string;
+  /** 报名截止时间: minutes before the start, as last set (also kept while it is off, for the edit form). */
+  deadlineOffsetMin: number;
 }
 
 /** 操作记录: one change to an event, newest first on the admin page. */

@@ -47,6 +47,8 @@ import {
   insertGuest,
   memberNames,
   type EventRow,
+  deadlineFor,
+  deadlineOffset,
 } from "../events";
 import { endNoFeeEvent } from "../noFee";
 import { SETTLE_DEADLINE_MAX_HOURS, settleDeadline } from "../settleDeadline";
@@ -480,7 +482,8 @@ adminEventRoutes.post("/events/:id/close-now", async (c) => {
 /**
  * Emergency edit of date, times and location. The event code stays the same so links and
  * payment codes already sent out keep working. An open event's deadline moves with the start
- * (never past the end); if it has already passed, sign-up closes. Closed events stay closed.
+ * (never past the end); if it has already passed, sign-up closes. Closed events stay closed, unless
+ * 报名截止时间 is switched or changed to a time still ahead, which opens sign-up again until then.
  */
 adminEventRoutes.post("/events/:id/edit", async (c) => {
   await closeExpired(c.env);
@@ -501,7 +504,24 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   if (endAt <= startAt) endAt = new Date(Date.parse(endAt) + 86400_000).toISOString();
   let deadline = e.deadline_at;
   let status = e.status;
-  if (e.status === "open") {
+  // 报名截止时间, before Finalize (Ke Li 2026-11-10): switched off, sign-up runs to the end (and a
+  // closed event opens again if the end is still ahead); switched on or changed, the deadline is
+  // that long before the (new) start. Left as it was, it moves with the start as below.
+  const live = e.status === "open" || e.status === "closed";
+  const noDeadline = b.noDeadline === undefined || !live ? e.no_deadline === 1 : b.noDeadline === true;
+  let offsetMin = e.deadline_offset_min;
+  if (live && !noDeadline && b.deadlineDays !== undefined)
+    offsetMin = deadlineOffset(num(b.deadlineDays), num(b.deadlineHours));
+  const deadlineSet = noDeadline !== (e.no_deadline === 1) || (!noDeadline && offsetMin !== e.deadline_offset_min);
+  if (deadlineSet) {
+    deadline = deadlineFor(startAt, endAt, noDeadline, offsetMin);
+    if (deadline > endAt) deadline = endAt;
+    // A deadline already gone is refused rather than closing sign-up by surprise (or, on a closed
+    // event, being saved without taking effect).
+    if (deadline <= now())
+      throw badRequest(noDeadline ? "这个活动已经结束了" : "按这个提前量算出的截止时间已经过了，请调整");
+    status = "open";
+  } else if (e.status === "open") {
     // The deadline moves with the start, keeping its lead time: the usual offset, or whatever
     // 重新开放报名 set (which may run past the start), so a title or venue fix changes nothing.
     // Like reopen, never past the end, or the event would stay open (and unsettleable) after it.
@@ -521,7 +541,7 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
   // Only over what was read: a close, Finalize or archive landing in between is never undone.
   const [res] = await c.env.DB.batch([
     c.env.DB.prepare(
-      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, notes = ?, queue_round_min = ?, no_fee = ?, deadline_at = ?, status = ?
+      `UPDATE events SET date = ?, start_at = ?, end_at = ?, location = ?, address = ?, title = ?, notes = ?, queue_round_min = ?, no_fee = ?, deadline_at = ?, no_deadline = ?, deadline_offset_min = ?, status = ?
        WHERE id = ? AND status = ? AND deadline_at = ?`,
     ).bind(
       date,
@@ -534,6 +554,8 @@ adminEventRoutes.post("/events/:id/edit", async (c) => {
       queueRoundMin,
       noFee ? 1 : 0,
       deadline,
+      noDeadline ? 1 : 0,
+      offsetMin,
       status,
       e.id,
       e.status,
@@ -595,8 +617,11 @@ function editChanges(a: EventRow, b: EventRow): string[] {
   ];
   const out = fields.filter(([, x, y]) => x !== y).map(([k, x, y]) => `${k} ${x} → ${y}`);
   // An open event's deadline moves with the start (one without a deadline just follows the end).
+  if (a.no_deadline !== b.no_deadline)
+    out.push(`报名截止时间 ${a.no_deadline ? "关" : "开"} → ${b.no_deadline ? "关" : "开"}`);
   if (a.deadline_at !== b.deadline_at && !b.no_deadline)
     out.push(`报名截止 ${formatInstantZh(a.deadline_at)} → ${formatInstantZh(b.deadline_at)}`);
+  if (a.status === "closed" && b.status === "open") out.push("重新开放报名");
   if (a.status !== b.status && b.status === "closed") out.push("新的截止时间已过，报名截止");
   return out;
 }

@@ -245,48 +245,14 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
         <NotesField value={notes} onInput={setNotes} />
         <NoFeeField on={noFee} onOn={setNoFee} />
         <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
-        <label class={`switch-card ${deadlineOn ? "on" : ""}`}>
-          <span>
-            <strong>{t("报名截止时间")}</strong>
-            <small>
-              {deadlineOn ? t("到截止时间就不能再报名") : t("不设截止：活动结束前都能报名（结算后就不能了）")}
-            </small>
-          </span>
-          <input
-            type="checkbox"
-            role="switch"
-            aria-checked={deadlineOn}
-            checked={deadlineOn}
-            onChange={(e) => setDeadlineOn((e.target as HTMLInputElement).checked)}
-          />
-        </label>
-        {deadlineOn && (
-          <>
-            <div class="field">
-              <span>{t("活动开始前")}</span>
-            </div>
-            <div class="inline">
-              <label class="field">
-                <select value={days} onChange={(e) => setDays(Number((e.target as HTMLSelectElement).value))}>
-                  {Array.from({ length: 15 }, (_, i) => (
-                    <option key={i} value={i}>
-                      {t("{n} 天", { n: i })}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label class="field">
-                <select value={hours} onChange={(e) => setHours(Number((e.target as HTMLSelectElement).value))}>
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>
-                      {t("{n} 小时", { n: i })}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </>
-        )}
+        <DeadlineField
+          on={deadlineOn}
+          days={days}
+          hours={hours}
+          onOn={setDeadlineOn}
+          onDays={setDays}
+          onHours={setHours}
+        />
         {error && <p class="error">{error}</p>}
         <button type="submit" class="button block" disabled={busy || !date}>
           {t("创建活动")}
@@ -318,6 +284,64 @@ function NoFeeField(props: { on: boolean; onOn: (on: boolean) => void }) {
         onChange={(e) => props.onOn((e.target as HTMLInputElement).checked)}
       />
     </label>
+  );
+}
+
+/** 报名截止时间: on with how long before the start, or off (sign-up open until the end). */
+function DeadlineField(props: {
+  on: boolean;
+  days: number;
+  hours: number;
+  onOn: (on: boolean) => void;
+  onDays: (n: number) => void;
+  onHours: (n: number) => void;
+}) {
+  return (
+    <>
+      <label class={`switch-card ${props.on ? "on" : ""}`}>
+        <span>
+          <strong>{t("报名截止时间")}</strong>
+          <small>{props.on ? t("到截止时间就不能再报名") : t("不设截止：活动结束前都能报名（结算后就不能了）")}</small>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          aria-checked={props.on}
+          checked={props.on}
+          onChange={(e) => props.onOn((e.target as HTMLInputElement).checked)}
+        />
+      </label>
+      {props.on && (
+        <>
+          <div class="field">
+            <span>{t("活动开始前")}</span>
+          </div>
+          <div class="inline">
+            <label class="field">
+              <select value={props.days} onChange={(e) => props.onDays(Number((e.target as HTMLSelectElement).value))}>
+                {Array.from({ length: 15 }, (_, i) => (
+                  <option key={i} value={i}>
+                    {t("{n} 天", { n: i })}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label class="field">
+              <select
+                value={props.hours}
+                onChange={(e) => props.onHours(Number((e.target as HTMLSelectElement).value))}
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>
+                    {t("{n} 小时", { n: i })}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -1235,14 +1259,28 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const [queueOn, setQueueOn] = useState(props.e.queueRoundMin !== null);
   const [roundMin, setRoundMin] = useState(String(props.e.queueRoundMin ?? QUEUE_DEFAULT_ROUND_MIN));
   const [noFee, setNoFee] = useState(props.e.noFee);
-  // 无需收款 can change only before Finalize (after it there are bills).
+  // 无需收款 and 报名截止时间 can change only before Finalize (after it there are bills).
   const feeOpen = props.e.status === "open" || props.e.status === "closed";
+  const [deadlineOn, setDeadlineOn] = useState(!props.e.noDeadline);
+  const [days, setDays] = useState(Math.floor(props.e.deadlineOffsetMin / 1440));
+  const [hours, setHours] = useState(Math.floor((props.e.deadlineOffsetMin % 1440) / 60));
   const { busy, error, run } = useAction();
 
   if (!open) {
     return (
-      <button type="button" class="link-button" onClick={() => setOpen(true)}>
-        {t("修改活动标题、时间、地点、备注或排队系统")}
+      <button
+        type="button"
+        class="link-button"
+        onClick={() => {
+          // As the event is now (a 重新开放报名 since this was first shown changes it), so saving
+          // something else never undoes it.
+          setDeadlineOn(!props.e.noDeadline);
+          setDays(Math.floor(props.e.deadlineOffsetMin / 1440));
+          setHours(Math.floor((props.e.deadlineOffsetMin % 1440) / 60));
+          setOpen(true);
+        }}
+      >
+        {t("修改活动标题、时间、地点、备注、排队系统或报名截止")}
       </button>
     );
   }
@@ -1262,7 +1300,7 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
           address,
           notes,
           queueRoundMin: queueOn ? Number(roundMin) : null,
-          ...(feeOpen ? { noFee } : {}),
+          ...(feeOpen ? { noFee, noDeadline: !deadlineOn, deadlineDays: days, deadlineHours: hours } : {}),
         }),
       )
     ) {
@@ -1290,6 +1328,16 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
       <NotesField value={notes} onInput={setNotes} />
       {feeOpen && <NoFeeField on={noFee} onOn={setNoFee} />}
       <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
+      {feeOpen && (
+        <DeadlineField
+          on={deadlineOn}
+          days={days}
+          hours={hours}
+          onOn={setDeadlineOn}
+          onDays={setDays}
+          onHours={setHours}
+        />
+      )}
       {error && <p class="error">{error}</p>}
       <button type="button" class="button block" disabled={busy} onClick={save}>
         {t("保存修改")}

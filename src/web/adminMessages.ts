@@ -520,9 +520,9 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Once closed, members can't sign up or make changes. You can reopen it later if needed. Close now?",
   },
   立即截止报名: { tw: "立即截止報名", en: "Close sign-up now" },
-  "修改活动标题、时间、地点、备注或排队系统": {
-    tw: "修改活動標題、時間、地點、備註或排隊系統",
-    en: "Edit the event's title, time, place, notes or court queue",
+  "修改活动标题、时间、地点、备注、排队系统或报名截止": {
+    tw: "修改活動標題、時間、地點、備註、排隊系統或報名截止",
+    en: "Edit the event's title, time, place, notes, court queue or sign-up deadline",
   },
   "修改会立即显示在活动页和成员页，但不会自动通知任何人，请自己在群里说明。活动代号和已发出的链接不变。确定修改吗？": {
     tw: "修改會立即顯示在活動頁和成員頁，但不會自動通知任何人，請自己在群裡說明。活動代號和已發出的連結不變。確定修改嗎？",
