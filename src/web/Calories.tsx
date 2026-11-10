@@ -3,8 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { SHORTCUT_NAME } from "../shared/calories";
 import type { CalorieStart, MyCalories, MyEvent } from "../shared/types";
 import { api } from "./api";
-import { Card, Load, SectionTitle, SettingRow, useAction } from "./components";
-import type { Loaded } from "./hooks";
+import { Card, SettingRow, useAction } from "./components";
 import { isIos } from "./Install";
 import { fmtDate, t, tx } from "./i18n";
 
@@ -185,29 +184,21 @@ function CalorieGuide(props: { install: string; update: boolean; onRead?: () => 
   );
 }
 
-/** 我的卡路里 on 个人信息: this year at a glance, every event read, and the 卡路里榜 choice. */
-export function MyCaloriesCard(props: { base: string; result: Loaded<MyCalories>; reload: () => void }) {
-  return (
-    <Load result={props.result}>
-      {(c) =>
-        c.events.length === 0 && !c.board ? null : <CaloriesCard c={c} base={props.base} onChange={props.reload} />
-      }
-    </Load>
-  );
-}
+/**
+ * 我的数据 → 我的卡路里 is there once they read any, joined the 卡路里榜, or can install the Shortcut
+ * (iPhone and iPad), so whoever deleted it can install it again without waiting for an event card.
+ */
+export const caloriesShown = (c: MyCalories) => c.events.length > 0 || c.board || (!!c.shortcut.url && isIos());
 
 /** The flame drawn in lines, like the other icons in the settings list. */
-const FlameOutline = () => (
+export const FlameOutline = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
     <path d="M12 3c.6 3.2-1.2 5-2.8 6.8C7.8 11.3 6.5 13 6.5 15.5a5.5 5.5 0 0 0 11 0c0-2.5-1.2-4.4-2.6-5.9-.3 1.5-1 2.5-2.1 3 .6-3.6-.2-7-.8-9.6z" />
   </svg>
 );
 
-/**
- * 个人信息 → 卡路里快捷指令, there for good on iPhone and iPad: whoever deleted the Shortcut (or never
- * got to 读取 yet) can install it again without waiting for an event card to offer it.
- */
-export function ShortcutRow(props: { shortcut: MyCalories["shortcut"] | null }) {
+/** 我的卡路里 → 卡路里快捷指令 (iPhone and iPad): install the Shortcut again, or its newer version. */
+function ShortcutRow(props: { shortcut: MyCalories["shortcut"] | null }) {
   const [open, setOpen] = useState(false);
   const s = props.shortcut;
   if (!s?.url || !isIos()) return null;
@@ -224,7 +215,11 @@ export function ShortcutRow(props: { shortcut: MyCalories["shortcut"] | null }) 
   );
 }
 
-function CaloriesCard(props: { c: MyCalories; base: string; onChange: () => void }) {
+/**
+ * 我的卡路里 (opened from 个人信息 → 我的数据): this year at a glance, every event read, then the
+ * Shortcut, the 卡路里榜 choice and deleting, which used to sit in 资料与设置 and under the numbers.
+ */
+export function CaloriesPage(props: { c: MyCalories; base: string; onChange: () => void }) {
   const c = props.c;
   const [board, setBoard] = useState(c.board);
   const { busy, error, run } = useAction();
@@ -243,81 +238,89 @@ function CaloriesCard(props: { c: MyCalories; base: string; onChange: () => void
   const year = String(c.year);
   return (
     <>
-      <SectionTitle>{t("我的卡路里")}</SectionTitle>
-      <Card class="kcal-card">
-        <div class="spend-figures">
-          <div>
-            <span class="tile-label">{t("{year} 年", { year: c.year })}</span>
-            <span class="tile-value">
-              {kcalText(c.yearKcal)}
-              <small>{t("千卡")}</small>
-            </span>
+      {c.events.length === 0 ? (
+        <p class="muted">{t("还没有卡路里记录。打完球后，在活动卡片上点「读取」。")}</p>
+      ) : (
+        <Card class="kcal-card">
+          <div class="spend-figures">
+            <div>
+              <span class="tile-label">{t("{year} 年", { year: c.year })}</span>
+              <span class="tile-value">
+                {kcalText(c.yearKcal)}
+                <small>{t("千卡")}</small>
+              </span>
+            </div>
+            <div>
+              <span class="tile-label">{t("记录")}</span>
+              <span class="tile-value">
+                {c.yearCount}
+                <small>{t("场")}</small>
+              </span>
+            </div>
+            <div>
+              <span class="tile-label">{t("平均每场")}</span>
+              <span class="tile-value">
+                {c.yearCount ? kcalText(Math.round(c.yearKcal / c.yearCount)) : "—"}
+                {c.yearCount > 0 && <small>{t("千卡")}</small>}
+              </span>
+            </div>
           </div>
-          <div>
-            <span class="tile-label">{t("记录")}</span>
-            <span class="tile-value">
-              {c.yearCount}
-              <small>{t("场")}</small>
-            </span>
-          </div>
-          <div>
-            <span class="tile-label">{t("平均每场")}</span>
-            <span class="tile-value">
-              {c.yearCount ? kcalText(Math.round(c.yearKcal / c.yearCount)) : "—"}
-              {c.yearCount > 0 && <small>{t("千卡")}</small>}
-            </span>
-          </div>
-        </div>
-        {c.events.length > 0 && (
-          <details class="fold spend-detail">
-            <summary>{t("明细（{n} 场）", { n: c.events.length })}</summary>
-            <table>
-              <tbody>
-                {c.events.map((e) => (
-                  <tr key={e.id}>
-                    <td>
-                      <a href={`/e/${e.code}`}>{fmtDate(e.date, !e.date.startsWith(year))}</a>
-                    </td>
-                    <td class="muted">{e.title || e.location}</td>
-                    <td class="num">{t("{n} 千卡", { n: kcalText(e.kcal) })}</td>
-                    <td class="kcal-del">
-                      <button
-                        type="button"
-                        class="link-button"
-                        aria-label={t("删除这场的卡路里记录")}
-                        disabled={busy}
-                        onClick={() => remove(e)}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </details>
-        )}
-        <label class="switch-card plain">
-          <span>
-            <strong>{t("加入能量榜")}</strong>
-            <small>{t("首页排行榜会显示你的名字和千卡数。随时可以退出。")}</small>
-          </span>
-          <input
-            type="checkbox"
-            role="switch"
-            aria-checked={board}
-            checked={board}
-            disabled={busy}
-            onChange={(e) => toggle((e.target as HTMLInputElement).checked)}
-          />
-        </label>
-        {c.events.length > 0 && (
-          <button type="button" class="link-button danger kcal-del-all" disabled={busy} onClick={() => remove()}>
-            {t("删除我的全部卡路里记录")}
-          </button>
-        )}
-        {error && <p class="error">{error}</p>}
-      </Card>
+          {c.events.length > 0 && (
+            <details class="fold spend-detail">
+              <summary>{t("明细（{n} 场）", { n: c.events.length })}</summary>
+              <table>
+                <tbody>
+                  {c.events.map((e) => (
+                    <tr key={e.id}>
+                      <td>
+                        <a href={`/e/${e.code}`}>{fmtDate(e.date, !e.date.startsWith(year))}</a>
+                      </td>
+                      <td class="muted">{e.title || e.location}</td>
+                      <td class="num">{t("{n} 千卡", { n: kcalText(e.kcal) })}</td>
+                      <td class="kcal-del">
+                        <button
+                          type="button"
+                          class="link-button"
+                          aria-label={t("删除这场的卡路里记录")}
+                          disabled={busy}
+                          onClick={() => remove(e)}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          )}
+        </Card>
+      )}
+      {c.shortcut.url && isIos() && (
+        <section class="card set-list">
+          <ShortcutRow shortcut={c.shortcut} />
+        </section>
+      )}
+      <label class="switch-card kcal-board">
+        <span>
+          <strong>{t("加入能量榜")}</strong>
+          <small>{t("首页排行榜会显示你的名字和千卡数。随时可以退出。")}</small>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          aria-checked={board}
+          checked={board}
+          disabled={busy}
+          onChange={(e) => toggle((e.target as HTMLInputElement).checked)}
+        />
+      </label>
+      {c.events.length > 0 && (
+        <button type="button" class="link-button danger kcal-del-all" disabled={busy} onClick={() => remove()}>
+          {t("删除我的全部卡路里记录")}
+        </button>
+      )}
+      {error && <p class="error">{error}</p>}
     </>
   );
 }
