@@ -36,6 +36,42 @@ const redirect = (to: string, cookies: string[] = []) => {
 const cookie = (name: string, value: string, maxAge: number) =>
   `${name}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 
+/** One message to the developers' Telegram group; never fails the request. */
+async function notifyDev(env: Env, text: string): Promise<void> {
+  if (!env.TELEGRAM_DEV_BOT_TOKEN || !env.TELEGRAM_DEV_CHAT_ID) return;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_DEV_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: env.TELEGRAM_DEV_CHAT_ID,
+        text,
+        link_preview_options: { is_disabled: true },
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) console.error("ops: Telegram said", res.status);
+  } catch (err) {
+    console.error("ops: Telegram failed:", err);
+  }
+}
+
+/** Where a request came from, for the sign-in notice: country and a short browser name. */
+function from(req: Request): string {
+  const country = (req as { cf?: { country?: string } }).cf?.country;
+  const ua = req.headers.get("User-Agent") ?? "";
+  const device = /iPhone|iPad/.test(ua)
+    ? "iPhone/iPad"
+    : /Android/.test(ua)
+      ? "Android"
+      : /Mac OS X/.test(ua)
+        ? "Mac"
+        : /Windows/.test(ua)
+          ? "Windows"
+          : "未知设备";
+  return [device, country].filter(Boolean).join("，");
+}
+
 function readCookie(req: Request, name: string): string | undefined {
   for (const part of (req.headers.get("Cookie") ?? "").split(/;\s*/)) {
     const i = part.indexOf("=");
@@ -78,7 +114,7 @@ async function startLogin(env: Env): Promise<Response> {
   return redirect(url.toString(), [cookie(OAUTH, saved, 600)]);
 }
 
-async function finishLogin(req: Request, env: Env): Promise<Response> {
+async function finishLogin(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const q = new URL(req.url).searchParams;
   const saved = await unsign(env.OPS_SESSION_KEY!, readCookie(req, OAUTH));
   const clear = cookie(OAUTH, "", 0);
@@ -107,8 +143,11 @@ async function finishLogin(req: Request, env: Env): Promise<Response> {
       algorithms: ["RS256"],
     });
     const email = typeof payload.email === "string" ? payload.email.toLowerCase() : "";
-    if (payload.nonce !== nonce || payload.email_verified !== true || email !== env.OPS_EMAIL!.trim().toLowerCase())
+    if (payload.nonce !== nonce || payload.email_verified !== true || email !== env.OPS_EMAIL!.trim().toLowerCase()) {
+      ctx.waitUntil(notifyDev(env, `⚠️ 有人用别的 Google 账号尝试登录发布管理网站（${from(req)}），没有放行`));
       return redirect("/?error=account", [clear]);
+    }
+    ctx.waitUntil(notifyDev(env, `🔑 发布管理网站有新的登录（${from(req)}）`));
     return redirect("/", [clear, cookie(SESSION, await sign(env.OPS_SESSION_KEY!, email, 7 * DAY), 7 * DAY)]);
   } catch (err) {
     console.error("ops login failed:", err);
@@ -117,7 +156,7 @@ async function finishLogin(req: Request, env: Env): Promise<Response> {
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
     if (path === "/app.js") return respond(APP_JS, { type: "text/javascript; charset=utf-8" });
@@ -130,7 +169,7 @@ export default {
 
     const problem = ready(env);
     if (path === "/login") return problem ? redirect("/") : startLogin(env);
-    if (path === "/auth/callback") return problem ? redirect("/") : finishLogin(req, env);
+    if (path === "/auth/callback") return problem ? redirect("/") : finishLogin(req, env, ctx);
     if (path === "/logout" && req.method === "POST") return redirect("/", [cookie(SESSION, "", 0)]);
 
     const email = await who(req, env);
@@ -163,6 +202,16 @@ export default {
         await release(env, chosen, tag === null ? { expect: main as string } : { tag });
         forget();
         console.log(`ops: ${email} released ${tag ?? "a new version"} to ${chosen.join(",")}`);
+        const names =
+          chosen.length === sites(env).length
+            ? "全部站点"
+            : chosen.map((id) => sites(env).find((x) => x.id === id)?.name ?? id).join("、");
+        ctx.waitUntil(
+          notifyDev(
+            env,
+            `🚀 从发布管理网站开始发布：${tag ? `把 ${tag} ` : "从 main 打新版本并"}发到 ${names}\n${env.OPS_ORIGIN}`,
+          ),
+        );
         return json({ ok: true });
       } catch (err) {
         if (err instanceof MainMoved) {

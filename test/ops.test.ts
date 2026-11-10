@@ -1,3 +1,4 @@
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { forget, state } from "../ops/src/github";
 import ops from "../ops/src/index";
@@ -15,8 +16,12 @@ const ENV: Env = {
   GOOGLE_CLIENT_SECRET: "secret",
   OPS_SESSION_KEY: "session-key",
 };
-const call = (path: string, init: RequestInit = {}, env = ENV) =>
-  ops.fetch(new Request(`https://badminton.llmat.dev${path}`, init), env);
+async function call(path: string, init: RequestInit = {}, env = ENV) {
+  const ctx = createExecutionContext();
+  const res = await ops.fetch(new Request(`https://badminton.llmat.dev${path}`, init), env, ctx);
+  await waitOnExecutionContext(ctx);
+  return res;
+}
 const signedIn = async (email = "owner@example.com") => `__Host-ops=${await sign(ENV.OPS_SESSION_KEY!, email, 3600)}`;
 
 afterEach(() => vi.restoreAllMocks());
@@ -207,5 +212,26 @@ describe("release site", () => {
     expect(sbbc).toMatchObject({ behind: 1, movable: ["v2026.11.12", "v2026.11.11"] });
     expect(s.sites.find((x) => x.id === "coco")).toMatchObject({ ok: false, version: null });
     expect(s.versions.find((v) => v.tag === "v2026.11.09")?.perSite).toBe(false);
+  });
+
+  it("tells the developers' group when a release is started here", async () => {
+    const sent: { url: string; body: { chat_id?: string; text?: string } }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      sent.push({ url: String(input), body: JSON.parse(String(init?.body)) });
+      return new Response(null, { status: 204 });
+    });
+    const res = await call(
+      "/api/release",
+      {
+        method: "POST",
+        headers: { Cookie: await signedIn(), Origin: ENV.OPS_ORIGIN, "Content-Type": "application/json" },
+        body: JSON.stringify({ sites: ["sbbc", "coco"], tag: "v2026.11.10" }),
+      },
+      { ...ENV, TELEGRAM_DEV_BOT_TOKEN: "dev-bot", TELEGRAM_DEV_CHAT_ID: "-100" },
+    );
+    expect(res.status).toBe(200);
+    const notice = sent.find((m) => m.url === "https://api.telegram.org/botdev-bot/sendMessage");
+    expect(notice?.body.chat_id).toBe("-100");
+    expect(notice?.body.text).toContain("把 v2026.11.10 发到 SBBC 羽毛球、Coco 羽毛球");
   });
 });
