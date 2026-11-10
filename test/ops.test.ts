@@ -277,7 +277,7 @@ describe("release progress", () => {
     const p = progressOf([...tests, jays], ["jays", "sbbc"]);
     expect(p.jays).toEqual({ done: 3, label: "部署中", failed: false });
     expect(p.sbbc).toEqual({ done: 1, label: "等 Jay's 先发", failed: false });
-    expect(progressOf([...tests], ["sbbc"]).sbbc.label).toBe("排队中");
+    expect(progressOf([...tests], ["sbbc"]).sbbc?.label).toBe("排队中");
 
     const failed: Job = {
       name: "deploy-sites (sbbc)",
