@@ -83,7 +83,9 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 .siterow .chev{font-size:18px}
 .seg{display:flex;gap:3px;flex:1}.seg i{flex:1;height:6px;border-radius:3px;background:var(--line)}
 .seg i.d{background:var(--accent)}.seg i.n{background:var(--accent);animation:pulse 1s infinite alternate}
-.linkrow{display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:12px;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.linkrow{display:flex;justify-content:space-between;align-items:center;width:100%;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.optr{display:flex;align-items:center;gap:10px}.notesbtn{border:0;background:none;color:var(--accent);font:inherit;font-size:13px;padding:4px 0;cursor:pointer;white-space:nowrap}
+.optnotes{padding:0 4px 10px 28px;border-bottom:1px solid var(--line);font-size:14px}.optnotes ul{margin:0;padding-left:18px}.optnotes li{margin:3px 0;line-height:1.45}.optnotes p{margin:0}
 .rel{margin-bottom:10px}.rel a.tag{color:inherit;text-decoration:none;font-weight:600}.rel ul{margin:8px 0 0;padding-left:20px}.rel li{margin:4px 0;line-height:1.45}.rel p{margin:8px 0 0}.relon{font-size:13px;margin-top:4px}
 .seg i.f{background:var(--bad)}.seg.bad i.d{opacity:.35}.seg.ok i.d{background:var(--ok)}
 @keyframes pulse{from{opacity:.25}to{opacity:.8}}
@@ -283,7 +285,31 @@ function openPanel(s) {
       : h("span", { class: "muted" }, "回滚");
     const radio = h("input", { type: "radio", name: "v", disabled: current || locked });
     radio.addEventListener("change", () => { pick = v.tag; go.disabled = false; go.textContent = "换到 " + v.tag; });
-    return h("label", { class: "opt" + (locked ? " locked" : "") }, h("span", {}, radio, h("span", { class: "tag" }, v.tag), h("span", { class: "muted" }, "  " + when(v.date))), label);
+    // 说明 opens this version's release notes under the row, without choosing it.
+    const box = h("div", { class: "optnotes", hidden: true });
+    const more = h("button", { class: "notesbtn", type: "button" }, "说明 ⌄");
+    more.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      box.hidden = !box.hidden;
+      more.textContent = box.hidden ? "说明 ⌄" : "说明 ⌃";
+      if (box.hidden || box.childElementCount) return;
+      box.append(h("p", { class: "muted notes" }, "读取中…"));
+      try {
+        const r = await releaseNotes(v.tag);
+        box.replaceChildren(r ? notesOf(r) : h("p", { class: "muted notes" }, "没有找到这一版的说明"));
+      } catch {
+        box.replaceChildren();
+        box.hidden = true;
+        more.textContent = "说明 ⌄";
+        toast("没读到说明，请再点一次");
+      }
+    });
+    return h("div", {},
+      h("label", { class: "opt" + (locked ? " locked" : "") },
+        h("span", {}, radio, h("span", { class: "tag" }, v.tag), h("span", { class: "muted" }, "  " + when(v.date))),
+        h("span", { class: "optr" }, more, label)),
+      box);
   });
   panel = h("div", { class: "panel" },
     h("header", { class: "top" }, h("button", { class: "back", onclick: closePanel }, "‹ 返回"), h("b", {}, s.name), h("span", { style: "width:40px" })),
@@ -294,6 +320,20 @@ function openPanel(s) {
   document.body.append(panel);
   history.pushState({ panel: true }, "");
 }
+// A release's notes as a list, each line with its PR number linked.
+function notesOf(r) {
+  const pr = (n) => h("a", { href: r.url.split("/releases/")[0] + "/pull/" + n, target: "_blank", rel: "noopener", class: "muted" }, " #" + n);
+  return r.notes.length ? h("ul", { class: "notes" }, r.notes.map((n) => h("li", {}, n.text, n.pr ? pr(n.pr) : null)))
+    : h("p", { class: "muted notes" }, "没有说明");
+}
+// The newest 20 releases with their notes, read once when a site's version list first needs them.
+let recentNotes = null;
+function releaseNotes(tag) {
+  recentNotes = recentNotes || fetch("/api/releases?page=1").then((res) => res.ok ? res.json() : Promise.reject(new Error(res.status)));
+  recentNotes.catch(() => { recentNotes = null; });
+  return recentNotes.then((b) => b.releases.find((r) => r.tag === tag));
+}
+
 // Every published version with its notes, newest first, 20 at a time.
 function openReleases() {
   const list = h("div", { class: "list" });
@@ -301,14 +341,12 @@ function openReleases() {
   let page = 0;
   const one = (r) => {
     const on = data.sites.filter((s) => s.version === r.tag).map((s) => short(s.name));
-    const pr = (n) => h("a", { href: r.url.split("/releases/")[0] + "/pull/" + n, target: "_blank", rel: "noopener", class: "muted" }, " #" + n);
     return h("div", { class: "card rel" },
       h("div", { class: "row" },
         h("span", {}, h("a", { href: r.url, target: "_blank", rel: "noopener", class: "tag" }, r.tag), r.tag === data.latest ? h("span", { class: "pill", style: "margin-left:8px" }, "最新") : null),
         h("span", { class: "muted nowrap" }, when(r.date))),
       on.length ? h("div", { class: "muted relon" }, "在用：" + on.join("、")) : null,
-      r.notes.length ? h("ul", {}, r.notes.map((n) => h("li", {}, n.text, n.pr ? pr(n.pr) : null)))
-        : h("p", { class: "muted" }, "没有说明"));
+      notesOf(r));
   };
   const next = async () => {
     more.disabled = true;
@@ -344,9 +382,10 @@ addEventListener("popstate", () => { if (panel) { panel.remove(); panel = null; 
 
 function render() {
   if (!data.progress) clearInterval(window.__tick);
-  app.replaceChildren(data.progress ? progressCard() : heroCard(), h("h3", {}, "各站点"),
-    h("div", { class: "card rows" }, data.sites.map(siteRow)), h("h3", {}, "最近的部署"), deploysCard(),
-    h("button", { class: "card linkrow", onclick: openReleases }, h("span", {}, "所有版本和发布说明"), h("span", { class: "muted chev" }, "›")));
+  app.replaceChildren(data.progress ? progressCard() : heroCard(),
+    h("button", { class: "card linkrow", onclick: openReleases }, h("span", {}, "所有版本和发布说明"), h("span", { class: "muted chev" }, "›")),
+    h("h3", {}, "各站点"),
+    h("div", { class: "card rows" }, data.sites.map(siteRow)), h("h3", {}, "最近的部署"), deploysCard());
 }
 load();
 
