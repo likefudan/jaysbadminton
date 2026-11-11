@@ -7,9 +7,9 @@ import { ADMIN_MESSAGES } from "./adminMessages";
 const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   点赞: { tw: "點讚", en: "Likes" },
   个赞: { tw: "個讚", en: "" },
-  "活动结束后一起打球的人给的赞，每人每场最多点 3 个": {
-    tw: "活動結束後一起打球的人給的讚，每人每場最多點 3 個",
-    en: "Likes from the people you played with; each person gives up to 3 per event",
+  "活动结束后，一起打球的人给的赞": {
+    tw: "活動結束後，一起打球的人給的讚",
+    en: "Likes from the people they played with, after each event",
   },
   点个赞: { tw: "點個讚", en: "Like" },
   "收到 {n} 个赞": { tw: "收到 {n} 個讚", en: "Likes received: {n}" },

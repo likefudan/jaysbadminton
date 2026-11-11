@@ -10,5 +10,6 @@ CREATE TABLE likes (
 );
 CREATE INDEX likes_to ON likes (to_member);
 
--- The new board shows on the home page where the Owner or an admin already picked which do.
+-- Ke Li wants likes on the board: it goes public where boards were already picked (one can turn it
+-- off in 设置 → 排行榜); where every board was turned off, it stays off too.
 UPDATE settings SET value = value || ',likes' WHERE key = 'leaderboard_boards' AND value != '';

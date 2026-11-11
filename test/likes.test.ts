@@ -90,6 +90,18 @@ describe("点赞", () => {
       ["Eve", 1],
     ]);
     expect((await like(cat!.base, e.id, eve!.id)).status).toBe(400);
+    // Amy's like for Cat still takes one of her 3, and she can take it back: Cat stays at the end.
+    const amyPanel = (await anon.call(`${amy.base}/events/${e.id}/likes`)).data;
+    expect(amyPanel.given).toBe(3);
+    expect(amyPanel.people.map((p: { name: string; liked: boolean }) => [p.name, p.liked])).toEqual([
+      ["Bob", true],
+      ["Dan", false],
+      ["Eve", true],
+      ["Cat", true],
+    ]);
+    expect((await like(amy.base, e.id, dan!.id)).status).toBe(400);
+    expect((await like(amy.base, e.id, cat!.id, false)).data.given).toBe(2);
+    expect((await like(amy.base, e.id, dan!.id)).data.given).toBe(3);
   });
 
   it("only after the event ends and for 7 days, never on a cancelled one", async () => {

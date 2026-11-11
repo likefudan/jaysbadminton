@@ -14,10 +14,16 @@ import type { MemberRow } from "./members";
  * sees how many likes they got, never from whom.
  */
 
-/** A like that counts: both people still on the list themselves and not marked absent, the event not cancelled. */
+/** Who played, for a registration `r` and its member `m`: on the list themselves, not marked absent, an active member. */
+const PLAYED = (r: string, m: string) =>
+  `${r}.friend_index = 0 AND ${r}.attended = 1 AND ${m}.status = 'active' AND ${m}.deleted_at IS NULL`;
+
+/** A like that counts: both people played (as PLAYED says), the event not cancelled. */
 export const COUNTED_LIKE = `JOIN events le ON le.id = l.event_id AND le.status != 'cancelled'
-  JOIN registrations lf ON lf.event_id = l.event_id AND lf.member_id = l.from_member AND lf.friend_index = 0 AND lf.attended = 1
-  JOIN registrations lt ON lt.event_id = l.event_id AND lt.member_id = l.to_member AND lt.friend_index = 0 AND lt.attended = 1`;
+  JOIN registrations lf ON lf.event_id = l.event_id AND lf.member_id = l.from_member
+  JOIN members lfm ON lfm.id = l.from_member
+  JOIN registrations lt ON lt.event_id = l.event_id AND lt.member_id = l.to_member
+  JOIN members ltm ON ltm.id = l.to_member AND ${PLAYED("lf", "lfm")} AND ${PLAYED("lt", "ltm")}`;
 
 const DAY = 86400_000;
 
@@ -32,17 +38,24 @@ export function likeOpen(e: Pick<EventRow, "status" | "end_at">, at = new Date()
 export const likeShown = (e: Pick<EventRow, "status" | "end_at">, at = new Date()) =>
   e.status !== "cancelled" && at.getTime() >= Date.parse(e.end_at);
 
-/** How many likes the member gave and got at each of these events (missing: none either way). */
+/**
+ * How many likes the member gave and got at each of these events (missing: none either way).
+ * Given: every like of theirs, so LIKE_MAX holds even if someone they liked drops off the list
+ * (they can still take that one back). Got: only the ones that count.
+ */
 export async function likeCounts(
   env: Env,
   memberId: string,
   eventIds?: number[],
 ): Promise<Map<number, { given: number; received: number }>> {
-  const only = eventIds ? ` AND l.event_id IN (${eventIds.map(() => "?").join(",") || "NULL"})` : "";
+  const only = (col: string) =>
+    eventIds ? ` AND ${col} IN (${eventIds.map((_, i) => `?${i + 2}`).join(",") || "NULL"})` : "";
   const { results } = await env.DB.prepare(
-    `SELECT l.event_id, SUM(l.from_member = ?1) AS given, SUM(l.to_member = ?1) AS received
-     FROM likes l ${COUNTED_LIKE}
-     WHERE (l.from_member = ?1 OR l.to_member = ?1)${only} GROUP BY l.event_id`,
+    `SELECT event_id, SUM(given) AS given, SUM(received) AS received FROM (
+       SELECT event_id, 1 AS given, 0 AS received FROM likes WHERE from_member = ?1${only("event_id")}
+       UNION ALL
+       SELECT l.event_id, 0, 1 FROM likes l ${COUNTED_LIKE} WHERE l.to_member = ?1${only("l.event_id")}
+     ) GROUP BY event_id`,
   )
     .bind(memberId, ...(eventIds ?? []))
     .all<{ event_id: number; given: number; received: number }>();
@@ -63,8 +76,7 @@ export function likeSummary(
 async function played(env: Env, eventId: number, memberId: string): Promise<boolean> {
   const row = await env.DB.prepare(
     `SELECT 1 FROM registrations r JOIN members m ON m.id = r.member_id
-     WHERE r.event_id = ? AND r.member_id = ? AND r.friend_index = 0 AND r.attended = 1
-       AND m.status = 'active' AND m.deleted_at IS NULL`,
+     WHERE r.event_id = ? AND r.member_id = ? AND ${PLAYED("r", "m")}`,
   )
     .bind(eventId, memberId)
     .first();
@@ -75,17 +87,20 @@ function mustPlay(ok: boolean) {
   if (!ok) throw badRequest("只有来打球的人可以点赞");
 }
 
-/** 点赞 panel: everyone else who played, in list order, and whom the member liked. */
+/**
+ * 点赞 panel: everyone else who played, in list order, and whom the member liked; someone they
+ * liked who has since dropped off the list stays at the end, so the like can be taken back.
+ */
 export async function eventLikes(env: Env, m: MemberRow, e: EventRow): Promise<EventLikes> {
   mustPlay(m.status === "active" && likeShown(e) && (await played(env, e.id, m.id)));
   const [people, counts] = await Promise.all([
     env.DB.prepare(
       `SELECT m.id, m.username, m.avatar, m.google_picture,
-         EXISTS (SELECT 1 FROM likes l WHERE l.event_id = r.event_id AND l.from_member = ?2 AND l.to_member = m.id) AS liked
-       FROM registrations r JOIN members m ON m.id = r.member_id
-       WHERE r.event_id = ?1 AND r.friend_index = 0 AND r.attended = 1 AND r.member_id != ?2
-         AND m.status = 'active' AND m.deleted_at IS NULL
-       ORDER BY r.created_at, r.id`,
+         EXISTS (SELECT 1 FROM likes l WHERE l.event_id = ?1 AND l.from_member = ?2 AND l.to_member = m.id) AS liked
+       FROM members m LEFT JOIN registrations r ON r.event_id = ?1 AND r.member_id = m.id AND r.friend_index = 0
+       WHERE m.id != ?2 AND ((r.id IS NOT NULL AND ${PLAYED("r", "m")})
+         OR m.id IN (SELECT to_member FROM likes WHERE event_id = ?1 AND from_member = ?2))
+       ORDER BY r.id IS NULL OR NOT (${PLAYED("r", "m")}), r.created_at, r.id`,
     )
       .bind(e.id, m.id)
       .all<{ id: string; username: string; avatar: string | null; google_picture: string | null; liked: number }>(),
@@ -100,13 +115,17 @@ export async function eventLikes(env: Env, m: MemberRow, e: EventRow): Promise<E
   };
 }
 
-/** Give or take back a like. At most LIKE_MAX per event, counted in the same statement so two taps at once can't pass it. */
+/**
+ * Give or take back a like. At most LIKE_MAX per event, every like of theirs counted (as likeCounts
+ * gives them), in the same statement so two taps at once can't pass it.
+ */
 export async function setLike(env: Env, m: MemberRow, e: EventRow, to: unknown, on: boolean): Promise<void> {
   if (!likeShown(e)) throw badRequest("活动结束后才能点赞");
   if (!likeOpen(e)) throw badRequest(`点赞已截止，活动结束后 ${LIKE_DAYS} 天内可以点赞`);
   mustPlay(m.status === "active" && (await played(env, e.id, m.id)));
-  if (typeof to !== "string" || to === m.id || !(await played(env, e.id, to)))
-    throw badRequest("只能给一起打球的人点赞");
+  if (typeof to !== "string" || to === m.id) throw badRequest("只能给一起打球的人点赞");
+  // Taking one back works even if they have since dropped off the list.
+  if (on && !(await played(env, e.id, to))) throw badRequest("只能给一起打球的人点赞");
   if (!on) {
     await env.DB.prepare("DELETE FROM likes WHERE event_id = ? AND from_member = ? AND to_member = ?")
       .bind(e.id, m.id, to)
@@ -116,7 +135,7 @@ export async function setLike(env: Env, m: MemberRow, e: EventRow, to: unknown, 
   const res = await env.DB.prepare(
     `INSERT INTO likes (event_id, from_member, to_member, created_at)
      SELECT ?1, ?2, ?3, ?4
-     WHERE (SELECT COUNT(*) FROM likes l ${COUNTED_LIKE} WHERE l.event_id = ?1 AND l.from_member = ?2) < ${LIKE_MAX}
+     WHERE (SELECT COUNT(*) FROM likes WHERE event_id = ?1 AND from_member = ?2) < ${LIKE_MAX}
      ON CONFLICT DO NOTHING`,
   )
     .bind(e.id, m.id, to, now())

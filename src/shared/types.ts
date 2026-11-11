@@ -433,7 +433,7 @@ export const BOARD_NAME: Record<BoardKey, string> = {
   early: "早鸟",
   likes: "点赞",
 };
-/** Shown on the home page until the Owner or an admin picks (the four boards there were before). */
+/** Shown on the home page until the Owner or an admin picks: the four boards there were before, and 点赞 (Ke Li 2026-11-11). */
 export const DEFAULT_PUBLIC_BOARDS: BoardKey[] = ["calories", "attendance", "streak", "friends", "likes"];
 
 /** 排行榜 (members only, no money): each board for this year and for this month. */
