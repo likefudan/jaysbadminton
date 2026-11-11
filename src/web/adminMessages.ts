@@ -130,7 +130,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "微信：{name}": { tw: "微信：{name}", en: "WeChat: {name}" },
   " · 身份：{applicantName}": { tw: " · 身份：{applicantName}", en: " · Identity: {applicantName}" },
   " · 邮箱：{email}": { tw: " · 電子郵件：{email}", en: " · Email: {email}" },
-  "‹ 成员": { tw: "‹ 成員", en: "‹ Members" },
   专属链接: { tw: "專屬連結", en: "personal link" },
   审核通知: { tw: "審核通知", en: "approval notice" },
   "专属链接已发到对方的邮箱。": {
@@ -386,7 +385,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   最近的场馆: { tw: "最近的場館", en: "Recent venues" },
   "从最近的场馆中删除「{name}」": { tw: "從最近的場館中刪除「{name}」", en: 'Remove "{name}" from recent venues' },
   场馆: { tw: "場館", en: "Venue" },
-  "‹ 所有活动": { tw: "‹ 所有活動", en: "‹ All events" },
   代为添加: { tw: "代為新增", en: "Added for them" },
   群主添加: { tw: "群主新增", en: "Added by owner" },
   "取消后这次活动不产生费用，也不计入统计。确定取消吗？": {
@@ -1046,9 +1044,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "重新生成後，當前管理連結立即失效。繼續嗎？",
     en: "After regenerating, the current admin link stops working right away. Continue?",
   },
-  "‹ 设置": { tw: "‹ 設定", en: "‹ Settings" },
-  "‹ 外观和公共页面": { tw: "‹ 外觀和公共頁面", en: "‹ Look & public page" },
-  "‹ 高级设置": { tw: "‹ 進階設定", en: "‹ Advanced" },
+  活动详情: { tw: "活動詳情", en: "Event" },
   外观和公共页面: { tw: "外觀和公共頁面", en: "Look & public page" },
   入群和报名: { tw: "入群和報名", en: "Joining & sign-ups" },
   入群要审核: { tw: "入群要審核", en: "Joining needs approval" },

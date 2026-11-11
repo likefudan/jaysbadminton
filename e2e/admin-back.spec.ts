@@ -32,23 +32,25 @@ test("管理页: back goes up one level, reload stays, tabs replace", async ({ p
   await expect(page).toHaveURL(/\?tab=settings&sub=advanced$/);
   await page.getByRole("button", { name: /Google 表格同步/ }).click();
   await expect(page).toHaveURL(/sub=sheets$/);
-  await expect(page.getByRole("button", { name: "‹ 高级设置" })).toBeVisible();
+  await expect(page.locator(".sub-bar").getByRole("button", { name: "高级设置" })).toBeVisible();
 
   // A reload keeps the page, and 「‹」 still goes back through the same entries.
   await page.reload();
-  await expect(page.getByRole("button", { name: "‹ 高级设置" })).toBeVisible();
+  await expect(page.locator(".sub-bar").getByRole("button", { name: "高级设置" })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole("heading", { name: "高级设置" })).toBeVisible();
-  await page.getByRole("button", { name: "‹ 设置" }).click();
+  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
   await expect(page).toHaveURL(/\?tab=settings$/);
   await expect(page.getByRole("button", { name: /^外观和公共页面/ })).toBeVisible();
 
-  // Tapping the open tab from deep down goes back to its first page, without leaving entries behind.
+  // A page one level down has the panel-style bar instead of the site's top bar and the tabs.
   await page.getByRole("button", { name: /^收款设置/ }).click();
-  await expect(page.getByRole("heading", { name: "收款设置" })).toBeVisible();
-  await tabs.getByRole("button", { name: "设置" }).click();
+  await expect(page.locator(".sub-bar")).toContainText("收款设置");
+  await expect(tabs).toBeHidden();
+  await expect(page.locator(".topbar")).toBeHidden();
+  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
+  await expect(tabs).toBeVisible();
   await expect(page).toHaveURL(/\?tab=settings$/);
-  await expect(page.getByRole("button", { name: /^收款设置/ })).toBeVisible();
 
   // 新建活动 is a level too; the browser's back returns to the list.
   await tabs.getByRole("button", { name: "活动" }).click();
@@ -64,6 +66,6 @@ test("管理页: back goes up one level, reload stays, tabs replace", async ({ p
 
   // Opened straight into a sub-page (as Google sign-in comes back): 「‹」 goes up in place.
   await page.goto("/admin/test-token?tab=settings&sub=pay");
-  await page.getByRole("button", { name: "‹ 设置" }).click();
+  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
   await expect(page).toHaveURL(/\?tab=settings$/);
 });

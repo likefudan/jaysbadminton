@@ -78,7 +78,7 @@ test("the Owner sets up the site and the payment details", async ({ page }) => {
   await expect(google.getByRole("button", { name: "先登录 Google" })).toBeVisible();
 
   // 卡路里快捷指令 (in 高级设置): the link and version members install, set here instead of in a deploy.
-  await page.getByRole("button", { name: "‹ 设置" }).click();
+  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("button", { name: /^收款设置/ })).toContainText("@Jays-Badminton");
   await page.getByRole("button", { name: /^高级设置/ }).click();
   const shortcut = page.locator(".card", { has: page.getByRole("heading", { name: "卡路里快捷指令" }) });
@@ -293,7 +293,7 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await field(page, "备注名（只有群主、管理员和组织者能看到）").fill("周六队长");
   await detail.getByRole("button", { name: "保存" }).click();
   await expect(detail.locator(".profile-info")).toContainText("周六队长");
-  await page.getByRole("button", { name: "‹ 成员" }).click();
+  await page.locator(".sub-bar").getByRole("button", { name: "成员" }).click();
   await expect(page.locator(".who", { hasText: "小明" })).toContainText("备注：周六队长");
 
   await page.goto(`${memberPath}/profile`);
@@ -440,7 +440,7 @@ test("the Owner appoints an organizer, hands them an event and revokes them", as
   await expect(owner).toContainText("负责人：小明 · 收款人：Jay");
   expect(dialogs.pop()).toContain("只换负责人");
 
-  await page.getByRole("button", { name: "‹ 所有活动" }).click();
+  await page.locator(".sub-bar").getByRole("button", { name: "所有活动" }).click();
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
   await expect(block).toContainText("负责 1 场未归档活动");
   await block.getByRole("button", { name: "撤销" }).click();
@@ -616,7 +616,7 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   await expect(page.getByRole("heading", { name: "我的收款设置" })).toBeVisible();
   for (const heading of ownerOnly)
     await expect(page.getByRole("heading", { name: heading, exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "‹ 设置" }).click();
+  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
   await page.getByRole("button", { name: /^高级设置/ }).click();
   await expect(page.getByRole("heading", { name: "导出数据" })).toBeVisible();
   for (const heading of ownerOnly)
@@ -624,8 +624,8 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   await page.getByRole("button", { name: /Google 表格同步/ }).click();
   await expect(page.getByText("开启、关闭同步和查看脚本只有群主能做。")).toBeVisible();
   await expect(page.getByRole("button", { name: "开启同步" })).toHaveCount(0);
-  await page.getByRole("button", { name: "‹ 高级设置" }).click();
-  await page.getByRole("button", { name: "‹ 设置" }).click();
+  await page.locator(".sub-bar").getByRole("button", { name: "高级设置" }).click();
+  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
 
   // 待审核: he approves 小红.
   await tabs.getByRole("button", { name: /待审核/ }).click();

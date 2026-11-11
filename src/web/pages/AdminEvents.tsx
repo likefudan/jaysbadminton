@@ -27,6 +27,7 @@ import { has } from "../organizers";
 import { Billing } from "./AdminSettle";
 import { t, fmtDate, fmtInstant, tk } from "../i18n";
 import { goDown, goReplace, goUp, useOnReturn } from "../adminNav";
+import { SubBar } from "../SubBar";
 
 const PAST_PAGE = 30;
 
@@ -170,9 +171,12 @@ function EventRow(props: { e: AdminEventSummary; manager: boolean; onOpen: () =>
 function CreateEvent(props: { base: string; owner: boolean; onDone: (id?: number) => void }) {
   const [defaults] = useApi<EventDefaults>(`${props.base}/events/defaults`);
   return (
-    <Load result={defaults}>
-      {(d) => <CreateForm base={props.base} owner={props.owner} d={d} onDone={props.onDone} />}
-    </Load>
+    <>
+      <SubBar back={() => props.onDone()} label={t("所有活动")} title={t("新建活动")} />
+      <Load result={defaults}>
+        {(d) => <CreateForm base={props.base} owner={props.owner} d={d} onDone={props.onDone} />}
+      </Load>
+    </>
   );
 }
 
@@ -224,7 +228,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
   }
 
   return (
-    <Card title={t("新建活动")}>
+    <Card>
       <form onSubmit={submit}>
         <OptionRows>
           <OptionSwitch label={t("我自己也报名")} on={joinSelf} onOn={setJoinSelf} />
@@ -503,9 +507,7 @@ function EventAdmin(props: {
   const [ev, reload] = useApi<EventDetail>(`${props.base}/events/${props.id}`);
   return (
     <>
-      <button type="button" class="back" onClick={props.onBack}>
-        {t("‹ 所有活动")}
-      </button>
+      <SubBar back={props.onBack} label={t("所有活动")} title={t("活动详情")} />
       <Load result={ev}>
         {(e) => (
           <EventAdminBody
