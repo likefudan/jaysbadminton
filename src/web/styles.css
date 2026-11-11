@@ -5921,3 +5921,103 @@ label.set-row {
 .sub-bar + .set-head {
   margin-top: 0;
 }
+
+/* ---- 点赞: after an event, up to 3 likes for others who played (anonymous) ---- */
+:root {
+  --heart: #e5484d;
+}
+.like-row .heart,
+.mini-likes .heart {
+  flex: none;
+  color: var(--heart);
+}
+/* Under 卡路里 it is one card foot: no second line between them. */
+.kcal-foot + .like-foot {
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: 0;
+}
+.mini-likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  color: var(--heart);
+  font-weight: 650;
+}
+.like-intro {
+  margin: 0 0 6px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.like-left {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.like-left b {
+  color: var(--heart);
+  font-size: 16px;
+}
+.like-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.like-person {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 12px 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.like-person.on {
+  border-color: var(--heart);
+  background: color-mix(in srgb, var(--heart) 10%, transparent);
+}
+.like-person:disabled {
+  cursor: default;
+}
+.like-person:disabled:not(.on) {
+  opacity: 0.45;
+}
+.like-face {
+  position: relative;
+  display: inline-flex;
+}
+.like-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.like-person.on .like-badge {
+  background: var(--heart);
+  border-color: var(--heart);
+  color: #fff;
+}
+.like-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

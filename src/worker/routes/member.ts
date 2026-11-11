@@ -43,6 +43,7 @@ import { pushBrought, pushGuestLeft, pushWelcome, sendSoon, subscribe, unsubscri
 import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
 import { avatarMode, avatarUrl, setAvatarMode, uploadAvatar } from "../avatars";
+import { eventLikes, likeCounts, likeOpen, likeSummary, setLike } from "../likes";
 import {
   calorieReadDays,
   caloriesOf,
@@ -168,6 +169,8 @@ memberRoutes.get("/:token/events", async (c) => {
       friends: rows.filter((r) => r.friend_index > 0).length + mine.guestsOf(e.id).length,
       paidBy: mine.broughtOf(e.id)?.username ?? null,
       kcal: mine.kcalOf(e.id),
+      likes: mine.likesOf(e.id)?.received ?? 0,
+      likeOpen: m.status === "active" && rows.some((r) => r.friend_index === 0 && r.attended === 1) && likeOpen(e),
       noFee: e.no_fee === 1,
       unsettled: e.unsettled === 1,
     };
@@ -210,7 +213,7 @@ type MyRows = Awaited<ReturnType<typeof myRows>>;
 async function myRows(env: Env, m: MemberRow, eventId?: number) {
   const only = eventId === undefined ? "" : " AND event_id = ?";
   const args = eventId === undefined ? [m.id] : [m.id, eventId];
-  const [pays, regs, guests, brought, kcal] = await Promise.all([
+  const [pays, regs, guests, brought, kcal, likes] = await Promise.all([
     env.DB.prepare(`SELECT * FROM payments WHERE member_id = ?${only}`)
       .bind(...args)
       .all<{
@@ -240,6 +243,7 @@ async function myRows(env: Env, m: MemberRow, eventId?: number) {
       .bind(...args)
       .all<{ event_id: number; paid_by: string; username: string; status: PaymentStatus | null }>(),
     caloriesOf(env, m.id, eventId === undefined ? undefined : [eventId]),
+    likeCounts(env, m.id, eventId === undefined ? undefined : [eventId]),
   ]);
   return {
     payOf: (id: number) => pays.results.find((p) => p.event_id === id),
@@ -247,6 +251,7 @@ async function myRows(env: Env, m: MemberRow, eventId?: number) {
     guestsOf: (id: number) => guests.results.filter((r) => r.event_id === id),
     broughtOf: (id: number) => brought.results.find((r) => r.event_id === id),
     kcalOf: (id: number) => kcal.get(id) ?? null,
+    likesOf: (id: number) => likes.get(id),
   };
 }
 
@@ -377,6 +382,11 @@ async function myEvents(
       kcalOpen: canRead(row, selfOn, readDays),
       kcalUpdate: canRead(row, selfOn, readDays) && shortcutOutdated(m.calorie_shortcut_v, shortcut.version),
       kcalInstall: canRead(row, selfOn, readDays) ? shortcut.url : "",
+      likes: likeSummary(
+        row,
+        m.status === "active" && rows.some((r) => r.friend_index === 0 && r.attended === 1),
+        mine.likesOf(e.id),
+      ),
     });
   }
   return events;
@@ -455,6 +465,18 @@ memberRoutes.post("/:token/events/:id/cancel", async (c) => {
 memberRoutes.get("/:token/events/:id/guests", async (c) => {
   const { e } = await openEventFor(c, c.req.param("id"));
   return c.json({ members: await guestChoices(c.env, e.id, c.get("member").id) });
+});
+
+/** 点赞: who else played and whom they liked; then a tap gives or takes back one. */
+memberRoutes.get("/:token/events/:id/likes", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  return c.json(await eventLikes(c.env, c.get("member"), e));
+});
+memberRoutes.post("/:token/events/:id/likes", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  const body = await readJson(c.req.raw);
+  await setLike(c.env, c.get("member"), e, body.to, body.on === true);
+  return c.json(await eventLikes(c.env, c.get("member"), e));
 });
 
 /** 球场排队 批量删除 and 清空账号 are for the Owner and admins (群主、管理员). */

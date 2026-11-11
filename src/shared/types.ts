@@ -285,6 +285,23 @@ export interface MyEvent extends EventSummary {
   kcalUpdate: boolean;
   /** The Shortcut's iCloud link from 设置, while 读取 is offered; empty otherwise. */
   kcalInstall: string;
+  /** 点赞: once it is over, for members who played themselves; null otherwise. */
+  likes: LikeSummary | null;
+}
+
+/** 点赞 on an event card (Ke Li 2026-11-11). Anonymous: only how many, never who. */
+export interface LikeSummary {
+  /** They may still give or take back likes (the first LIKE_DAYS days after it ends). */
+  open: boolean;
+  /** How many they gave, out of LIKE_MAX. */
+  given: number;
+  /** How many they got. */
+  received: number;
+}
+
+/** 点赞 panel: everyone else who played, and whom they liked. */
+export interface EventLikes extends LikeSummary {
+  people: { id: string; name: string; avatar: string | null; liked: boolean }[];
 }
 
 /** 读取卡路里: what the page hands the Shortcut. upload takes the number once, within 15 minutes. */
@@ -334,6 +351,10 @@ export interface MyHistoryEvent {
   /** Brought by this member, who paid for them (带群友); null otherwise. */
   paidBy: string | null;
   kcal: number | null;
+  /** 点赞 they got there. */
+  likes: number;
+  /** They played and may still give likes (on the event's own page). */
+  likeOpen: boolean;
   /** 无需收款: nothing was billed because everyone paid the venue themselves. */
   noFee: boolean;
   /** Archived after its 结算期限 with nothing billed. */
@@ -397,6 +418,7 @@ export const BOARD_KEYS = [
   "friends",
   "queue",
   "early",
+  "likes",
 ] as const;
 export type BoardKey = (typeof BOARD_KEYS)[number];
 /** Each board's name in Chinese, for the 操作记录 and the Telegram notices. */
@@ -409,9 +431,10 @@ export const BOARD_NAME: Record<BoardKey, string> = {
   friends: "带朋友",
   queue: "排队功臣",
   early: "早鸟",
+  likes: "点赞",
 };
 /** Shown on the home page until the Owner or an admin picks (the four boards there were before). */
-export const DEFAULT_PUBLIC_BOARDS: BoardKey[] = ["calories", "attendance", "streak", "friends"];
+export const DEFAULT_PUBLIC_BOARDS: BoardKey[] = ["calories", "attendance", "streak", "friends", "likes"];
 
 /** 排行榜 (members only, no money): each board for this year and for this month. */
 export type Leaderboard = {

@@ -5,6 +5,37 @@
 import { ADMIN_MESSAGES } from "./adminMessages";
 
 const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
+  点赞: { tw: "點讚", en: "Likes" },
+  个赞: { tw: "個讚", en: "" },
+  "活动结束后一起打球的人给的赞，每人每场最多点 3 个": {
+    tw: "活動結束後一起打球的人給的讚，每人每場最多點 3 個",
+    en: "Likes from the people you played with; each person gives up to 3 per event",
+  },
+  点个赞: { tw: "點個讚", en: "Like" },
+  "收到 {n} 个赞": { tw: "收到 {n} 個讚", en: "Likes received: {n}" },
+  给一起打球的人点个赞: { tw: "給一起打球的人點個讚", en: "Give a like to the people you played with" },
+  这场没有收到赞: { tw: "這場沒有收到讚", en: "No likes for this one" },
+  "你点了 {n} 个赞": { tw: "你點了 {n} 個讚", en: "You gave {n} likes" },
+  "每场最多 {n} 个，匿名": { tw: "每場最多 {n} 個，匿名", en: "Up to {n} per event, anonymous" },
+  你没有点赞: { tw: "你沒有點讚", en: "You gave no likes" },
+  "给这场打得开心的球友点个赞，最多 {n} 个。对方只看到收到几个赞，不会知道是谁点的。": {
+    tw: "給這場打得開心的球友點個讚，最多 {n} 個。對方只看到收到幾個讚，不會知道是誰點的。",
+    en: "Like the people you enjoyed playing with, up to {n}. They only see how many likes they got, not who gave them.",
+  },
+  "还能点 {n} 个": { tw: "還能點 {n} 個", en: "{n} left" },
+  "{n} 个赞都点完了，点已赞的人可以撤回": {
+    tw: "{n} 個讚都點完了，點已讚的人可以撤回",
+    en: "All {n} likes given. Tap someone you liked to take it back",
+  },
+  "点赞已截止，活动结束后 {n} 天内可以点赞": {
+    tw: "點讚已截止，活動結束後 {n} 天內可以點讚",
+    en: "Likes are closed. You can give them for {n} days after the event",
+  },
+  这场没有其他人可以点赞: { tw: "這場沒有其他人可以點讚", en: "No one else to like at this event" },
+  活动结束后才能点赞: { tw: "活動結束後才能點讚", en: "You can give likes once the event is over" },
+  只有来打球的人可以点赞: { tw: "只有來打球的人可以點讚", en: "Only people who played can give likes" },
+  只能给一起打球的人点赞: { tw: "只能給一起打球的人點讚", en: "You can only like people who played with you" },
+  "每场最多点 {n} 个赞": { tw: "每場最多點 {n} 個讚", en: "Up to {n} likes per event" },
   头像: { tw: "頭像", en: "Profile photo" },
   "这张照片打不开，请换一张": { tw: "這張照片打不開，請換一張", en: "That photo can't be opened. Please pick another" },
   "用的是你上传的照片。": { tw: "用的是你上傳的照片。", en: "Using the photo you uploaded." },

@@ -73,3 +73,8 @@ export function checkAutoJoinCap(n: number): string | null {
     ? null
     : `每天最多自动通过的人数请填 1–${MAX_AUTO_JOINS_PER_DAY}`;
 }
+
+/** 点赞 (Ke Li 2026-11-11): up to this many likes per member per event, one per person. */
+export const LIKE_MAX = 3;
+/** …given from the end of the event for this many days. */
+export const LIKE_DAYS = 7;

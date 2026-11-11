@@ -26,6 +26,7 @@ import { CardCornerIcons } from "../ShareCard";
 import { SwipeSection } from "../Swipe";
 import { SpendingCard, thisYear } from "../Stats";
 import { YearReviewTop } from "../YearReview";
+import { HeartIcon, LikeRow } from "../Likes";
 import { CalorieRow, CaloriesPage, FlameIcon, FlameOutline, caloriesShown, kcalText } from "../Calories";
 import { Panel } from "../Panel";
 import { InstallPrompt } from "../Install";
@@ -266,9 +267,13 @@ function MyEvents(props: { base: string }) {
         const open = r.events.filter(upcoming).sort(byTime);
         const owing = r.events.filter((e) => !upcoming(e) && !settledForMe(e)).sort(byTime);
         const settled = [
-          ...r.events
-            .filter(settledForMe)
-            .map((e) => ({ ...e, amountCents: e.payment?.amountCents ?? null, paidBy: e.broughtBy?.name ?? null })),
+          ...r.events.filter(settledForMe).map((e) => ({
+            ...e,
+            amountCents: e.payment?.amountCents ?? null,
+            paidBy: e.broughtBy?.name ?? null,
+            likes: e.likes?.received ?? 0,
+            likeOpen: e.likes?.open ?? false,
+          })),
           ...r.history,
         ].sort((a, b) => byTime(b, a));
         return (
@@ -311,6 +316,13 @@ function MyEvents(props: { base: string }) {
                           <span class="mini-kcal">
                             <FlameIcon size={12} />
                             {kcalText(h.kcal)}
+                          </span>
+                        )}
+                        {/* 点赞 on the event's own page, where the card opens. */}
+                        {(h.likes > 0 || h.likeOpen) && (
+                          <span class="mini-likes" title={t("收到 {n} 个赞", { n: h.likes })}>
+                            <HeartIcon size={12} filled={h.likes > 0} />
+                            {h.likes > 0 ? h.likes : t("点个赞")}
                           </span>
                         )}
                       </>
@@ -479,6 +491,8 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         {e.payment && <PaymentBox p={e.payment} />}
         {/* Last on the card, under its own line (Ke Li): it comes after the game, the bill included. */}
         <CalorieRow base={props.base} e={e} onChange={props.onChange} />
+        {/* 点赞 after the game, under 卡路里 (Ke Li 2026-11-11). */}
+        <LikeRow base={props.base} e={e} onChange={props.onChange} />
       </div>
     </section>
   );

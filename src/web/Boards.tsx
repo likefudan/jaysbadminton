@@ -15,6 +15,7 @@ export const BOARDS: Record<BoardKey, { label: string; unit: string; desc: strin
   friends: { label: tk("带朋友"), unit: tk("人次"), desc: tk("带朋友来打球的人次") },
   queue: { label: tk("排队功臣"), unit: tk("次"), desc: tk("帮大家添加球馆账号、登记场地排队") },
   early: { label: tk("早鸟"), unit: tk("次"), desc: tk("开放报名后前 5 个报名、并且来了的次数") },
+  likes: { label: tk("点赞"), unit: tk("个赞"), desc: tk("活动结束后一起打球的人给的赞，每人每场最多点 3 个") },
 };
 
 export type Period = "year" | "month";

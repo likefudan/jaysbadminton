@@ -619,10 +619,10 @@ describe("event title and public leaderboard switch", () => {
     // Pending applicants are not members yet.
     expect(await home(member)).toBeNull();
     await ctx.admin.call(`${ctx.base}/members/${joined.data.id}/approve`, {});
-    // The four boards there were before, members only.
-    expect((await home(member)).boards).toEqual(["calories", "attendance", "streak", "friends"]);
+    // The four boards there were before and 点赞, members only.
+    expect((await home(member)).boards).toEqual(["calories", "attendance", "streak", "friends", "likes"]);
     expect(await home(anon)).toBeNull();
-    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.publicBoards).toBe(4);
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.publicBoards).toBe(5);
 
     await ctx.admin.call(`${ctx.base}/settings`, {
       leaderboardBoards: ["queue", "hours", "nope"],
@@ -631,11 +631,11 @@ describe("event title and public leaderboard switch", () => {
     const b = await home(anon);
     expect(b.boards).toEqual(["hours", "queue"]);
     expect(Object.keys(b.monthly).sort()).toEqual(
-      [...b.boards, "attendance", "calories", "early", "friends", "progress", "streak"].sort(),
+      [...b.boards, "attendance", "calories", "early", "friends", "likes", "progress", "streak"].sort(),
     );
     const admin = (await ctx.admin.call(`${ctx.base}/leaderboard`)).data;
     expect(admin).toMatchObject({ public: ["hours", "queue"], anon: true });
-    expect(admin.board.boards).toHaveLength(8);
+    expect(admin.board.boards).toHaveLength(9);
 
     await ctx.admin.call(`${ctx.base}/settings`, { leaderboardBoards: [] });
     expect(await home(member)).toBeNull();
@@ -644,7 +644,7 @@ describe("event title and public leaderboard switch", () => {
 
   it("saves board order independently of visibility and rejects invalid orders", async () => {
     const ctx = await setUpAdmin();
-    const order = ["queue", "early", "friends", "streak", "progress", "hours", "attendance", "calories"];
+    const order = ["queue", "early", "likes", "friends", "streak", "progress", "hours", "attendance", "calories"];
     const home = async () => (await anon.call("/api/public/home")).data.leaderboard;
     expect(
       (
@@ -843,6 +843,8 @@ describe("我的活动 (the member's events)", () => {
         friends: 1,
         paidBy: null,
         kcal: null,
+        likes: 0,
+        likeOpen: false,
         noFee: false,
         unsettled: false,
       },

@@ -213,6 +213,7 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     // The tokens were spent all the same: the usage stays, just no longer tied to an event.
     env.DB.prepare("UPDATE ai_usage SET event_id = NULL WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM calories WHERE event_id = ?").bind(e.id),
+    env.DB.prepare("DELETE FROM likes WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM calorie_uploads WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM event_audit WHERE event_id = ?").bind(e.id),
