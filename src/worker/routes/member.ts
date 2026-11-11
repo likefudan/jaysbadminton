@@ -43,7 +43,7 @@ import { pushBrought, pushGuestLeft, pushWelcome, sendSoon, subscribe, unsubscri
 import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
 import { avatarMode, avatarUrl, setAvatarMode, uploadAvatar } from "../avatars";
-import { eventLikes, likeCounts, likeOpen, likeSummary, setLike } from "../likes";
+import { eventLikes, likeCounts, likeOpen, likeSettings, likeSummary, setLike } from "../likes";
 import {
   calorieReadDays,
   caloriesOf,
@@ -145,7 +145,7 @@ memberRoutes.get("/:token/events", async (c) => {
   )
     .bind(m.id)
     .all<EventRow>();
-  const mine = await myRows(c.env, m);
+  const [mine, likeCfg] = await Promise.all([myRows(c.env, m), likeSettings(c.env)]);
   const generalCap = await friendCap(c.env);
 
   // 历史活动: over and paid up. Kept light (no roster or bill breakdown) so years of history stay
@@ -170,7 +170,10 @@ memberRoutes.get("/:token/events", async (c) => {
       paidBy: mine.broughtOf(e.id)?.username ?? null,
       kcal: mine.kcalOf(e.id),
       likes: mine.likesOf(e.id)?.received ?? 0,
-      likeOpen: m.status === "active" && rows.some((r) => r.friend_index === 0 && r.attended === 1) && likeOpen(e),
+      likeOpen:
+        m.status === "active" &&
+        rows.some((r) => r.friend_index === 0 && r.attended === 1) &&
+        likeOpen(e, likeCfg.hours),
       noFee: e.no_fee === 1,
       unsettled: e.unsettled === 1,
     };
@@ -303,10 +306,11 @@ async function myEvents(
     if (!managers.has(id)) managers.set(id, payeeName(env.DB, id));
     return managers.get(id)!;
   };
-  const [list, readDays, shortcut] = await Promise.all([
+  const [list, readDays, shortcut, likeCfg] = await Promise.all([
     summaries(env, results),
     calorieReadDays(env),
     shortcutSetting(env),
+    likeSettings(env),
   ]);
   const events: MyEvent[] = [];
   for (const e of list) {
@@ -382,10 +386,12 @@ async function myEvents(
       kcalOpen: canRead(row, selfOn, readDays),
       kcalUpdate: canRead(row, selfOn, readDays) && shortcutOutdated(m.calorie_shortcut_v, shortcut.version),
       kcalInstall: canRead(row, selfOn, readDays) ? shortcut.url : "",
-      likes: likeSummary(
+      likes: await likeSummary(
+        env,
         row,
         m.status === "active" && rows.some((r) => r.friend_index === 0 && r.attended === 1),
         mine.likesOf(e.id),
+        likeCfg,
       ),
     });
   }

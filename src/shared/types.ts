@@ -291,9 +291,11 @@ export interface MyEvent extends EventSummary {
 
 /** 点赞 on an event card (Ke Li 2026-11-11). Anonymous: only how many, never who. */
 export interface LikeSummary {
-  /** They may still give or take back likes (the first LIKE_DAYS days after it ends). */
+  /** They may still give or take back likes (the first hours after it ends, as 设置 says). */
   open: boolean;
-  /** How many they gave, out of LIKE_MAX. */
+  /** How many they may give here: a share of the people who played (likeCap). */
+  max: number;
+  /** How many they gave. */
   given: number;
   /** How many they got. */
   received: number;
@@ -301,6 +303,8 @@ export interface LikeSummary {
 
 /** 点赞 panel: everyone else who played, and whom they liked. */
 export interface EventLikes extends LikeSummary {
+  /** How many hours after the end likes may be given. */
+  hours: number;
   people: { id: string; name: string; avatar: string | null; liked: boolean }[];
 }
 

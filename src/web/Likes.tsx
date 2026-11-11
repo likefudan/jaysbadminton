@@ -1,5 +1,4 @@
 import { useState } from "preact/hooks";
-import { LIKE_DAYS, LIKE_MAX } from "../shared/rules";
 import type { EventLikes, MyEvent } from "../shared/types";
 import { api } from "./api";
 import { Avatar } from "./Avatar";
@@ -21,8 +20,8 @@ export const HeartIcon = (props: { size?: number; filled?: boolean }) => (
 );
 
 /**
- * 点赞 at the foot of an event card (Ke Li 2026-11-11): once it is over, up to LIKE_MAX likes for
- * others who played, for LIKE_DAYS days. Anonymous (her pick): they see how many they got, never from whom.
+ * 点赞 at the foot of an event card (Ke Li 2026-11-11): once it is over, likes for others who
+ * played, up to a share of them, for some hours (both in 设置). Anonymous (her pick): they see how many they got, never from whom.
  */
 export function LikeRow(props: { base: string; e: MyEvent; onChange: () => void }) {
   const l = props.e.likes;
@@ -42,7 +41,7 @@ export function LikeRow(props: { base: string; e: MyEvent; onChange: () => void 
             {l.given > 0
               ? t("你点了 {n} 个赞", { n: l.given })
               : l.open
-                ? t("每场最多 {n} 个，匿名", { n: LIKE_MAX })
+                ? t("这场最多 {n} 个，匿名", { n: l.max })
                 : t("你没有点赞")}
           </small>
         </span>
@@ -84,7 +83,7 @@ function LikePanel(props: { base: string; eventId: number; onClose: () => void }
 function LikePicker(props: { url: string; initial: EventLikes }) {
   const [d, setD] = useState(props.initial);
   const { busy, error, run } = useAction();
-  const left = LIKE_MAX - d.given;
+  const left = d.max - d.given;
   async function toggle(id: string, on: boolean) {
     const next = await run(() => api<EventLikes>(props.url, { to: id, on }));
     if (next) setD(next);
@@ -92,14 +91,14 @@ function LikePicker(props: { url: string; initial: EventLikes }) {
   return (
     <div class="like-panel">
       <p class="like-intro">
-        {t("给这场打得开心的球友点个赞，最多 {n} 个。对方只看到收到几个赞，不会知道是谁点的。", { n: LIKE_MAX })}
+        {t("给这场打得开心的球友点个赞，最多 {n} 个。对方只看到收到几个赞，不会知道是谁点的。", { n: d.max })}
       </p>
       <p class="like-left">
         {d.open
           ? left > 0
             ? tx("还能点 {n} 个", { n: <b>{left}</b> })
-            : t("{n} 个赞都点完了，点已赞的人可以撤回", { n: LIKE_MAX })
-          : t("点赞已截止，活动结束后 {n} 天内可以点赞", { n: LIKE_DAYS })}
+            : t("{n} 个赞都点完了，点已赞的人可以撤回", { n: d.max })
+          : t("点赞已截止，活动结束后 {n} 小时内可以点赞", { n: d.hours })}
       </p>
       {error && <p class="error">{error}</p>}
       {d.people.length === 0 ? (

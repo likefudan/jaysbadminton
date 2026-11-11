@@ -145,6 +145,7 @@ function AdvancedCards(props: { base: string; readOnlySheets?: boolean; openShee
             <AiCard base={props.base} initial={v.ai} />
             <ShortcutCard base={props.base} initial={v} />
             <DaysCard base={props.base} initial={v} />
+            <LikesCard base={props.base} initial={v} />
           </>
         )}
       </Load>
@@ -801,6 +802,7 @@ interface GeneralSettings {
   friendCap: number;
   pastEventDays: number;
   calorieReadDays: number;
+  likes: { hours: number; pct: number };
   idleAlertPct: number;
   queueAccountsView: QueueAccountsView;
   calorieShortcut: { url: string; version: number };
@@ -1092,6 +1094,41 @@ function DaysCard(props: { base: string; initial: GeneralSettings }) {
           const body = {
             ...(past !== String(props.initial.pastEventDays) && { pastEventDays: Number(past) }),
             ...(kcal !== String(props.initial.calorieReadDays) && { calorieReadDays: Number(kcal) }),
+          };
+          if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
+        }}
+      >
+        {saved ? t("已保存") : t("保存")}
+      </button>
+    </Card>
+  );
+}
+
+/** 点赞 (Ke Li 2026-11-11): how long after an event, and what share of the players each may like. */
+function LikesCard(props: { base: string; initial: GeneralSettings }) {
+  const init = props.initial.likes;
+  const [hours, setHours] = useState(String(init.hours));
+  const [pct, setPct] = useState(String(init.pct));
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  const edit = (set: (v: string) => void) => (v: string) => {
+    set(v);
+    setSaved(false);
+  };
+  return (
+    <Card title={t("点赞")}>
+      <Field label={t("活动结束后多少小时内可以点赞")} type="number" value={hours} onInput={edit(setHours)} />
+      <Field label={t("每人最多给百分之几的人点赞（%）")} type="number" value={pct} onInput={edit(setPct)} />
+      <p class="muted small">{t("按到场人数算，向下取整，至少 1 个。比如 20 人、15% 就是每人 3 个。")}</p>
+      {error && <p class="error">{error}</p>}
+      <button
+        type="button"
+        class="button secondary block"
+        disabled={busy}
+        onClick={async () => {
+          const body = {
+            ...(hours !== String(init.hours) && { likeHours: Number(hours) }),
+            ...(pct !== String(init.pct) && { likePct: Number(pct) }),
           };
           if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
         }}

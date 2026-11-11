@@ -74,7 +74,10 @@ export function checkAutoJoinCap(n: number): string | null {
     : `每天最多自动通过的人数请填 1–${MAX_AUTO_JOINS_PER_DAY}`;
 }
 
-/** 点赞 (Ke Li 2026-11-11): up to this many likes per member per event, one per person. */
-export const LIKE_MAX = 3;
-/** …given from the end of the event for this many days. */
-export const LIKE_DAYS = 7;
+/** 点赞 (Ke Li 2026-11-11): from the end of the event for this many hours, as 设置 says. */
+export const DEFAULT_LIKE_HOURS = 24;
+export const LIKE_HOURS_MAX = 720;
+/** …each member may like this share of the people who played (in %), as 设置 says. */
+export const DEFAULT_LIKE_PCT = 15;
+/** How many likes each may give where `players` played (them included): pct of them, rounded down, at least 1. */
+export const likeCap = (players: number, pct: number) => Math.max(1, Math.floor((players * pct) / 100));

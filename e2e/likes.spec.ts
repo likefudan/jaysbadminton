@@ -48,6 +48,8 @@ test("a member likes up to 3 others after the event, anonymously", async ({ page
   let liked = new Set<string>();
   const state = () => ({
     open: true,
+    hours: 24,
+    max: 3,
     given: liked.size,
     received: 2,
     people: people.map((p) => ({ ...p, liked: liked.has(p.id) })),
@@ -63,7 +65,7 @@ test("a member likes up to 3 others after the event, anonymously", async ({ page
   await page.route("**/api/m/tok/events", (route) =>
     route.fulfill({
       json: {
-        events: [event({ open: true, given: liked.size, received: 2 })],
+        events: [event({ open: true, max: 3, given: liked.size, received: 2 })],
         history: [
           {
             id: 9,
@@ -99,7 +101,7 @@ test("a member likes up to 3 others after the event, anonymously", async ({ page
   await page.goto("/m/tok");
   const row = page.locator(".like-row");
   await expect(row).toContainText("收到 2 个赞");
-  await expect(row).toContainText("每场最多 3 个，匿名");
+  await expect(row).toContainText("这场最多 3 个，匿名");
   await expect(page.locator(".mini-likes")).toContainText("4");
   if (SHOTS) await row.scrollIntoViewIfNeeded().then(() => page.screenshot({ path: `${SHOTS}/1-card.png` }));
 
