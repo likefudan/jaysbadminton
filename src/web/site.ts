@@ -221,8 +221,10 @@ function update(next: Partial<Appearance>) {
   apply();
 }
 
-/** The Owner's default look, which share images use whatever this visitor picked. */
+/** The Owner's default look: the group's share cards use it whatever this visitor picked. */
 export const siteThemeId = (): ThemeId => look.site;
+/** The look this visitor sees: their own pick, else the Owner's default. Personal images use it. */
+export const myThemeId = (): ThemeId => look.mine ?? look.site;
 
 /** The Owner's default, from the server or from a change in settings. */
 export function setSiteTheme(theme: string) {

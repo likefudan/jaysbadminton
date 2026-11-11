@@ -72,8 +72,8 @@ export function normalizeTheme(v: unknown): ThemeId {
 export const themeById = (id: ThemeId): Theme => THEMES.find((t) => t.id === id)!;
 
 /**
- * Colours of the share images (活动分享 and 年度回顾), by accent. They follow the Owner's default
- * look, not a visitor's own, so every image from one group looks the same (Ke Li 2026-11-11).
+ * Colours of the share images, by accent. 活动/网站 cards follow the Owner's default look so the
+ * group's images all match; the personal 年度回顾 image follows the member's own look (Ke Li 2026-11-11).
  * `from`/`to` is the background, dark enough at the bottom for white words; `link` is the address
  * under the QR code; `ink` shades the QR code from its centre outward, all dark enough on white
  * for phone cameras.

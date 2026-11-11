@@ -11,7 +11,7 @@ import { Panel } from "./Panel";
 import { Avatar } from "./Avatar";
 import { MeCard, type MeCardProps } from "./Profile";
 import { ShareGlyph, fitText, loadImage, roundRect, shareSans } from "./ShareCard";
-import { siteThemeId, useSiteTitle } from "./site";
+import { myThemeId, useSiteTitle } from "./site";
 
 /** Each badge's name, unit and line icon (24×24 path data, also drawn on the share image). */
 const BADGES: Record<MilestoneKey, { name: string; unit: string; icon: string }> = {
@@ -319,7 +319,8 @@ export async function drawYearCard(siteTitle: string, name: string, r: YearRevie
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d")!;
-  const colours = shareColours(siteThemeId());
+  // Personal, so in the member's own colours like the card on their page (Ke Li 2026-11-11).
+  const colours = shareColours(myThemeId());
   const bg = ctx.createLinearGradient(0, 0, W, H);
   bg.addColorStop(0, colours.from);
   bg.addColorStop(1, colours.to);
