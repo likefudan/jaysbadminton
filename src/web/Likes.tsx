@@ -83,7 +83,8 @@ function LikePanel(props: { base: string; eventId: number; onClose: () => void }
 function LikePicker(props: { url: string; initial: EventLikes }) {
   const [d, setD] = useState(props.initial);
   const { busy, error, run } = useAction();
-  const left = d.max - d.given;
+  // Fewer than given once the share or the players change: none left, the likes given stay.
+  const left = Math.max(0, d.max - d.given);
   async function toggle(id: string, on: boolean) {
     const next = await run(() => api<EventLikes>(props.url, { to: id, on }));
     if (next) setD(next);
@@ -97,7 +98,7 @@ function LikePicker(props: { url: string; initial: EventLikes }) {
         {d.open
           ? left > 0
             ? tx("还能点 {n} 个", { n: <b>{left}</b> })
-            : t("{n} 个赞都点完了，点已赞的人可以撤回", { n: d.max })
+            : t("{n} 个赞都点完了，点已赞的人可以撤回", { n: d.given })
           : t("点赞已截止，活动结束后 {n} 小时内可以点赞", { n: d.hours })}
       </p>
       {error && <p class="error">{error}</p>}

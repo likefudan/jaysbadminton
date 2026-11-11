@@ -1106,7 +1106,8 @@ function DaysCard(props: { base: string; initial: GeneralSettings }) {
 
 /** 点赞 (Ke Li 2026-11-11): how long after an event, and what share of the players each may like. */
 function LikesCard(props: { base: string; initial: GeneralSettings }) {
-  const init = props.initial.likes;
+  // What is saved now, so putting a value back after a save still sends it.
+  const [init, setInit] = useState(props.initial.likes);
   const [hours, setHours] = useState(String(init.hours));
   const [pct, setPct] = useState(String(init.pct));
   const [saved, setSaved] = useState(false);
@@ -1130,7 +1131,10 @@ function LikesCard(props: { base: string; initial: GeneralSettings }) {
             ...(hours !== String(init.hours) && { likeHours: Number(hours) }),
             ...(pct !== String(init.pct) && { likePct: Number(pct) }),
           };
-          if (await run(() => api(`${props.base}/settings`, body))) setSaved(true);
+          if (await run(() => api(`${props.base}/settings`, body))) {
+            setInit({ hours: Number(hours), pct: Number(pct) });
+            setSaved(true);
+          }
         }}
       >
         {saved ? t("已保存") : t("保存")}

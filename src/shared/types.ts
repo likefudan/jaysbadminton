@@ -293,7 +293,7 @@ export interface MyEvent extends EventSummary {
 export interface LikeSummary {
   /** They may still give or take back likes (the first hours after it ends, as 设置 says). */
   open: boolean;
-  /** How many they may give here: a share of the people who played (likeCap). */
+  /** How many they may give here: a share of the people who played (likeCap); 0 once closed. */
   max: number;
   /** How many they gave. */
   given: number;
