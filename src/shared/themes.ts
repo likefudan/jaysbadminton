@@ -70,3 +70,28 @@ export function normalizeTheme(v: unknown): ThemeId {
 }
 
 export const themeById = (id: ThemeId): Theme => THEMES.find((t) => t.id === id)!;
+
+/**
+ * Colours of the share images (活动分享 and 年度回顾), by accent. They follow the Owner's default
+ * look, not a visitor's own, so every image from one group looks the same (Ke Li 2026-11-11).
+ * `from`/`to` is the background, dark enough at the bottom for white words; `link` is the address
+ * under the QR code; `ink` shades the QR code from its centre outward, all dark enough on white
+ * for phone cameras.
+ */
+export interface ShareColours {
+  from: string;
+  to: string;
+  link: string;
+  ink: readonly [string, string, string];
+}
+export const SHARE_COLOURS: Record<string, ShareColours> = {
+  coral: { from: "#e29a7b", to: "#b5634a", link: "#bf6f52", ink: ["#5a2214", "#7e3a24", "#9c4a2c"] },
+  ocean: { from: "#8aa9c8", to: "#4a6a8a", link: "#4a6a8a", ink: ["#1d2f44", "#2c4560", "#3d5a7a"] },
+  forest: { from: "#8db59a", to: "#4a725a", link: "#4a725a", ink: ["#1c3326", "#2a4a37", "#3a6249"] },
+  grape: { from: "#ad9fcd", to: "#6f6196", link: "#6f6196", ink: ["#2c2245", "#40325f", "#56497e"] },
+  violet: { from: "#9a84da", to: "#4f8fa6", link: "#64559e", ink: ["#2a2050", "#3d3270", "#3f6f80"] },
+  sunset: { from: "#e39a6f", to: "#b85d82", link: "#a8613f", ink: ["#5a2214", "#7e3a3a", "#8c3f5f"] },
+  sea: { from: "#6f93d0", to: "#3f8480", link: "#40639f", ink: ["#1a2a4a", "#284068", "#2a5f5c"] },
+  mint: { from: "#66b092", to: "#4a8e9e", link: "#357558", ink: ["#173a2c", "#24543f", "#2d5e68"] },
+};
+export const shareColours = (id: ThemeId): ShareColours => SHARE_COLOURS[themeById(id).accent] ?? SHARE_COLOURS.coral!;
