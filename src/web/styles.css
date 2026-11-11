@@ -5878,3 +5878,46 @@ label.set-row {
 .crop-zoom {
   accent-color: var(--acc);
 }
+
+/* A page one level down on the 管理页 (SubBar.tsx, Ke Li 2026-11-11 option B): the bar of a
+   full-screen panel instead of the site's top bar and the tabs. */
+:root.sub-open .topbar,
+:root.sub-open .hero,
+:root.sub-open .tabs {
+  display: none;
+}
+.sub-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(84px, auto) 1fr minmax(84px, auto);
+  align-items: center;
+  gap: 6px;
+  min-height: 50px;
+  margin: 0 -16px 14px;
+  padding: env(safe-area-inset-top) 8px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+.page:has(.env-banner) .sub-bar {
+  padding-top: 0;
+}
+[data-style="aurora"] .sub-bar {
+  border-color: var(--edge);
+}
+.sub-bar .panel-back {
+  justify-self: start;
+}
+.sub-bar-title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sub-bar + .set-head {
+  margin-top: 0;
+}

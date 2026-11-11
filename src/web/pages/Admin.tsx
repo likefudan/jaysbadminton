@@ -20,6 +20,7 @@ import { ProfileCard } from "../Profile";
 import { has, revokeSummary } from "../organizers";
 import { t, fmtInstant } from "../i18n";
 import { type AdminTab, goDown, goRoot, goUp, useAdminLoc } from "../adminNav";
+import { SubBar } from "../SubBar";
 import { usd } from "../../shared/settle";
 
 export function Admin(props: { token?: string }) {
@@ -218,9 +219,7 @@ function MemberDetail(props: {
   const [res, reload] = useApi<MemberProfile>(`${base}/profile`);
   return (
     <>
-      <button type="button" class="back" onClick={props.onBack}>
-        {t("‹ 成员")}
-      </button>
+      <SubBar back={props.onBack} label={t("成员")} title={res.state === "ok" ? res.data.username : undefined} />
       <Load result={res}>
         {(p) => (
           <ProfileCard

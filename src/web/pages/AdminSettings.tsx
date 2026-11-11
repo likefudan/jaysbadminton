@@ -25,6 +25,7 @@ import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
 import { DunningCard, SettleDeadlineCard, RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
 import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
 import { goDown, goUp, useOnReturn } from "../adminNav";
+import { SubBar } from "../SubBar";
 
 const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames", "boards"] as const;
 type Sub = (typeof SUBS)[number];
@@ -52,13 +53,10 @@ function useSubPages(from: string | undefined, has: readonly Sub[], reload: () =
 }
 
 /** A second-level page under 设置: the way back and its name. */
-function SubPage(props: { title?: string; back: () => void; backLabel?: string; children: ComponentChildren }) {
+function SubPage(props: { title: string; back: () => void; backLabel?: string; children: ComponentChildren }) {
   return (
     <>
-      <button type="button" class="back" onClick={props.back}>
-        {props.backLabel ?? t("‹ 设置")}
-      </button>
-      {props.title && <h2 class="sub-title">{props.title}</h2>}
+      <SubBar back={props.back} label={props.backLabel ?? t("设置")} title={props.title} />
       {props.children}
     </>
   );
@@ -86,7 +84,7 @@ function GroupSubPage(props: {
 }) {
   if (props.sub === "boards")
     return (
-      <SubPage title={t("排行榜")} back={() => props.open("looks")} backLabel={t("‹ 外观和公共页面")}>
+      <SubPage title={t("排行榜")} back={() => props.open("looks")} backLabel={t("外观和公共页面")}>
         <BoardsPage base={props.base} />
       </SubPage>
     );
@@ -98,7 +96,7 @@ function SettingsSubPage(props: { base: string; sub: "looks" | "join" | "appName
   const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
   if (props.sub === "appNames")
     return (
-      <SubPage title={t("名称")} back={() => props.open("looks")} backLabel={t("‹ 外观和公共页面")}>
+      <SubPage title={t("名称")} back={() => props.open("looks")} backLabel={t("外观和公共页面")}>
         <Load result={s}>{(v) => <NamesPage base={props.base} initial={v} />}</Load>
       </SubPage>
     );
@@ -186,7 +184,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
     return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
   if (sub === "sheets")
     return (
-      <SubPage back={() => open("advanced")} backLabel={t("‹ 高级设置")}>
+      <SubPage title={t("Google 表格同步")} back={() => open("advanced")} backLabel={t("高级设置")}>
         <SheetsCard base={props.base} />
       </SubPage>
     );
@@ -430,7 +428,7 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
     return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
   if (sub === "sheets")
     return (
-      <SubPage back={() => open("advanced")} backLabel={t("‹ 高级设置")}>
+      <SubPage title={t("Google 表格同步")} back={() => open("advanced")} backLabel={t("高级设置")}>
         <SheetsCard base={props.base} readOnly />
       </SubPage>
     );
