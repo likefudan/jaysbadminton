@@ -83,8 +83,11 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 .siterow .chev{font-size:18px}
 .seg{display:flex;gap:3px;flex:1}.seg i{flex:1;height:6px;border-radius:3px;background:var(--line)}
 .seg i.d{background:var(--accent)}.seg i.n{background:var(--accent);animation:pulse 1s infinite alternate}
+.linkrow{display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:12px;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.rel{margin-bottom:10px}.rel a.tag{color:inherit;text-decoration:none;font-weight:600}.rel ul{margin:8px 0 0;padding-left:20px}.rel li{margin:4px 0;line-height:1.45}.rel p{margin:8px 0 0}.relon{font-size:13px;margin-top:4px}
 .seg i.f{background:var(--bad)}.seg.bad i.d{opacity:.35}.seg.ok i.d{background:var(--ok)}
 @keyframes pulse{from{opacity:.25}to{opacity:.8}}
+.ptr{position:fixed;top:max(10px,env(safe-area-inset-top));left:50%;background:var(--card);color:var(--muted);padding:6px 14px;border-radius:99px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:9}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:9;max-width:90vw}
 .login{text-align:center;padding:28px 14px}
 `;
@@ -291,6 +294,46 @@ function openPanel(s) {
   document.body.append(panel);
   history.pushState({ panel: true }, "");
 }
+// Every published version with its notes, newest first, 20 at a time.
+function openReleases() {
+  const list = h("div", { class: "list" });
+  const more = h("button", { class: "btn", style: "width:100%;margin-top:4px" }, "加载更多");
+  let page = 0;
+  const one = (r) => {
+    const on = data.sites.filter((s) => s.version === r.tag).map((s) => short(s.name));
+    const pr = (n) => h("a", { href: r.url.split("/releases/")[0] + "/pull/" + n, target: "_blank", rel: "noopener", class: "muted" }, " #" + n);
+    return h("div", { class: "card rel" },
+      h("div", { class: "row" },
+        h("span", {}, h("a", { href: r.url, target: "_blank", rel: "noopener", class: "tag" }, r.tag), r.tag === data.latest ? h("span", { class: "pill", style: "margin-left:8px" }, "最新") : null),
+        h("span", { class: "muted nowrap" }, when(r.date))),
+      on.length ? h("div", { class: "muted relon" }, "在用：" + on.join("、")) : null,
+      r.notes.length ? h("ul", {}, r.notes.map((n) => h("li", {}, n.text, n.pr ? pr(n.pr) : null)))
+        : h("p", { class: "muted" }, "没有说明"));
+  };
+  const next = async () => {
+    more.disabled = true;
+    more.textContent = "读取中…";
+    try {
+      const res = await fetch("/api/releases?page=" + (page + 1));
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || res.status);
+      page++;
+      list.append(...body.releases.map(one));
+      more.hidden = !body.more;
+      more.textContent = "加载更多";
+    } catch (err) {
+      more.textContent = "没读到，点这里重试（" + err.message + "）";
+    }
+    more.disabled = false;
+  };
+  more.addEventListener("click", next);
+  panel = h("div", { class: "panel" },
+    h("header", { class: "top" }, h("button", { class: "back", onclick: closePanel }, "‹ 返回"), h("b", {}, "所有版本"), h("span", { style: "width:40px" })),
+    h("div", { class: "list" }, list, more));
+  document.body.append(panel);
+  history.pushState({ panel: true }, "");
+  next();
+}
 function closePanel() {
   if (!panel) return;
   panel.remove();
@@ -302,7 +345,38 @@ addEventListener("popstate", () => { if (panel) { panel.remove(); panel = null; 
 function render() {
   if (!data.progress) clearInterval(window.__tick);
   app.replaceChildren(data.progress ? progressCard() : heroCard(), h("h3", {}, "各站点"),
-    h("div", { class: "card rows" }, data.sites.map(siteRow)), h("h3", {}, "最近的部署"), deploysCard());
+    h("div", { class: "card rows" }, data.sites.map(siteRow)), h("h3", {}, "最近的部署"), deploysCard(),
+    h("button", { class: "card linkrow", onclick: openReleases }, h("span", {}, "所有版本和发布说明"), h("span", { class: "muted chev" }, "›")));
 }
 load();
+
+// 下拉刷新 for the page added to the home screen, which has no reload button of its own. In a browser
+// tab the browser's own pull-to-refresh does this.
+if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) {
+  const PULL = 70;
+  let startY = null, dy = 0;
+  const tip = h("div", { class: "ptr", role: "status" });
+  const show = () => {
+    if (dy < 12) return tip.remove();
+    tip.textContent = dy >= PULL ? "松开刷新" : "下拉刷新";
+    tip.style.transform = "translate(-50%," + Math.min(dy - PULL, 0) + "px)";
+    if (!tip.isConnected) document.body.append(tip);
+  };
+  addEventListener("touchstart", (e) => {
+    // A panel scrolls on its own; pulling it down is not a refresh.
+    startY = !panel && scrollY <= 0 && e.touches.length === 1 ? e.touches[0].clientY : null;
+    dy = 0;
+  }, { passive: true });
+  addEventListener("touchmove", (e) => {
+    if (startY === null) return;
+    dy = scrollY <= 0 ? Math.max(0, Math.min(e.touches[0].clientY - startY, PULL * 1.6)) : 0;
+    show();
+  }, { passive: true });
+  const end = () => {
+    if (startY !== null && dy >= PULL) { tip.textContent = "刷新中…"; tip.style.transform = "translate(-50%,0)"; location.reload(); return; }
+    startY = null; dy = 0; tip.remove();
+  };
+  addEventListener("touchend", end);
+  addEventListener("touchcancel", end);
+}
 `;

@@ -2,7 +2,7 @@
 // reads /api/state and asks /api/release to start the Release workflow, which backs up, migrates and
 // deploys the chosen sites exactly as when it is run by hand in GitHub.
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { forget, MainMoved, release, state } from "./github";
+import { forget, MainMoved, release, releaseList, state } from "./github";
 import { type Env, pickSites, randomToken, sha256, sign, sites, TAG, unsign } from "./logic";
 import { APP_CSS, APP_JS, page } from "./page";
 
@@ -185,6 +185,16 @@ export default {
         return json(await state(env));
       } catch (err) {
         console.error("ops state failed:", err);
+        return json({ error: `读取失败：${(err as Error).message}` }, 502);
+      }
+    }
+    if (path === "/api/releases" && req.method === "GET") {
+      const n = Number(url.searchParams.get("page") ?? "1");
+      if (!Number.isInteger(n) || n < 1 || n > 50) return json({ error: "页码不对" }, 400);
+      try {
+        return json(await releaseList(env, n));
+      } catch (err) {
+        console.error("ops releases failed:", err);
         return json({ error: `读取失败：${(err as Error).message}` }, 502);
       }
     }

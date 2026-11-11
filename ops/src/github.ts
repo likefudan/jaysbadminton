@@ -4,7 +4,9 @@ import {
   compareTags,
   type Env,
   type Job,
+  type NoteItem,
   nextTag,
+  parseNotes,
   progressOf,
   type Site,
   type SiteProgress,
@@ -261,4 +263,16 @@ export async function release(env: Env, chosen: string[], version: { tag: string
     method: "POST",
     body: JSON.stringify({ ref: "main", inputs: { sites: everySite ? "all" : chosen.join(","), ...version } }),
   });
+}
+
+/** One page of every published version, newest first, with its notes. */
+export async function releaseList(env: Env, page: number) {
+  const per = 20;
+  const list = await gh<
+    { tag_name: string; published_at: string; draft: boolean; body: string | null; html_url: string }[]
+  >(env, `/releases?per_page=${per}&page=${page}`);
+  const releases: { tag: string; date: string; url: string; notes: NoteItem[] }[] = list
+    .filter((r) => !r.draft && TAG.test(r.tag_name))
+    .map((r) => ({ tag: r.tag_name, date: r.published_at, url: r.html_url, notes: parseNotes(r.body) }));
+  return { releases, more: list.length === per };
 }
