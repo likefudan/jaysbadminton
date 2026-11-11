@@ -87,6 +87,7 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 .rel{margin-bottom:10px}.rel a.tag{color:inherit;text-decoration:none;font-weight:600}.rel ul{margin:8px 0 0;padding-left:20px}.rel li{margin:4px 0;line-height:1.45}.rel p{margin:8px 0 0}.relon{font-size:13px;margin-top:4px}
 .seg i.f{background:var(--bad)}.seg.bad i.d{opacity:.35}.seg.ok i.d{background:var(--ok)}
 @keyframes pulse{from{opacity:.25}to{opacity:.8}}
+.ptr{position:fixed;top:max(10px,env(safe-area-inset-top));left:50%;background:var(--card);color:var(--muted);padding:6px 14px;border-radius:99px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:9}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:9;max-width:90vw}
 .login{text-align:center;padding:28px 14px}
 `;
@@ -348,4 +349,34 @@ function render() {
     h("button", { class: "card linkrow", onclick: openReleases }, h("span", {}, "所有版本和发布说明"), h("span", { class: "muted chev" }, "›")));
 }
 load();
+
+// 下拉刷新 for the page added to the home screen, which has no reload button of its own. In a browser
+// tab the browser's own pull-to-refresh does this.
+if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) {
+  const PULL = 70;
+  let startY = null, dy = 0;
+  const tip = h("div", { class: "ptr", role: "status" });
+  const show = () => {
+    if (dy < 12) return tip.remove();
+    tip.textContent = dy >= PULL ? "松开刷新" : "下拉刷新";
+    tip.style.transform = "translate(-50%," + Math.min(dy - PULL, 0) + "px)";
+    if (!tip.isConnected) document.body.append(tip);
+  };
+  addEventListener("touchstart", (e) => {
+    // A panel scrolls on its own; pulling it down is not a refresh.
+    startY = !panel && scrollY <= 0 && e.touches.length === 1 ? e.touches[0].clientY : null;
+    dy = 0;
+  }, { passive: true });
+  addEventListener("touchmove", (e) => {
+    if (startY === null) return;
+    dy = scrollY <= 0 ? Math.max(0, Math.min(e.touches[0].clientY - startY, PULL * 1.6)) : 0;
+    show();
+  }, { passive: true });
+  const end = () => {
+    if (startY !== null && dy >= PULL) { tip.textContent = "刷新中…"; tip.style.transform = "translate(-50%,0)"; location.reload(); return; }
+    startY = null; dy = 0; tip.remove();
+  };
+  addEventListener("touchend", end);
+  addEventListener("touchcancel", end);
+}
 `;
