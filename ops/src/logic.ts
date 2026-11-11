@@ -220,3 +220,26 @@ export function progressOf(jobs: Job[], chosen: string[]): Record<string, SitePr
   }
   return out;
 }
+
+export interface NoteItem {
+  text: string;
+  /** The pull request number, when the line names one. */
+  pr: number | null;
+}
+
+/**
+ * A release's notes as plain lines: GitHub's generated "* title by @who in …/pull/12" lines become the
+ * title and its number; other text lines stay as they are; headings and the "Full Changelog" line go.
+ */
+export function parseNotes(body: string | null): NoteItem[] {
+  const out: NoteItem[] = [];
+  for (const raw of (body ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#") || /^\*\*Full Changelog\*\*/.test(line)) continue;
+    const text = line.replace(/^[*-]\s+/, "");
+    const m = /^(.*?)\s+by\s+@\S+\s+in\s+https:\/\/github\.com\/\S+\/pull\/(\d+)\s*$/.exec(text);
+    if (m) out.push({ text: (m[1] ?? "").trim(), pr: Number(m[2]) });
+    else out.push({ text: text.replace(/\*\*/g, ""), pr: null });
+  }
+  return out;
+}

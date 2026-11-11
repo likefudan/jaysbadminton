@@ -8,6 +8,7 @@ import {
   type Env,
   type Job,
   nextTag,
+  parseNotes,
   pickSites,
   progressOf,
   sign,
@@ -294,5 +295,44 @@ describe("release progress", () => {
 
     const red = progressOf([{ name: "e2e", status: "completed", conclusion: "failure" }], ["coco"]);
     expect(red.coco).toEqual({ done: 0, label: "测试没通过", failed: true });
+  });
+});
+
+describe("all versions and their notes", () => {
+  it("turns GitHub's generated notes into titles with their PR numbers", () => {
+    const body =
+      "## What's Changed\n* 排行榜拖动排序加动画 by @likefudan in https://github.com/likefudan/jaysbadminton/pull/245\n" +
+      "- 手写的一行 **说明**\n\n\n**Full Changelog**: https://github.com/likefudan/jaysbadminton/compare/a...b";
+    expect(parseNotes(body)).toEqual([
+      { text: "排行榜拖动排序加动画", pr: 245 },
+      { text: "手写的一行 说明", pr: null },
+    ]);
+    expect(parseNotes(null)).toEqual([]);
+  });
+
+  it("lists published versions page by page, signed in only", async () => {
+    expect((await call("/api/releases")).status).toBe(401);
+    const asked: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      asked.push(String(input));
+      return Response.json([
+        {
+          tag_name: "v2026.11.10.6",
+          published_at: "2026-11-11T04:27:49Z",
+          draft: false,
+          body: "* A by @x in https://github.com/o/r/pull/9",
+          html_url: "https://github.com/o/r/releases/tag/v2026.11.10.6",
+        },
+        { tag_name: "v2026.11.11", published_at: "2026-11-11T05:00:00Z", draft: true, body: "", html_url: "" },
+      ]);
+    });
+    const res = await call("/api/releases?page=2", { headers: { Cookie: await signedIn() } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { releases: { tag: string; notes: unknown[] }[]; more: boolean };
+    expect(body.releases.map((r) => r.tag)).toEqual(["v2026.11.10.6"]);
+    expect(body.releases[0]?.notes).toEqual([{ text: "A", pr: 9 }]);
+    expect(body.more).toBe(false);
+    expect(asked[0]).toContain("/releases?per_page=20&page=2");
+    expect((await call("/api/releases?page=0", { headers: { Cookie: await signedIn() } })).status).toBe(400);
   });
 });
