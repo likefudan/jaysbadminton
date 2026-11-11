@@ -1,6 +1,7 @@
 import { createPortal } from "preact/compat";
 import { useEffect, useState } from "preact/hooks";
 import { MILESTONES, type MilestoneKey } from "../shared/milestones";
+import { shareColours } from "../shared/themes";
 import type { YearReview } from "../shared/types";
 import { kcalText } from "./Calories";
 import { SectionTitle } from "./components";
@@ -10,7 +11,7 @@ import { Panel } from "./Panel";
 import { Avatar } from "./Avatar";
 import { MeCard, type MeCardProps } from "./Profile";
 import { ShareGlyph, fitText, loadImage, roundRect, shareSans } from "./ShareCard";
-import { useSiteTitle } from "./site";
+import { siteThemeId, useSiteTitle } from "./site";
 
 /** Each badge's name, unit and line icon (24×24 path data, also drawn on the share image). */
 const BADGES: Record<MilestoneKey, { name: string; unit: string; icon: string }> = {
@@ -318,9 +319,10 @@ export async function drawYearCard(siteTitle: string, name: string, r: YearRevie
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d")!;
+  const colours = shareColours(siteThemeId());
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, "#e29a7b");
-  bg.addColorStop(1, "#b5634a");
+  bg.addColorStop(0, colours.from);
+  bg.addColorStop(1, colours.to);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 

@@ -221,6 +221,9 @@ function update(next: Partial<Appearance>) {
   apply();
 }
 
+/** The Owner's default look, which share images use whatever this visitor picked. */
+export const siteThemeId = (): ThemeId => look.site;
+
 /** The Owner's default, from the server or from a change in settings. */
 export function setSiteTheme(theme: string) {
   update({ site: normalizeTheme(theme) });

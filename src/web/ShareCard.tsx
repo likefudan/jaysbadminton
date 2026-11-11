@@ -1,9 +1,10 @@
 import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
 import { eventCardText, type CardText } from "../shared/shareCard";
+import { shareColours } from "../shared/themes";
 import type { EventSummary } from "../shared/types";
 import { CalendarButton, canAddToCalendar } from "./Calendar";
-import { useSiteTitle } from "./site";
+import { siteThemeId, useSiteTitle } from "./site";
 import { currentLang, fmtDate, t } from "./i18n";
 
 const W = 1080;
@@ -61,9 +62,10 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
 
+  const colours = shareColours(siteThemeId());
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, "#e29a7b");
-  bg.addColorStop(1, "#bf6f52");
+  bg.addColorStop(0, colours.from);
+  bg.addColorStop(1, colours.to);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
@@ -78,7 +80,7 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
   const lx = (W - L) / 2;
   const ly = 90;
   ctx.save();
-  ctx.shadowColor = "rgba(80, 30, 10, 0.35)";
+  ctx.shadowColor = "rgba(20, 20, 30, 0.3)";
   ctx.shadowBlur = 40;
   ctx.shadowOffsetY = 12;
   ctx.fillStyle = "#fff";
@@ -112,7 +114,7 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
   const pTop = Math.max(y + 60, PANEL_TOP);
   const pBottom = H - 70;
   ctx.save();
-  ctx.shadowColor = "rgba(80, 30, 10, 0.25)";
+  ctx.shadowColor = "rgba(20, 20, 30, 0.2)";
   ctx.shadowBlur = 30;
   ctx.shadowOffsetY = 8;
   ctx.fillStyle = "#fff";
@@ -122,12 +124,12 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
 
   const Q = Math.min(500, pBottom - pTop - 230);
   const qy = pTop + 50;
-  drawQr(ctx, qr, logo, (W - Q) / 2, qy, Q);
+  drawQr(ctx, qr, logo, (W - Q) / 2, qy, Q, colours.ink);
 
   ctx.fillStyle = "#222";
   ctx.font = `600 42px ${SANS}`;
   ctx.fillText(text.hint, W / 2, qy + Q + 80);
-  ctx.fillStyle = "#bf6f52";
+  ctx.fillStyle = colours.link;
   ctx.font = `500 34px ${MONO}`;
   ctx.fillText(fitText(ctx, text.url.replace(/^https?:\/\//, "").replace(/\/$/, ""), pw - 80), W / 2, qy + Q + 140);
 
@@ -135,8 +137,8 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
 }
 
 /**
- * The QR code in the card's style: round dots shading outward from a deep brown centre to the
- * brand coral, rounded finder eyes, and the logo in the middle. Every colour stays dark enough on
+ * The QR code in the card's style: round dots shading outward from a dark centre to
+ * the site's colour, rounded finder eyes, and the logo in the middle. Every colour stays dark enough on
  * white for phone cameras.
  */
 function drawQr(
@@ -146,15 +148,16 @@ function drawQr(
   x: number,
   y: number,
   size: number,
+  colours: readonly [string, string, string],
 ) {
   const n = m.size;
   const cell = size / n;
   const cx = x + size / 2;
   const cy = y + size / 2;
   const ink = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.72);
-  ink.addColorStop(0, "#5a2214");
-  ink.addColorStop(0.55, "#7e3a24");
-  ink.addColorStop(1, "#9c4a2c");
+  ink.addColorStop(0, colours[0]);
+  ink.addColorStop(0.55, colours[1]);
+  ink.addColorStop(1, colours[2]);
   ctx.fillStyle = ink;
 
   const inEye = (r: number, c: number) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
