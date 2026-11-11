@@ -1120,7 +1120,9 @@ function LikesCard(props: { base: string; initial: GeneralSettings }) {
     <Card title={t("点赞")}>
       <Field label={t("活动结束后多少小时内可以点赞")} type="number" value={hours} onInput={edit(setHours)} />
       <Field label={t("每人最多给百分之几的人点赞（%）")} type="number" value={pct} onInput={edit(setPct)} />
-      <p class="muted small">{t("按到场人数算，向下取整，至少 1 个。比如 20 人、15% 就是每人 3 个。")}</p>
+      <p class="muted small">
+        {t("按到场人数算，向上取整。比如 10 人、15% 就是每人 2 个，20 人是 3 个。自己不能给自己点赞。")}
+      </p>
       {error && <p class="error">{error}</p>}
       <button
         type="button"

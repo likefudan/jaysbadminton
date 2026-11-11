@@ -11,9 +11,9 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "每人最多給百分之幾的人點讚（%）",
     en: "Share of players each person can like (%)",
   },
-  "按到场人数算，向下取整，至少 1 个。比如 20 人、15% 就是每人 3 个。": {
-    tw: "按到場人數算，向下取整，至少 1 個。比如 20 人、15% 就是每人 3 個。",
-    en: "Counted from the players who came, rounded down, at least 1. For example 20 players at 15% gives 3 likes each.",
+  "按到场人数算，向上取整。比如 10 人、15% 就是每人 2 个，20 人是 3 个。自己不能给自己点赞。": {
+    tw: "按到場人數算，向上取整。比如 10 人、15% 就是每人 2 個，20 人是 3 個。自己不能給自己點讚。",
+    en: "Counted from the players who came, rounded up: at 15%, 10 players get 2 likes each and 20 get 3. Nobody can like themselves.",
   },
   "点赞时间请填 1–{n} 小时": { tw: "點讚時間請填 1–{n} 小時", en: "Enter 1–{n} hours for likes" },
   "点赞比例请填 1–100": { tw: "點讚比例請填 1–100", en: "Enter 1–100 for the share of likes" },

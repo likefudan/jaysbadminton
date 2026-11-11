@@ -37,19 +37,21 @@ describe("点赞", () => {
     expect(likeOpen({ ...e, status: "cancelled" as const }, 24, end)).toBe(false);
   });
 
-  it("lets each like a share of the players, rounded down, at least 1", () => {
+  it("lets each like a share of the players, rounded up, at least 1, never more than the others", () => {
     expect(likeCap(20, 15)).toBe(3);
-    expect(likeCap(13, 15)).toBe(1);
+    expect(likeCap(13, 15)).toBe(2);
+    expect(likeCap(10, 15)).toBe(2);
     expect(likeCap(4, 15)).toBe(1);
     expect(likeCap(40, 15)).toBe(6);
-    expect(likeCap(10, 50)).toBe(5);
+    expect(likeCap(3, 100)).toBe(2);
+    expect(likeCap(1, 15)).toBe(1);
   });
 
   it("gives likes up to the share set to others who played, anonymously, and ranks who got the most", async () => {
     const { ctx, e, people } = await played(["Amy", "Bob", "Cat", "Dan", "Eve"]);
     const [amy, bob, cat, dan, eve] = people as [(typeof people)[0], ...typeof people];
 
-    // 5 played: 15% of them rounds down to 0, so 1 each; at 60%, 3 each.
+    // 5 played: 15% of them rounds up to 1 each; at 60%, 3 each.
     expect((await anon.call(`${amy.base}/events/${e.id}/likes`)).data).toMatchObject({ max: 1, hours: 24 });
     expect((await ctx.admin.call(`${ctx.base}/settings`, { likePct: 0 })).status).toBe(400);
     expect((await ctx.admin.call(`${ctx.base}/settings`, { likePct: 60 })).status).toBe(200);
@@ -114,9 +116,9 @@ describe("点赞", () => {
       ["Cat", true],
     ]);
     expect((await like(amy.base, e.id, dan!.id)).status).toBe(400);
-    // With Cat absent, 4 played: 60% of them is 2 each, which Amy already gave.
-    expect((await like(amy.base, e.id, cat!.id, false)).data).toMatchObject({ given: 2, max: 2 });
-    expect((await like(amy.base, e.id, dan!.id)).status).toBe(400);
+    // With Cat absent, 4 played: 60% of them rounds up to 3 each, so taking Cat's back frees one.
+    expect((await like(amy.base, e.id, cat!.id, false)).data).toMatchObject({ given: 2, max: 3 });
+    expect((await like(amy.base, e.id, dan!.id)).data.given).toBe(3);
   });
 
   it("only after the event ends and for the hours set, never on a cancelled one", async () => {

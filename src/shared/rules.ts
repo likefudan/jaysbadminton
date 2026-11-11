@@ -79,5 +79,9 @@ export const DEFAULT_LIKE_HOURS = 24;
 export const LIKE_HOURS_MAX = 720;
 /** …each member may like this share of the people who played (in %), as 设置 says. */
 export const DEFAULT_LIKE_PCT = 15;
-/** How many likes each may give where `players` played (them included): pct of them, rounded down, at least 1. */
-export const likeCap = (players: number, pct: number) => Math.max(1, Math.floor((players * pct) / 100));
+/**
+ * How many likes each may give where `players` played (them included): pct of them rounded up
+ * (Ke Li), at least 1, never more than the others there (nobody likes themselves).
+ */
+export const likeCap = (players: number, pct: number) =>
+  Math.max(1, Math.min(Math.ceil((players * pct) / 100), players - 1));
