@@ -78,7 +78,7 @@ test("admin reorders boards with touch, mouse and keyboard; failed saves restore
       .screenshot({ path: `${process.env.UI_REVIEW_SCREENSHOTS}/leaderboard-detail.png`, animations: "disabled" });
   }
   await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await expect(names).toHaveText(["出勤", "时长", "能量", "进步", "连续", "带朋友", "排队功臣", "早鸟"]);
+  await expect(names).toHaveText(["出勤", "时长", "能量", "进步", "连续", "带朋友", "排队功臣", "早鸟", "点赞"]);
   await expect.poll(() => order[2]).toBe("calories");
   await visit();
   await expect(names.nth(2)).toHaveText("能量");
@@ -117,7 +117,7 @@ test("admin reorders boards with touch, mouse and keyboard; failed saves restore
   await expect(page.locator(".board-item.sorting")).toHaveCount(0);
   await expect(energyHandle).toHaveAttribute("aria-disabled", "false");
   expect(order).toEqual(saved);
-  await expect(names).toHaveText(["出勤", "时长", "能量", "进步", "连续", "带朋友", "排队功臣", "早鸟"]);
+  await expect(names).toHaveText(["出勤", "时长", "能量", "进步", "连续", "带朋友", "排队功臣", "早鸟", "点赞"]);
   // The cancelled animation must stop scrolling too.
   const stoppedAt = await page.evaluate(() => scrollY);
   await page.evaluate(

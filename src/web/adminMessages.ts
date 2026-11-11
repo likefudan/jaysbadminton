@@ -3,6 +3,20 @@
 // and then read over by hand. Kept apart from messages.ts only to keep each file a readable size.
 
 export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
+  活动结束后多少小时内可以点赞: {
+    tw: "活動結束後多少小時內可以點讚",
+    en: "Hours after an event during which likes can be given",
+  },
+  "每人最多给百分之几的人点赞（%）": {
+    tw: "每人最多給百分之幾的人點讚（%）",
+    en: "Share of players each person can like (%)",
+  },
+  "按到场人数算，向上取整。比如 10 人、15% 就是每人 2 个，20 人是 3 个。自己不能给自己点赞。": {
+    tw: "按到場人數算，向上取整。比如 10 人、15% 就是每人 2 個，20 人是 3 個。自己不能給自己點讚。",
+    en: "Counted from the players who came, rounded up: at 15%, 10 players get 2 likes each and 20 get 3. Nobody can like themselves.",
+  },
+  "点赞时间请填 1–{n} 小时": { tw: "點讚時間請填 1–{n} 小時", en: "Enter 1–{n} hours for likes" },
+  "点赞比例请填 1–100": { tw: "點讚比例請填 1–100", en: "Enter 1–100 for the share of likes" },
   "拖动调整「{name}」的顺序，或用上下方向键": {
     tw: "拖動調整「{name}」的順序，或用上下方向鍵",
     en: "Drag to reorder “{name}”, or use the up and down arrow keys",

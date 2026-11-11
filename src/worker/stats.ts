@@ -13,6 +13,7 @@ import {
 import { MILESTONES, type MilestoneKey, tierOf } from "../shared/milestones";
 import { avatarsById, avatarUrl } from "./avatars";
 import { getSettings } from "./db";
+import { COUNTED_LIKE } from "./likes";
 import type { Env } from "./env";
 
 /**
@@ -116,6 +117,8 @@ interface Extra {
   /** 排队: each 球馆账号 added and each court entry put in, by who did it (queue_credits). */
   queue: { member_id: string; date: string }[];
   calories: { member_id: string; date: string; kcal: number }[];
+  /** 点赞: each like received, by whom it went to. */
+  likes: { member_id: string; date: string }[];
   names: Map<string, string>;
 }
 
@@ -153,7 +156,7 @@ function longestRun(events: Iterable<number>, present: (id: number) => boolean):
 const toHours = (min: number) => Math.round(min / 6) / 10;
 
 async function extra(env: Env, since: string): Promise<Extra> {
-  const [early, queue, calories, members] = await env.DB.batch([
+  const [early, queue, calories, likes, members] = await env.DB.batch([
     earlyQuery(env, "e.date >= ?", since),
     env.DB.prepare(
       `SELECT q.member_id, e.date FROM queue_credits q JOIN events e ON e.id = q.event_id
@@ -166,12 +169,18 @@ async function extra(env: Env, since: string): Promise<Extra> {
        JOIN registrations r ON r.event_id = c.event_id AND r.member_id = c.member_id AND r.friend_index = 0
        WHERE e.status != 'cancelled' AND m.calorie_board = 1 AND r.attended = 1 AND e.date >= ?`,
     ).bind(since),
+    // 点赞: likes count as soon as they're given, before the event is settled (the board is about
+    // the people, not the money), unless the event is cancelled or either one marked absent.
+    env.DB.prepare(`SELECT l.to_member AS member_id, le.date FROM likes l ${COUNTED_LIKE} WHERE le.date >= ?`).bind(
+      since,
+    ),
     env.DB.prepare("SELECT id, username FROM members WHERE status = 'active'"),
   ]);
   return {
     early: early!.results as Extra["early"],
     queue: queue!.results as Extra["queue"],
     calories: calories!.results as Extra["calories"],
+    likes: likes!.results as Extra["likes"],
     names: new Map((members!.results as { id: string; username: string }[]).map((m) => [m.id, m.username])),
   };
 }
@@ -213,6 +222,7 @@ function boards(
   for (const e of x.early) if (inside(e.date)) add(tallies.early, e.member_id, x.names.get(e.member_id));
   for (const q of x.queue) if (inside(q.date)) add(tallies.queue, q.member_id, x.names.get(q.member_id));
   for (const c of x.calories) if (inside(c.date)) add(tallies.calories, c.member_id, x.names.get(c.member_id), c.kcal);
+  for (const l of x.likes) if (inside(l.date)) add(tallies.likes, l.member_id, x.names.get(l.member_id));
 
   // Hours to one decimal, from minutes, before ranking: the same hours shown share a rank.
   for (const h of tallies.hours.values()) h.value = toHours(h.value);

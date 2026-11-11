@@ -30,6 +30,7 @@ const TABLES = [
   "queue_courts",
   "queue_accounts",
   "queue_credits",
+  "likes",
   "member_avatars",
   "events",
   "locations",

@@ -26,6 +26,7 @@ import {
 import { formatInstantZh, isDate, isTime, pacificToUtc, toPacific } from "../../shared/time";
 import { getSettings, now, setSetting } from "../db";
 import { calorieReadDays, shortcutSetting } from "../calories";
+import { likeSettings } from "../likes";
 import { SHORTCUT_URL_RE } from "../../shared/calories";
 import { QUEUE_ACCOUNTS_VIEWS, type QueueAccountsView } from "../../shared/courtQueue";
 import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
@@ -124,7 +125,7 @@ import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
 import { MODEL_RE, aiChoices, aiSettingKey, azureDeployments } from "../ai";
 import { AI_EFFORTS, AI_USES, AI_USE_NAME, type AiEffort } from "../../shared/ai";
 import { autoJoinCap, autoJoinEnabled } from "../joining";
-import { APP_NAME_MAX, SITE_LANGS, checkAutoJoinCap } from "../../shared/rules";
+import { APP_NAME_MAX, LIKE_HOURS_MAX, SITE_LANGS, checkAutoJoinCap } from "../../shared/rules";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -806,6 +807,7 @@ adminEventRoutes.get("/settings", async (c) => {
     friendCap: await friendCap(c.env),
     pastEventDays: await pastEventDays(c.env),
     calorieReadDays: await calorieReadDays(c.env),
+    likes: await likeSettings(c.env),
     idleAlertPct: await idleAlertPct(c.env),
     queueAccountsView: await queueAccountsView(c.env),
     calorieShortcut: await shortcutSetting(c.env),
@@ -861,6 +863,18 @@ adminEventRoutes.post("/settings", async (c) => {
       throw badRequest(`读取卡路里天数请填 1–${DAYS_SETTING_MAX}`);
     writes.push(setSetting(c.env.DB, "calorie_read_days", String(n)));
     said.push(`活动开始后 ${n} 天内可以读取卡路里`);
+  }
+  if (b.likeHours !== undefined) {
+    const n = num(b.likeHours);
+    if (!Number.isInteger(n) || n < 1 || n > LIKE_HOURS_MAX) throw badRequest(`点赞时间请填 1–${LIKE_HOURS_MAX} 小时`);
+    writes.push(setSetting(c.env.DB, "like_hours", String(n)));
+    said.push(`活动结束后 ${n} 小时内可以点赞`);
+  }
+  if (b.likePct !== undefined) {
+    const n = num(b.likePct);
+    if (!Number.isInteger(n) || n < 1 || n > 100) throw badRequest("点赞比例请填 1–100");
+    writes.push(setSetting(c.env.DB, "like_pct", String(n)));
+    said.push(`每人最多给 ${n}% 的人点赞`);
   }
   if (b.idleAlertPct !== undefined) {
     const n = num(b.idleAlertPct);
