@@ -26,11 +26,14 @@ import { useApi } from "../hooks";
 import { has } from "../organizers";
 import { Billing } from "./AdminSettle";
 import { t, fmtDate, fmtInstant, tk } from "../i18n";
+import { goDown, goReplace, goUp, useOnReturn } from "../adminNav";
 
 const PAST_PAGE = 30;
 
 export function EventsTab(props: {
   base: string;
+  /** The event open (or 新建活动), from the address (adminNav.ts). */
+  event?: number | "new";
   members: MemberSummary[];
   organizers: OrganizersBlock | null;
   viewer: AdminViewer;
@@ -47,7 +50,12 @@ export function EventsTab(props: {
     /** With `group`: everyone who has run an event. */
     managers?: { id: string; name: string }[];
   }>(path);
-  const [mode, setMode] = useState<"list" | "create" | number>("list");
+  const mode = props.event === undefined ? "list" : props.event === "new" ? "create" : props.event;
+  // The list again on the way back from an event, with what changed there.
+  useOnReturn(mode === "list", reload);
+  // Kept underneath once seen, not drawn for an event opened straight from a push.
+  const listSeen = useRef(false);
+  if (mode === "list") listSeen.current = true;
   const owner = props.members.find((m) => m.isOwner);
   // Past managers (organizers since revoked) can be picked too: the list names everyone who ran one.
   const current = new Set([owner?.id, ...(props.organizers?.list ?? []).map((o) => o.id)]);
@@ -58,85 +66,94 @@ export function EventsTab(props: {
   const shown: typeof list =
     list.state !== "loading" && filterOf(list.path) !== filterOf(path) ? { state: "loading" } : list;
 
-  if (mode === "create") {
-    return (
-      <CreateEvent
-        base={props.base}
-        owner={has(props.viewer, "group")}
-        onDone={(id) => {
-          reload();
-          setMode(id ?? "list");
-        }}
-      />
-    );
-  }
-  if (typeof mode === "number") {
-    return (
-      <EventAdmin
-        base={props.base}
-        id={mode}
-        members={props.members}
-        organizers={props.organizers}
-        viewer={props.viewer}
-        onBack={() => {
-          reload();
-          setMode("list");
-        }}
-      />
-    );
-  }
+  // The list stays underneath, hidden, so coming back finds it as it was, scrolled where it was.
   return (
     <>
-      <button type="button" class="button block" onClick={() => setMode("create")}>
-        {t("＋ 新建活动")}
-      </button>
-      {byManager && (
-        <label class="field">
-          <span>{t("负责人")}</span>
-          <select value={manager} onChange={(e) => setManager((e.target as HTMLSelectElement).value)}>
-            <option value="">{t("所有负责人")}</option>
-            {owner && <option value={owner.id}>{t("群主（{name}）", { name: owner.username })}</option>}
-            {props.organizers!.list.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.username}
-              </option>
-            ))}
-            {formerManagers.map((o) => (
-              <option key={o.id} value={o.id}>
-                {t("{name}（已卸任）", { name: o.name })}
-              </option>
-            ))}
-          </select>
-        </label>
+      {mode === "create" && (
+        <CreateEvent
+          base={props.base}
+          owner={has(props.viewer, "group")}
+          onDone={(id) => {
+            if (id === undefined) goUp({ tab: "events" });
+            else goReplace({ tab: "events", event: id });
+          }}
+        />
       )}
-      <Load result={shown}>
-        {(l) => (
-          <>
-            <Card title={t("进行中")}>
-              {l.current.length === 0 && <Empty>{t("没有进行中的活动")}</Empty>}
-              {l.current.map((e) => (
-                <EventRow key={e.id} e={e} manager={byManager} onOpen={() => setMode(e.id)} />
-              ))}
-            </Card>
-            {l.past.length > 0 && (
-              <Card title={t("已结束")}>
-                {l.past.map((e) => (
-                  <EventRow key={e.id} e={e} manager={byManager} onOpen={() => setMode(e.id)} />
+      {typeof mode === "number" && (
+        <EventAdmin
+          key={mode}
+          base={props.base}
+          id={mode}
+          members={props.members}
+          organizers={props.organizers}
+          viewer={props.viewer}
+          onBack={() => goUp({ tab: "events" })}
+        />
+      )}
+      {listSeen.current && (
+        <div hidden={mode !== "list"}>
+          <button type="button" class="button block" onClick={() => goDown({ tab: "events", event: "new" })}>
+            {t("＋ 新建活动")}
+          </button>
+          {byManager && (
+            <label class="field">
+              <span>{t("负责人")}</span>
+              <select value={manager} onChange={(e) => setManager((e.target as HTMLSelectElement).value)}>
+                <option value="">{t("所有负责人")}</option>
+                {owner && <option value={owner.id}>{t("群主（{name}）", { name: owner.username })}</option>}
+                {props.organizers!.list.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.username}
+                  </option>
                 ))}
-                {l.morePast && (
-                  <button
-                    type="button"
-                    class="button secondary block"
-                    onClick={() => setPastShown((n) => n + PAST_PAGE)}
-                  >
-                    {t("显示更早的活动")}
-                  </button>
+                {formerManagers.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {t("{name}（已卸任）", { name: o.name })}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <Load result={shown}>
+            {(l) => (
+              <>
+                <Card title={t("进行中")}>
+                  {l.current.length === 0 && <Empty>{t("没有进行中的活动")}</Empty>}
+                  {l.current.map((e) => (
+                    <EventRow
+                      key={e.id}
+                      e={e}
+                      manager={byManager}
+                      onOpen={() => goDown({ tab: "events", event: e.id })}
+                    />
+                  ))}
+                </Card>
+                {l.past.length > 0 && (
+                  <Card title={t("已结束")}>
+                    {l.past.map((e) => (
+                      <EventRow
+                        key={e.id}
+                        e={e}
+                        manager={byManager}
+                        onOpen={() => goDown({ tab: "events", event: e.id })}
+                      />
+                    ))}
+                    {l.morePast && (
+                      <button
+                        type="button"
+                        class="button secondary block"
+                        onClick={() => setPastShown((n) => n + PAST_PAGE)}
+                      >
+                        {t("显示更早的活动")}
+                      </button>
+                    )}
+                  </Card>
                 )}
-              </Card>
+              </>
             )}
-          </>
-        )}
-      </Load>
+          </Load>
+        </div>
+      )}
     </>
   );
 }
@@ -242,7 +259,7 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
           {t("创建活动")}
         </button>
         <button class="button secondary block" type="button" onClick={() => props.onDone()}>
-          {t("返回")}
+          {t("取消")}
         </button>
       </form>
     </Card>
@@ -949,7 +966,7 @@ function MySignup(props: {
             {signedUp ? t("保存修改") : t("确认报名")}
           </button>
           <button type="button" class="button secondary block" disabled={busy} onClick={() => setEditing(false)}>
-            {t("返回")}
+            {t("取消")}
           </button>
         </>
       )}

@@ -538,7 +538,9 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await settle();
   await expect(page.getByText("请先在收款设置里填好 Venmo 和通知邮箱")).toBeVisible();
 
-  await page.getByRole("button", { name: "‹ 所有活动" }).click();
+  // The system's back (the iPhone's edge swipe) goes up to the list too, not off the 管理页.
+  await page.goBack();
+  await expect(page.getByRole("button", { name: "＋ 新建活动" })).toBeVisible();
   await tabs.getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "修改群主密码" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "不再当组织者" })).toBeVisible();
