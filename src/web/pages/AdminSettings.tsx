@@ -24,34 +24,29 @@ import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
 import { DunningCard, SettleDeadlineCard, RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
 import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
+import { goDown, goUp, useOnReturn } from "../adminNav";
 
 const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames", "boards"] as const;
 type Sub = (typeof SUBS)[number];
-
-/**
- * The sub-page named in ?sub= (Google sign-in comes back to 账号与安全 this way), taken off the
- * address once read so 设置 opens on the menu next time.
- */
-function initialSub(): Sub | null {
-  const params = new URLSearchParams(location.search);
-  const s = params.get("sub");
-  if (s === null) return null;
-  params.delete("sub");
-  const q = params.toString();
-  history.replaceState(history.state, "", `${location.pathname}${q ? `?${q}` : ""}${location.hash}`);
-  return SUBS.includes(s as Sub) ? (s as Sub) : null;
-}
+/** An admin's 设置 has all but 账号与安全. */
+const ADMIN_SUBS = SUBS.filter((s) => s !== "security");
 
 /**
  * 设置 (Ke Li 2026-11-05, option B): one menu, each group on its own page, since these are rarely
- * changed. The menu shows each group's current value; it reloads on the way back.
+ * changed. The sub-page is in the address (?sub=, adminNav.ts): Google sign-in comes back to
+ * 账号与安全 that way, and the system's back goes up a level. The menu shows each group's current
+ * value; it reloads on the way back.
  */
-function useSubPages(reload: () => void) {
-  const [sub, setSub] = useState<Sub | null>(initialSub);
+const PARENT: Partial<Record<Sub, Sub>> = { sheets: "advanced", appNames: "looks", boards: "looks" };
+
+function useSubPages(from: string | undefined, has: readonly Sub[], reload: () => void) {
+  // Only the pages this person's 设置 has: an admin given a link to 账号与安全 gets the menu.
+  const sub = has.includes(from as Sub) ? (from as Sub) : null;
+  useOnReturn(sub === null, reload);
   const open = (s: Sub | null) => {
-    setSub(s);
-    if (s === null) reload();
-    window.scrollTo(0, 0);
+    const up = s === null || PARENT[sub ?? ("" as Sub)] === s;
+    if (up) goUp({ tab: "settings", sub: s ?? undefined });
+    else goDown({ tab: "settings", sub: s });
   };
   return [sub, open] as const;
 }
@@ -168,11 +163,11 @@ function telegramValue(s: Loaded<TelegramStatus>) {
 const venmoValue = (name: string | undefined) => (name ? `@${name}` : <span class="muted">{t("未填写")}</span>);
 
 /** 设置 for the Owner: the menu, 使用指南 and 退出登录; everything else one level down. */
-export function Settings(props: { base: string; viaGoogle: boolean }) {
+export function Settings(props: { base: string; sub?: string; viaGoogle: boolean }) {
   const [general, reloadGeneral] = useApi<GeneralSettings>(`${props.base}/settings`);
   // Shared by the Telegram card and 使用指南's checklist.
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
-  const [sub, open] = useSubPages(() => {
+  const [sub, open] = useSubPages(props.sub, SUBS, () => {
     reloadGeneral();
     reloadTelegram();
   });
@@ -420,12 +415,12 @@ export function OrganizerSettings(props: { base: string }) {
  * Telegram, the group's reminders, export and the Sheets status. The password, admin link, backup
  * key, the Owner's Google sign-in and payment settings, and 清空数据 stay the Owner's.
  */
-export function AdminRoleSettings(props: { base: string }) {
+export function AdminRoleSettings(props: { base: string; sub?: string }) {
   const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
   const p = profile.state === "ok" ? profile.data : null;
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
   const [general, reloadGeneral] = useApi<GeneralSettings>(`${props.base}/settings`);
-  const [sub, open] = useSubPages(() => {
+  const [sub, open] = useSubPages(props.sub, ADMIN_SUBS, () => {
     reloadGeneral();
     reloadTelegram();
   });

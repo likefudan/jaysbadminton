@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type {
   AuditEntry,
   ApprovalEmailStatus,
@@ -19,17 +19,16 @@ import { AdminRoleSettings, OrganizerSettings, Settings } from "./AdminSettings"
 import { ProfileCard } from "../Profile";
 import { has, revokeSummary } from "../organizers";
 import { t, fmtInstant } from "../i18n";
+import { type AdminTab, goDown, goRoot, goUp, useAdminLoc } from "../adminNav";
 import { usd } from "../../shared/settle";
-
-type Tab = "events" | "inbound" | "pending" | "members" | "settings";
 
 export function Admin(props: { token?: string }) {
   const base = `/api/admin/${props.token}`;
   const [members, reload] = useApi<MembersResponse>(`${base}/members`);
-  const [tab, setTab] = useState<Tab>(() => {
-    const t = new URLSearchParams(location.search).get("tab");
-    return t === "settings" || t === "members" || t === "pending" ? t : "events";
-  });
+  const loc = useAdminLoc();
+  const tab = loc.tab;
+  // Tapping a tab, the one already open too, opens its first page.
+  const setTab = (t: AdminTab) => goRoot({ tab: t });
 
   if (members.state === "error" && members.code === "developer_login_required")
     return (
@@ -87,18 +86,18 @@ export function Admin(props: { token?: string }) {
               </button>
             </div>
             {tab === "events" && (
-              <EventsTab base={base} members={m.active} organizers={m.organizers} viewer={m.viewer} />
+              <EventsTab base={base} event={loc.event} members={m.active} organizers={m.organizers} viewer={m.viewer} />
             )}
             {tab === "inbound" && <InboundTab base={base} owner={has(m.viewer, "owner")} />}
             {tab === "pending" && (
               <Pending base={base} list={m.pending} readOnly={!has(m.viewer, "group")} onChange={reload} />
             )}
-            {tab === "members" && <Members base={base} data={m} onChange={reload} />}
+            {tab === "members" && <Members base={base} open={loc.member} data={m} onChange={reload} />}
             {tab === "settings" &&
               (has(m.viewer, "owner") ? (
-                <Settings base={base} viaGoogle={props.token === "google"} />
+                <Settings base={base} sub={loc.sub} viaGoogle={props.token === "google"} />
               ) : has(m.viewer, "group") ? (
-                <AdminRoleSettings base={base} />
+                <AdminRoleSettings base={base} sub={loc.sub} />
               ) : (
                 <OrganizerSettings base={base} />
               ))}
@@ -128,7 +127,10 @@ function GoogleAdminLogin() {
         <button
           type="button"
           class="button block"
-          onClick={() => location.assign("/api/auth/google?next=/admin/google")}
+          // Back to the very page asked for, e.g. one event from a 结算提醒.
+          onClick={() =>
+            location.assign(`/api/auth/google?next=${encodeURIComponent(location.pathname + location.search)}`)
+          }
         >
           {other ? t("换一个 Google 账号登录") : t("使用 Google 登录")}
         </button>
@@ -367,14 +369,18 @@ function GoogleProgress(props: { data: MembersResponse }) {
  * 成员: the Owner and admins manage it; organizers see the same lists read-only (no links, notes,
  * appointing or 停用). Admins leave the Owner's and admins' rows alone (access.ts memberTarget).
  */
-function Members(props: { base: string; data: MembersResponse; onChange: () => void }) {
+function Members(props: { base: string; open?: string; data: MembersResponse; onChange: () => void }) {
   const readOnly = !has(props.data.viewer, "group");
   /** Appointing, demoting and revoking admins, and deleting members: the Owner's alone. */
   const ownerView = has(props.data.viewer, "owner");
   /** Links, 停用 and the rest on this row: an admin may not act on the Owner or an admin, themselves included. */
   const mayActOn = (m: MemberSummary) => ownerView || (!m.isOwner && !m.isAdmin);
   const [shown, setShown] = useState<{ name: string; link: string; fresh: boolean } | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  const open = props.open ?? null;
+  // Kept underneath once seen, not drawn for a member opened straight from a link.
+  const listSeen = useRef(false);
+  if (!open) listSeen.current = true;
+  const setOpen = (id: string) => goDown({ tab: "members", member: id });
   const { busy, error, run } = useAction();
   const [emailMessage, setEmailMessage] = useState("");
   async function retryEmail(m: MemberSummary) {
@@ -538,175 +544,179 @@ function Members(props: { base: string; data: MembersResponse; onChange: () => v
     if (await run(() => api(`${props.base}/members/${m.id}/delete`, {}))) props.onChange();
   }
 
-  if (open)
-    return (
-      <MemberDetail
-        base={props.base}
-        id={open}
-        readOnly={readOnly}
-        organizers={!!props.data.organizers}
-        onBack={() => setOpen(null)}
-        onChange={props.onChange}
-      />
-    );
-
+  // The list stays underneath, hidden, so coming back finds it as it was, scrolled where it was.
   return (
     <>
-      {shown && (
-        <Card>
-          <LinkCard
-            title={t("{name} 的专属链接", { name: shown.name })}
-            link={shown.link}
-            note={shown.fresh ? t("已生成新链接，旧链接已失效。请重新发给对方。") : undefined}
-          />
-          <button type="button" class="button secondary block" onClick={() => setShown(null)}>
-            {t("关闭")}
-          </button>
-        </Card>
-      )}
-      {props.data.organizers && (
-        <Organizers
-          block={props.data.organizers}
-          ownerView={ownerView}
-          busy={busy}
-          onRevoke={(o) => revoke({ ...o, admin: o.role === "admin" })}
+      {open && (
+        <MemberDetail
+          key={open}
+          base={props.base}
+          id={open}
+          readOnly={readOnly}
+          organizers={!!props.data.organizers}
+          onBack={() => goUp({ tab: "members" })}
+          onChange={props.onChange}
         />
       )}
-      <GoogleProgress data={props.data} />
-      <Card title={t("成员（{n}）", { n: props.data.active.length })}>
-        {emailMessage && <p role="status">{emailMessage}</p>}
-        {error && <p class="error">{error}</p>}
-        {props.data.active.length === 0 && <Empty>{t("还没有成员")}</Empty>}
-        {props.data.active.map((m) => (
-          <div class="row" key={m.id}>
-            {who(m, openMember)}
-            {!readOnly && mayActOn(m) && (
-              <div class="actions">
-                {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && (
-                  <button type="button" class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>
-                    {t("重试审核邮件")}
-                  </button>
-                )}
-                {/* Bound to Google: no 专属链接 to show or make (Ke Li 2026-11-04). */}
-                {!m.googleEmail && m.hasLink && (
-                  <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
-                    {t("链接")}
-                  </button>
-                )}
-                {!m.googleEmail && (
-                  <button type="button" class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
-                    {m.hasLink ? t("重新生成") : t("生成备用链接")}
-                  </button>
-                )}
-                {props.data.organizers?.canManage && !m.isOwner && !m.isOrganizer && !m.isAdmin && (
-                  <button type="button" class="button secondary" disabled={busy} onClick={() => appoint(m)}>
-                    {t("设为组织者")}
-                  </button>
-                )}
-                {props.data.organizers && ownerView && !m.isOwner && !m.isAdmin && (
-                  <button type="button" class="button secondary" disabled={busy} onClick={() => appointAdmin(m)}>
-                    {m.isOrganizer ? t("升为管理员") : t("设为管理员")}
-                  </button>
-                )}
-                {props.data.organizers?.canManage && m.isOrganizer && (
-                  <button
-                    type="button"
-                    class="button secondary"
-                    disabled={busy}
-                    onClick={() => revoke({ ...m, admin: false })}
-                  >
-                    {t("撤销组织者")}
-                  </button>
-                )}
-                {props.data.organizers && ownerView && m.isAdmin && (
-                  <>
-                    <button type="button" class="button secondary" disabled={busy} onClick={() => demoteAdmin(m)}>
-                      {t("降为组织者")}
-                    </button>
-                    <button
-                      type="button"
-                      class="button secondary"
-                      disabled={busy}
-                      onClick={() => revoke({ ...m, admin: true })}
-                    >
-                      {t("撤销管理员")}
-                    </button>
-                  </>
-                )}
-                {!m.isOwner && (
-                  <button type="button" class="button danger" disabled={busy} onClick={() => deactivate(m)}>
-                    {t("停用")}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </Card>
-      {props.data.inactive.length > 0 && (
-        <Card>
-          <details class="fold">
-            <summary>{t("已停用（{n}）", { n: props.data.inactive.length })}</summary>
-            <p class="muted small">{t("已停用的成员不能报名，但还能打开专属链接付清欠款。")}</p>
-            {props.data.inactive.map((m) => (
+      {listSeen.current && (
+        <div hidden={!!open}>
+          {shown && (
+            <Card>
+              <LinkCard
+                title={t("{name} 的专属链接", { name: shown.name })}
+                link={shown.link}
+                note={shown.fresh ? t("已生成新链接，旧链接已失效。请重新发给对方。") : undefined}
+              />
+              <button type="button" class="button secondary block" onClick={() => setShown(null)}>
+                {t("关闭")}
+              </button>
+            </Card>
+          )}
+          {props.data.organizers && (
+            <Organizers
+              block={props.data.organizers}
+              ownerView={ownerView}
+              busy={busy}
+              onRevoke={(o) => revoke({ ...o, admin: o.role === "admin" })}
+            />
+          )}
+          <GoogleProgress data={props.data} />
+          <Card title={t("成员（{n}）", { n: props.data.active.length })}>
+            {emailMessage && <p role="status">{emailMessage}</p>}
+            {error && <p class="error">{error}</p>}
+            {props.data.active.length === 0 && <Empty>{t("还没有成员")}</Empty>}
+            {props.data.active.map((m) => (
               <div class="row" key={m.id}>
-                <div class="who">
-                  <button type="button" class="who-link" onClick={() => openMember(m)}>
-                    <span class="who-name">{m.username}</span>
-                    {m.adminNote && <span class="note">{t("备注：{note}", { note: m.adminNote })}</span>}
-                  </button>
-                  <small>
-                    {m.id} · {m.wechatNickname}
-                    {m.owingCents > 0 && (
-                      <span class="error"> · {t("欠 {amount}", { amount: usd(m.owingCents) })}</span>
-                    )}
-                  </small>
-                </div>
-                {!readOnly && (
+                {who(m, openMember)}
+                {!readOnly && mayActOn(m) && (
                   <div class="actions">
-                    {m.googleEmail ? null : m.hasLink ? (
+                    {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && (
+                      <button type="button" class="button secondary" disabled={busy} onClick={() => retryEmail(m)}>
+                        {t("重试审核邮件")}
+                      </button>
+                    )}
+                    {/* Bound to Google: no 专属链接 to show or make (Ke Li 2026-11-04). */}
+                    {!m.googleEmail && m.hasLink && (
                       <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
                         {t("链接")}
                       </button>
-                    ) : (
-                      <button type="button" class="button secondary" disabled={busy} onClick={() => newLink(m)}>
-                        {t("生成链接")}
+                    )}
+                    {!m.googleEmail && (
+                      <button type="button" class="button secondary" disabled={busy} onClick={() => regenerate(m)}>
+                        {m.hasLink ? t("重新生成") : t("生成备用链接")}
                       </button>
                     )}
-                    <button type="button" class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
-                      {t("恢复")}
-                    </button>
-                    {ownerView && (
+                    {props.data.organizers?.canManage && !m.isOwner && !m.isOrganizer && !m.isAdmin && (
+                      <button type="button" class="button secondary" disabled={busy} onClick={() => appoint(m)}>
+                        {t("设为组织者")}
+                      </button>
+                    )}
+                    {props.data.organizers && ownerView && !m.isOwner && !m.isAdmin && (
+                      <button type="button" class="button secondary" disabled={busy} onClick={() => appointAdmin(m)}>
+                        {m.isOrganizer ? t("升为管理员") : t("设为管理员")}
+                      </button>
+                    )}
+                    {props.data.organizers?.canManage && m.isOrganizer && (
                       <button
                         type="button"
-                        class="button danger"
-                        disabled={busy || m.owingCents > 0}
-                        onClick={() => remove(m)}
+                        class="button secondary"
+                        disabled={busy}
+                        onClick={() => revoke({ ...m, admin: false })}
                       >
-                        {t("删除")}
+                        {t("撤销组织者")}
+                      </button>
+                    )}
+                    {props.data.organizers && ownerView && m.isAdmin && (
+                      <>
+                        <button type="button" class="button secondary" disabled={busy} onClick={() => demoteAdmin(m)}>
+                          {t("降为组织者")}
+                        </button>
+                        <button
+                          type="button"
+                          class="button secondary"
+                          disabled={busy}
+                          onClick={() => revoke({ ...m, admin: true })}
+                        >
+                          {t("撤销管理员")}
+                        </button>
+                      </>
+                    )}
+                    {!m.isOwner && (
+                      <button type="button" class="button danger" disabled={busy} onClick={() => deactivate(m)}>
+                        {t("停用")}
                       </button>
                     )}
                   </div>
                 )}
               </div>
             ))}
-          </details>
-        </Card>
+          </Card>
+          {props.data.inactive.length > 0 && (
+            <Card>
+              <details class="fold">
+                <summary>{t("已停用（{n}）", { n: props.data.inactive.length })}</summary>
+                <p class="muted small">{t("已停用的成员不能报名，但还能打开专属链接付清欠款。")}</p>
+                {props.data.inactive.map((m) => (
+                  <div class="row" key={m.id}>
+                    <div class="who">
+                      <button type="button" class="who-link" onClick={() => openMember(m)}>
+                        <span class="who-name">{m.username}</span>
+                        {m.adminNote && <span class="note">{t("备注：{note}", { note: m.adminNote })}</span>}
+                      </button>
+                      <small>
+                        {m.id} · {m.wechatNickname}
+                        {m.owingCents > 0 && (
+                          <span class="error"> · {t("欠 {amount}", { amount: usd(m.owingCents) })}</span>
+                        )}
+                      </small>
+                    </div>
+                    {!readOnly && (
+                      <div class="actions">
+                        {m.googleEmail ? null : m.hasLink ? (
+                          <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
+                            {t("链接")}
+                          </button>
+                        ) : (
+                          <button type="button" class="button secondary" disabled={busy} onClick={() => newLink(m)}>
+                            {t("生成链接")}
+                          </button>
+                        )}
+                        <button type="button" class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
+                          {t("恢复")}
+                        </button>
+                        {ownerView && (
+                          <button
+                            type="button"
+                            class="button danger"
+                            disabled={busy || m.owingCents > 0}
+                            onClick={() => remove(m)}
+                          >
+                            {t("删除")}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </details>
+            </Card>
+          )}
+          {props.data.deleted.length > 0 && (
+            <Card>
+              <details class="fold">
+                <summary>{t("已删除（{n}）", { n: props.data.deleted.length })}</summary>
+                <p class="muted small">{t("专属链接已失效；以前的报名和付款记录仍然保留在统计和导出里。")}</p>
+                {props.data.deleted.map((m) => (
+                  <div class="row" key={m.id}>
+                    {who(m, openMember)}
+                  </div>
+                ))}
+              </details>
+            </Card>
+          )}
+          {!readOnly && <GroupLog base={props.base} />}
+        </div>
       )}
-      {props.data.deleted.length > 0 && (
-        <Card>
-          <details class="fold">
-            <summary>{t("已删除（{n}）", { n: props.data.deleted.length })}</summary>
-            <p class="muted small">{t("专属链接已失效；以前的报名和付款记录仍然保留在统计和导出里。")}</p>
-            {props.data.deleted.map((m) => (
-              <div class="row" key={m.id}>
-                {who(m, openMember)}
-              </div>
-            ))}
-          </details>
-        </Card>
-      )}
-      {!readOnly && <GroupLog base={props.base} />}
     </>
   );
 }

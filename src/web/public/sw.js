@@ -43,7 +43,11 @@ self.addEventListener("notificationclick", (event) => {
       const url = new URL(own?.startsWith("/m/") ? own : event.notification.data?.url || "/", self.location.origin);
       const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const client of open) {
-        if (new URL(client.url).pathname === url.pathname && "focus" in client) return client.focus();
+        if (new URL(client.url).pathname !== url.pathname || !("focus" in client)) continue;
+        // A 结算提醒 names one event: the open 管理页 goes there itself (adminNav.ts), keeping its history.
+        if (url.search && new URL(client.url).search !== url.search)
+          client.postMessage({ open: url.pathname + url.search });
+        return client.focus();
       }
       return self.clients.openWindow(url.href);
     })(),

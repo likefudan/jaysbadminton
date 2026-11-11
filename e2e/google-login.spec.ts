@@ -188,7 +188,7 @@ test("the admin gets in with the bound Google account; another account is told s
   await page.goto("/admin/google");
   await expect(page.getByText("当前登录的 Google 账号 someone@gmail.com 不是群主绑定的账号。")).toBeVisible();
   await page.getByRole("button", { name: "换一个 Google 账号登录" }).click();
-  await expect(page).toHaveURL(/\/api\/auth\/google\?next=\/admin\/google$/);
+  await expect(page).toHaveURL(/\/api\/auth\/google\?next=%2Fadmin%2Fgoogle$/);
 
   await page.goto("/admin");
   await expect(page.getByRole("button", { name: "用 Google 登录管理页" })).toBeVisible();

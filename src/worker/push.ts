@@ -633,7 +633,8 @@ export async function pushSettle(env: Env, e: EventRow, headcount: number, warn:
     ]
       .filter(Boolean)
       .join("\n"),
-    url: "/admin/google",
+    // Straight to that event's page on the 管理页 (src/web/adminNav.ts).
+    url: `/admin/google?tab=events&event=${e.id}`,
     tag: `settle-${e.id}`,
   });
 }
