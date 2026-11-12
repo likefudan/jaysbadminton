@@ -75,12 +75,21 @@ export function nextTag(existing: string[], now = new Date()): string {
  * The site's database may have run even newer ones (an earlier rollback), so CI checks again
  * (scripts/check-migrations.mjs); this only greys out the ones that are certainly refused.
  */
-export function canMoveTo(current: string | null, newest: Record<string, string | undefined>, tag: string): boolean {
+export function canMoveTo(
+  current: string | null,
+  newest: Record<string, string | undefined>,
+  tag: string,
+  migrations: string[] = [],
+  safe: Record<string, unknown> = {},
+): boolean {
   if (!current) return true;
   const have = newest[current];
   const want = newest[tag];
   if (!have || !want) return true;
-  return want >= have;
+  // Going back past rollback-safe migrations needs no restore: Release sets them aside.
+  if (want >= have) return true;
+  const between = migrations.filter((m) => m > want && m <= have);
+  return between.includes(have) && between.every((m) => Object.hasOwn(safe, m));
 }
 
 /** The sites a release request names, checked against the real list; null when any is unknown. */

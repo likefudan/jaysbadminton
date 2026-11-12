@@ -33,6 +33,21 @@ async function gh<T>(env: Env, path: string, init?: RequestInit): Promise<T> {
 
 // Each tag's newest migration never changes, so it is looked up once per Worker instance.
 const newestMigration = new Map<string, string>();
+/** main's migrations, and those listed in scripts/rollback-safe-migrations.json. */
+async function migrationsOnMain(env: Env): Promise<{ names: string[]; safe: Record<string, unknown> }> {
+  const [files, list] = await Promise.all([
+    gh<{ name: string }[]>(env, "/contents/migrations?ref=main"),
+    gh<{ content: string }>(env, "/contents/scripts/rollback-safe-migrations.json?ref=main").catch(() => null),
+  ]);
+  let safe: Record<string, unknown> = {};
+  try {
+    if (list) safe = JSON.parse(atob(list.content.replace(/\s/g, "")));
+  } catch {
+    safe = {};
+  }
+  return { names: files.map((f) => f.name).filter((n) => n.endsWith(".sql")), safe };
+}
+
 async function newestAt(env: Env, tag: string): Promise<string | undefined> {
   if (!newestMigration.has(tag)) {
     const files = await gh<{ name: string }[]>(env, `/contents/migrations?ref=${encodeURIComponent(tag)}`);
@@ -104,7 +119,7 @@ export function forget() {
 
 async function read(env: Env) {
   const all = sites(env);
-  const [releases, tags, healths, mainCommit, ciRuns, deployRuns, releaseRuns] = await Promise.all([
+  const [releases, tags, healths, mainCommit, ciRuns, deployRuns, releaseRuns, onMain] = await Promise.all([
     gh<{ tag_name: string; published_at: string; draft: boolean }[]>(env, "/releases?per_page=30"),
     gh<{ name: string }[]>(env, "/tags?per_page=100"),
     Promise.all(all.map(health)),
@@ -115,6 +130,7 @@ async function read(env: Env) {
     ),
     gh<{ workflow_runs: Run[] }>(env, "/actions/workflows/ci.yml/runs?event=workflow_dispatch&per_page=8"),
     gh<{ workflow_runs: Run[] }>(env, "/actions/workflows/release.yml/runs?per_page=5"),
+    migrationsOnMain(env).catch(() => ({ names: [] as string[], safe: {} })),
   ]);
   const versions = releases
     .filter((r) => !r.draft && TAG.test(r.tag_name))
@@ -228,7 +244,9 @@ async function read(env: Env) {
         ok: h.ok,
         version: h.version,
         behind: current ? versions.filter((v) => compareTags(v.tag, current) > 0).length : null,
-        movable: shown.filter((v) => single[v.tag] && canMoveTo(current, newest, v.tag)).map((v) => v.tag),
+        movable: shown
+          .filter((v) => single[v.tag] && canMoveTo(current, newest, v.tag, onMain.names, onMain.safe))
+          .map((v) => v.tag),
       };
     }),
     versions: shown.map((v) => ({ ...v, migration: newest[v.tag] ?? null, perSite: single[v.tag] ?? false })),

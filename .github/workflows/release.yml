@@ -11,7 +11,9 @@ name: Release
 # only deploys that one to the chosen sites (bring a site up to it, or roll a site back to it).
 # Its tests are not run again when that commit passed them on main. Releases from before per-site
 # releases (v2026.11.09 and older) are refused: their own CI has no migration check and uploads the
-# database backup unencrypted (README「回滚」says how to go back to one by hand).
+# database backup unencrypted (README「回滚」says how to go back to one by hand). Migrations a site's
+# database ran that the tag lacks block the deploy, unless they are listed in
+# scripts/rollback-safe-migrations.json: those are set aside first (scripts/set-aside-migrations.mjs).
 #
 # The tag and release are created with this workflow's token, which does not fire the usual
 # tag-push run, so the last step starts that run itself.
@@ -86,6 +88,23 @@ jobs:
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "tested=$tested" >> "$GITHUB_OUTPUT"
+      # Going back past migrations that are listed as rollback-safe needs no database restore: they are
+      # set aside here, and the next newer release runs them again (scripts/set-aside-migrations.mjs).
+      - uses: actions/setup-node@v7
+        if: inputs.tag != ''
+        with:
+          node-version: 22
+          cache: npm
+      - if: inputs.tag != ''
+        run: npm ci
+      - name: Set aside rollback-safe migrations
+        if: inputs.tag != ''
+        env:
+          TAG: ${{ inputs.tag }}
+          SITES: ${{ inputs.sites }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/set-aside-migrations.mjs
       - name: main must be green and not released yet
         if: inputs.tag == ''
         env:
