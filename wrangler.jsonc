@@ -4,10 +4,12 @@
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-08-15",
   "compatibility_flags": ["nodejs_compat"],
+  // An address that is no file goes to the Worker, which answers with the app for a page and with a
+  // 404 for anything else (index.ts): Cloudflare's own single-page fallback would hand the app's HTML
+  // to a request for a script that is gone, and under /assets/ that answer would be kept for a year.
   "assets": {
     "directory": "./dist/web",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
     "run_worker_first": ["/", "/e/*", "/robots.txt", "/manifest.webmanifest", "/api/*", "/export/*"]
   },
   "d1_databases": [
@@ -55,7 +57,6 @@
       "assets": {
         "directory": "./dist/web",
         "binding": "ASSETS",
-        "not_found_handling": "single-page-application",
         "run_worker_first": ["/", "/e/*", "/robots.txt", "/manifest.webmanifest", "/api/*", "/export/*"]
       },
       "d1_databases": [
