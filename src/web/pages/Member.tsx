@@ -21,7 +21,7 @@ import { AvatarForm } from "../Avatar";
 import { RosterList } from "../Roster";
 import { StayPicker } from "../Stay";
 import { CourtQueue } from "../CourtQueue";
-import { useApi } from "../hooks";
+import { useApi, useShort } from "../hooks";
 import { CardCornerIcons } from "../ShareCard";
 import { SwipeSection } from "../Swipe";
 import { SpendingCard, thisYear } from "../Stats";
@@ -47,32 +47,37 @@ export function Member(props: { token?: string }) {
   const [me] = useApi<MeResponse>(`${base}/me`);
   // One offer at a time: adding to the home screen first (iPhone needs it before push).
   const [installShown, setInstallShown] = useState(false);
+  // A phone on its side has no room for the big 你好: the small one, whatever the site's setting.
+  const short = useShort();
   return (
     <Load result={me}>
-      {(m) => (
-        <Page
-          title={t("你好，{name}", { name: m.username })}
-          subtitle={props.token ? t("请不要把这个链接转发给别人。") : undefined}
-          bare={m.greeting !== "big"}
-        >
-          <MemberNav
-            token={props.token}
-            admin={m.canAdmin}
-            current="events"
-            top={m.greeting !== "big"}
-            greeting={m.greeting === "small" ? t("你好，{name}", { name: m.username }) : undefined}
-          />
-          {m.greeting !== "big" && props.token && <p class="hint">{t("请不要把这个链接转发给别人。")}</p>}
-          {!m.active && (
-            <p class="hint">{t("你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。")}</p>
-          )}
-          <InstallPrompt onShown={setInstallShown} />
-          {m.active && !installShown && (
-            <PushPrompt base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />
-          )}
-          <MyEvents base={base} />
-        </Page>
-      )}
+      {(m0) => {
+        const m = short && m0.greeting === "big" ? { ...m0, greeting: "small" as const } : m0;
+        return (
+          <Page
+            title={t("你好，{name}", { name: m.username })}
+            subtitle={props.token ? t("请不要把这个链接转发给别人。") : undefined}
+            bare={m.greeting !== "big"}
+          >
+            <MemberNav
+              token={props.token}
+              admin={m.canAdmin}
+              current="events"
+              top={m.greeting !== "big"}
+              greeting={m.greeting === "small" ? t("你好，{name}", { name: m.username }) : undefined}
+            />
+            {m.greeting !== "big" && props.token && <p class="hint">{t("请不要把这个链接转发给别人。")}</p>}
+            {!m.active && (
+              <p class="hint">{t("你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。")}</p>
+            )}
+            <InstallPrompt onShown={setInstallShown} />
+            {m.active && !installShown && (
+              <PushPrompt base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />
+            )}
+            <MyEvents base={base} />
+          </Page>
+        );
+      }}
     </Load>
   );
 }
@@ -323,7 +328,7 @@ function MyEvents(props: { base: string }) {
               </>
             )}
             {settled.length > 0 && (
-              <SwipeSection title={t("已结清")}>
+              <SwipeSection title={t("已结清")} span>
                 {settled.map((h) => (
                   <MiniEventCard
                     key={h.id}

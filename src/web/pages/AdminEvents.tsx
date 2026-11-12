@@ -229,42 +229,48 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
 
   return (
     <Card>
-      <form onSubmit={submit}>
-        <OptionRows>
-          <OptionSwitch label={t("我自己也报名")} on={joinSelf} onOn={setJoinSelf} />
-        </OptionRows>
-        <Field label={t("活动标题")} value={title} onInput={setTitle} />
-        <WhenRows date={date} start={startTime} end={endTime} onDate={setDate} onStart={setStart} onEnd={setEnd} />
-        <VenueFields
-          base={props.base}
-          canForget={props.owner}
-          venues={d.locations}
-          venue={location}
-          address={address}
-          onVenue={setLocation}
-          onAddress={setAddress}
-          onKnown={knownVenue}
-        />
-        <NotesField value={notes} onInput={setNotes} />
-        <OptionRows>
-          <FeeField noFee={noFee} onNoFee={setNoFee} />
-          <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
-          <DeadlineField
-            on={deadlineOn}
-            days={days}
-            hours={hours}
-            onOn={setDeadlineOn}
-            onDays={setDays}
-            onHours={setHours}
+      {/* Two halves side by side on a wide screen (when and where | notes, switches, buttons), so
+          the form fits one screen of an unfolded iPhone Duo; one after the other on a phone. */}
+      <form class="form-cols" onSubmit={submit}>
+        <div>
+          <OptionRows>
+            <OptionSwitch label={t("我自己也报名")} on={joinSelf} onOn={setJoinSelf} />
+          </OptionRows>
+          <Field label={t("活动标题")} value={title} onInput={setTitle} />
+          <WhenRows date={date} start={startTime} end={endTime} onDate={setDate} onStart={setStart} onEnd={setEnd} />
+          <VenueFields
+            base={props.base}
+            canForget={props.owner}
+            venues={d.locations}
+            venue={location}
+            address={address}
+            onVenue={setLocation}
+            onAddress={setAddress}
+            onKnown={knownVenue}
           />
-        </OptionRows>
-        {error && <p class="error">{error}</p>}
-        <button type="submit" class="button block" disabled={busy || !date}>
-          {t("创建活动")}
-        </button>
-        <button class="button secondary block" type="button" onClick={() => props.onDone()}>
-          {t("取消")}
-        </button>
+        </div>
+        <div>
+          <NotesField value={notes} onInput={setNotes} />
+          <OptionRows>
+            <FeeField noFee={noFee} onNoFee={setNoFee} />
+            <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
+            <DeadlineField
+              on={deadlineOn}
+              days={days}
+              hours={hours}
+              onOn={setDeadlineOn}
+              onDays={setDays}
+              onHours={setHours}
+            />
+          </OptionRows>
+          {error && <p class="error">{error}</p>}
+          <button type="submit" class="button block" disabled={busy || !date}>
+            {t("创建活动")}
+          </button>
+          <button class="button secondary block" type="button" onClick={() => props.onDone()}>
+            {t("取消")}
+          </button>
+        </div>
       </form>
     </Card>
   );
@@ -564,7 +570,7 @@ function EventAdminBody(props: {
   }
 
   // Two columns on a wide screen (an unfolded foldable held sideways, a tablet, a computer): the
-  // event and the Owner's own controls on the left, people and money on the right. One column
+  // event, the money and the Owner's own controls on the left, people on the right. One column
   // keeps the workflow order: add walk-ins, check the roster, then fill in the costs.
   const head = (
     <>
@@ -640,12 +646,14 @@ function EventAdminBody(props: {
         ))}
       </Card>
       {e.photoUsage && <PhotoUsageCard u={e.photoUsage} />}
-      {e.noFee ? (
-        (e.status === "open" || e.status === "closed") && <EndNoFee eb={eb} e={e} onDone={props.onChange} />
-      ) : (
-        <Billing base={props.base} e={e} onChange={props.onChange} />
-      )}
     </>
+  );
+  // 费用 / 收款看板: under the roster in one column; beside it on a wide screen, so the long roster
+  // and the long list of bills don't pile up in the same column (UI review 2026-11-12).
+  const money = e.noFee ? (
+    (e.status === "open" || e.status === "closed") && <EndNoFee eb={eb} e={e} onDone={props.onChange} />
+  ) : (
+    <Billing base={props.base} e={e} onChange={props.onChange} />
   );
   const tail = (
     <>
@@ -662,20 +670,27 @@ function EventAdminBody(props: {
       {e.deletable && isOwner && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
     </>
   );
+  // Once the bills are out the left column holds the long 收款看板, so the rest goes under the roster.
+  const billed = e.status === "finalized" || e.status === "settled";
   if (wide)
     return (
       <div class="split">
         <div class="split-col">
           {head}
-          {tail}
+          {money}
+          {!billed && tail}
         </div>
-        <div class="split-col">{people}</div>
+        <div class="split-col">
+          {people}
+          {billed && tail}
+        </div>
       </div>
     );
   return (
     <>
       {head}
       {people}
+      {money}
       {tail}
     </>
   );

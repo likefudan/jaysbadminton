@@ -99,14 +99,28 @@ export function useMemberSession(): "loading" | "none" | "pending" | "member" {
 export const WIDE_QUERY = "(min-width: 800px)";
 
 export function useWide(): boolean {
-  const [wide, setWide] = useState(() => typeof matchMedia === "function" && matchMedia(WIDE_QUERY).matches);
+  return useMedia(WIDE_QUERY);
+}
+
+/**
+ * A screen too low for a big heading: a phone on its side (430 high on a 16 Pro Max, less with
+ * Safari's bars). Keep in step with the same query in styles.css.
+ */
+export const SHORT_QUERY = "(max-height: 500px) and (orientation: landscape)";
+
+export function useShort(): boolean {
+  return useMedia(SHORT_QUERY);
+}
+
+function useMedia(q: string): boolean {
+  const [on, setOn] = useState(() => typeof matchMedia === "function" && matchMedia(q).matches);
   useEffect(() => {
     if (typeof matchMedia !== "function") return;
-    const query = matchMedia(WIDE_QUERY);
-    const update = () => setWide(query.matches);
+    const query = matchMedia(q);
+    const update = () => setOn(query.matches);
     update();
     query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
-  }, []);
-  return wide;
+  }, [q]);
+  return on;
 }
