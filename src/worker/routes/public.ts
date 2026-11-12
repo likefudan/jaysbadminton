@@ -34,17 +34,19 @@ export async function siteInfo(env: Env) {
 publicRoutes.get("/site", async (c) => c.json(await siteInfo(c.env)));
 
 publicRoutes.get("/home", async (c) => {
-  const current = await c.env.DB.prepare(
-    "SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at",
-  ).all<EventRow>();
-  const past = await c.env.DB.prepare(
-    "SELECT * FROM events WHERE status IN ('settled', 'cancelled') ORDER BY start_at DESC LIMIT 20",
-  ).all<EventRow>();
-  return c.json<HomeResponse>({
-    currentEvents: await summaries(c.env, current.results),
-    pastEvents: await summaries(c.env, past.results),
-    leaderboard: await publicBoard(c),
-  });
+  // Side by side: each is its own trip to the database.
+  const [[current, past], leaderboard] = await Promise.all([
+    c.env.DB.batch<EventRow>([
+      c.env.DB.prepare("SELECT * FROM events WHERE status IN ('open', 'closed', 'finalized') ORDER BY start_at"),
+      c.env.DB.prepare("SELECT * FROM events WHERE status IN ('settled', 'cancelled') ORDER BY start_at DESC LIMIT 20"),
+    ]),
+    publicBoard(c),
+  ]);
+  const [currentEvents, pastEvents] = await Promise.all([
+    summaries(c.env, current!.results),
+    summaries(c.env, past!.results),
+  ]);
+  return c.json<HomeResponse>({ currentEvents, pastEvents, leaderboard });
 });
 
 /**

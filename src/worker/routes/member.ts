@@ -317,90 +317,93 @@ async function myEvents(
     likeSettings(env),
     queueAlways(env),
   ]);
-  const events: MyEvent[] = [];
-  for (const e of list) {
-    const row = rowOf.get(e.id)!;
-    const runs = await runsEvent(env, m, row);
-    const rows = mine.regsOf(e.id);
-    const friends = rows.filter((r) => r.friend_index > 0).sort((a, b) => a.friend_index - b.friend_index);
-    const guests = mine.guestsOf(e.id);
-    const brought = mine.broughtOf(e.id);
-    const pay = mine.payOf(e.id);
-    const selfOn = rows.some((r) => r.friend_index === 0);
-    // On the list in any way: themselves, or friends or group members under them.
-    const onIt = rows.length > 0 || guests.length > 0;
-    // Events they are not on are only offered while open, and never to a disabled member.
-    if (!all && !onIt && !pay && (e.status !== "open" || m.status !== "active")) continue;
-    const settled = e.status === "finalized" || e.status === "settled";
-    // One roster read serves both the bill breakdown and the list of who is coming.
-    const people = onIt || (pay && settled) ? await roster(env, e.id) : [];
-    let payment: MyPayment | null = null;
-    if (pay && settled) {
-      const input = await savedInput(env, e.id);
-      const bill = input ? settle(toSettleRows(people), input).bills.find((b) => b.memberId === m.id) : undefined;
-      const to = await payTo(await eventPayee(env.DB, row));
-      payment = {
-        amountCents: pay.amount_due_cents,
-        paidCents: pay.amount_paid_cents,
-        refundCents: refundOf(pay),
-        status: pay.status,
-        code: pay.payment_code,
-        shares: bill?.shares ?? [],
-        payeeName: to.name,
-        venmoUsername: to.venmo,
-        zelleAccount: to.zelle,
+  // The events side by side: each needs a few reads of its own (roster, bill, queue, likes).
+  const built = await Promise.all(
+    list.map(async (e): Promise<MyEvent | null> => {
+      const row = rowOf.get(e.id)!;
+      const runs = await runsEvent(env, m, row);
+      const rows = mine.regsOf(e.id);
+      const friends = rows.filter((r) => r.friend_index > 0).sort((a, b) => a.friend_index - b.friend_index);
+      const guests = mine.guestsOf(e.id);
+      const brought = mine.broughtOf(e.id);
+      const pay = mine.payOf(e.id);
+      const selfOn = rows.some((r) => r.friend_index === 0);
+      // On the list in any way: themselves, or friends or group members under them.
+      const onIt = rows.length > 0 || guests.length > 0;
+      // Events they are not on are only offered while open, and never to a disabled member.
+      if (!all && !onIt && !pay && (e.status !== "open" || m.status !== "active")) return null;
+      const settled = e.status === "finalized" || e.status === "settled";
+      // One roster read serves both the bill breakdown and the list of who is coming.
+      const people = onIt || (pay && settled) ? await roster(env, e.id) : [];
+      let payment: MyPayment | null = null;
+      if (pay && settled) {
+        const input = await savedInput(env, e.id);
+        const bill = input ? settle(toSettleRows(people), input).bills.find((b) => b.memberId === m.id) : undefined;
+        const to = await payTo(await eventPayee(env.DB, row));
+        payment = {
+          amountCents: pay.amount_due_cents,
+          paidCents: pay.amount_paid_cents,
+          refundCents: refundOf(pay),
+          status: pay.status,
+          code: pay.payment_code,
+          shares: bill?.shares ?? [],
+          payeeName: to.name,
+          venmoUsername: to.venmo,
+          zelleAccount: to.zelle,
+        };
+      }
+      // Who else is coming: only for members on the list themselves (the public pages show a count).
+      let names: MyRosterEntry[] | null = null;
+      if (selfOn) {
+        names = people.map((r) => ({
+          name: r.name,
+          // A group member someone brought shows who did, except to themselves (they see 我).
+          friendOf: r.friendIndex > 0 ? r.memberName : r.memberId !== m.id ? r.paidByName : null,
+          mine: r.memberId === m.id || r.paidBy === m.id,
+          absent: settled && !r.attended,
+          arrive: r.arrive,
+          leave: r.leave,
+        }));
+      }
+      return {
+        ...e,
+        myFriends: onIt ? friends.map((f) => f.friend_name ?? "") : null,
+        myGuests: guests.map((g) => ({ id: g.member_id, name: g.username })),
+        broughtBy: brought
+          ? { name: brought.username, billed: settled && brought.status !== null, paid: brought.status === "paid" }
+          : null,
+        selfSignedUp: selfOn,
+        myStay: (() => {
+          const own = people.find((r) => r.memberId === m.id && r.friendIndex === 0);
+          return { arrive: own?.arrive ?? null, leave: own?.leave ?? null };
+        })(),
+        canEdit: m.status === "active" && (e.status === "open" || (runs && e.status === "closed")),
+        friendCap: runs ? MANAGER_FRIEND_MAX : generalCap,
+        organizer: await organizerOf(row),
+        runByMe: runs && named,
+        managerName: await managerOf(row),
+        ownerName: ownerLabel,
+        payment,
+        roster: names,
+        // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
+        queue:
+          (onIt || runs) && queueOnCard(row, always) ? await queueInfo(env, row, m.id, managesQueue(env, m)) : null,
+        courts: onIt || runs ? bookedCourts(row) : [],
+        kcal: mine.kcalOf(e.id),
+        kcalOpen: canRead(row, selfOn, readDays),
+        kcalUpdate: canRead(row, selfOn, readDays) && shortcutOutdated(m.calorie_shortcut_v, shortcut.version),
+        kcalInstall: canRead(row, selfOn, readDays) ? shortcut.url : "",
+        likes: await likeSummary(
+          env,
+          row,
+          m.status === "active" && rows.some((r) => r.friend_index === 0 && r.attended === 1),
+          mine.likesOf(e.id),
+          likeCfg,
+        ),
       };
-    }
-    // Who else is coming: only for members on the list themselves (the public pages show a count).
-    let names: MyRosterEntry[] | null = null;
-    if (selfOn) {
-      names = people.map((r) => ({
-        name: r.name,
-        // A group member someone brought shows who did, except to themselves (they see 我).
-        friendOf: r.friendIndex > 0 ? r.memberName : r.memberId !== m.id ? r.paidByName : null,
-        mine: r.memberId === m.id || r.paidBy === m.id,
-        absent: settled && !r.attended,
-        arrive: r.arrive,
-        leave: r.leave,
-      }));
-    }
-    events.push({
-      ...e,
-      myFriends: onIt ? friends.map((f) => f.friend_name ?? "") : null,
-      myGuests: guests.map((g) => ({ id: g.member_id, name: g.username })),
-      broughtBy: brought
-        ? { name: brought.username, billed: settled && brought.status !== null, paid: brought.status === "paid" }
-        : null,
-      selfSignedUp: selfOn,
-      myStay: (() => {
-        const own = people.find((r) => r.memberId === m.id && r.friendIndex === 0);
-        return { arrive: own?.arrive ?? null, leave: own?.leave ?? null };
-      })(),
-      canEdit: m.status === "active" && (e.status === "open" || (runs && e.status === "closed")),
-      friendCap: runs ? MANAGER_FRIEND_MAX : generalCap,
-      organizer: await organizerOf(row),
-      runByMe: runs && named,
-      managerName: await managerOf(row),
-      ownerName: ownerLabel,
-      payment,
-      roster: names,
-      // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
-      queue: (onIt || runs) && queueOnCard(row, always) ? await queueInfo(env, row, m.id, managesQueue(env, m)) : null,
-      courts: onIt || runs ? bookedCourts(row) : [],
-      kcal: mine.kcalOf(e.id),
-      kcalOpen: canRead(row, selfOn, readDays),
-      kcalUpdate: canRead(row, selfOn, readDays) && shortcutOutdated(m.calorie_shortcut_v, shortcut.version),
-      kcalInstall: canRead(row, selfOn, readDays) ? shortcut.url : "",
-      likes: await likeSummary(
-        env,
-        row,
-        m.status === "active" && rows.some((r) => r.friend_index === 0 && r.attended === 1),
-        mine.likesOf(e.id),
-        likeCfg,
-      ),
-    });
-  }
-  return events;
+    }),
+  );
+  return built.filter((e): e is MyEvent => e !== null);
 }
 
 /**
