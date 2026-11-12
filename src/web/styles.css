@@ -6023,9 +6023,8 @@ label.set-row {
 }
 
 /* ---- Wide screens (Ke Li 2026-11-11, option C) ----
- * An unfolded iPhone Duo held sideways, a tablet or a computer: event cards two by two, the admin
- * event page in two columns. A big phone turned sideways is wide but under 480 tall, so it keeps
- * the one column. Keep in step with WIDE_QUERY in hooks.ts. */
+ * An unfolded iPhone Duo, a phone turned sideways, a tablet or a computer: every page's cards in
+ * two columns. Keep in step with WIDE_QUERY in hooks.ts. */
 @media (min-width: 600px) {
   /* The column sits in the middle; the top bars reach the screen's edges. The colour is a layer
    * behind the bar, not a clip-path: a clip would also cut off the account menu that drops below
@@ -6066,7 +6065,7 @@ label.set-row {
     display: none;
   }
 }
-@media (min-width: 800px) and (min-height: 480px) {
+@media (min-width: 800px) {
   .page {
     max-width: 960px;
   }

@@ -92,11 +92,11 @@ export function useMemberSession(): "loading" | "none" | "pending" | "member" {
 }
 
 /**
- * A screen wide and tall enough for two columns side by side: an unfolded foldable (iPhone Duo's
- * inner screen) held sideways, a tablet or a computer. A big phone turned sideways is wide enough
- * but under 480 tall, so it keeps the one column. Keep in step with the same query in styles.css.
+ * A screen wide enough for two columns side by side: an unfolded foldable (iPhone Duo's inner
+ * screen), a phone turned sideways (Ke Li 2026-11-11: 16 Pro Max sideways too), a tablet or a
+ * computer. Keep in step with the same query in styles.css.
  */
-export const WIDE_QUERY = "(min-width: 800px) and (min-height: 480px)";
+export const WIDE_QUERY = "(min-width: 800px)";
 
 export function useWide(): boolean {
   const [wide, setWide] = useState(() => typeof matchMedia === "function" && matchMedia(WIDE_QUERY).matches);
