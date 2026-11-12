@@ -85,3 +85,13 @@ export const DEFAULT_LIKE_PCT = 15;
  */
 export const likeCap = (players: number, pct: number) =>
   Math.max(1, Math.min(Math.ceil((players * pct) / 100), players - 1));
+
+/**
+ * 我的活动 page's 「你好，名字」 (Ke Li 2026-11-12, an admin setting): the big title as before, a
+ * small line beside 我的活动 / 个人信息, or none.
+ */
+export type Greeting = "big" | "small" | "none";
+export const GREETINGS: readonly Greeting[] = ["big", "small", "none"];
+export const normalizeGreeting = (v: string | null | undefined): Greeting =>
+  GREETINGS.includes(v as Greeting) ? (v as Greeting) : "big";
+export const GREETING_NAME: Record<Greeting, string> = { big: "大标题", small: "小字", none: "不显示" };

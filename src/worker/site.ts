@@ -1,4 +1,4 @@
-import { SITE_LANGS, type AppNames, type SiteLang } from "../shared/rules";
+import { SITE_LANGS, normalizeGreeting, type AppNames, type Greeting, type SiteLang } from "../shared/rules";
 import { getSettings } from "./db";
 import type { Env } from "./env";
 import { normalizeTheme, type ThemeId } from "../shared/themes";
@@ -28,6 +28,11 @@ export async function appNames(env: Env): Promise<{ names: AppNames; title: stri
 export async function siteTheme(env: Env): Promise<ThemeId> {
   const s = await getSettings(env.DB, ["theme"]);
   return normalizeTheme(s.theme); // a pre-2026 palette name maps to its nearest new look
+}
+
+/** 我的活动's 「你好，名字」: big unless set (设置 › 外观和公共页面). */
+export async function siteGreeting(env: Env): Promise<Greeting> {
+  return normalizeGreeting((await getSettings(env.DB, ["greeting"])).greeting);
 }
 
 /** The test site (staging.…) shows a banner, is hidden from search engines and expects no real mail. */

@@ -43,6 +43,7 @@ import { pushBrought, pushGuestLeft, pushWelcome, sendSoon, subscribe, unsubscri
 import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
 import { avatarMode, avatarUrl, setAvatarMode, uploadAvatar } from "../avatars";
+import { siteGreeting } from "../site";
 import { eventLikes, likeCounts, likeOpen, likeSettings, likeSummary, setLike } from "../likes";
 import {
   calorieReadDays,
@@ -97,6 +98,7 @@ memberRoutes.get("/:token/me", async (c) => {
     avatar: avatarUrl(m),
     avatarMode: avatarMode(m),
     googlePicture: !!m.google_picture,
+    greeting: await siteGreeting(c.env),
   });
 });
 
