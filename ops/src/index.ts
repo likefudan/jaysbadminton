@@ -2,7 +2,7 @@
 // reads /api/state and asks /api/release to start the Release workflow, which backs up, migrates and
 // deploys the chosen sites exactly as when it is run by hand in GitHub.
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { forget, MainMoved, release, releaseList, state } from "./github";
+import { forget, MainMoved, release, releaseList, restore, state } from "./github";
 import { type Env, pickSites, randomToken, sha256, sign, sites, TAG, unsign } from "./logic";
 import { APP_CSS, APP_JS, page } from "./page";
 
@@ -196,6 +196,29 @@ export default {
       } catch (err) {
         console.error("ops releases failed:", err);
         return json({ error: `读取失败：${(err as Error).message}` }, 502);
+      }
+    }
+    if (path === "/api/restore" && req.method === "POST") {
+      const body = (await req.json().catch(() => null)) as { site?: unknown; tag?: unknown; confirm?: unknown } | null;
+      const site = sites(env).find((x) => x.id === body?.site);
+      const tag = body?.tag;
+      if (!site) return json({ error: "请选择站点" }, 400);
+      if (typeof tag !== "string" || !TAG.test(tag)) return json({ error: "版本不对" }, 400);
+      if (body?.confirm !== site.id) return json({ error: `请输入 ${site.id} 确认` }, 400);
+      try {
+        await restore(env, site.id, tag);
+        forget();
+        console.log(`ops: ${email} restored ${site.id} for ${tag}`);
+        ctx.waitUntil(
+          notifyDev(
+            env,
+            `⏪ 从发布管理网站开始恢复备份：${site.name} 的数据库回到迁移之前，再换到 ${tag}\n${env.OPS_ORIGIN}`,
+          ),
+        );
+        return json({ ok: true });
+      } catch (err) {
+        console.error("ops restore failed:", err);
+        return json({ error: `没能开始恢复：${(err as Error).message}` }, 502);
       }
     }
     if (path === "/api/release" && req.method === "POST") {

@@ -70,7 +70,7 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 .panel .top{position:static}
 .panel .list{flex:1;overflow:auto;padding:12px 14px}
 .opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 4px;border-bottom:1px solid var(--line);cursor:pointer}
-.opt input{margin-right:8px}.opt.locked{color:var(--muted);cursor:default}
+.opt input{margin-right:8px}.opt.locked{color:var(--muted)}
 .panel .foot{padding:12px 14px;padding-bottom:max(12px,env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
 .panel .foot .btn{width:100%}
 .back{border:0;background:none;color:var(--accent);font-size:16px;cursor:pointer;padding:0;font-family:inherit}
@@ -84,6 +84,12 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 .seg{display:flex;gap:3px;flex:1}.seg i{flex:1;height:6px;border-radius:3px;background:var(--line)}
 .seg i.d{background:var(--accent)}.seg i.n{background:var(--accent);animation:pulse 1s infinite alternate}
 .linkrow{display:flex;justify-content:space-between;align-items:center;width:100%;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.btn.danger{background:var(--bad)}
+.sheet{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;z-index:6}
+.sheetin{background:var(--card);width:100%;border-radius:16px 16px 0 0;padding:18px 16px;padding-bottom:max(18px,env(safe-area-inset-bottom));box-sizing:border-box}
+.sheetin p{margin:10px 0;line-height:1.5}.sheetin .bad{color:var(--bad);font-weight:600}
+.confirm{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}
+.sheetbtns{display:flex;gap:10px;margin-top:14px}.sheetbtns .btn{flex:1}
 .optr{display:flex;align-items:center;gap:10px}.notesbtn{border:0;background:none;color:var(--accent);font:inherit;font-size:13px;padding:4px 0;cursor:pointer;white-space:nowrap}
 .optnotes{padding:0 4px 10px 28px;border-bottom:1px solid var(--line);font-size:14px}.optnotes ul{margin:0;padding-left:18px}.optnotes li{margin:3px 0;line-height:1.45}.optnotes p{margin:0}
 .rel{margin-bottom:10px}.rel a.tag{color:inherit;text-decoration:none;font-weight:600}.rel ul{margin:8px 0 0;padding-left:20px}.rel li{margin:4px 0;line-height:1.45}.rel p{margin:8px 0 0}.relon{font-size:13px;margin-top:4px}
@@ -234,9 +240,9 @@ function progressCard() {
   clearInterval(window.__tick);
   window.__tick = setInterval(tick, 1000);
   return h("div", { class: "card hero" },
-    h("div", { class: "row" }, h("b", {}, p.tag ? "正在发布 " + p.tag : "正在准备发布"),
+    h("div", { class: "row" }, h("b", {}, p.restoring ? "正在恢复数据库" : p.tag ? "正在发布 " + p.tag : "正在准备发布"),
       h("a", { class: "muted", href: p.url, target: "_blank", rel: "noopener" }, "详情 ›")),
-    h("div", { class: "muted" }, (n ? n + " 个站点 · " : ""), elapsed, " · 一般 5 分钟左右"),
+    h("div", { class: "muted" }, (n ? n + " 个站点 · " : ""), elapsed, p.restoring ? " · 先备份、恢复，再换版本，一般 8 分钟左右" : " · 一般 5 分钟左右"),
     h("div", { class: "muted", style: "margin-top:6px" }, STEPS.join(" → ")));
 }
 
@@ -271,20 +277,31 @@ function deploysCard() {
 }
 
 function openPanel(s) {
-  let pick = null;
+  let pick = null, restoreFirst = false;
   const go = h("button", { class: "btn p", disabled: true }, "选一个版本");
-  go.addEventListener("click", async () => { go.disabled = true; if (await send([s.id], pick)) closePanel(); else go.disabled = false; });
+  go.addEventListener("click", async () => {
+    if (restoreFirst) return openRestore(s, pick);
+    go.disabled = true;
+    if (await send([s.id], pick)) closePanel(); else go.disabled = false;
+  });
   const rows = data.versions.map((v) => {
     const current = v.tag === s.version;
     const locked = !s.movable.includes(v.tag);
     const newer = isTag(s.version) && cmpTag(v.tag, s.version) > 0;
     const label = current ? h("span", { class: "muted" }, "当前")
       : !v.perSite ? h("span", { class: "muted" }, "太旧，不能在这里换")
-      : locked ? h("span", { class: "muted" }, "要先恢复备份 🔒")
+      : locked ? h("span", { class: "muted nowrap" }, "需恢复 🔒")
       : newer || !isTag(s.version) ? h("span", { class: "pill" }, v.tag === data.latest ? "最新" : "较新")
       : h("span", { class: "muted" }, "回滚");
-    const radio = h("input", { type: "radio", name: "v", disabled: current || locked });
-    radio.addEventListener("change", () => { pick = v.tag; go.disabled = false; go.textContent = "换到 " + v.tag; });
+    // A locked version can still be chosen: it needs the database restored first (恢复备份).
+    const radio = h("input", { type: "radio", name: "v", disabled: current || !v.perSite });
+    radio.addEventListener("change", () => {
+      pick = v.tag;
+      restoreFirst = locked;
+      go.disabled = false;
+      go.className = "btn p" + (locked ? " danger" : "");
+      go.textContent = locked ? "恢复备份并换到 " + v.tag : "换到 " + v.tag;
+    });
     // 说明 opens this version's release notes under the row, without choosing it.
     const box = h("div", { class: "optnotes", hidden: true });
     const more = h("button", { class: "notesbtn", type: "button" }, "说明 ⌄");
@@ -332,6 +349,41 @@ function releaseNotes(tag) {
   recentNotes = recentNotes || fetch("/api/releases?page=1").then((res) => res.ok ? res.json() : Promise.reject(new Error(res.status)));
   recentNotes.catch(() => { recentNotes = null; });
   return recentNotes.then((b) => b.releases.find((r) => r.tag === tag));
+}
+
+// 恢复备份并换版本: says what will be lost and wants the site's id typed before it starts.
+function openRestore(s, tag) {
+  const want = data.versions.find((v) => v.tag === tag);
+  // The database goes back to before the first newer migration ran on this site, which happened when
+  // the oldest version carrying it was first deployed there: not before that version came out.
+  const from = data.versions.filter((v) => v.migration && want && want.migration && v.migration > want.migration)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  const input = h("input", { class: "confirm", autocapitalize: "off", autocomplete: "off", spellcheck: "false", placeholder: s.id });
+  const ok = h("button", { class: "btn p danger", disabled: true }, "恢复并换到 " + tag);
+  input.addEventListener("input", () => { ok.disabled = input.value.trim().toLowerCase() !== s.id; });
+  const box = h("div", { class: "sheet" },
+    h("div", { class: "sheetin" },
+      h("b", {}, "恢复 " + short(s.name) + " 的数据库"),
+      h("p", {}, "数据库会回到它第一次执行 " + tag + " 不认识的数据库改动之前" + (from ? "（不早于 " + when(from.date) + "，" + from.tag + " 发布的时间）" : "") + "，然后换到 " + tag + "。"),
+      h("p", { class: "bad" }, "这之后这个站点上的报名、付款、设置改动都会丢失。"),
+      h("p", { class: "muted" }, "恢复前会先把现在的数据库备份一份（保存 90 天），万一需要还能找回。只能恢复到 30 天以内。其他站点不受影响。"),
+      h("p", {}, "请输入 ", h("b", {}, s.id), " 确认："),
+      input,
+      h("div", { class: "sheetbtns" }, h("button", { class: "btn", onclick: () => box.remove() }, "取消"), ok)));
+  ok.addEventListener("click", async () => {
+    ok.disabled = true;
+    const res = await fetch("/api/restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: s.id, tag, confirm: input.value.trim().toLowerCase() }) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(body.error || "没能开始恢复"); ok.disabled = false; return; }
+    box.remove();
+    closePanel();
+    toast("已开始恢复，完成后会自动换到 " + tag);
+    pollUntil = Date.now() + 15 * 60000;
+    clearTimeout(timer);
+    setTimeout(load, 3000);
+  });
+  panel.append(box);
+  input.focus();
 }
 
 // Every published version with its notes, newest first, 20 at a time.
