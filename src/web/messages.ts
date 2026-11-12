@@ -1,10 +1,10 @@
-// Translations for the member and public pages (the admin pages' are in adminMessages.ts), keyed by the Simplified Chinese in the code.
+// Translations for the member and public pages, keyed by the Simplified Chinese in the code. The admin
+// pages' are in adminMessages.ts, which only downloads with those pages (pages/adminPages.ts): every
+// text a member's page shows must be here (test/i18n.test.ts checks).
 // zh-TW was converted from Simplified (OpenCC, Taiwan phrasing) and then read over by hand.
 // en: an empty string means nothing is shown (units such as 人 / 次 that English leaves out).
 
-import { ADMIN_MESSAGES } from "./adminMessages";
-
-const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
+export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   点赞: { tw: "點讚", en: "Likes" },
   个赞: { tw: "個讚", en: "" },
   "活动结束后，一起打球的人给的赞": {
@@ -1022,7 +1022,71 @@ const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "{adder} added {n} friend(s) under you; you pay for them",
   },
   "修改请联系{name}": { tw: "修改請聯絡{name}", en: "Contact {name} to make changes" },
+  // Shown outside the 管理页 too (the address box, the test site's developer tools, an organizer's own notices).
+  排行榜: { tw: "排行榜", en: "Leaderboard" },
+  地址: { tw: "地址", en: "Address" },
+  "搜索中…": { tw: "搜尋中…", en: "Searching…" },
+  "输入地址或球馆名，会自动联想": {
+    tw: "輸入地址或球館名，會自動聯想",
+    en: "Type an address or venue name for suggestions",
+  },
+  开发者登录: { tw: "開發者登入", en: "Developer sign-in" },
+  "用测试环境的群主密码登录，快速切换群主和普通测试成员界面。": {
+    tw: "用測試環境的群主密碼登入，快速切換群主和普通測試成員介面。",
+    en: "Sign in with the test site's owner password to switch quickly between the owner view and a regular test member's view.",
+  },
+  开发者密码: { tw: "開發者密碼", en: "Developer password" },
+  "登录中…": { tw: "登入中…", en: "Signing in…" },
+  开发者工具: { tw: "開發者工具", en: "Developer tools" },
+  切换测试界面: { tw: "切換測試介面", en: "Switch test view" },
+  "当前：{view}": { tw: "當前：{view}", en: "Current: {view}" },
+  群主界面: { tw: "群主介面", en: "Owner view" },
+  普通用户界面: { tw: "普通使用者介面", en: "Member view" },
+  退出开发者登录: { tw: "退出開發者登入", en: "Sign out of developer mode" },
+  "开发者 · 切换界面": { tw: "開發者 · 切換介面", en: "Developer · switch view" },
+  "你没有未归档的活动。": { tw: "你沒有未歸檔的活動。", en: "You have no events that aren't archived." },
+  "他没有未归档的活动。": { tw: "他沒有未歸檔的活動。", en: "They have no events that aren't archived." },
+  "还没结算的活动换了收款人以后，你本人和挂在你名下的朋友也要和别人一样付钱。": {
+    tw: "還沒結算的活動換了收款人以後，你本人和掛在你名下的朋友也要和別人一樣付錢。",
+    en: "Once an unbilled event gets a new payee, you and the friends under you pay like everyone else.",
+  },
+  "还没结算的活动换了收款人以后，他本人和挂在他名下的朋友也要和别人一样付钱。": {
+    tw: "還沒結算的活動換了收款人以後，他本人和掛在他名下的朋友也要和別人一樣付錢。",
+    en: "Once an unbilled event gets a new payee, they and the friends under them pay like everyone else.",
+  },
+  "还没结算：负责人和收款人都转给群主": {
+    tw: "還沒結算：負責人和收款人都轉給群主",
+    en: "Not billed yet: manager and payee both move to the owner",
+  },
+  "收款中：由群主接手管理，钱继续付到你的账户，直到收齐": {
+    tw: "收款中：由群主接手管理，錢繼續付到你的帳戶，直到收齊",
+    en: "Collecting: the owner takes over; payments keep going to your account until everyone has paid",
+  },
+  "收款中：由群主接手管理，钱继续付到他的账户，直到收齐": {
+    tw: "收款中：由群主接手管理，錢繼續付到他的帳戶，直到收齊",
+    en: "Collecting: the owner takes over; payments keep going to their account until everyone has paid",
+  },
+  "收款中：负责人转给群主，收款人不变": {
+    tw: "收款中：負責人轉給群主，收款人不變",
+    en: "Collecting: manager moves to the owner, payee stays the same",
+  },
+  "收款中：负责人不变，钱继续付到你的账户，直到收齐": {
+    tw: "收款中：負責人不變，錢繼續付到你的帳戶，直到收齊",
+    en: "Collecting: manager stays the same; payments keep going to your account until everyone has paid",
+  },
+  "收款中：负责人不变，钱继续付到他的账户，直到收齐": {
+    tw: "收款中：負責人不變，錢繼續付到他的帳戶，直到收齊",
+    en: "Collecting: manager stays the same; payments keep going to their account until everyone has paid",
+  },
+  "还没结算：收款人转给群主，负责人不变": {
+    tw: "還沒結算：收款人轉給群主，負責人不變",
+    en: "Not billed yet: payee moves to the owner, manager stays the same",
+  },
+  "还没结算：负责人转给群主，收款人不变": {
+    tw: "還沒結算：負責人轉給群主，收款人不變",
+    en: "Not billed yet: manager moves to the owner, payee stays the same",
+  },
+  "{what}：{label}": { tw: "{what}：{label}", en: "{what}: {label}" },
+  "会受影响的活动：": { tw: "會受影響的活動：", en: "Events affected:" },
+  设置: { tw: "設定", en: "Settings" },
 };
-
-/** Every page's text: the member and public pages above, the admin pages in adminMessages.ts. */
-export const MESSAGES: Record<string, { tw: string; en: string }> = { ...MEMBER_MESSAGES, ...ADMIN_MESSAGES };

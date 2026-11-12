@@ -4,8 +4,9 @@ import { checkUsername } from "../src/shared/rules";
 import { eventCardText, siteCardText } from "../src/shared/shareCard";
 import { STYLES } from "../src/shared/themes";
 import { STATUS_ZH } from "../src/shared/types";
-import { activate, fmtDate, t, tm } from "../src/web/lang";
-import { MESSAGES } from "../src/web/messages";
+import { ADMIN_MESSAGES } from "../src/web/adminMessages";
+import { activate, addMessages, fmtDate, MESSAGES, t, tm } from "../src/web/lang";
+import { MEMBER_MESSAGES } from "../src/web/messages";
 import { PRIVACY, TERMS } from "../src/web/pages/legalText";
 
 const sources = import.meta.glob("../src/web/**/*.{ts,tsx}", {
@@ -20,6 +21,11 @@ const CALL = /\b(?:t|tx|tk)\(\s*"((?:[^"\\]|\\.)*)"/g;
 const NOT_PAGES = /messages\.ts|adminMessages\.ts|lang\.ts|site\.ts|LangSwitch|legalText\.ts/;
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
+// As on the 管理页, whose code brings its texts along (pages/adminPages.ts).
+addMessages(ADMIN_MESSAGES);
+// Only these download with the 管理页; every other file's texts must be in messages.ts.
+const ADMIN_ONLY = /\/pages\/Admin[A-Za-z]*\.tsx$|\/pages\/adminPages\.ts$/;
+
 afterEach(() => {
   activate("zh-CN");
 });
@@ -33,6 +39,18 @@ describe("translations", () => {
         if (!MESSAGES[key]) missing.push(key);
       }
     expect(missing).toEqual([]);
+  });
+
+  it("keeps every text a member's page shows out of the admin pages' file", () => {
+    const missing = new Set<string>();
+    for (const [file, src] of Object.entries(sources)) {
+      if (ADMIN_ONLY.test(file)) continue;
+      for (const m of src.matchAll(CALL)) {
+        const key = JSON.parse(`"${m[1]}"`) as string;
+        if (!MEMBER_MESSAGES[key]) missing.add(key);
+      }
+    }
+    expect([...missing]).toEqual([]);
   });
 
   it("leaves no Chinese outside t() on any page, the admin pages included", () => {

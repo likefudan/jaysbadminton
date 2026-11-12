@@ -8,6 +8,8 @@ import { expect, test, type Page } from "@playwright/test";
  * Each run starts from an empty database (scripts/e2e-server.sh).
  */
 test.describe.configure({ mode: "serial" });
+// Pages as visitors get them, with who is signed in written into the page (playwright.config.ts).
+test.use({ extraHTTPHeaders: {} });
 
 const PASSWORD = "local-password";
 const VENUE = "Test Gym";

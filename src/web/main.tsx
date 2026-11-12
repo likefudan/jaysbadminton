@@ -1,15 +1,13 @@
-import { Fragment, render, type ComponentChildren } from "preact";
+import { Fragment, h, render, type ComponentChildren, type ComponentType } from "preact";
+import { useEffect, useState } from "preact/hooks";
 import { LocationProvider, Route, Router } from "preact-iso";
-import { Admin } from "./pages/Admin";
 import { EventPage } from "./pages/EventPage";
-import { AdminSetup } from "./pages/AdminSetup";
 import { Home } from "./pages/Home";
 import { Member, MemberProfilePage } from "./pages/Member";
 import { Account, AccountProfile } from "./pages/Account";
-import { Privacy, Terms } from "./pages/Legal";
 import { NotFound } from "./pages/NotFound";
 import { PullToRefresh } from "./PullToRefresh";
-import { useActiveLang } from "./i18n";
+import { addMessages, chosenLang, listeners, useActiveLang } from "./i18n";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "./styles.css";
@@ -26,6 +24,62 @@ import monoFont from "@fontsource-variable/geist-mono/files/geist-mono-latin-wgh
   link.href = monoFont;
   document.head.append(link);
 }
+
+/**
+ * Pages most visitors never open download when first opened: the 管理页 with its texts (over half
+ * of all the code), and the privacy policy and terms. After a new release the old files are gone,
+ * so a page left open since before it fails to fetch them: load the site afresh, once.
+ */
+function later<T>(load: () => Promise<T>): () => Promise<T> {
+  return () =>
+    load().catch((err) => {
+      const KEY = "reloaded-for-code";
+      let last = 0;
+      try {
+        last = Number(sessionStorage.getItem(KEY)) || 0;
+        if (Date.now() - last > 60_000) sessionStorage.setItem(KEY, String(Date.now()));
+      } catch {
+        last = Date.now(); // no storage to remember the reload in: don't risk reloading for ever
+      }
+      if (Date.now() - last > 60_000) location.reload();
+      throw err;
+    });
+}
+const adminPages = later(() => import("./pages/adminPages"));
+const legalPages = later(() => import("./pages/Legal"));
+/**
+ * The page once its code is here, nothing until then. Not preact-iso's lazy(): a route that
+ * suspends keeps the page before it on screen as well, and going back through the 管理页's own
+ * levels left two of them showing.
+ */
+function page<M, P>(load: () => Promise<M>, pick: (m: M) => ComponentType<P>) {
+  let Loaded: ComponentType<P> | null = null;
+  return function Page(props: P) {
+    const [, redraw] = useState(0);
+    useEffect(() => {
+      if (!Loaded)
+        void load().then(
+          (m) => {
+            Loaded = pick(m);
+            redraw((n) => n + 1);
+          },
+          () => {}, // later() is reloading the site
+        );
+    }, []);
+    return Loaded ? h(Loaded as ComponentType<object>, props as object) : null;
+  };
+}
+const Admin = page(adminPages, (m) => m.Admin);
+const AdminSetup = page(adminPages, (m) => m.AdminSetup);
+const Privacy = page(legalPages, (m) => m.Privacy);
+const Terms = page(legalPages, (m) => m.Terms);
+
+// Messages from the server are translated from the same tables (tm), and a few a member can get are
+// worded in the admin pages' file: in 繁體 and English, fetch that too once the page is up.
+const allMessages = () =>
+  chosenLang() !== "zh-CN" && void import("./adminMessages").then((m) => addMessages(m.ADMIN_MESSAGES)).catch(() => {});
+setTimeout(allMessages, 3000);
+listeners.add(allMessages);
 
 /** Renders the page in the chosen language, afresh when it changes. */
 function Localized(props: { children: ComponentChildren }) {
