@@ -1,5 +1,6 @@
-import { Fragment, render, type ComponentChildren } from "preact";
-import { LocationProvider, Route, Router, lazy } from "preact-iso";
+import { Fragment, h, render, type ComponentChildren, type ComponentType } from "preact";
+import { useEffect, useState } from "preact/hooks";
+import { LocationProvider, Route, Router } from "preact-iso";
 import { EventPage } from "./pages/EventPage";
 import { BoardPage, Home } from "./pages/Home";
 import { Member, MemberProfilePage } from "./pages/Member";
@@ -46,10 +47,32 @@ function later<T>(load: () => Promise<T>): () => Promise<T> {
 }
 const adminPages = later(() => import("./pages/adminPages"));
 const legalPages = later(() => import("./pages/Legal"));
-const Admin = lazy(() => adminPages().then((m) => m.Admin));
-const AdminSetup = lazy(() => adminPages().then((m) => m.AdminSetup));
-const Privacy = lazy(() => legalPages().then((m) => m.Privacy));
-const Terms = lazy(() => legalPages().then((m) => m.Terms));
+/**
+ * The page once its code is here, nothing until then. Not preact-iso's lazy(): a route that
+ * suspends keeps the page before it on screen as well, and going back through the 管理页's own
+ * levels left two of them showing.
+ */
+function page<M, P>(load: () => Promise<M>, pick: (m: M) => ComponentType<P>) {
+  let Loaded: ComponentType<P> | null = null;
+  return function Page(props: P) {
+    const [, redraw] = useState(0);
+    useEffect(() => {
+      if (!Loaded)
+        void load().then(
+          (m) => {
+            Loaded = pick(m);
+            redraw((n) => n + 1);
+          },
+          () => {}, // later() is reloading the site
+        );
+    }, []);
+    return Loaded ? h(Loaded as ComponentType<object>, props as object) : null;
+  };
+}
+const Admin = page(adminPages, (m) => m.Admin);
+const AdminSetup = page(adminPages, (m) => m.AdminSetup);
+const Privacy = page(legalPages, (m) => m.Privacy);
+const Terms = page(legalPages, (m) => m.Terms);
 
 // Messages from the server are translated from the same tables (tm), and a few a member can get are
 // worded in the admin pages' file: in 繁體 and English, fetch that too once the page is up.
