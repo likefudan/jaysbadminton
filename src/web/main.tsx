@@ -13,6 +13,19 @@ import { useActiveLang } from "./i18n";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "./styles.css";
+import monoFont from "@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url";
+
+// Times and amounts are in the mono font, which the browser would only fetch once the first of them
+// is drawn (after the page's data arrives): start it now, so they don't change shape a moment later.
+{
+  const link = document.createElement("link");
+  link.rel = "preload";
+  link.as = "font";
+  link.type = "font/woff2";
+  link.crossOrigin = "anonymous";
+  link.href = monoFont;
+  document.head.append(link);
+}
 
 /** Renders the page in the chosen language, afresh when it changes. */
 function Localized(props: { children: ComponentChildren }) {

@@ -170,7 +170,16 @@ app.route("/api/auth", googleRoutes);
 app.route("/api/m", memberRoutes);
 app.route("/api/admin", adminRoutes);
 
-app.notFound((c) => c.json({ error: { code: "not_found", message: "找不到这个地址" } }, 404));
+// Every other page of the app (/me, /admin/…, /board, an address nobody knows): the same app, which
+// finds the page itself. Not for a file that is gone (an old /assets/ script after a release), nor the API.
+const NOT_A_PAGE = /^\/(api|export|assets)\/|\.[a-z0-9]+$/i;
+app.notFound(async (c) => {
+  if ((c.req.method === "GET" || c.req.method === "HEAD") && !NOT_A_PAGE.test(c.req.path)) {
+    const page = await c.env.ASSETS.fetch(new Request(new URL("/", c.req.url)));
+    return new Response(page.body, page);
+  }
+  return c.json({ error: { code: "not_found", message: "找不到这个地址" } }, 404);
+});
 
 app.onError((err, c) => {
   if (err instanceof HttpError) return c.json({ error: { code: err.code, message: err.message } }, err.status);

@@ -13,7 +13,11 @@ describe("security headers", () => {
   });
 
   it("the static pages' _headers file says the same, header for header", () => {
-    const lines = headersFile.split("\n").filter((l) => /^ {2}\S/.test(l));
+    // The first block ("/*"); the one after it only says how long /assets/ files are kept.
+    const lines = headersFile
+      .split("\n/assets/")[0]!
+      .split("\n")
+      .filter((l) => /^ {2}\S/.test(l));
     expect(lines.sort()).toEqual(
       Object.entries(SECURITY_HEADERS)
         .map(([name, value]) => `  ${name}: ${value}`)

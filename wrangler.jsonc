@@ -4,10 +4,12 @@
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-08-15",
   "compatibility_flags": ["nodejs_compat"],
+  // An address that is no file goes to the Worker, which answers with the app for a page and with a
+  // 404 for anything else (index.ts): Cloudflare's own single-page fallback would hand the app's HTML
+  // to a request for a script that is gone, and under /assets/ that answer would be kept for a year.
   "assets": {
     "directory": "./dist/web",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
     "run_worker_first": ["/", "/e/*", "/robots.txt", "/manifest.webmanifest", "/api/*", "/export/*"]
   },
   "d1_databases": [
@@ -42,6 +44,10 @@
   "triggers": { "crons": ["*/15 * * * *"] },
   "routes": [{ "pattern": "jaysbadminton.llmat.dev", "custom_domain": true }],
   "observability": { "enabled": true },
+  // The databases live in US East while members are in the Bay Area: run the Worker next to the
+  // database, so a request crosses the country once instead of once per query. Staging and the
+  // sites in sites.json inherit this.
+  "placement": { "mode": "smart" },
 
   // Test site: its own Worker, database, domain and Telegram bot. Every merge to main lands here;
   // production only changes when a v* release tag is pushed (see .github/workflows/ci.yml).
@@ -51,7 +57,6 @@
       "assets": {
         "directory": "./dist/web",
         "binding": "ASSETS",
-        "not_found_handling": "single-page-application",
         "run_worker_first": ["/", "/e/*", "/robots.txt", "/manifest.webmanifest", "/api/*", "/export/*"]
       },
       "d1_databases": [
