@@ -30,7 +30,7 @@ const board = (lists: Record<string, Rank[]>, boards = ["calories", "attendance"
 test("the home page leads with the next event and scrolls the small cards sideways", async ({ page }) => {
   const names = ["arthur", "Dafei", "Jayx", "Johnzhang", "joseff", "Lily", "Tom", "Kevin"];
   await page.route("**/api/auth/session", (route) =>
-    route.fulfill({ json: { signedIn: true, hasMember: true, pending: false } }),
+    route.fulfill({ json: { signedIn: true, hasMember: false, pending: true } }),
   );
   await page.route("**/api/public/home", (route) =>
     route.fulfill({
@@ -53,8 +53,8 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   const card = page.locator(".next-card");
   await expect(card.getByRole("link", { name: /快乐星期二/ })).toHaveAttribute("href", "/e/JBM20261020");
   await expect(card).toContainText("12 人已报名");
-  // 报名 opens the same page as the card itself: the event's own card.
-  await expect(card.getByRole("link", { name: "报名", exact: true })).toHaveAttribute("href", "/e/JBM20261020");
+  // Applied but not approved yet: 报名 leads to their own page. (Members get 我的活动 here instead.)
+  await expect(card.getByRole("link", { name: "报名", exact: true })).toHaveAttribute("href", "/me");
   // The site name is only in the top bar now, not repeated as a big title.
   await expect(page.locator(".hero")).toHaveCount(0);
 
@@ -90,38 +90,45 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   await expect(page.locator("main")).toContainText("这段时间还没有人上榜");
 });
 
-/** Signed in: every current event in the same card, soonest first, coloured as on 我的活动 (Ke Li). */
-test("signed in, each event gets the same card, soonest first, coral for the ones I'm on", async ({ page }) => {
-  const closed = event({ id: 2, code: "C2", date: "2026-10-19", title: "上周二", status: "closed" });
-  const mineOpen = event({});
-  const other = event({ id: 3, code: "C3", date: "2026-10-27", title: "下周二" });
-  const own = (e: object, on: boolean) => ({
-    ...e,
-    selfSignedUp: on,
-    myFriends: on ? [] : null,
-    payment: null,
-    courts: [],
-  });
+/** Signed in: the home page is 我的活动 (Ke Li 2026-11-12); 排行榜 and 历史活动 moved to a page of their own. */
+test("signed in, the home page is 我的活动 and 排行榜 has its own page", async ({ page }) => {
   await page.route("**/api/auth/session", (route) =>
-    route.fulfill({ json: { signedIn: true, hasMember: true, pending: false } }),
+    route.fulfill({ json: { enabled: true, signedIn: true, hasMember: true, pending: false } }),
+  );
+  await page.route("**/api/m/session/me", (route) =>
+    route.fulfill({ json: { id: "M007", username: "Ke", wechatNickname: "ke", active: true, isOwner: false } }),
+  );
+  for (const path of ["profile", "stats", "push"])
+    await page.route(`**/api/m/session/${path}`, (route) =>
+      route.fulfill({ status: 503, json: { error: { message: "x" } } }),
+    );
+  await page.route("**/api/m/session/events", (route) =>
+    route.fulfill({ json: { events: [], history: [], friendCap: 3 } }),
   );
   await page.route("**/api/public/home", (route) =>
-    route.fulfill({ json: { currentEvents: [closed, mineOpen, other], pastEvents: [], leaderboard: null } }),
-  );
-  await page.route("**/api/m/session/events", (route) =>
     route.fulfill({
-      json: { events: [own(closed, true), own(mineOpen, true), own(other, false)], history: [], friendCap: 3 },
+      json: {
+        currentEvents: [event({})],
+        pastEvents: [event({ id: 11, code: "P1", date: "2026-09-01", status: "settled" })],
+        leaderboard: board({ attendance: [{ rank: 1, name: "Lily", value: 9 }] }),
+      },
     }),
   );
   await page.goto("/");
-  const cards = page.locator(".next-card");
-  await expect(cards).toHaveCount(3);
-  await expect(cards.locator(".hero-what")).toHaveText([/上周二/, /快乐星期二/, /下周二/]);
-  await expect(cards.nth(0)).toHaveClass(/tone-hero/);
-  await expect(cards.nth(1)).toHaveClass(/tone-hero/);
-  await expect(cards.nth(2)).toHaveClass(/tone-soft/);
-  await expect(cards.locator(".next-cta")).toHaveText(["查看 →", "查看 →", "报名 →"]);
-  await expect(page.getByText("近期活动")).toHaveCount(0);
+  const nav = page.getByRole("navigation", { name: "我的页面" });
+  await expect(nav.getByRole("link")).toHaveText(["我的活动", "排行榜", "个人信息"]);
+  await expect(nav.getByRole("link", { name: "我的活动" })).toHaveAttribute("aria-current", "page");
+  // No second copy of the events, the boards or the past events here.
+  await expect(page.locator(".next-card")).toHaveCount(0);
+  await expect(page.locator(".board-tabs")).toHaveCount(0);
+
+  await nav.getByRole("link", { name: "排行榜" }).click();
+  await expect(page).toHaveURL(/\/board$/);
+  await expect(nav.getByRole("link", { name: "排行榜" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".board-tabs")).toBeVisible();
+  await expect(page.locator(".mini-card")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "分享" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
 /** Signed out: no button on the event card, one 登录 / 注册 for the page, in the top bar (Ke Li). */

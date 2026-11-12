@@ -3,7 +3,7 @@ import { LocationProvider, Route, Router } from "preact-iso";
 import { Admin } from "./pages/Admin";
 import { EventPage } from "./pages/EventPage";
 import { AdminSetup } from "./pages/AdminSetup";
-import { Home } from "./pages/Home";
+import { BoardPage, Home } from "./pages/Home";
 import { Member, MemberProfilePage } from "./pages/Member";
 import { Account, AccountProfile } from "./pages/Account";
 import { Privacy, Terms } from "./pages/Legal";
@@ -31,6 +31,7 @@ function App() {
           <Route path="/recover" component={Account} />
           <Route path="/login" component={Account} />
           <Route path="/me" component={Account} />
+          <Route path="/board" component={BoardPage} />
           <Route path="/me/profile" component={AccountProfile} />
           <Route path="/privacy" component={Privacy} />
           <Route path="/terms" component={Terms} />

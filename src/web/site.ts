@@ -93,6 +93,7 @@ export function useStaging(): boolean {
   useEffect(() => {
     stagingListeners.add(setS);
     load();
+    setS(staging);
     return () => void stagingListeners.delete(setS);
   }, []);
   return s;
@@ -128,6 +129,7 @@ export function useSponsor(): Sponsor | null {
   useEffect(() => {
     sponsorListeners.add(setS);
     load();
+    setS(sponsor);
     return () => void sponsorListeners.delete(setS);
   }, []);
   return s;

@@ -61,7 +61,6 @@ export function Member(props: { token?: string }) {
           >
             <MemberNav
               token={props.token}
-              admin={m.canAdmin}
               current="events"
               top={m.greeting !== "big"}
               greeting={m.greeting === "small" ? t("你好，{name}", { name: m.username }) : undefined}
@@ -83,18 +82,17 @@ export function Member(props: { token?: string }) {
 }
 
 /**
- * 我的活动 ⇄ 个人信息: the same row on both pages, the current one highlighted (and 管理页 for the
- * Owner or an organizer signed in with Google).
+ * 我的活动 · 排行榜 · 个人信息: the same row on each of the pages (管理页 is 「切换为管理员」 in the top
+ * bar: a fourth button here did not fit a small phone), the current one highlighted.
  */
-function MemberNav(props: {
+export function MemberNav(props: {
   token?: string;
-  admin: boolean;
-  current: "events" | "profile";
+  current: "events" | "board" | "profile";
   greeting?: string;
   top?: boolean;
 }) {
   const home = props.token ? `/m/${props.token}` : "/me";
-  const link = (key: "events" | "profile", href: string, label: string) => (
+  const link = (key: "events" | "board" | "profile", href: string, label: string) => (
     <a
       class={`button secondary${props.current === key ? " on" : ""}`}
       href={href}
@@ -114,12 +112,9 @@ function MemberNav(props: {
           {props.greeting}
         </p>
       )}
-      {!props.token && props.admin && (
-        <a class="button secondary" href="/admin/google">
-          {t("管理页")}
-        </a>
-      )}
       {link("events", home, t("我的活动"))}
+      {/* 排行榜 has a page of its own since the signed-in home became 我的活动 (Ke Li 2026-11-12). */}
+      {!props.token && link("board", "/board", t("排行榜"))}
       {link("profile", `${home}/profile`, t("个人信息"))}
     </nav>
   );
@@ -157,7 +152,7 @@ export function MemberProfilePage(props: { token?: string }) {
         const days = p && activityCounts(p.activity);
         return (
           <Page title={t("个人信息")}>
-            <MemberNav token={props.token} admin={m.canAdmin} current="profile" />
+            <MemberNav token={props.token} current="profile" />
             {m.active ? <YearReviewTop base={base} me={card} /> : <MeCard {...card} />}
             {(s || p || c) && (
               <>
