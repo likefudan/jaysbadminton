@@ -119,19 +119,24 @@ export function forget() {
 
 async function read(env: Env) {
   const all = sites(env);
-  const [releases, tags, healths, mainCommit, ciRuns, deployRuns, releaseRuns, onMain] = await Promise.all([
-    gh<{ tag_name: string; published_at: string; draft: boolean }[]>(env, "/releases?per_page=30"),
-    gh<{ name: string }[]>(env, "/tags?per_page=100"),
-    Promise.all(all.map(health)),
-    gh<{ sha: string }>(env, "/commits/main"),
-    gh<{ workflow_runs: (Run & { head_sha: string })[] }>(
-      env,
-      "/actions/workflows/ci.yml/runs?branch=main&per_page=10",
-    ),
-    gh<{ workflow_runs: Run[] }>(env, "/actions/workflows/ci.yml/runs?event=workflow_dispatch&per_page=8"),
-    gh<{ workflow_runs: Run[] }>(env, "/actions/workflows/release.yml/runs?per_page=5"),
-    migrationsOnMain(env).catch(() => ({ names: [] as string[], safe: {} })),
-  ]);
+  const [releases, tags, healths, mainCommit, ciRuns, deployRuns, releaseRuns, onMain, restoreRuns] = await Promise.all(
+    [
+      gh<{ tag_name: string; published_at: string; draft: boolean }[]>(env, "/releases?per_page=30"),
+      gh<{ name: string }[]>(env, "/tags?per_page=100"),
+      Promise.all(all.map(health)),
+      gh<{ sha: string }>(env, "/commits/main"),
+      gh<{ workflow_runs: (Run & { head_sha: string })[] }>(
+        env,
+        "/actions/workflows/ci.yml/runs?branch=main&per_page=10",
+      ),
+      gh<{ workflow_runs: Run[] }>(env, "/actions/workflows/ci.yml/runs?event=workflow_dispatch&per_page=8"),
+      gh<{ workflow_runs: Run[] }>(env, "/actions/workflows/release.yml/runs?per_page=5"),
+      migrationsOnMain(env).catch(() => ({ names: [] as string[], safe: {} })),
+      gh<{ workflow_runs: Run[] }>(env, "/actions/workflows/restore.yml/runs?per_page=3").catch(() => ({
+        workflow_runs: [] as Run[],
+      })),
+    ],
+  );
   const versions = releases
     .filter((r) => !r.draft && TAG.test(r.tag_name))
     .map((r) => ({ tag: r.tag_name, date: r.published_at }))
@@ -201,7 +206,8 @@ async function read(env: Env) {
   const refused = releaseRuns.workflow_runs
     .filter((r) => r.status === "completed" && r.conclusion === "failure")
     .map((r) => ({ tag: "", at: r.created_at, url: r.html_url, running: false, ok: false, sites: [] }));
-  const runningRelease = releaseRuns.workflow_runs.some((r) => r.status !== "completed");
+  const runningRestore = restoreRuns.workflow_runs.find((r) => r.status !== "completed");
+  const runningRelease = releaseRuns.workflow_runs.some((r) => r.status !== "completed") || !!runningRestore;
   const recent = [...deploys.map(({ jobs: _, ...d }) => d), ...refused]
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, 6);
@@ -213,14 +219,21 @@ async function read(env: Env) {
     jobs
       .flatMap((j) => j.steps ?? [])
       .reduce<string[] | null>((found, st) => found ?? sitesFromStepName(st.name, ids), null);
-  let progress: { tag: string; url: string; at: string; sites: Record<string, SiteProgress> } | null = null;
+  let progress: {
+    tag: string;
+    url: string;
+    at: string;
+    restoring?: boolean;
+    sites: Record<string, SiteProgress>;
+  } | null = null;
   const live = deploys.find((d) => d.running);
   if (live) {
     // A tag from before the sites were put in a step name: the sites that already have a job.
     const chosen = chosenIn(live.jobs) ?? live.sites.map((s) => s.id);
     progress = { tag: live.tag, url: live.url, at: live.at, sites: progressOf(live.jobs, chosen) };
   } else {
-    const run = releaseRuns.workflow_runs.find((r) => r.status !== "completed");
+    // A restore first puts the site's database back, then starts Release.
+    const run = runningRestore ?? releaseRuns.workflow_runs.find((r) => r.status !== "completed");
     if (run) {
       const { jobs } = await gh<{ jobs: Job[] }>(env, `/actions/runs/${run.id}/jobs`).catch(() => ({
         jobs: [] as Job[],
@@ -230,7 +243,10 @@ async function read(env: Env) {
         tag: "",
         url: run.html_url,
         at: run.created_at,
-        sites: Object.fromEntries(chosen.map((id) => [id, { done: 0, label: "准备中", failed: false }])),
+        restoring: run === runningRestore,
+        sites: Object.fromEntries(
+          chosen.map((id) => [id, { done: 0, label: run === runningRestore ? "恢复中" : "准备中", failed: false }]),
+        ),
       };
     }
   }
@@ -280,6 +296,17 @@ export async function release(env: Env, chosen: string[], version: { tag: string
   await gh(env, "/actions/workflows/release.yml/dispatches", {
     method: "POST",
     body: JSON.stringify({ ref: "main", inputs: { sites: everySite ? "all" : chosen.join(","), ...version } }),
+  });
+}
+
+/**
+ * 恢复备份并换版本: restore.yml backs up the site's database, puts it back to before the first
+ * migration the tag lacks, then starts Release for that tag on that site.
+ */
+export async function restore(env: Env, site: string, tag: string) {
+  await gh(env, "/actions/workflows/restore.yml/dispatches", {
+    method: "POST",
+    body: JSON.stringify({ ref: "main", inputs: { site, tag, confirm: site } }),
   });
 }
 

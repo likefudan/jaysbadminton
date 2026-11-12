@@ -61,7 +61,14 @@ test("each site's row opens a usable version picker", async ({ page }) => {
     await expect(page.locator(".panel")).toBeVisible();
     await expect(page.getByRole("button", { name: "选一个版本" })).toBeDisabled();
     await expect(page.locator(".opt input").nth(1)).toBeDisabled();
-    await expect(page.locator(".opt input").nth(2)).toBeDisabled();
+    // A version behind the site's migrations can be chosen, but only through 恢复备份, which asks first.
+    await page.locator(".opt input").nth(2).check();
+    await page.getByRole("button", { name: `恢复备份并换到 ${tags[2]}` }).click();
+    await expect(page.getByRole("button", { name: `恢复并换到 ${tags[2]}` })).toBeDisabled();
+    await page.locator(".sheet .confirm").fill(site.id);
+    await expect(page.getByRole("button", { name: `恢复并换到 ${tags[2]}` })).toBeEnabled();
+    await page.locator(".sheet").getByRole("button", { name: "取消" }).click();
+    await expect(page.locator(".sheet")).toHaveCount(0);
     await page.locator(".opt input").first().check();
     await expect(page.getByRole("button", { name: `换到 ${tags[0]}` })).toBeEnabled();
     // Cancel first: no request is sent and the picker remains usable.

@@ -344,3 +344,28 @@ describe("all versions and their notes", () => {
     expect((await call("/api/releases?page=0", { headers: { Cookie: await signedIn() } })).status).toBe(400);
   });
 });
+
+describe("restore a site's database, then change its version", () => {
+  it("starts Restore for one site only when its id is typed", async () => {
+    const asked: { url: string; body: unknown }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      asked.push({ url: String(input), body: init?.body ? JSON.parse(String(init.body)) : null });
+      return new Response(null, { status: 204 });
+    });
+    const post = async (body: unknown) =>
+      call("/api/restore", {
+        method: "POST",
+        headers: { Cookie: await signedIn(), Origin: ENV.OPS_ORIGIN, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    expect((await post({ site: "sbbc", tag: "v2026.11.10.4", confirm: "jays" })).status).toBe(400);
+    expect((await post({ site: "nope", tag: "v2026.11.10.4", confirm: "nope" })).status).toBe(400);
+    expect((await post({ site: "sbbc", tag: "v1; rm", confirm: "sbbc" })).status).toBe(400);
+    expect(asked).toHaveLength(0);
+    expect((await post({ site: "sbbc", tag: "v2026.11.10.4", confirm: "sbbc" })).status).toBe(200);
+    expect(asked[0]).toEqual({
+      url: "https://api.github.com/repos/likefudan/jaysbadminton/actions/workflows/restore.yml/dispatches",
+      body: { ref: "main", inputs: { site: "sbbc", tag: "v2026.11.10.4", confirm: "sbbc" } },
+    });
+  });
+});

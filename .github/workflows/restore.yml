@@ -1,0 +1,89 @@
+name: Restore
+
+# 恢复备份并换版本 (from the release site, or Actions → Restore → Run workflow on main): puts ONE site's
+# database back to one minute before the first migration it ran that the chosen version does not have
+# (Cloudflare D1 Time Travel, last 30 days), then deploys that version to the site with Release.
+# Everything the site saved after that moment (sign-ups, payments, settings) is lost; the database as
+# it is now is backed up first (encrypted Actions artifact, 90 days), so it can still be recovered.
+# Not needed for migrations in scripts/rollback-safe-migrations.json: Release goes back past those.
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: "哪个站点（只能一个）：jays（Jay's 正式站）, sbbc, bewithyou, coco"
+        type: string
+        required: true
+      tag:
+        description: "恢复后换到的版本，例如 v2026.11.10.6"
+        type: string
+        required: true
+      confirm:
+        description: "再写一次站点代号，确认会丢掉恢复点之后的数据"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: write # start Release afterwards
+
+concurrency: release
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SITE: ${{ inputs.site }}
+      TAG: ${{ inputs.tag }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Only from main, one known site, confirmed
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then echo "::error::Run Restore on main"; exit 1; fi
+          if [ "$CONFIRM" != "$SITE" ]; then echo "::error::确认的站点代号（$CONFIRM）和站点（$SITE）不一样，没有恢复"; exit 1; fi
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: "Check the sites: ${{ inputs.site }}"
+        env:
+          SITES: ${{ inputs.site }}
+        run: |
+          node scripts/release-plan.mjs
+          if ! [[ "$TAG" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] || ! git rev-parse -q --verify "refs/tags/$TAG" > /dev/null ||
+            ! git cat-file -e "$TAG:scripts/check-migrations.mjs"; then
+            echo "::error::$TAG 不是可以在这里部署的版本"
+            exit 1
+          fi
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: The site's database
+        run: |
+          if [ "$SITE" = jays ]; then node scripts/resolve-d1.mjs production; else node scripts/site-config.mjs "$SITE"; fi
+      - name: Back up the database as it is now
+        env:
+          BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
+        run: |
+          if [ "$SITE" = jays ]; then config=(); else config=(--config "wrangler.$SITE.json"); fi
+          scripts/backup-db.sh "before-restore-$SITE-$(date -u +%Y%m%dT%H%M%SZ)" "${config[@]}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: db-encrypted-before-restore-${{ inputs.site }}-${{ github.run_id }}
+          path: backup/
+          retention-days: 90
+      - name: Restore to before the migration
+        id: restore
+        run: node scripts/restore-db.mjs
+      - name: Deploy the version
+        run: |
+          gh workflow run release.yml --ref main -f sites="$SITE" -f tag="$TAG"
+          {
+            echo "### Restored $SITE to ${{ steps.restore.outputs.at }} and started Release of $TAG"
+            echo
+            echo "- The database before the restore: this run's artifact db-encrypted-before-restore-$SITE-$GITHUB_RUN_ID"
+          } >> "$GITHUB_STEP_SUMMARY"
