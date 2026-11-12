@@ -10,6 +10,7 @@ import {
   type QueueAccountsView,
   type QueueInfo,
 } from "../shared/courtQueue";
+import { toPacific } from "../shared/time";
 import { photoEnabled } from "./courtPhoto";
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
@@ -34,6 +35,19 @@ export function cleanRoundMin(v: unknown): number | null {
 /** On for this event and not long over: players can see and change its courts and accounts. */
 export const queueLive = (e: EventRow, at = now()): boolean =>
   e.queue_round_min !== null && e.status !== "cancelled" && Date.parse(at) <= Date.parse(e.end_at) + AFTER_END_MS;
+
+/** 球场按钮一直显示 (设置 › 高级设置): off unless set, so cards only carry the queue on the day. */
+export async function queueAlways(env: Env): Promise<boolean> {
+  return (await getSettings(env.DB, ["queue_always"])).queue_always === "1";
+}
+
+/**
+ * Whether the event card carries the queue (Ke Li 2026-11-12): only from the event's own day
+ * (Pacific) on, so cards of events days away stay short; `always` is the setting above, for trying
+ * the queue out on any day. Entering courts isn't tied to this, only what the card shows.
+ */
+export const queueOnCard = (e: EventRow, always: boolean, at = now()): boolean =>
+  queueLive(e, at) && (always || toPacific(at).date >= toPacific(e.start_at).date);
 
 /** 空闲账号提醒's threshold in % (设置 › 高级设置); 0 = off. */
 export async function idleAlertPct(env: Env): Promise<number> {

@@ -65,7 +65,7 @@ import { endNoFeeEvent } from "../noFee";
 import { SETTLE_DEADLINE_MAX_HOURS, settleDeadline } from "../settleDeadline";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
-import { cleanRoundMin, idleAlertPct, queueAccountsView } from "../courtQueue";
+import { cleanRoundMin, idleAlertPct, queueAccountsView, queueAlways } from "../courtQueue";
 import type { Actor, AdminEnv } from "../access";
 import {
   can,
@@ -818,6 +818,7 @@ adminEventRoutes.get("/settings", async (c) => {
     likes: await likeSettings(c.env),
     idleAlertPct: await idleAlertPct(c.env),
     queueAccountsView: await queueAccountsView(c.env),
+    queueAlways: await queueAlways(c.env),
     calorieShortcut: await shortcutSetting(c.env),
     ...payment,
     siteTitle: site.title,
@@ -896,6 +897,11 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!QUEUE_ACCOUNTS_VIEWS.includes(v as QueueAccountsView)) throw badRequest("球馆账号显示方式不对");
     writes.push(setSetting(c.env.DB, "queue_accounts_view", v));
     said.push(v === "tabs" ? "球馆账号 分成两个标签" : "球馆账号 列在登记球场里");
+  }
+  if (b.queueAlways !== undefined) {
+    const on = b.queueAlways === true;
+    writes.push(setSetting(c.env.DB, "queue_always", on ? "1" : "0"));
+    said.push(on ? "球场按钮 一直显示" : "球场按钮 只在活动当天显示");
   }
   // 卡路里快捷指令: a new version is a new iCloud link, so both come together (Ke Li: no deploy for it).
   if (b.calorieShortcut !== undefined) {

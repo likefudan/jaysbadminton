@@ -1165,6 +1165,9 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   球馆账号显示方式: { tw: "球館帳號顯示方式", en: "Venue accounts layout" },
   列在登记球场里: { tw: "列在登記球場裡", en: "In the court form" },
   分成两个标签: { tw: "分成兩個標籤", en: "Two tabs" },
+  活动卡片上的球场按钮: { tw: "活動卡片上的球場按鈕", en: "Court buttons on event cards" },
+  只在活动当天: { tw: "只在活動當天", en: "Event day only" },
+  一直显示: { tw: "一直顯示", en: "Always" },
   "登记球场时，每个账号下面直接显示密码，没有的账号点「＋ 新账号」添加；删除和批量添加在右上角「账号管理」。": {
     tw: "登記球場時，每個帳號下面直接顯示密碼，沒有的帳號點「＋ 新帳號」新增；刪除和批次新增在右上角「帳號管理」。",
     en: 'When entering a court, each account shows its password underneath; add a missing one with "+ New account". Deleting and bulk adding are under "Manage accounts" at the top right.',

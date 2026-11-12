@@ -4228,6 +4228,13 @@ ul.audit li:first-child {
   color: var(--warn);
   font-size: 14.5px;
 }
+/* Nothing under the buttons (no courts yet): no gap of their own on top of the card's padding. */
+.cq-bar:last-child {
+  margin-bottom: 0;
+}
+.cq:last-child .cq-bar:last-child {
+  margin-bottom: -8px;
+}
 .cq-bar .button {
   flex: 1;
   margin: 0;

@@ -151,6 +151,7 @@ function AdvancedCards(props: { base: string; readOnlySheets?: boolean; openShee
           <>
             <IdleAlertCard base={props.base} initial={v} />
             <QueueViewCard base={props.base} initial={v} />
+            <QueueDayCard base={props.base} initial={v} />
             <AiCard base={props.base} initial={v.ai} />
             <ShortcutCard base={props.base} initial={v} />
             <DaysCard base={props.base} initial={v} />
@@ -834,6 +835,7 @@ interface GeneralSettings {
   likes: { hours: number; pct: number };
   idleAlertPct: number;
   queueAccountsView: QueueAccountsView;
+  queueAlways: boolean;
   calorieShortcut: { url: string; version: number };
   ai: Record<AiUse, AiChoice>;
   venmoUsername: string;
@@ -1129,6 +1131,33 @@ function QueueViewCard(props: { base: string; initial: GeneralSettings }) {
             )
           : t("登记球场的页面顶部分成「登记球场」和「球馆账号」两个标签，账号和密码在第二个标签里。")}
       </p>
+      {error && <p class="error">{error}</p>}
+    </Card>
+  );
+}
+
+/**
+ * 球场按钮 (Ke Li 2026-11-12): event cards carry 登记球场 / 账号管理 only on the event's own day, so
+ * the other cards stay short; 一直显示 is for trying the queue out on any day.
+ */
+function QueueDayCard(props: { base: string; initial: GeneralSettings }) {
+  const [always, setAlways] = useState(props.initial.queueAlways);
+  const { busy, error, run } = useAction();
+  async function pick(v: boolean) {
+    const was = always;
+    setAlways(v);
+    if (!(await run(() => api(`${props.base}/settings`, { queueAlways: v })))) setAlways(was);
+  }
+  return (
+    <Card title={t("活动卡片上的球场按钮")}>
+      <div class="seg" role="group" aria-label={t("活动卡片上的球场按钮")}>
+        <button type="button" class={always ? "" : "on"} disabled={busy} onClick={() => pick(false)}>
+          {t("只在活动当天")}
+        </button>
+        <button type="button" class={always ? "on" : ""} disabled={busy} onClick={() => pick(true)}>
+          {t("一直显示")}
+        </button>
+      </div>
       {error && <p class="error">{error}</p>}
     </Card>
   );

@@ -94,6 +94,8 @@ export async function createTestEvent(ctx: { admin: Client; base: string }, over
     ...overrides,
   });
   if (status !== 200) throw new Error(`create event failed: ${JSON.stringify(data)}`);
+  // The card only carries the queue on the event's own day; these events are a week away.
+  if (overrides.queueRoundMin) await ctx.admin.call(`${ctx.base}/settings`, { queueAlways: true });
   return data;
 }
 
