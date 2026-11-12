@@ -6021,3 +6021,59 @@ label.set-row {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- Wide screens (Ke Li 2026-11-11, option C) ----
+ * An unfolded iPhone Duo held sideways, a tablet or a computer: event cards two by two, the admin
+ * event page in two columns. A big phone turned sideways is wide but under 480 tall, so it keeps
+ * the one column. Keep in step with WIDE_QUERY in hooks.ts. */
+@media (min-width: 600px) {
+  /* The column sits in the middle; the top bars reach the screen's edges. */
+  .topbar {
+    box-shadow: 0 0 0 100vmax var(--topbar);
+    clip-path: inset(0 -100vmax);
+  }
+  .sub-bar {
+    box-shadow: 0 0 0 100vmax var(--surface-raised);
+    clip-path: inset(0 -100vmax);
+  }
+  /* Their bottom line reaches the edges too. */
+  .topbar,
+  .sub-bar {
+    border-bottom-color: transparent;
+  }
+  .topbar::after,
+  .sub-bar::after {
+    content: "";
+    position: absolute;
+    left: -100vmax;
+    right: -100vmax;
+    bottom: -1px;
+    border-bottom: 1px solid var(--line);
+    pointer-events: none;
+  }
+  [data-style="aurora"] .topbar::after {
+    display: none;
+  }
+}
+@media (min-width: 800px) and (min-height: 480px) {
+  .page:has(.card-grid > :nth-child(2), .split) {
+    max-width: 960px;
+  }
+  /* One card alone keeps the usual width. */
+  .card-grid:has(> :nth-child(2)) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+    margin: 16px 0 14px;
+  }
+  .card-grid:has(> :nth-child(2)) > * {
+    margin: 0;
+  }
+  .split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+  }
+}

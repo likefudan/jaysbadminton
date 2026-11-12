@@ -90,3 +90,23 @@ export function useMemberSession(): "loading" | "none" | "pending" | "member" {
   if (session.state === "error" || !session.data.signedIn) return "none";
   return session.data.hasMember ? "member" : session.data.pending ? "pending" : "none";
 }
+
+/**
+ * A screen wide and tall enough for two columns side by side: an unfolded foldable (iPhone Duo's
+ * inner screen) held sideways, a tablet or a computer. A big phone turned sideways is wide enough
+ * but under 480 tall, so it keeps the one column. Keep in step with the same query in styles.css.
+ */
+export const WIDE_QUERY = "(min-width: 800px) and (min-height: 480px)";
+
+export function useWide(): boolean {
+  const [wide, setWide] = useState(() => typeof matchMedia === "function" && matchMedia(WIDE_QUERY).matches);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const query = matchMedia(WIDE_QUERY);
+    const update = () => setWide(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return wide;
+}

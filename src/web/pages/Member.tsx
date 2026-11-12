@@ -284,15 +284,19 @@ function MyEvents(props: { base: string }) {
                 {r.events.length === 0 && r.history.length === 0 ? t("还没有报名过活动") : t("暂时没有可以报名的活动")}
               </Empty>
             )}
-            {open.map((e) => (
-              <SignupCard key={e.id} base={props.base} e={e} onChange={reload} />
-            ))}
+            <div class="card-grid">
+              {open.map((e) => (
+                <SignupCard key={e.id} base={props.base} e={e} onChange={reload} />
+              ))}
+            </div>
             {owing.length > 0 && (
               <>
                 <SectionTitle>{t("待结清")}</SectionTitle>
-                {owing.map((e) => (
-                  <SignupCard key={e.id} base={props.base} e={e} onChange={reload} />
-                ))}
+                <div class="card-grid">
+                  {owing.map((e) => (
+                    <SignupCard key={e.id} base={props.base} e={e} onChange={reload} />
+                  ))}
+                </div>
               </>
             )}
             {settled.length > 0 && (
