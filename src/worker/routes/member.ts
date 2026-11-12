@@ -61,7 +61,9 @@ import {
   addAccounts,
   clearAccounts,
   queueInfo,
+  queueAlways,
   queueLive,
+  queueOnCard,
   removeAccount,
   removeCourt,
   removeCourts,
@@ -308,11 +310,12 @@ async function myEvents(
     if (!managers.has(id)) managers.set(id, payeeName(env.DB, id));
     return managers.get(id)!;
   };
-  const [list, readDays, shortcut, likeCfg] = await Promise.all([
+  const [list, readDays, shortcut, likeCfg, always] = await Promise.all([
     summaries(env, results),
     calorieReadDays(env),
     shortcutSetting(env),
     likeSettings(env),
+    queueAlways(env),
   ]);
   const events: MyEvent[] = [];
   for (const e of list) {
@@ -382,7 +385,7 @@ async function myEvents(
       payment,
       roster: names,
       // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
-      queue: (onIt || runs) && queueLive(row) ? await queueInfo(env, row, m.id, managesQueue(env, m)) : null,
+      queue: (onIt || runs) && queueOnCard(row, always) ? await queueInfo(env, row, m.id, managesQueue(env, m)) : null,
       courts: onIt || runs ? bookedCourts(row) : [],
       kcal: mine.kcalOf(e.id),
       kcalOpen: canRead(row, selfOn, readDays),

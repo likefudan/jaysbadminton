@@ -82,7 +82,8 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
   const queued = shown
     .filter((x) => x.p.phase === "queued")
     .sort((a, b) => a.p.minutes - b.p.minutes || a.c.court - b.c.court);
-  const last = q.courts.reduce<QueueCourt | null>((a, c) => (!a || c.updatedAt > a.updatedAt ? c : a), null);
+  // Only courts still on the card count: a court that ended hours ago would leave a stale line behind.
+  const last = shown.reduce<QueueCourt | null>((a, { c }) => (!a || c.updatedAt > a.updatedAt ? c : a), null);
   const close = () => setSheet(null);
   const done = () => {
     setSheet(null);

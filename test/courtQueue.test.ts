@@ -39,6 +39,23 @@ async function scenario(round = 45) {
 }
 
 describe("球场排队", () => {
+  it("is on the card only from the event's own day, unless 设置 says always (Ke Li)", async () => {
+    const { ctx, e, alice, card } = await scenario();
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.queueAlways).toBe(true);
+    await ctx.admin.call(`${ctx.base}/settings`, { queueAlways: false });
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.queueAlways).toBe(false);
+    // A week away: nothing on the card.
+    expect((await card(alice.base))?.queue).toBeNull();
+    await ctx.admin.call(`${ctx.base}/settings`, { queueAlways: true });
+    expect((await card(alice.base))?.queue).not.toBeNull();
+    await ctx.admin.call(`${ctx.base}/settings`, { queueAlways: false });
+    // Today: it is back.
+    await env.DB.prepare("UPDATE events SET start_at = ?, end_at = ? WHERE id = ?")
+      .bind(new Date().toISOString(), new Date(Date.now() + 7200_000).toISOString(), e.id)
+      .run();
+    expect((await card(alice.base))?.queue).not.toBeNull();
+  });
+
   it("is off unless the event turns it on, and checks the round length", async () => {
     const ctx = await setUpAdmin();
     const off = await createTestEvent(ctx);
@@ -60,6 +77,7 @@ describe("球场排队", () => {
     });
     expect(bad.status).toBe(400);
     // Turned on later from 修改活动, and off again.
+    await ctx.admin.call(`${ctx.base}/settings`, { queueAlways: true });
     const on = await ctx.admin.call(`${ctx.base}/events/${off.id}/edit`, {
       date: off.date,
       startTime: off.startTime,

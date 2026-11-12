@@ -743,3 +743,19 @@ test("空闲账号提醒 stays away under the threshold, and outside the event's
   await expect(page.locator(".cq-court").first()).toBeVisible();
   await expect(page.locator(".cq-idle")).toHaveCount(0);
 });
+
+test("with no court left on the card, 「更新于」 goes too and the buttons end the card", async ({ page }) => {
+  // The only court ended a while ago: it isn't drawn, so who entered it is of no use (Ke Li).
+  const over = { ...queue.courts[0]!, startsAt: null, endsAt: ago(60) };
+  await setUp(page, { ...event, status: "open", canEdit: true, queue: { ...queue, courts: [over] } });
+  await expect(page.getByRole("button", { name: "＋ 登记球场" })).toBeVisible();
+  await expect(page.locator(".cq-head")).toHaveCount(0);
+  await expect(page.locator(".cq-court")).toHaveCount(0);
+  // Same gap under the buttons as the card has at its sides, not a taller one.
+  const gap = await page.locator(".cq-bar").evaluate((bar) => {
+    const card = bar.closest(".card, .event-card, article, section")!;
+    const last = bar.querySelector(".button")!;
+    return card.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom;
+  });
+  expect(gap).toBeLessThanOrEqual(24);
+});
