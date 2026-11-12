@@ -63,6 +63,10 @@ test("the admin reviews application details, sees email failure and retries with
   await alice.getByRole("button", { name: "通过", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("邮件发送失败");
   await page.getByRole("button", { name: "成员", exact: true }).click();
+  // The row says the email didn't go out; the retry is on her page.
+  const row = page.locator(".member-row", { hasText: "Alice" });
+  await expect(row).toContainText("审核邮件没发出");
+  await row.click();
   await page.getByRole("button", { name: "重试审核邮件" }).click();
   await expect(page.getByRole("status")).toContainText("审核通知已发送");
   await expect(page.getByRole("button", { name: "重试审核邮件" })).toHaveCount(0);

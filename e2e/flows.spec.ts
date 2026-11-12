@@ -282,10 +282,7 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
 
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
-  await page
-    .locator(".card", { has: page.getByRole("heading", { name: /^成员（/ }) })
-    .getByRole("button", { name: "小明", exact: true })
-    .click();
+  await page.locator(".member-row", { hasText: "小明" }).click();
   const detail = page.locator(".card.profile");
   await expect(detail.locator(".profile-info")).toContainText("xm@example.com");
   await expect(detail.locator(".heatmap-grid .upcoming")).toHaveCount(1);
@@ -412,6 +409,13 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   });
 });
 
+/** 成员: a member's row opens their page, where 管理 holds what the Owner can do with them. */
+async function memberAction(page: Page, name: string, button: string) {
+  await page.locator(".member-row", { hasText: name }).click();
+  await page.locator(".member-manage").getByRole("button", { name: button }).click();
+}
+const backToMembers = (page: Page) => page.locator(".sub-bar").getByRole("button", { name: "成员" }).click();
+
 test("the Owner appoints an organizer, hands them an event and revokes them", async ({ page }) => {
   const dialogs: string[] = [];
   page.on("dialog", (d) => {
@@ -422,10 +426,11 @@ test("the Owner appoints an organizer, hands them an event and revokes them", as
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
   const block = page.locator(".card", { has: page.getByRole("heading", { name: /^组织者（/ }) });
   await expect(block).toContainText("还没有组织者");
-  const ming = page.locator(".row", { hasText: "小明" });
-  await ming.getByRole("button", { name: "设为组织者" }).click();
+  const ming = page.locator(".member-row", { hasText: "小明" });
+  await memberAction(page, "小明", "设为组织者");
   // Linked to Google here without an email, so nobody could be told: the Owner is asked to.
   await expect(page.getByText(/小明 已成为组织者，但他没有可以收信的邮箱/)).toBeVisible();
+  await backToMembers(page);
   await expect(ming.locator(".badge")).toHaveText("组织者");
   await expect(block).toContainText("收款设置没填好");
   await expect(block).toContainText("负责 0 场未归档活动");
@@ -433,12 +438,14 @@ test("the Owner appoints an organizer, hands them an event and revokes them", as
   // The finalized event: only who runs it changes, the money still goes to the Owner.
   await page.locator(".tabs").getByRole("button", { name: "活动" }).click();
   await page.locator(".event-link", { hasText: VENUE }).click();
-  const owner = page.locator(".card", { has: page.getByRole("heading", { name: "负责人" }) });
+  await page.getByRole("button", { name: /^负责人和收款人/ }).click();
+  const owner = page.getByRole("dialog", { name: "负责人" });
   await expect(owner).toContainText("负责人：Jay · 收款人：Jay");
   await owner.locator("select").selectOption({ label: "小明" });
   await owner.getByRole("button", { name: "转交" }).click();
   await expect(owner).toContainText("负责人：小明 · 收款人：Jay");
   expect(dialogs.pop()).toContain("只换负责人");
+  await owner.getByRole("button", { name: "返回" }).click();
 
   await page.locator(".sub-bar").getByRole("button", { name: "所有活动" }).click();
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
@@ -459,22 +466,25 @@ test("the Owner appoints an admin, demotes them to organizer and revokes them", 
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
   const members = page.locator(".card", { has: page.getByRole("heading", { name: /^成员（/ }) });
-  const ming = members.locator(".row", { hasText: "小明" });
-  await ming.getByRole("button", { name: "设为管理员" }).click();
+  await expect(members).toBeVisible();
+  // The list is hidden under the member's page, so its rows are found without the heading.
+  const ming = page.locator(".member-row", { hasText: "小明" });
+  const manage = page.locator(".member-manage");
+  await ming.click();
+  await manage.getByRole("button", { name: "设为管理员" }).click();
   expect(dialogs.pop()).toContain("像群主一样管理整个群");
   await expect(page.getByText(/小明 已成为管理员/)).toBeVisible();
   await expect(ming.locator(".badge")).toHaveText("管理员");
-  const block = page.locator(".card", { has: page.getByRole("heading", { name: /^管理员和组织者（/ }) });
-  await expect(block).toContainText("小明");
-  await expect(ming.getByRole("button", { name: "设为组织者" })).toHaveCount(0);
+  await expect(page.locator(".card", { hasText: /^管理员和组织者（/ })).toContainText("小明");
+  await expect(manage.getByRole("button", { name: "设为组织者" })).toHaveCount(0);
 
-  await ming.getByRole("button", { name: "降为组织者" }).click();
+  await manage.getByRole("button", { name: "降为组织者" }).click();
   await expect(page.getByText(/小明 已改为组织者/)).toBeVisible();
   await expect(ming.locator(".badge")).toHaveText("组织者");
-  await ming.getByRole("button", { name: "升为管理员" }).click();
+  await manage.getByRole("button", { name: "升为管理员" }).click();
   await expect(ming.locator(".badge")).toHaveText("管理员");
 
-  await ming.getByRole("button", { name: "撤销管理员" }).click();
+  await manage.getByRole("button", { name: "撤销管理员" }).click();
   await expect(page.getByText("已撤销 小明 的管理员身份")).toBeVisible();
   await expect(ming.locator(".badge")).toHaveCount(0);
 });
@@ -487,7 +497,7 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   });
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
-  await page.locator(".row", { hasText: "小明" }).getByRole("button", { name: "设为组织者" }).click();
+  await memberAction(page, "小明", "设为组织者");
   await expect(page.getByText(/小明 已成为组织者/)).toBeVisible();
 
   // 小明 signs in with Google; his own page offers 管理页.
@@ -501,9 +511,11 @@ test("an organizer signs in with Google and runs their own event", async ({ page
 
   // 成员 and 待审核 read-only: the same people, no buttons; Owner-only endpoints refuse.
   await tabs.getByRole("button", { name: "成员" }).click();
-  await expect(page.locator(".row", { hasText: "Jay" }).first()).toBeVisible();
+  await expect(page.locator(".member-row", { hasText: "Jay" }).first()).toBeVisible();
+  await page.locator(".member-row", { hasText: "Jay" }).first().click();
   for (const name of ["停用", "链接", "重新生成", "生成备用链接", "设为组织者", "撤销组织者", "撤销"])
     await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
+  await backToMembers(page);
   await tabs.getByRole("button", { name: /待审核/ }).click();
   await expect(page.getByText("只有群主和管理员可以通过或拒绝申请。")).toBeVisible();
   expect((await page.request.get("/api/admin/google/sheets")).status()).toBe(403);
@@ -597,7 +609,7 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
   const members = page.locator(".card", { has: page.getByRole("heading", { name: /^成员（/ }) });
-  await members.locator(".row", { hasText: "小明" }).getByRole("button", { name: "升为管理员" }).click();
+  await memberAction(page, "小明", "升为管理员");
   await expect(page.getByText(/小明 已成为管理员/)).toBeVisible();
   const ming = googleSession("google-ming", "ming@example.com");
   await context.addCookies([{ name: "jb_member", value: ming, url: baseURL! }]);
@@ -636,14 +648,17 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   // 成员: nothing on the Owner's row or his own; he can 停用 小红 but only the Owner deletes her.
   await tabs.getByRole("button", { name: "成员" }).click();
   for (const who of ["Jay", "小明"]) {
-    const row = members.locator(".row", { hasText: who });
-    await expect(row.locator(".who")).toBeVisible();
-    await expect(row.locator(".actions")).toHaveCount(0);
+    await members.locator(".member-row", { hasText: who }).click();
+    await expect(page.locator(".sub-bar")).toContainText(who);
+    await expect(page.locator(".member-manage")).toHaveCount(0);
+    await backToMembers(page);
   }
-  const hong = members.locator(".row", { hasText: "小红" });
-  await expect(hong.getByRole("button", { name: "设为组织者" })).toBeVisible();
-  await expect(hong.getByRole("button", { name: "设为管理员" })).toHaveCount(0);
-  await hong.getByRole("button", { name: "停用" }).click();
+  const hong = members.locator(".member-row", { hasText: "小红" });
+  await hong.click();
+  const manage = page.locator(".member-manage");
+  await expect(manage.getByRole("button", { name: "设为组织者" })).toBeVisible();
+  await expect(manage.getByRole("button", { name: "设为管理员" })).toHaveCount(0);
+  await manage.getByRole("button", { name: "停用" }).click();
   await expect(hong).toHaveCount(0);
   await page.getByText(/^已停用（/).click();
   const inactive = page.locator(".row", { hasText: "小红" });
@@ -657,7 +672,8 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   // 活动: the Owner's event too, and he can hand it to someone.
   await tabs.getByRole("button", { name: "活动" }).click();
   await page.locator(".event-link", { hasText: VENUE }).click();
-  const owner = page.locator(".card", { has: page.getByRole("heading", { name: "负责人" }) });
+  await page.getByRole("button", { name: /^负责人和收款人/ }).click();
+  const owner = page.getByRole("dialog", { name: "负责人" });
   await expect(owner).toContainText("负责人：Jay · 收款人：Jay");
   await owner.locator("select").selectOption({ label: "小明" });
   await owner.getByRole("button", { name: "转交" }).click();

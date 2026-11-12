@@ -19,7 +19,7 @@ import type {
 } from "../../shared/types";
 import { BOOKED_COURTS_MAX, BOOKED_COURT_MAX } from "../../shared/types";
 import { api } from "../api";
-import { Card, CopyButton, Empty, Field, Load, useAction } from "../components";
+import { Card, CopyButton, Empty, Field, Load, SettingRow, useAction } from "../components";
 import { EventInfo } from "../events";
 import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
 import { useApi, useWide } from "../hooks";
@@ -28,6 +28,7 @@ import { Billing } from "./AdminSettle";
 import { t, fmtDate, fmtInstant, tk } from "../i18n";
 import { goDown, goReplace, goUp, useOnReturn } from "../adminNav";
 import { SubBar } from "../SubBar";
+import { Panel } from "../Panel";
 
 const PAST_PAGE = 30;
 
@@ -121,23 +122,13 @@ export function EventsTab(props: {
                 <Card title={t("进行中")}>
                   {l.current.length === 0 && <Empty>{t("没有进行中的活动")}</Empty>}
                   {l.current.map((e) => (
-                    <EventRow
-                      key={e.id}
-                      e={e}
-                      manager={byManager}
-                      onOpen={() => goDown({ tab: "events", event: e.id })}
-                    />
+                    <EventRow key={e.id} e={e} onOpen={() => goDown({ tab: "events", event: e.id })} />
                   ))}
                 </Card>
                 {l.past.length > 0 && (
                   <Card title={t("已结束")}>
                     {l.past.map((e) => (
-                      <EventRow
-                        key={e.id}
-                        e={e}
-                        manager={byManager}
-                        onOpen={() => goDown({ tab: "events", event: e.id })}
-                      />
+                      <EventRow key={e.id} e={e} onOpen={() => goDown({ tab: "events", event: e.id })} />
                     ))}
                     {l.morePast && (
                       <button
@@ -159,10 +150,10 @@ export function EventsTab(props: {
   );
 }
 
-function EventRow(props: { e: AdminEventSummary; manager: boolean; onOpen: () => void }) {
+function EventRow(props: { e: AdminEventSummary; onOpen: () => void }) {
   return (
     <button type="button" class="event-link" onClick={props.onOpen}>
-      <EventInfo e={props.e} runBy={props.manager ? t("负责人：{name}", { name: props.e.manager.name }) : undefined} />
+      <EventInfo e={props.e} compact />
       <span class="chevron">›</span>
     </button>
   );
@@ -551,6 +542,9 @@ function EventAdminBody(props: {
   const publicLink = `${location.origin}/e/${e.code}`;
   const { busy, error, run } = useAction();
   const wide = useWide();
+  // 名单: rows show 到场 only; 编辑 brings out 改名 and 删除 (Ke Li 2026-11-12, option B).
+  const [editing, setEditing] = useState(false);
+  const [more, setMore] = useState<"transfer" | "audit" | null>(null);
 
   async function cancelEvent() {
     if (!confirm(t("取消后这次活动不产生费用，也不计入统计。确定取消吗？"))) return;
@@ -574,8 +568,9 @@ function EventAdminBody(props: {
   // keeps the workflow order: add walk-ins, check the roster, then fill in the costs.
   const head = (
     <>
-      <Card>
+      <Card class={editable ? "ev-admin-info can-edit" : "ev-admin-info"}>
         <EventInfo e={e} />
+        {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
         <CopyButton text={publicLink} label={t("复制活动链接")} />
       </Card>
       <MySignup
@@ -604,7 +599,15 @@ function EventAdminBody(props: {
           onDone={props.onChange}
         />
       )}
-      <Card title={t("名单（{n}）", { n: e.roster.length })}>
+      <Card>
+        <h2 class="with-action">
+          <span>{t("名单（{n}）", { n: e.roster.length })}</span>
+          {editable && e.roster.length > 0 && (
+            <button type="button" class="head-action" aria-pressed={editing} onClick={() => setEditing(!editing)}>
+              {editing ? t("完成") : t("编辑")}
+            </button>
+          )}
+        </h2>
         {error && <p class="error">{error}</p>}
         {e.roster.length === 0 && <Empty>{t("还没有人报名")}</Empty>}
         {e.roster.some((r) => r.arrive) && (
@@ -620,9 +623,9 @@ function EventAdminBody(props: {
               {r.friendIndex > 0 && <small>　{t("{name} 带的朋友", { name: r.memberName })}</small>}
               {r.paidBy && <small>　{t("{name} 带的群友，{name} 付钱", { name: r.paidByName ?? "" })}</small>}
             </div>
-            {editable && (
+            {editable && (editing || e.status !== "open") && (
               <div class="actions">
-                {e.status !== "open" && (
+                {!editing && (
                   <button
                     type="button"
                     class={`toggle ${r.attended ? "" : "off"}`}
@@ -632,14 +635,16 @@ function EventAdminBody(props: {
                     {r.attended ? t("到场") : t("未出席")}
                   </button>
                 )}
-                {r.friendIndex > 0 && (
+                {editing && r.friendIndex > 0 && (
                   <button type="button" class="button secondary" disabled={busy} onClick={() => rename(r)}>
                     {t("改名")}
                   </button>
                 )}
-                <button type="button" class="button danger" disabled={busy} onClick={() => remove(r)}>
-                  {t("删除")}
-                </button>
+                {editing && (
+                  <button type="button" class="button danger" disabled={busy} onClick={() => remove(r)}>
+                    {t("删除")}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -657,16 +662,37 @@ function EventAdminBody(props: {
   );
   const tail = (
     <>
-      {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
-      {editable && props.organizers?.canManage && (
-        <Transfer eb={eb} e={e} owner={owner} organizers={props.organizers} onDone={props.onChange} />
+      {/* The rare ones in one list at the bottom (Ke Li 2026-11-12). */}
+      <section class="card set-list bare more-list">
+        <h2>{t("更多")}</h2>
+        {editable && props.organizers?.canManage && (
+          <SettingRow
+            label={e.noFee ? t("负责人") : t("负责人和收款人")}
+            value={e.manager.name}
+            onClick={() => setMore("transfer")}
+          />
+        )}
+        <SettingRow label={t("操作记录")} onClick={() => setMore("audit")} />
+        {(e.status === "open" || e.status === "closed") && (
+          <div class="set-item">
+            <button type="button" class="set-row danger" disabled={busy} onClick={cancelEvent}>
+              {t("取消这次活动")}
+            </button>
+          </div>
+        )}
+      </section>
+      {more === "transfer" && props.organizers && (
+        <Panel title={t("负责人")} label={t("负责人")} onClose={() => setMore(null)}>
+          <Transfer eb={eb} e={e} owner={owner} organizers={props.organizers} onDone={props.onChange} />
+        </Panel>
       )}
-      {(e.status === "open" || e.status === "closed") && (
-        <button type="button" class="button danger block" disabled={busy} onClick={cancelEvent}>
-          {t("取消这次活动")}
-        </button>
+      {more === "audit" && (
+        <Panel title={t("操作记录")} label={t("操作记录")} onClose={() => setMore(null)}>
+          <Card>
+            <AuditList eb={eb} e={e} />
+          </Card>
+        </Panel>
       )}
-      <AuditLog eb={eb} e={e} />
       {e.deletable && isOwner && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
     </>
   );
@@ -757,18 +783,6 @@ function PhotoUsageCard(props: { u: PhotoUsage }) {
 }
 
 /** 操作记录: who changed what on this event, newest first. Loaded only once opened. */
-function AuditLog(props: { eb: string; e: EventDetail }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Card>
-      <details class="fold" onToggle={(ev) => setOpen((ev.currentTarget as HTMLDetailsElement).open)}>
-        <summary>{t("操作记录")}</summary>
-        {open && <AuditList eb={props.eb} e={props.e} />}
-      </details>
-    </Card>
-  );
-}
-
 function AuditList(props: { eb: string; e: EventDetail }) {
   const [log, reload] = useApi<{ entries: AuditEntry[] }>(`${props.eb}/audit`);
   // The page reloads the event after every change; the log follows it.
@@ -834,7 +848,7 @@ function Transfer(props: {
     }
   }
   return (
-    <Card title={t("负责人")}>
+    <Card>
       <p>
         {e.noFee
           ? t("负责人：{name}", { name: e.manager.name })
@@ -1298,7 +1312,7 @@ function CloseNow(props: { eb: string; onDone: () => void }) {
   );
 }
 
-/** Emergency-only edit of date, times and location, folded away by default. */
+/** 修改: a button in the corner of the event's card; the form opens in a panel. For emergencies. */
 function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(props.e.date);
@@ -1318,24 +1332,23 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const [hours, setHours] = useState(Math.floor((props.e.deadlineOffsetMin % 1440) / 60));
   const { busy, error, run } = useAction();
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        class="link-button"
-        onClick={() => {
-          // As the event is now (a 重新开放报名 since this was first shown changes it), so saving
-          // something else never undoes it.
-          setDeadlineOn(!props.e.noDeadline);
-          setDays(Math.floor(props.e.deadlineOffsetMin / 1440));
-          setHours(Math.floor((props.e.deadlineOffsetMin % 1440) / 60));
-          setOpen(true);
-        }}
-      >
-        {t("修改活动标题、时间、地点、备注、排队系统或报名截止")}
-      </button>
-    );
-  }
+  const button = (
+    <button
+      type="button"
+      class="button secondary edit-event"
+      onClick={() => {
+        // As the event is now (a 重新开放报名 since this was first shown changes it), so saving
+        // something else never undoes it.
+        setDeadlineOn(!props.e.noDeadline);
+        setDays(Math.floor(props.e.deadlineOffsetMin / 1440));
+        setHours(Math.floor((props.e.deadlineOffsetMin % 1440) / 60));
+        setOpen(true);
+      }}
+    >
+      {t("修改")}
+    </button>
+  );
+  if (!open) return button;
   async function save() {
     const msg = t(
       "修改会立即显示在活动页和成员页，但不会自动通知任何人，请自己在群里说明。活动代号和已发出的链接不变。确定修改吗？",
@@ -1361,40 +1374,45 @@ function EditEvent(props: { eb: string; e: EventDetail; onDone: () => void }) {
     }
   }
   return (
-    <Card title={t("修改活动（紧急情况）")}>
-      <p class="warn">{t("只在场地变更、时间临时调整等紧急情况使用。修改后请在微信群里通知大家。")}</p>
-      <Field label={t("活动标题")} value={title} onInput={setTitle} />
-      <WhenRows date={date} start={startTime} end={endTime} onDate={setDate} onStart={setStart} onEnd={setEnd} />
-      <VenueFields
-        base={props.eb.replace(/\/events\/\d+$/, "")}
-        venues={[]}
-        venue={location}
-        address={address}
-        onVenue={setLocation}
-        onAddress={setAddress}
-      />
-      <NotesField value={notes} onInput={setNotes} />
-      <OptionRows>
-        {feeOpen && <FeeField noFee={noFee} onNoFee={setNoFee} />}
-        <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
-        {feeOpen && (
-          <DeadlineField
-            on={deadlineOn}
-            days={days}
-            hours={hours}
-            onOn={setDeadlineOn}
-            onDays={setDays}
-            onHours={setHours}
+    <>
+      {button}
+      <Panel title={t("修改活动")} label={t("修改活动")} onClose={() => setOpen(false)}>
+        <Card>
+          <p class="warn">{t("只在场地变更、时间临时调整等紧急情况使用。修改后请在微信群里通知大家。")}</p>
+          <Field label={t("活动标题")} value={title} onInput={setTitle} />
+          <WhenRows date={date} start={startTime} end={endTime} onDate={setDate} onStart={setStart} onEnd={setEnd} />
+          <VenueFields
+            base={props.eb.replace(/\/events\/\d+$/, "")}
+            venues={[]}
+            venue={location}
+            address={address}
+            onVenue={setLocation}
+            onAddress={setAddress}
           />
-        )}
-      </OptionRows>
-      {error && <p class="error">{error}</p>}
-      <button type="button" class="button block" disabled={busy} onClick={save}>
-        {t("保存修改")}
-      </button>
-      <button type="button" class="button secondary block" disabled={busy} onClick={() => setOpen(false)}>
-        {t("取消")}
-      </button>
-    </Card>
+          <NotesField value={notes} onInput={setNotes} />
+          <OptionRows>
+            {feeOpen && <FeeField noFee={noFee} onNoFee={setNoFee} />}
+            <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
+            {feeOpen && (
+              <DeadlineField
+                on={deadlineOn}
+                days={days}
+                hours={hours}
+                onOn={setDeadlineOn}
+                onDays={setDays}
+                onHours={setHours}
+              />
+            )}
+          </OptionRows>
+          {error && <p class="error">{error}</p>}
+          <button type="button" class="button block" disabled={busy} onClick={save}>
+            {t("保存修改")}
+          </button>
+          <button type="button" class="button secondary block" disabled={busy} onClick={() => setOpen(false)}>
+            {t("取消")}
+          </button>
+        </Card>
+      </Panel>
+    </>
   );
 }
