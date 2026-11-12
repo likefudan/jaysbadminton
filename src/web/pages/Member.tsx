@@ -1,7 +1,10 @@
+import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
+import { Leaders } from "../Boards";
 import { dollars } from "../../shared/settle";
 import type {
   GuestChoice,
+  HomeResponse,
   MeResponse,
   MemberProfile,
   MyCalories,
@@ -45,6 +48,8 @@ const BILL_STATUS: Record<PaymentStatus, { cls: string; label: string }> = {
 export function Member(props: { token?: string }) {
   const base = `/api/m/${props.token ?? "session"}`;
   const [me] = useApi<MeResponse>(`${base}/me`);
+  // For 排行榜 under the event cards.
+  const [home] = useApi<HomeResponse>("/api/public/home");
   // One offer at a time: adding to the home screen first (iPhone needs it before push).
   const [installShown, setInstallShown] = useState(false);
   // A phone on its side has no room for the big 你好: the small one, whatever the site's setting.
@@ -73,7 +78,18 @@ export function Member(props: { token?: string }) {
             {m.active && !installShown && (
               <PushPrompt base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />
             )}
-            <MyEvents base={base} />
+            <MyEvents
+              base={base}
+              board={
+                home.state === "ok" &&
+                home.data.leaderboard && (
+                  // One block, so on a wide screen its title and its card stay in the same column.
+                  <div class="board-block">
+                    <Leaders board={home.data.leaderboard} />
+                  </div>
+                )
+              }
+            />
           </Page>
         );
       }}
@@ -280,7 +296,7 @@ const settledForMe = (e: MyEvent) =>
  * their part not paid yet; 已结清, their part paid (an event closed early and settled lands here too,
  * even if it's still ahead). The first two run soonest first, 已结清 newest first.
  */
-function MyEvents(props: { base: string }) {
+function MyEvents(props: { base: string; board?: ComponentChildren }) {
   const [res, reload] = useApi<MyEventsResponse>(`${props.base}/events`);
   return (
     <Load result={res}>
@@ -322,6 +338,8 @@ function MyEvents(props: { base: string }) {
                 </div>
               </>
             )}
+            {/* 排行榜 right under the event cards, where everyone sees it (Ke Li 2026-11-12). */}
+            {props.board}
             {settled.length > 0 && (
               <SwipeSection title={t("已结清")} span>
                 {settled.map((h) => (
