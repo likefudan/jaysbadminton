@@ -22,6 +22,9 @@ export default defineConfig({
     locale: "zh-CN",
     timezoneId: "America/Los_Angeles",
     trace: "retain-on-failure",
+    // Most specs answer /api/auth/session and /api/public/site themselves, so they ask for pages
+    // without those answers written in (src/worker/boot.ts); flows.spec.ts takes the pages as served.
+    extraHTTPHeaders: { "X-Plain-Page": "1" },
     // A preinstalled Chromium elsewhere (e.g. a sandbox) instead of Playwright's own download.
     launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
   },

@@ -92,9 +92,10 @@ googleRoutes.use("*", async (c, next) => {
   if (c.req.method !== "GET") requireSameOrigin(c);
   await next();
 });
-googleRoutes.get("/session", async (c) => {
+/** Who is signed in on this browser: /api/auth/session, and written into every page (boot.ts). */
+export async function sessionInfo<E extends { Bindings: Env }>(c: Context<E>) {
   if (await developerMember(c))
-    return c.json({
+    return {
       enabled: googleEnabled(c.env),
       signedIn: true,
       email: null,
@@ -104,10 +105,10 @@ googleRoutes.get("/session", async (c) => {
       role: "member",
       organizers: organizersEnabled(c.env),
       developer: true,
-    });
+    };
   const session = await googleSession(c);
   const member = session ? await memberByGoogle(c.env, session.google_sub) : null;
-  return c.json({
+  return {
     enabled: googleEnabled(c.env),
     signedIn: !!session,
     email: session?.email ?? null,
@@ -119,8 +120,9 @@ googleRoutes.get("/session", async (c) => {
     role: member && member.status === "active" ? memberRole(c.env, member) : "member",
     // Whether the 组织者 feature is on, so pages keep their old wording while it is off.
     organizers: organizersEnabled(c.env),
-  });
-});
+  };
+}
+googleRoutes.get("/session", async (c) => c.json(await sessionInfo(c)));
 googleRoutes.get("/google", async (c) => {
   if (!googleEnabled(c.env)) return c.redirect("/login?error=not_configured");
   const state = randomToken(),

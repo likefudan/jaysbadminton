@@ -14,11 +14,28 @@ export class ApiError extends Error {
 // one that set off before a change was saved, which may answer with how things were.
 const loading = new Map<string, Promise<unknown>>();
 
+// The first answers arrive inside the page itself (src/worker/boot.ts), so the page draws without
+// waiting to ask: good for the first few seconds, and until anything is saved.
+const primed = new Map<string, unknown>();
+try {
+  const boot = typeof document === "undefined" ? null : document.getElementById("boot");
+  if (boot?.textContent)
+    for (const [path, data] of Object.entries(JSON.parse(boot.textContent) as Record<string, unknown>))
+      primed.set(path, data);
+  setTimeout(() => primed.clear(), 5000);
+  // A page brought back whole from the browser's page cache had its clock stopped: ask afresh.
+  addEventListener("pageshow", (e) => e.persisted && primed.clear());
+} catch {
+  // A page without them asks as usual.
+}
+
 export function api<T>(path: string, body?: unknown): Promise<T> {
   if (body !== undefined) {
+    primed.clear();
     loading.clear();
     return request<T>(path, body).finally(() => loading.clear());
   }
+  if (primed.has(path)) return Promise.resolve(primed.get(path) as T);
   let p = loading.get(path) as Promise<T> | undefined;
   if (!p) {
     const mine: Promise<T> = request<T>(path).finally(() => loading.get(path) === mine && loading.delete(path));

@@ -1,6 +1,6 @@
 import { type SiteLang, isSiteLang } from "../shared/rules";
 import { formatDateZh, toPacific } from "../shared/time";
-import { MESSAGES } from "./messages";
+import { MEMBER_MESSAGES } from "./messages";
 
 /**
  * 简体 / 繁體 / English for every page, the admin pages included (Ke Li 2026-11-04). The text in the code stays Simplified
@@ -44,6 +44,19 @@ function saved(): Lang | null {
   } catch {
     return null;
   }
+}
+
+let patterns: { re: RegExp; names: string[]; key: string }[] | null = null;
+
+/**
+ * Every text loaded so far: the member and public pages' from the start, the admin pages' once
+ * their code has downloaded (addMessages).
+ */
+export const MESSAGES: Record<string, { tw: string; en: string }> = { ...MEMBER_MESSAGES };
+
+export function addMessages(more: Record<string, { tw: string; en: string }>) {
+  Object.assign(MESSAGES, more);
+  patterns = null;
 }
 
 let chosen: Lang = saved() ?? detect();
@@ -91,8 +104,6 @@ export function t(zh: string, vars?: Record<string, string | number>): string {
   const s = lookup(zh);
   return vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
 }
-
-let patterns: { re: RegExp; names: string[]; key: string }[] | null = null;
 
 /**
  * A message made elsewhere (the server, a shared form check), translated when it is one we know.
