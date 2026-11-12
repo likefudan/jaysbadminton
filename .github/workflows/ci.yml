@@ -83,14 +83,15 @@ jobs:
         run: npm ci
       - run: npm test -- --maxWorkers=2 --shard=2/2
 
-  # The browser tests in two halves at the same time: e2e runs flows.spec.ts, e2e-2 all the others.
+  # The browser tests in three parts at the same time: e2e runs flows.spec.ts (the one on a real
+  # database, in order), e2e-2 and e2e-3 half each of all the others (Playwright splits them by file).
   e2e:
-    name: ${{ matrix.shard == 1 && 'e2e' || 'e2e-2' }}
+    name: ${{ matrix.shard == 1 && 'e2e' || format('e2e-{0}', matrix.shard) }}
     if: ${{ !(inputs.tested && startsWith(github.ref, 'refs/tags/v')) }}
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -121,10 +122,10 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
       - name: Browser tests (main flows on a local Worker)
-        run: npx playwright test ${{ matrix.shard == 1 && 'flows' || '' }}
+        run: npx playwright test ${{ matrix.shard == 1 && 'flows' || format('--shard={0}/2', matrix.shard - 1) }}
         env:
           WRANGLER_SEND_METRICS: "false"
-          E2E_SKIP_FLOWS: ${{ matrix.shard == 2 && '1' || '' }}
+          E2E_SKIP_FLOWS: ${{ matrix.shard != 1 && '1' || '' }}
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

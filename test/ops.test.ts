@@ -260,7 +260,7 @@ describe("release site", () => {
 describe("release progress", () => {
   const ids = ["jays", "sbbc", "coco"];
   const done = (name: string): Job => ({ name, status: "completed", conclusion: "success" });
-  const tests = ["check", "unit-2", "e2e", "e2e-2"].map(done);
+  const tests = ["check", "unit-2", "e2e", "e2e-2", "e2e-3"].map(done);
 
   it("reads the chosen sites from the step name", () => {
     expect(sitesFromStepName("Sites: all", ids)).toEqual(ids);

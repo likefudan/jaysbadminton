@@ -182,7 +182,7 @@ function stepOf(name: string, before: number): number {
   return before;
 }
 
-const TESTS = ["check", "unit-2", "e2e", "e2e-2"];
+const TESTS = ["check", "unit-2", "e2e", "e2e-2", "e2e-3"];
 const jobOf = (id: string) => (id === MAIN_SITE ? "deploy-production" : `deploy-sites (${id})`);
 
 /**
