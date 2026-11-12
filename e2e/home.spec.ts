@@ -90,8 +90,8 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   await expect(page.locator("main")).toContainText("这段时间还没有人上榜");
 });
 
-/** Signed in: the home page is 我的活动 with 排行榜 under the event cards (Ke Li 2026-11-12); 历史活动 and 分享 are on the 排行榜 page. */
-test("signed in, the home page is 我的活动 and 排行榜 has its own page", async ({ page }) => {
+/** Signed in: the home page is 我的活动 with 排行榜 under the event cards and 分享 at the bottom (Ke Li 2026-11-12). */
+test("signed in, the home page is 我的活动 with 排行榜 and 分享 on it", async ({ page }) => {
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({ json: { enabled: true, signedIn: true, hasMember: true, pending: false } }),
   );
@@ -116,7 +116,7 @@ test("signed in, the home page is 我的活动 and 排行榜 has its own page", 
   );
   await page.goto("/");
   const nav = page.getByRole("navigation", { name: "我的页面" });
-  await expect(nav.getByRole("link")).toHaveText(["我的活动", "排行榜", "个人信息"]);
+  await expect(nav.getByRole("link")).toHaveText(["我的活动", "个人信息"]);
   await expect(nav.getByRole("link", { name: "我的活动" })).toHaveAttribute("aria-current", "page");
   // No second copy of the events or the past events here; 排行榜 sits under the event cards,
   // where everyone sees it (Ke Li 2026-11-12).
@@ -126,12 +126,7 @@ test("signed in, the home page is 我的活动 and 排行榜 has its own page", 
   await expect(page.locator(".podium .who")).toHaveText(["Lily"]);
   await expect(page.locator(".mini-card")).toHaveCount(0);
 
-  await nav.getByRole("link", { name: "排行榜" }).click();
-  await expect(page).toHaveURL(/\/board$/);
-  await expect(nav.getByRole("link", { name: "排行榜" })).toHaveAttribute("aria-current", "page");
-  await expect(page.locator(".board-tabs")).toBeVisible();
-  await expect(page.locator(".mini-card")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "分享" })).toBeVisible();
+  await expect(page.locator(".share-site")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 

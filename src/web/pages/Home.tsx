@@ -2,7 +2,6 @@ import type { EventSummary, HomeResponse } from "../../shared/types";
 import { Empty, Load, Page, SectionTitle } from "../components";
 import { CourtsLine, EventHero, EventLink, MiniEventCard } from "../events";
 import { Account } from "./Account";
-import { MemberNav } from "./Member";
 import { useApi, useMemberSession } from "../hooks";
 import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
@@ -47,7 +46,7 @@ function NextEvent(props: {
   );
 }
 
-/** 排行榜、历史活动 and 分享: the bottom of the public home page, and a signed-in member's 排行榜 page. */
+/** 排行榜、历史活动 and 分享: the bottom of the public home page. */
 function BoardAndPast(props: { data: HomeResponse }) {
   const data = props.data;
   return (
@@ -68,18 +67,6 @@ function BoardAndPast(props: { data: HomeResponse }) {
       </SwipeSection>
       <ShareCardButton text={siteCardText(location.origin, t)} />
     </>
-  );
-}
-
-/** /board 排行榜: the boards, 历史活动 and 分享. Members reach it from the row on top; anyone may open it. */
-export function BoardPage() {
-  const [home] = useApi<HomeResponse>("/api/public/home");
-  const member = useMemberSession();
-  return (
-    <Page title={t("排行榜")} bare>
-      {member === "member" && <MemberNav current="board" top />}
-      <Load result={home}>{(data) => <BoardAndPast data={data} />}</Load>
-    </Page>
   );
 }
 

@@ -120,7 +120,14 @@ test("the boards show avatars to members and names alone to visitors", async ({ 
       },
     }),
   );
-  await page.goto("/board");
+  // A member's home page is 我的活动, with the boards under the event cards.
+  await page.route("**/api/m/session/me", (route) =>
+    route.fulfill({ json: { id: "M007", username: "Ke", wechatNickname: "ke", active: true, isOwner: false } }),
+  );
+  await page.route("**/api/m/session/events", (route) =>
+    route.fulfill({ json: { events: [], history: [], friendCap: 3 } }),
+  );
+  await page.goto("/");
   const card = page.locator(".card.board");
   await expect(card.locator(".podium .avatar")).toHaveCount(3);
   await expect(card.locator(".podium .p1 .avatar img")).toHaveAttribute("src", "/api/public/avatars/p0");
