@@ -14,6 +14,8 @@ export function SwipeSection(props: {
   /** Shown instead of the row, with no arrows, when there is nothing to list. */
   empty?: ComponentChildren;
   ordered?: boolean;
+  /** On a wide screen the row runs across both columns (我的活动's 已结清) instead of one. */
+  span?: boolean;
   class?: string;
   children?: ComponentChildren;
 }) {
@@ -71,7 +73,7 @@ export function SwipeSection(props: {
   const arrows = !props.empty && !(edges.start && edges.end);
   return (
     <>
-      <h2 class="section-title with-seg">
+      <h2 class={props.span ? "section-title with-seg span-all" : "section-title with-seg"}>
         <span>{props.title}</span>
         {(props.extra || arrows) && (
           <span class="swipe-tools">
@@ -92,7 +94,7 @@ export function SwipeSection(props: {
       {props.empty ?? (
         <Row
           ref={row as never}
-          class={props.class ? `swipe ${props.class}` : "swipe"}
+          class={`swipe${props.class ? ` ${props.class}` : ""}${props.span ? " span-all" : ""}`}
           onScroll={measure}
           onPointerDown={drag}
           onDragStart={(e) => e.preventDefault()}
