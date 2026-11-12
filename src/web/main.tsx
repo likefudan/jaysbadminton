@@ -1,15 +1,12 @@
 import { Fragment, render, type ComponentChildren } from "preact";
-import { LocationProvider, Route, Router } from "preact-iso";
-import { Admin } from "./pages/Admin";
+import { LocationProvider, Route, Router, lazy } from "preact-iso";
 import { EventPage } from "./pages/EventPage";
-import { AdminSetup } from "./pages/AdminSetup";
 import { BoardPage, Home } from "./pages/Home";
 import { Member, MemberProfilePage } from "./pages/Member";
 import { Account, AccountProfile } from "./pages/Account";
-import { Privacy, Terms } from "./pages/Legal";
 import { NotFound } from "./pages/NotFound";
 import { PullToRefresh } from "./PullToRefresh";
-import { useActiveLang } from "./i18n";
+import { addMessages, chosenLang, listeners, useActiveLang } from "./i18n";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "./styles.css";
@@ -26,6 +23,40 @@ import monoFont from "@fontsource-variable/geist-mono/files/geist-mono-latin-wgh
   link.href = monoFont;
   document.head.append(link);
 }
+
+/**
+ * Pages most visitors never open download when first opened: the 管理页 with its texts (over half
+ * of all the code), and the privacy policy and terms. After a new release the old files are gone,
+ * so a page left open since before it fails to fetch them: load the site afresh, once.
+ */
+function later<T>(load: () => Promise<T>): () => Promise<T> {
+  return () =>
+    load().catch((err) => {
+      const KEY = "reloaded-for-code";
+      let last = 0;
+      try {
+        last = Number(sessionStorage.getItem(KEY)) || 0;
+        if (Date.now() - last > 60_000) sessionStorage.setItem(KEY, String(Date.now()));
+      } catch {
+        last = Date.now(); // no storage to remember the reload in: don't risk reloading for ever
+      }
+      if (Date.now() - last > 60_000) location.reload();
+      throw err;
+    });
+}
+const adminPages = later(() => import("./pages/adminPages"));
+const legalPages = later(() => import("./pages/Legal"));
+const Admin = lazy(() => adminPages().then((m) => m.Admin));
+const AdminSetup = lazy(() => adminPages().then((m) => m.AdminSetup));
+const Privacy = lazy(() => legalPages().then((m) => m.Privacy));
+const Terms = lazy(() => legalPages().then((m) => m.Terms));
+
+// Messages from the server are translated from the same tables (tm), and a few a member can get are
+// worded in the admin pages' file: in 繁體 and English, fetch that too once the page is up.
+const allMessages = () =>
+  chosenLang() !== "zh-CN" && void import("./adminMessages").then((m) => addMessages(m.ADMIN_MESSAGES)).catch(() => {});
+setTimeout(allMessages, 3000);
+listeners.add(allMessages);
 
 /** Renders the page in the chosen language, afresh when it changes. */
 function Localized(props: { children: ComponentChildren }) {
