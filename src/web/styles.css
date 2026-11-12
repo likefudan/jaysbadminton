@@ -6135,3 +6135,60 @@ label.set-row {
     align-items: start;
   }
 }
+
+/* ---- Small fixes from the 2026-11-12 UI review ---- */
+/* The card's 报名 / 修改 sits beside the title line only: a longer time ("Sat 20:00–22:00" in
+ * English, or any time on a 320-wide phone) used to run under it. */
+.ev-head > .ev-cta {
+  min-height: 34px;
+  bottom: 10px;
+}
+.hero-date small {
+  white-space: nowrap;
+}
+.ev-head:has(.ev-cta) .hero-what {
+  padding-right: 100px;
+}
+@media (max-width: 359px) {
+  .hero-date {
+    font-size: 34px;
+  }
+  .hero-date small {
+    margin-left: 6px;
+    font-size: 14px;
+  }
+}
+/* 管理页's five tabs fit a phone in English too ("Settings" used to be pushed off the edge). */
+.tabs button {
+  padding: 0 6px;
+}
+@media (max-width: 430px) {
+  .tabs button {
+    font-size: 13px;
+    padding: 0 3px;
+  }
+  /* 切换为普通成员 next to three round buttons left "Jay's 羽…" of the site's name. */
+  .topbar-actions:has(.profile-switch) {
+    gap: 6px;
+  }
+  .profile-switch {
+    padding: 6px 8px;
+    font-size: 11.5px;
+  }
+}
+@media (max-width: 359px) {
+  .tabs button {
+    font-size: 12px;
+    padding: 0 2px;
+  }
+}
+/* 新建活动 with the 负责人 filter or the first card right under it, and 取消这次活动 right on
+ * top of 操作记录: a full-width button keeps a gap below as well. */
+.flow > .button.block,
+.button.danger.block:has(+ .card) {
+  margin-bottom: 14px;
+}
+/* A card ending in a line of text (我的报名 once the event is settled) had a blank strip. */
+.card > p:last-child {
+  margin-bottom: 0;
+}
