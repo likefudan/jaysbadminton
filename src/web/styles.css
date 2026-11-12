@@ -6056,8 +6056,31 @@ label.set-row {
   }
 }
 @media (min-width: 800px) and (min-height: 480px) {
-  .page:has(.card-grid > :nth-child(2), .split) {
+  .page {
     max-width: 960px;
+  }
+  /* Every page's cards flow down the left half, then the right. */
+  .page-body {
+    column-count: 2;
+    column-gap: 14px;
+  }
+  .page-body > *,
+  .page-body > .flow > * {
+    break-inside: avoid;
+  }
+  /* A wrapper that only hides a list while a detail is open: its cards join the columns. */
+  .page-body > .flow:not([hidden]) {
+    display: contents;
+  }
+  /* A heading stays with the card under it. */
+  .page-body .section-title,
+  .page-body > .flow > .button,
+  .page-body > .flow > .field {
+    break-after: avoid;
+  }
+  .page-body > :is(.sub-bar, .tabs, .page-links, .split, .card-grid),
+  .page-body > .section-title:has(+ .card-grid) {
+    column-span: all;
   }
   /* One card alone keeps the usual width. */
   .card-grid:has(> :nth-child(2)) {

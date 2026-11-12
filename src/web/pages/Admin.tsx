@@ -558,7 +558,7 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
         />
       )}
       {listSeen.current && (
-        <div hidden={!!open}>
+        <div class="flow" hidden={!!open}>
           {shown && (
             <Card>
               <LinkCard
