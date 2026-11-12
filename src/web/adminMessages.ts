@@ -539,15 +539,18 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Once closed, members can't sign up or make changes. You can reopen it later if needed. Close now?",
   },
   立即截止报名: { tw: "立即截止報名", en: "Close sign-up now" },
-  "修改活动标题、时间、地点、备注、排队系统或报名截止": {
-    tw: "修改活動標題、時間、地點、備註、排隊系統或報名截止",
-    en: "Edit the event's title, time, place, notes, court queue or sign-up deadline",
-  },
   "修改会立即显示在活动页和成员页，但不会自动通知任何人，请自己在群里说明。活动代号和已发出的链接不变。确定修改吗？": {
     tw: "修改會立即顯示在活動頁和成員頁，但不會自動通知任何人，請自己在群裡說明。活動代號和已發出的連結不變。確定修改嗎？",
     en: "Changes show on the event and member pages right away, but no one is notified; please tell the group yourself. The event code and links already sent stay the same. Save changes?",
   },
-  "修改活动（紧急情况）": { tw: "修改活動（緊急情況）", en: "Edit event (emergencies)" },
+  修改活动: { tw: "修改活動", en: "Edit event" },
+  更多: { tw: "更多", en: "More" },
+  编辑: { tw: "編輯", en: "Edit" },
+  负责人和收款人: { tw: "負責人和收款人", en: "Runs it / gets paid" },
+  搜索名字或微信名: { tw: "搜尋名字或微信名", en: "Search by name or WeChat name" },
+  没有找到成员: { tw: "沒有找到成員", en: "No members found" },
+  管理: { tw: "管理", en: "Manage" },
+  审核邮件没发出: { tw: "審核郵件沒發出", en: "Approval email not sent" },
   "只在场地变更、时间临时调整等紧急情况使用。修改后请在微信群里通知大家。": {
     tw: "只在場地變更、時間臨時調整等緊急情況使用。修改後請在微信群裡通知大家。",
     en: "Only for emergencies such as a venue change or a last-minute time change. Let everyone know in the WeChat group afterwards.",

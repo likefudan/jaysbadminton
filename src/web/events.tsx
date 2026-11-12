@@ -119,6 +119,8 @@ export function EventInfo(props: {
   status?: { cls: string; label: string }; // overrides the event status, e.g. a member's own bill
   /** Who runs it, e.g. 组织：A on a member's card or 负责人：A on the Owner's list; never on public pages. */
   runBy?: string;
+  /** A row of the admin's 活动 list: title, time, venue, status and headcount only; the rest is one tap away. */
+  compact?: boolean;
 }) {
   const e = props.e;
   const badge = props.status ?? (props.publicView ? publicStatus(e.status) : { cls: e.status, label: t(statusZh(e)) });
@@ -130,7 +132,8 @@ export function EventInfo(props: {
         <div class="ev-line">
           {e.startTime}–{e.endTime} · <span class="venue">{e.location}</span>
         </div>
-        {e.address &&
+        {!props.compact &&
+          e.address &&
           (props.inLink ? (
             <div class="ev-meta address">{e.address}</div>
           ) : (
@@ -139,8 +142,8 @@ export function EventInfo(props: {
             </a>
           ))}
         {props.runBy && <div class="ev-meta">{props.runBy}</div>}
-        {e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
-        {e.status === "open" && !e.noDeadline && (
+        {!props.compact && e.notes?.trim() && <div class="ev-meta event-notes">{e.notes}</div>}
+        {!props.compact && e.status === "open" && !e.noDeadline && (
           <div class="ev-meta">{t("报名截止 {time}", { time: fmtInstant(e.deadlineAt) })}</div>
         )}
         <div class="ev-foot">

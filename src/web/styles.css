@@ -6256,3 +6256,86 @@ label.set-row {
     margin-top: 8px;
   }
 }
+
+/* ---- Admin pages, slimmer (UI review 2026-11-12: A1, A3, A4, A5) ---- */
+/* A card title with a small action on its right (名单 … 编辑). */
+.card h2.with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.head-action {
+  flex: none;
+  min-height: 36px;
+  margin: -8px -8px -8px 0;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--acc-ink);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+/* 修改 in the corner of the event's own card; the text beside it wraps before it. */
+.ev-admin-info {
+  position: relative;
+}
+.ev-admin-info .edit-event {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+.ev-admin-info.can-edit .ev-body {
+  padding-right: 58px;
+}
+.ev-admin-info.can-edit .ev-foot {
+  margin-right: -58px;
+}
+/* 更多: the rare actions as one list at the bottom of the event page. */
+.set-list.more-list > h2 {
+  margin: 12px 18px 4px;
+}
+.set-row.danger {
+  color: var(--danger);
+}
+/* 成员: one tappable line each; what you can do with them is on their own page. */
+.member-search {
+  margin: 0 0 4px;
+}
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.card h2 + .member-row,
+.member-search + .member-row {
+  border-top: 0;
+}
+.member-row .who {
+  flex: 1;
+  min-width: 0;
+}
+.member-row .who small {
+  display: block;
+  color: var(--muted);
+}
+.member-manage .actions {
+  margin-left: 0;
+}
+.member-manage:not(:has(button, p)) {
+  display: none;
+}
