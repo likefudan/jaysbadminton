@@ -33,7 +33,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let stop = false;
   for (const id of plan(process.env.SITES, ids)) {
     const config = id === MAIN_SITE ? [] : ["--config", `wrangler.${id}.json`];
-    if (id !== MAIN_SITE) execFileSync("node", ["scripts/site-config.mjs", id], { stdio: "inherit" });
+    // Puts the site's real database id into the wrangler config (Jay's is a placeholder in the repo).
+    execFileSync(
+      "node",
+      id === MAIN_SITE ? ["scripts/resolve-d1.mjs", "production"] : ["scripts/site-config.mjs", id],
+      {
+        stdio: "inherit",
+      },
+    );
     let applied = [];
     try {
       const out = wrangler([
