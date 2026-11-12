@@ -1289,6 +1289,22 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "To prevent accidental changes, saving payment settings needs the owner password",
   },
   默认外观: { tw: "預設外觀", en: "Default look" },
+  我的活动页的问候语: { tw: "我的活動頁的問候語", en: "Greeting on My events" },
+  大标题: { tw: "大標題", en: "Large" },
+  小字: { tw: "小字", en: "Small" },
+  不显示: { tw: "不顯示", en: "Hidden" },
+  "页面顶部用大字显示「你好，名字」。": {
+    tw: "頁面頂部用大字顯示「你好，名字」。",
+    en: "“Hi, name” in large type at the top of the page.",
+  },
+  "「你好，名字」用小字放在「我的活动」「个人信息」按钮左边，省出一行。": {
+    tw: "「你好，名字」用小字放在「我的活動」「個人資訊」按鈕左邊，省出一行。",
+    en: "“Hi, name” in smaller type to the left of the My events and Profile buttons, saving a line.",
+  },
+  "不显示「你好，名字」，按钮直接在顶部。": {
+    tw: "不顯示「你好，名字」，按鈕直接在頂部。",
+    en: "No “Hi, name”; the buttons sit at the top.",
+  },
   "（你自己选了别的外观，所以这里换了你看不到变化。）": {
     tw: "（你自己選了別的外觀，所以這裡換了你看不到變化。）",
     en: "(You picked a different look for yourself, so you won't see changes made here.)",

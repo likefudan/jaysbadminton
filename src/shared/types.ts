@@ -1,3 +1,4 @@
+import type { Greeting } from "./rules";
 import type { PhotoUsage } from "./ai";
 import type { QueueInfo } from "./courtQueue";
 import type { MilestoneKey } from "./milestones";
@@ -151,6 +152,8 @@ export interface MeResponse {
   avatar: string | null;
   avatarMode: AvatarMode;
   googlePicture: boolean;
+  /** 「你好，名字」 at the top of 我的活动, as the Owner or an admin set it. */
+  greeting: Greeting;
 }
 
 /** 头像: their own photo, their Google account's picture (the default), or none. */

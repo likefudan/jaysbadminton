@@ -53,8 +53,16 @@ export function Member(props: { token?: string }) {
         <Page
           title={t("你好，{name}", { name: m.username })}
           subtitle={props.token ? t("请不要把这个链接转发给别人。") : undefined}
+          bare={m.greeting !== "big"}
         >
-          <MemberNav token={props.token} admin={m.canAdmin} current="events" />
+          <MemberNav
+            token={props.token}
+            admin={m.canAdmin}
+            current="events"
+            top={m.greeting !== "big"}
+            greeting={m.greeting === "small" ? t("你好，{name}", { name: m.username }) : undefined}
+          />
+          {m.greeting !== "big" && props.token && <p class="hint">{t("请不要把这个链接转发给别人。")}</p>}
           {!m.active && (
             <p class="hint">{t("你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。")}</p>
           )}
@@ -73,7 +81,13 @@ export function Member(props: { token?: string }) {
  * 我的活动 ⇄ 个人信息: the same row on both pages, the current one highlighted (and 管理页 for the
  * Owner or an organizer signed in with Google).
  */
-function MemberNav(props: { token?: string; admin: boolean; current: "events" | "profile" }) {
+function MemberNav(props: {
+  token?: string;
+  admin: boolean;
+  current: "events" | "profile";
+  greeting?: string;
+  top?: boolean;
+}) {
   const home = props.token ? `/m/${props.token}` : "/me";
   const link = (key: "events" | "profile", href: string, label: string) => (
     <a
@@ -84,8 +98,17 @@ function MemberNav(props: { token?: string; admin: boolean; current: "events" | 
       {label}
     </a>
   );
+  // 问候语 小字 (设置 › 外观和公共页面): 「你好，名字」 on the left of the same row.
   return (
-    <nav class="page-links" aria-label={t("我的页面")}>
+    <nav
+      class={`page-links${props.top ? " top" : ""}${props.greeting ? " with-greeting" : ""}`}
+      aria-label={t("我的页面")}
+    >
+      {props.greeting && (
+        <p class="greeting" aria-hidden="true">
+          {props.greeting}
+        </p>
+      )}
       {!props.token && props.admin && (
         <a class="button secondary" href="/admin/google">
           {t("管理页")}

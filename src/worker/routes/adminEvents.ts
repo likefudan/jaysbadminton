@@ -91,7 +91,7 @@ import {
   savePaymentProfile,
 } from "../payees";
 import { quietBills } from "../health";
-import { SITE_TITLE_MAX, appNameKey, appNames, siteTheme } from "../site";
+import { SITE_TITLE_MAX, appNameKey, appNames, siteGreeting, siteTheme } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
 import {
@@ -125,7 +125,15 @@ import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
 import { MODEL_RE, aiChoices, aiSettingKey, azureDeployments } from "../ai";
 import { AI_EFFORTS, AI_USES, AI_USE_NAME, type AiEffort } from "../../shared/ai";
 import { autoJoinCap, autoJoinEnabled } from "../joining";
-import { APP_NAME_MAX, LIKE_HOURS_MAX, SITE_LANGS, checkAutoJoinCap } from "../../shared/rules";
+import {
+  APP_NAME_MAX,
+  GREETINGS,
+  GREETING_NAME,
+  LIKE_HOURS_MAX,
+  SITE_LANGS,
+  checkAutoJoinCap,
+  type Greeting,
+} from "../../shared/rules";
 
 /** Mounted under /api/admin/:token after the admin auth middleware, which has checked access.ts. */
 export const adminEventRoutes = new Hono<AdminEnv>();
@@ -816,6 +824,7 @@ adminEventRoutes.get("/settings", async (c) => {
     // Empty until set: the icon then carries Simplified's name, or the site title.
     appNames: site.names,
     theme: await siteTheme(c.env),
+    greeting: await siteGreeting(c.env),
     publicBoards: (await boardSettings(c.env)).public.length,
     autoJoin: await autoJoinEnabled(c.env),
     autoJoinCap: await autoJoinCap(c.env),
@@ -917,6 +926,12 @@ adminEventRoutes.post("/settings", async (c) => {
     if ([...t].length > SITE_TITLE_MAX) throw badRequest(`网站标题最多 ${SITE_TITLE_MAX} 个字`);
     writes.push(setSetting(c.env.DB, "site_title", t));
     said.push(`网站标题「${t}」`);
+  }
+  if (b.greeting !== undefined) {
+    const v = str(b.greeting) as Greeting;
+    if (!GREETINGS.includes(v)) throw badRequest("问候语的显示方式不对");
+    writes.push(setSetting(c.env.DB, "greeting", v));
+    said.push(`我的活动页问候语 ${GREETING_NAME[v]}`);
   }
   if (b.appNames !== undefined) {
     if (typeof b.appNames !== "object" || b.appNames === null) throw badRequest("桌面图标名称格式不对");

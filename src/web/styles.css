@@ -3846,6 +3846,25 @@ button.heatmap-cell:not(:disabled) {
   gap: 8px;
   margin: -4px 0 4px;
 }
+/* 问候语 小字: the name on the left, the buttons keep the right. */
+.page-links.with-greeting {
+  align-items: center;
+}
+.page-links .greeting {
+  flex: 1;
+  min-width: 0;
+  margin: 0 4px 0 2px;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* No big title above: a little room under the top bar. */
+.page-links.top {
+  margin-top: 14px;
+}
 .page-links .button {
   min-height: 36px;
   padding: 0 14px;
@@ -5200,6 +5219,12 @@ ul.audit li:first-child {
 }
 label.set-row {
   cursor: default;
+}
+.set-seg {
+  padding: 10px 12px;
+}
+.set-seg .seg {
+  margin: 0;
 }
 .theme-line {
   display: flex;

@@ -181,6 +181,7 @@ describe("member links", () => {
       avatar: null,
       avatarMode: "google",
       googlePicture: false,
+      greeting: "big",
     });
     const shown = await admin.call(`${base}/members/${id}/link`);
     expect(tokenOf(shown.data.link)).toBe(token);
