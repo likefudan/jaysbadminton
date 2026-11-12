@@ -58,7 +58,7 @@ export function Page(props: {
             {props.subtitle && <p class="subtitle">{props.subtitle}</p>}
           </div>
         )}
-        {props.children}
+        <div class="page-body">{props.children}</div>
       </main>
       {staging && <DeveloperSwitch />}
       <footer class="legal-links">

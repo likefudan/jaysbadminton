@@ -92,7 +92,7 @@ export function EventsTab(props: {
         />
       )}
       {listSeen.current && (
-        <div hidden={mode !== "list"}>
+        <div class="flow" hidden={mode !== "list"}>
           <button type="button" class="button block" onClick={() => goDown({ tab: "events", event: "new" })}>
             {t("＋ 新建活动")}
           </button>
