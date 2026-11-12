@@ -120,7 +120,7 @@ test("the boards show avatars to members and names alone to visitors", async ({ 
       },
     }),
   );
-  await page.goto("/");
+  await page.goto("/board");
   const card = page.locator(".card.board");
   await expect(card.locator(".podium .avatar")).toHaveCount(3);
   await expect(card.locator(".podium .p1 .avatar img")).toHaveAttribute("src", "/api/public/avatars/p0");

@@ -346,11 +346,9 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await expect(page.locator(".hero-top .status-mine")).toHaveText("我已报名");
   await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
   await page.goto("/");
-  await expect(page.locator(".next-card .status")).toHaveText("我已报名"); // the home card too
-  await expect(page.locator(".next-cta")).toHaveText("查看 →"); // already on it: nothing left to sign up for
-  // The button and the card itself open the same page: the event's own card.
-  await expect(page.locator(".next-cta")).toHaveAttribute("href", `/e/${eventCode}`);
-  await expect(page.locator(".next-event")).toHaveAttribute("href", `/e/${eventCode}`);
+  // Signed in, the home page is 我的活动: the same card, and 排行榜 one tap away.
+  await expect(page.locator(".hero-top .status-mine")).toHaveText("我已报名");
+  await expect(page.getByRole("navigation", { name: "我的页面" }).getByRole("link", { name: "排行榜" })).toBeVisible();
   await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(0);
 
   // The Owner binds their Google account in 设置, then gets in with it alone.
@@ -367,7 +365,7 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await page.goto("/admin/google");
   await expect(page.locator(".tabs")).toBeVisible();
   await page.goto("/me");
-  await expect(page.getByRole("link", { name: "管理页", exact: true })).toHaveAttribute("href", "/admin/google");
+  await expect(page.getByRole("link", { name: "切换为管理员", exact: true })).toHaveAttribute("href", "/admin/google");
 });
 
 test("the Owner closes sign-up and settles; the member sees the bill and a Venmo link", async ({ page }) => {
@@ -500,11 +498,11 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await memberAction(page, "小明", "设为组织者");
   await expect(page.getByText(/小明 已成为组织者/)).toBeVisible();
 
-  // 小明 signs in with Google; his own page offers 管理页.
+  // 小明 signs in with Google; his own page offers 切换为管理员 in the top bar.
   const ming = googleSession("google-ming", "ming@example.com");
   await context.addCookies([{ name: "jb_member", value: ming, url: baseURL! }]);
   await page.goto("/me");
-  await page.getByRole("link", { name: "管理页", exact: true }).click();
+  await page.getByRole("link", { name: "切换为管理员", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/google$/);
   const tabs = page.locator(".tabs");
   await expect(tabs.getByRole("button")).toHaveText(["活动", "收款", "待审核", "成员", "设置"]);

@@ -1,6 +1,8 @@
-import type { EventSummary, HomeResponse, MyEvent, MyEventsResponse } from "../../shared/types";
+import type { EventSummary, HomeResponse } from "../../shared/types";
 import { Empty, Load, Page, SectionTitle } from "../components";
-import { CourtsLine, EventHero, EventLink, MiniEventCard, mineStatus, onCard } from "../events";
+import { CourtsLine, EventHero, EventLink, MiniEventCard } from "../events";
+import { Account } from "./Account";
+import { MemberNav } from "./Member";
 import { useApi, useMemberSession } from "../hooks";
 import { useSiteTitle } from "../site";
 import { siteCardText } from "../../shared/shareCard";
@@ -45,44 +47,60 @@ function NextEvent(props: {
   );
 }
 
-/**
- * A member's card colour, the rule on 我的活动 (Ke Li): coral for the ones they (or their friends)
- * are on until the bill comes, light for ones they could still join, plain for the rest.
- */
-function toneFor(e: EventSummary, own: MyEvent | undefined): "hero" | "soft" | "plain" {
-  if (own && onCard(own)) return "hero";
-  return e.status === "open" ? "soft" : "plain";
-}
-
-/** All the current events for a signed-in member, soonest first, each in the same card (Ke Li). */
-function MyEvents(props: { events: EventSummary[] }) {
-  const [res] = useApi<MyEventsResponse>("/api/m/session/events");
-  if (res.state === "loading") return null;
-  const mine = res.state === "ok" ? res.data.events : [];
+/** 排行榜、历史活动 and 分享: the bottom of the public home page, and a signed-in member's 排行榜 page. */
+function BoardAndPast(props: { data: HomeResponse }) {
+  const data = props.data;
   return (
-    <div class="card-grid">
-      {props.events.map((e) => {
-        const own = mine.find((x) => x.id === e.id);
-        const cta = own?.selfSignedUp || e.status !== "open" ? t("查看") : t("报名");
-        return (
-          <NextEvent
+    <>
+      {data.leaderboard && <Leaders board={data.leaderboard} />}
+      <SwipeSection
+        title={t("历史活动")}
+        empty={data.pastEvents.length === 0 ? <Empty>{t("还没有历史活动")}</Empty> : undefined}
+      >
+        {data.pastEvents.map((e) => (
+          <MiniEventCard
             key={e.id}
             e={e}
-            cta={cta}
-            ctaHref={`/e/${e.code}`}
-            mine={own ? mineStatus(own) : null}
-            courts={own?.courts}
-            tone={toneFor(e, own)}
+            muted={e.status === "cancelled"}
+            line={e.status === "cancelled" ? t("已取消") : t("{n} 人参加", { n: e.headcount })}
           />
-        );
-      })}
-    </div>
+        ))}
+      </SwipeSection>
+      <ShareCardButton text={siteCardText(location.origin, t)} />
+    </>
   );
 }
 
-export function Home() {
+/** /board 排行榜: the boards, 历史活动 and 分享. Members reach it from the row on top; anyone may open it. */
+export function BoardPage() {
   const [home] = useApi<HomeResponse>("/api/public/home");
   const member = useMemberSession();
+  return (
+    <Page title={t("排行榜")} bare>
+      {member === "member" && <MemberNav current="board" top />}
+      <Load result={home}>{(data) => <BoardAndPast data={data} />}</Load>
+    </Page>
+  );
+}
+
+/**
+ * The home page. A signed-in member gets 我的活动 here (Ke Li 2026-11-12, option A: the two pages
+ * showed the same cards); everyone else the public page.
+ */
+export function Home() {
+  const member = useMemberSession();
+  const title = useSiteTitle();
+  if (member === "loading")
+    return (
+      <Page title={title} bare>
+        {null}
+      </Page>
+    );
+  return member === "member" ? <Account /> : <PublicHome pending={member === "pending"} />;
+}
+
+function PublicHome(props: { pending: boolean }) {
+  const [home] = useApi<HomeResponse>("/api/public/home");
   const cta = t("报名");
   return (
     <Page title={useSiteTitle()} bare>
@@ -92,14 +110,12 @@ export function Home() {
           const others = data.currentEvents.filter((e) => e !== next);
           return (
             <>
-              {member === "member" && data.currentEvents.length > 0 ? (
-                <MyEvents events={data.currentEvents} />
-              ) : next ? (
+              {next ? (
                 // Signed out: nothing on the card, 登录 / 注册 is in the top bar (Ke Li).
-                <NextEvent e={next} cta={member === "pending" ? cta : null} />
+                <NextEvent e={next} cta={props.pending ? cta : null} />
               ) : (
                 <>
-                  {(member === "member" || member === "pending") && (
+                  {props.pending && (
                     <a class="button block" href="/me">
                       {cta}
                     </a>
@@ -107,7 +123,7 @@ export function Home() {
                   <Empty>{t("暂时没有活动")}</Empty>
                 </>
               )}
-              {member !== "member" && others.length > 0 && (
+              {others.length > 0 && (
                 <>
                   <SectionTitle>{t("近期活动")}</SectionTitle>
                   <div class="card list">
@@ -117,21 +133,7 @@ export function Home() {
                   </div>
                 </>
               )}
-              {data.leaderboard && <Leaders board={data.leaderboard} />}
-              <SwipeSection
-                title={t("历史活动")}
-                empty={data.pastEvents.length === 0 ? <Empty>{t("还没有历史活动")}</Empty> : undefined}
-              >
-                {data.pastEvents.map((e) => (
-                  <MiniEventCard
-                    key={e.id}
-                    e={e}
-                    muted={e.status === "cancelled"}
-                    line={e.status === "cancelled" ? t("已取消") : t("{n} 人参加", { n: e.headcount })}
-                  />
-                ))}
-              </SwipeSection>
-              <ShareCardButton text={siteCardText(location.origin, t)} />
+              <BoardAndPast data={data} />
             </>
           );
         }}
