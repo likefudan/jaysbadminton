@@ -26,7 +26,8 @@ import { useApi, useWide } from "../hooks";
 import { has } from "../organizers";
 import { Billing } from "./AdminSettle";
 import { t, fmtDate, fmtInstant, tk } from "../i18n";
-import { goDown, goReplace, goUp, useOnReturn } from "../adminNav";
+import { goDown, goReplace, goSide, goUp, useOnReturn } from "../adminNav";
+import { MasterDetail } from "../MasterDetail";
 import { SubBar } from "../SubBar";
 import { Panel } from "../Panel";
 
@@ -55,9 +56,6 @@ export function EventsTab(props: {
   const mode = props.event === undefined ? "list" : props.event === "new" ? "create" : props.event;
   // The list again on the way back from an event, with what changed there.
   useOnReturn(mode === "list", reload);
-  // Kept underneath once seen, not drawn for an event opened straight from a push.
-  const listSeen = useRef(false);
-  if (mode === "list") listSeen.current = true;
   const owner = props.members.find((m) => m.isOwner);
   // Past managers (organizers since revoked) can be picked too: the list names everyone who ran one.
   const current = new Set([owner?.id, ...(props.organizers?.list ?? []).map((o) => o.id)]);
@@ -68,91 +66,98 @@ export function EventsTab(props: {
   const shown: typeof list =
     list.state !== "loading" && filterOf(list.path) !== filterOf(path) ? { state: "loading" } : list;
 
-  // The list stays underneath, hidden, so coming back finds it as it was, scrolled where it was.
+  const wide = useWide();
+  // Beside an open event (wide screens) another one takes its place.
+  const openEvent = (event: number | "new") => (wide ? goSide : goDown)({ tab: "events", event });
+  const detail =
+    mode === "create" ? (
+      <CreateEvent
+        base={props.base}
+        owner={has(props.viewer, "group")}
+        onDone={(id) => {
+          if (id === undefined) goUp({ tab: "events" });
+          else {
+            goReplace({ tab: "events", event: id });
+            reload();
+          }
+        }}
+      />
+    ) : typeof mode === "number" ? (
+      <EventAdmin
+        key={mode}
+        base={props.base}
+        id={mode}
+        members={props.members}
+        organizers={props.organizers}
+        viewer={props.viewer}
+        onBack={() => goUp({ tab: "events" })}
+        onChange={wide ? reload : undefined}
+      />
+    ) : null;
   return (
-    <>
-      {mode === "create" && (
-        <CreateEvent
-          base={props.base}
-          owner={has(props.viewer, "group")}
-          onDone={(id) => {
-            if (id === undefined) goUp({ tab: "events" });
-            else goReplace({ tab: "events", event: id });
-          }}
-        />
+    <MasterDetail detail={detail} empty={t("在左边选一个活动，或者新建一个")}>
+      <button type="button" class="button block" onClick={() => openEvent("new")}>
+        {t("＋ 新建活动")}
+      </button>
+      {byManager && (
+        <label class="field">
+          <span>{t("负责人")}</span>
+          <select value={manager} onChange={(e) => setManager((e.target as HTMLSelectElement).value)}>
+            <option value="">{t("所有负责人")}</option>
+            {owner && <option value={owner.id}>{t("群主（{name}）", { name: owner.username })}</option>}
+            {props.organizers!.list.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.username}
+              </option>
+            ))}
+            {formerManagers.map((o) => (
+              <option key={o.id} value={o.id}>
+                {t("{name}（已卸任）", { name: o.name })}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
-      {typeof mode === "number" && (
-        <EventAdmin
-          key={mode}
-          base={props.base}
-          id={mode}
-          members={props.members}
-          organizers={props.organizers}
-          viewer={props.viewer}
-          onBack={() => goUp({ tab: "events" })}
-        />
-      )}
-      {listSeen.current && (
-        <div class="flow" hidden={mode !== "list"}>
-          <button type="button" class="button block" onClick={() => goDown({ tab: "events", event: "new" })}>
-            {t("＋ 新建活动")}
-          </button>
-          {byManager && (
-            <label class="field">
-              <span>{t("负责人")}</span>
-              <select value={manager} onChange={(e) => setManager((e.target as HTMLSelectElement).value)}>
-                <option value="">{t("所有负责人")}</option>
-                {owner && <option value={owner.id}>{t("群主（{name}）", { name: owner.username })}</option>}
-                {props.organizers!.list.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.username}
-                  </option>
+      <Load result={shown}>
+        {(l) => (
+          <>
+            <Card title={t("进行中")}>
+              {l.current.length === 0 && <Empty>{t("没有进行中的活动")}</Empty>}
+              {l.current.map((e) => (
+                <EventRow key={e.id} e={e} on={mode === e.id} onOpen={() => openEvent(e.id)} />
+              ))}
+            </Card>
+            {l.past.length > 0 && (
+              <Card title={t("已结束")}>
+                {l.past.map((e) => (
+                  <EventRow key={e.id} e={e} on={mode === e.id} onOpen={() => openEvent(e.id)} />
                 ))}
-                {formerManagers.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {t("{name}（已卸任）", { name: o.name })}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <Load result={shown}>
-            {(l) => (
-              <>
-                <Card title={t("进行中")}>
-                  {l.current.length === 0 && <Empty>{t("没有进行中的活动")}</Empty>}
-                  {l.current.map((e) => (
-                    <EventRow key={e.id} e={e} onOpen={() => goDown({ tab: "events", event: e.id })} />
-                  ))}
-                </Card>
-                {l.past.length > 0 && (
-                  <Card title={t("已结束")}>
-                    {l.past.map((e) => (
-                      <EventRow key={e.id} e={e} onOpen={() => goDown({ tab: "events", event: e.id })} />
-                    ))}
-                    {l.morePast && (
-                      <button
-                        type="button"
-                        class="button secondary block"
-                        onClick={() => setPastShown((n) => n + PAST_PAGE)}
-                      >
-                        {t("显示更早的活动")}
-                      </button>
-                    )}
-                  </Card>
+                {l.morePast && (
+                  <button
+                    type="button"
+                    class="button secondary block"
+                    onClick={() => setPastShown((n) => n + PAST_PAGE)}
+                  >
+                    {t("显示更早的活动")}
+                  </button>
                 )}
-              </>
+              </Card>
             )}
-          </Load>
-        </div>
-      )}
-    </>
+          </>
+        )}
+      </Load>
+    </MasterDetail>
   );
 }
 
-function EventRow(props: { e: AdminEventSummary; onOpen: () => void }) {
+function EventRow(props: { e: AdminEventSummary; on: boolean; onOpen: () => void }) {
   return (
-    <button type="button" class="event-link" onClick={props.onOpen}>
+    <button
+      type="button"
+      class={props.on ? "event-link on" : "event-link"}
+      aria-current={props.on ? "page" : undefined}
+      onClick={props.onOpen}
+    >
       <EventInfo e={props.e} compact />
       <span class="chevron">›</span>
     </button>
@@ -500,8 +505,14 @@ function EventAdmin(props: {
   organizers: OrganizersBlock | null;
   viewer: AdminViewer;
   onBack: () => void;
+  /** Beside the list (wide screens): the list follows what changes here. */
+  onChange?: () => void;
 }) {
-  const [ev, reload] = useApi<EventDetail>(`${props.base}/events/${props.id}`);
+  const [ev, reloadEvent] = useApi<EventDetail>(`${props.base}/events/${props.id}`);
+  const reload = () => {
+    reloadEvent();
+    props.onChange?.();
+  };
   return (
     <>
       <SubBar back={props.onBack} label={t("所有活动")} title={t("活动详情")} />
@@ -541,7 +552,6 @@ function EventAdminBody(props: {
   const editable = e.status === "open" || e.status === "closed" || e.status === "finalized";
   const publicLink = `${location.origin}/e/${e.code}`;
   const { busy, error, run } = useAction();
-  const wide = useWide();
   // 名单: rows show 到场 only; 编辑 brings out 改名 and 删除 (Ke Li 2026-11-12, option B).
   const [editing, setEditing] = useState(false);
   const [more, setMore] = useState<"transfer" | "audit" | null>(null);
@@ -563,9 +573,8 @@ function EventAdminBody(props: {
     if (await run(() => api(`${eb}/roster/${r.id}/rename`, { name }))) props.onChange();
   }
 
-  // Two columns on a wide screen (an unfolded foldable held sideways, a tablet, a computer): the
-  // event, the money and the Owner's own controls on the left, people on the right. One column
-  // keeps the workflow order: add walk-ins, check the roster, then fill in the costs.
+  // One column, on a wide screen too (there the event sits in the right half, beside the list of
+  // events), in the workflow order: add walk-ins, check the roster, then fill in the costs.
   const head = (
     <>
       <Card class={editable ? "ev-admin-info can-edit" : "ev-admin-info"}>
@@ -696,22 +705,6 @@ function EventAdminBody(props: {
       {e.deletable && isOwner && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
     </>
   );
-  // Once the bills are out the left column holds the long 收款看板, so the rest goes under the roster.
-  const billed = e.status === "finalized" || e.status === "settled";
-  if (wide)
-    return (
-      <div class="split">
-        <div class="split-col">
-          {head}
-          {money}
-          {!billed && tail}
-        </div>
-        <div class="split-col">
-          {people}
-          {billed && tail}
-        </div>
-      </div>
-    );
   return (
     <>
       {head}

@@ -550,6 +550,12 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   搜索名字或微信名: { tw: "搜尋名字或微信名", en: "Search by name or WeChat name" },
   没有找到成员: { tw: "沒有找到成員", en: "No members found" },
   管理: { tw: "管理", en: "Manage" },
+  "在左边选一个活动，或者新建一个": {
+    tw: "在左邊選一個活動，或者新建一個",
+    en: "Pick an event on the left, or create one",
+  },
+  在左边选一位成员: { tw: "在左邊選一位成員", en: "Pick a member on the left" },
+  在左边选一项设置: { tw: "在左邊選一項設定", en: "Pick a setting on the left" },
   审核邮件没发出: { tw: "審核郵件沒發出", en: "Approval email not sent" },
   "只在场地变更、时间临时调整等紧急情况使用。修改后请在微信群里通知大家。": {
     tw: "只在場地變更、時間臨時調整等緊急情況使用。修改後請在微信群裡通知大家。",

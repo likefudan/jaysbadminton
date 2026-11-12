@@ -151,6 +151,8 @@ export function SettingRow(props: {
   href?: string;
   onClick?: () => void;
   panel?: (close: () => void) => ComponentChildren;
+  /** The page this row opens is showing beside the list (wide screens). */
+  current?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const inner = (
@@ -179,7 +181,8 @@ export function SettingRow(props: {
       ) : (
         <button
           type="button"
-          class="set-row"
+          class={props.current ? "set-row on" : "set-row"}
+          aria-current={props.current ? "page" : undefined}
           aria-expanded={props.panel ? open : undefined}
           onClick={props.onClick ?? (() => setOpen(!open))}
         >
