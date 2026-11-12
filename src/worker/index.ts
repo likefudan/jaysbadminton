@@ -34,6 +34,7 @@ import { purgeCourtPhotos } from "./courtPhoto";
 import { purgeEndedQueues } from "./courtQueue";
 import { sendReleaseNotices } from "./releaseNotice";
 import { saveUpload } from "./calories";
+import { withBoot } from "./boot";
 
 // A site with its own icon colour (sites.json "icon") gets its icons from public/site-icons/<colour>/,
 // under the usual names, so the home-screen app, tab, share card and link previews all match.
@@ -161,8 +162,10 @@ app.get("/manifest.webmanifest", async (c) => {
 });
 
 // Link previews for WeChat and friends: the app shell with this page's title and summary.
-app.get("/", async (c) => sharePage(c.env, c.req.raw, await homeMeta(c.env)));
-app.get("/e/:code", async (c) => sharePage(c.env, c.req.raw, await eventMeta(c.env, c.req.param("code"))));
+app.get("/", async (c) => withBoot(c, await sharePage(c.env, c.req.raw, await homeMeta(c.env))));
+app.get("/e/:code", async (c) =>
+  withBoot(c, await sharePage(c.env, c.req.raw, await eventMeta(c.env, c.req.param("code")))),
+);
 
 app.route("/api/developer", developerRoutes);
 app.route("/api/public", publicRoutes);
@@ -176,7 +179,7 @@ const NOT_A_PAGE = /^\/(api|export|assets)\/|\.[a-z0-9]+$/i;
 app.notFound(async (c) => {
   if ((c.req.method === "GET" || c.req.method === "HEAD") && !NOT_A_PAGE.test(c.req.path)) {
     const page = await c.env.ASSETS.fetch(new Request(new URL("/", c.req.url)));
-    return new Response(page.body, page);
+    return withBoot(c, new Response(page.body, page));
   }
   return c.json({ error: { code: "not_found", message: "找不到这个地址" } }, 404);
 });

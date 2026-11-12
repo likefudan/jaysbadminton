@@ -14,21 +14,24 @@ import { autoJoinEnabled } from "../joining";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
-publicRoutes.get("/site", async (c) => {
-  const { names, title } = await appNames(c.env);
-  return c.json({
+/** The site's name, theme and the like: /api/public/site, and written into every page (boot.ts). */
+export async function siteInfo(env: Env) {
+  const [{ names, title }, theme, autoJoin] = await Promise.all([appNames(env), siteTheme(env), autoJoinEnabled(env)]);
+  return {
     title,
     // 桌面图标名称 as set, by language: the page picks the visitor's (iPhone offers it when adding).
     appNames: names,
-    theme: await siteTheme(c.env),
-    staging: isStaging(c.env),
+    theme,
+    staging: isStaging(env),
     // The site's own icon colour (sites.json "icon"), for the logo in the top bar.
-    icon: c.env.SITE_ICON || null,
+    icon: env.SITE_ICON || null,
     // 入群不需要审核: the join pages leave out 「审核通过后」.
-    autoJoin: await autoJoinEnabled(c.env),
-    sponsor: c.env.SPONSOR_NAME ? { name: c.env.SPONSOR_NAME, url: c.env.SPONSOR_URL || null } : null,
-  });
-});
+    autoJoin,
+    sponsor: env.SPONSOR_NAME ? { name: env.SPONSOR_NAME, url: env.SPONSOR_URL || null } : null,
+  };
+}
+
+publicRoutes.get("/site", async (c) => c.json(await siteInfo(c.env)));
 
 publicRoutes.get("/home", async (c) => {
   const current = await c.env.DB.prepare(
