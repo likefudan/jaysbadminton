@@ -22,7 +22,7 @@ import { api } from "../api";
 import { Card, CopyButton, Empty, Field, Load, useAction } from "../components";
 import { EventInfo } from "../events";
 import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
-import { useApi } from "../hooks";
+import { useApi, useWide } from "../hooks";
 import { has } from "../organizers";
 import { Billing } from "./AdminSettle";
 import { t, fmtDate, fmtInstant, tk } from "../i18n";
@@ -544,6 +544,7 @@ function EventAdminBody(props: {
   const editable = e.status === "open" || e.status === "closed" || e.status === "finalized";
   const publicLink = `${location.origin}/e/${e.code}`;
   const { busy, error, run } = useAction();
+  const wide = useWide();
 
   async function cancelEvent() {
     if (!confirm(t("取消后这次活动不产生费用，也不计入统计。确定取消吗？"))) return;
@@ -562,13 +563,15 @@ function EventAdminBody(props: {
     if (await run(() => api(`${eb}/roster/${r.id}/rename`, { name }))) props.onChange();
   }
 
-  return (
+  // Two columns on a wide screen (an unfolded foldable held sideways, a tablet, a computer): the
+  // event and the Owner's own controls on the left, people and money on the right. One column
+  // keeps the workflow order: add walk-ins, check the roster, then fill in the costs.
+  const head = (
     <>
       <Card>
         <EventInfo e={e} />
         <CopyButton text={publicLink} label={t("复制活动链接")} />
       </Card>
-
       <MySignup
         eb={eb}
         e={e}
@@ -577,12 +580,13 @@ function EventAdminBody(props: {
         title={props.viewer.role === "owner" ? t("群主") : props.viewer.role === "admin" ? t("管理员") : t("负责人")}
         onDone={props.onChange}
       />
-
       {(e.status === "open" || e.status === "closed") && <BookedCourts eb={eb} e={e} onDone={props.onChange} />}
-
       {e.status === "open" && <CloseNow eb={eb} onDone={props.onChange} />}
       {e.status === "closed" && <Reopen eb={eb} e={e} onDone={props.onChange} />}
-
+    </>
+  );
+  const people = (
+    <>
       {/* Workflow order: add walk-ins, check the roster, then fill in the costs. */}
       {editable && (
         <AddPeople
@@ -594,7 +598,6 @@ function EventAdminBody(props: {
           onDone={props.onChange}
         />
       )}
-
       <Card title={t("名单（{n}）", { n: e.roster.length })}>
         {error && <p class="error">{error}</p>}
         {e.roster.length === 0 && <Empty>{t("还没有人报名")}</Empty>}
@@ -636,30 +639,44 @@ function EventAdminBody(props: {
           </div>
         ))}
       </Card>
-
       {e.photoUsage && <PhotoUsageCard u={e.photoUsage} />}
-
       {e.noFee ? (
         (e.status === "open" || e.status === "closed") && <EndNoFee eb={eb} e={e} onDone={props.onChange} />
       ) : (
         <Billing base={props.base} e={e} onChange={props.onChange} />
       )}
-
+    </>
+  );
+  const tail = (
+    <>
       {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
-
       {editable && props.organizers?.canManage && (
         <Transfer eb={eb} e={e} owner={owner} organizers={props.organizers} onDone={props.onChange} />
       )}
-
       {(e.status === "open" || e.status === "closed") && (
         <button type="button" class="button danger block" disabled={busy} onClick={cancelEvent}>
           {t("取消这次活动")}
         </button>
       )}
-
       <AuditLog eb={eb} e={e} />
-
       {e.deletable && isOwner && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
+    </>
+  );
+  if (wide)
+    return (
+      <div class="split">
+        <div class="split-col">
+          {head}
+          {tail}
+        </div>
+        <div class="split-col">{people}</div>
+      </div>
+    );
+  return (
+    <>
+      {head}
+      {people}
+      {tail}
     </>
   );
 }

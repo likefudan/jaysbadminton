@@ -60,7 +60,7 @@ function MyEvents(props: { events: EventSummary[] }) {
   if (res.state === "loading") return null;
   const mine = res.state === "ok" ? res.data.events : [];
   return (
-    <>
+    <div class="card-grid">
       {props.events.map((e) => {
         const own = mine.find((x) => x.id === e.id);
         const cta = own?.selfSignedUp || e.status !== "open" ? t("查看") : t("报名");
@@ -76,7 +76,7 @@ function MyEvents(props: { events: EventSummary[] }) {
           />
         );
       })}
-    </>
+    </div>
   );
 }
 
