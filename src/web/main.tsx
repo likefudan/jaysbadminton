@@ -2,7 +2,7 @@ import { Fragment, h, render, type ComponentChildren, type ComponentType } from 
 import { useEffect, useState } from "preact/hooks";
 import { LocationProvider, Route, Router } from "preact-iso";
 import { EventPage } from "./pages/EventPage";
-import { BoardPage, Home } from "./pages/Home";
+import { Home } from "./pages/Home";
 import { Member, MemberProfilePage } from "./pages/Member";
 import { Account, AccountProfile } from "./pages/Account";
 import { NotFound } from "./pages/NotFound";
@@ -98,7 +98,6 @@ function App() {
           <Route path="/recover" component={Account} />
           <Route path="/login" component={Account} />
           <Route path="/me" component={Account} />
-          <Route path="/board" component={BoardPage} />
           <Route path="/me/profile" component={AccountProfile} />
           <Route path="/privacy" component={Privacy} />
           <Route path="/terms" component={Terms} />

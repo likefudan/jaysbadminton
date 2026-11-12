@@ -348,9 +348,9 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await expect(page.locator(".hero-top .status-mine")).toHaveText("我已报名");
   await expect(page.locator(".roster-fold summary")).toHaveText("名单（3 人）");
   await page.goto("/");
-  // Signed in, the home page is 我的活动: the same card, and 排行榜 one tap away.
+  // Signed in, the home page is 我的活动: the same card, with 分享 at the bottom.
   await expect(page.locator(".hero-top .status-mine")).toHaveText("我已报名");
-  await expect(page.getByRole("navigation", { name: "我的页面" }).getByRole("link", { name: "排行榜" })).toBeVisible();
+  await expect(page.locator(".share-site")).toBeVisible();
   await expect(page.getByRole("link", { name: "登录 / 注册" })).toHaveCount(0);
 
   // The Owner binds their Google account in 设置, then gets in with it alone.

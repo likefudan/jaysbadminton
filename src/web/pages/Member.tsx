@@ -25,7 +25,8 @@ import { RosterList } from "../Roster";
 import { StayPicker } from "../Stay";
 import { CourtQueue } from "../CourtQueue";
 import { useApi, useShort } from "../hooks";
-import { CardCornerIcons } from "../ShareCard";
+import { CardCornerIcons, ShareCardButton } from "../ShareCard";
+import { siteCardText } from "../../shared/shareCard";
 import { SwipeSection } from "../Swipe";
 import { SpendingCard, thisYear } from "../Stats";
 import { YearReviewTop } from "../YearReview";
@@ -86,6 +87,8 @@ export function Member(props: { token?: string }) {
                   // One block, so on a wide screen its title and its card stay in the same column.
                   <div class="board-block">
                     <Leaders board={home.data.leaderboard} />
+                    {/* 分享 at the very bottom, as on the public home page. */}
+                    <ShareCardButton text={siteCardText(location.origin, t)} />
                   </div>
                 )
               }
@@ -98,17 +101,12 @@ export function Member(props: { token?: string }) {
 }
 
 /**
- * 我的活动 · 排行榜 · 个人信息: the same row on each of the pages (管理页 is 「切换为管理员」 in the top
+ * 我的活动 · 个人信息: the same row on both pages (管理页 is 「切换为管理员」 in the top
  * bar: a fourth button here did not fit a small phone), the current one highlighted.
  */
-export function MemberNav(props: {
-  token?: string;
-  current: "events" | "board" | "profile";
-  greeting?: string;
-  top?: boolean;
-}) {
+function MemberNav(props: { token?: string; current: "events" | "profile"; greeting?: string; top?: boolean }) {
   const home = props.token ? `/m/${props.token}` : "/me";
-  const link = (key: "events" | "board" | "profile", href: string, label: string) => (
+  const link = (key: "events" | "profile", href: string, label: string) => (
     <a
       class={`button secondary${props.current === key ? " on" : ""}`}
       href={href}
@@ -129,8 +127,6 @@ export function MemberNav(props: {
         </p>
       )}
       {link("events", home, t("我的活动"))}
-      {/* 排行榜 has a page of its own since the signed-in home became 我的活动 (Ke Li 2026-11-12). */}
-      {!props.token && link("board", "/board", t("排行榜"))}
       {link("profile", `${home}/profile`, t("个人信息"))}
     </nav>
   );
