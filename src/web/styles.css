@@ -6027,14 +6027,22 @@ label.set-row {
  * event page in two columns. A big phone turned sideways is wide but under 480 tall, so it keeps
  * the one column. Keep in step with WIDE_QUERY in hooks.ts. */
 @media (min-width: 600px) {
-  /* The column sits in the middle; the top bars reach the screen's edges. */
-  .topbar {
+  /* The column sits in the middle; the top bars reach the screen's edges. The colour is a layer
+   * behind the bar, not a clip-path: a clip would also cut off the account menu that drops below
+   * the bar, so on a computer it could not be seen or clicked. */
+  .topbar::before,
+  .sub-bar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    /* A shadow, not a wider box, so the page never scrolls sideways. */
     box-shadow: 0 0 0 100vmax var(--topbar);
     clip-path: inset(0 -100vmax);
+    pointer-events: none;
   }
-  .sub-bar {
+  .sub-bar::before {
     box-shadow: 0 0 0 100vmax var(--surface-raised);
-    clip-path: inset(0 -100vmax);
   }
   /* Their bottom line reaches the edges too. */
   .topbar,
@@ -6045,10 +6053,13 @@ label.set-row {
   .sub-bar::after {
     content: "";
     position: absolute;
-    left: -100vmax;
-    right: -100vmax;
+    left: 0;
+    right: 0;
     bottom: -1px;
-    border-bottom: 1px solid var(--line);
+    height: 1px;
+    background: var(--line);
+    box-shadow: 0 0 0 100vmax var(--line);
+    clip-path: inset(0 -100vmax);
     pointer-events: none;
   }
   [data-style="aurora"] .topbar::after {

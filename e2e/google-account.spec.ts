@@ -88,3 +88,29 @@ test("shows the Google profile avatar and falls back when the image fails", asyn
   await trigger.click();
   await expect(page.getByRole("region", { name: "Google 账号信息" })).toBeVisible();
 });
+
+test.describe("on a computer-wide screen", () => {
+  test.use({ viewport: { width: 1200, height: 900 }, isMobile: false, hasTouch: false });
+
+  test("the account panel is not cut off by the top bar and its buttons can be clicked", async ({ page }) => {
+    await page.route("**/api/auth/session", (route) =>
+      route.fulfill({ json: { signedIn: true, email: "wide@gmail.com", hasMember: true } }),
+    );
+    await page.goto("/privacy");
+    await page.getByRole("button", { name: "Google 账号：wide@gmail.com", exact: true }).click();
+    const panel = page.getByRole("region", { name: "Google 账号信息" });
+    const logout = panel.getByRole("button", { name: "退出登录", exact: true });
+    await expect(logout).toBeVisible();
+    // The button the pointer lands on must be the panel's own, not the page under a clipped panel.
+    const box = (await logout.boundingBox())!;
+    const hit = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x, y)?.closest(".google-account-panel") !== null,
+      [box.x + box.width / 2, box.y + box.height / 2],
+    );
+    expect(hit).toBe(true);
+    // The top bar's colour reaches the screen's edges without making the page scroll sideways.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1200);
+    await panel.getByRole("link", { name: "个人信息" }).click();
+    await expect(page).toHaveURL(/\/me\/profile$/);
+  });
+});
