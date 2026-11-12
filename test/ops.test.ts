@@ -63,6 +63,14 @@ describe("release site logic", () => {
     expect(canMoveTo("v2026.11.09", newest, "v2026.11.04.3")).toBe(false);
     expect(canMoveTo("v2026.11.04.3", newest, "v2026.11.09")).toBe(true);
     expect(canMoveTo(null, newest, "v2026.11.04.3")).toBe(true);
+    // Back past a rollback-safe migration: Release sets it aside, no restore needed.
+    const two = { "v2026.11.10.7": "0047_likes.sql", "v2026.11.10.6": "0046_avatars.sql" };
+    const names = ["0045_q.sql", "0046_avatars.sql", "0047_likes.sql"];
+    expect(canMoveTo("v2026.11.10.7", two, "v2026.11.10.6", names)).toBe(false);
+    expect(canMoveTo("v2026.11.10.7", two, "v2026.11.10.6", names, { "0047_likes.sql": "" })).toBe(true);
+    expect(
+      canMoveTo("v2026.11.10.7", newest, "v2026.11.04.3", ["0044_x.sql", "0047_likes.sql"], { "0047_likes.sql": "" }),
+    ).toBe(true);
   });
 
   it("accepts only known sites, in release order", () => {
