@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type {
   AuditEntry,
   ApprovalEmailStatus,
@@ -13,14 +13,15 @@ import type {
 } from "../../shared/types";
 import { api } from "../api";
 import { Card, Empty, Field, LinkCard, Load, Page, useAction } from "../components";
-import { useApi } from "../hooks";
+import { useApi, useWide } from "../hooks";
 import { EventsTab } from "./AdminEvents";
 import { InboundTab } from "./AdminInbound";
 import { AdminRoleSettings, OrganizerSettings, Settings } from "./AdminSettings";
 import { ProfileCard } from "../Profile";
 import { has, revokeSummary } from "../organizers";
 import { t, fmtInstant } from "../i18n";
-import { type AdminTab, goDown, goRoot, goUp, useAdminLoc } from "../adminNav";
+import { type AdminTab, goDown, goRoot, goSide, goUp, useAdminLoc } from "../adminNav";
+import { MasterDetail } from "../MasterDetail";
 import { SubBar } from "../SubBar";
 import { usd } from "../../shared/settle";
 
@@ -55,7 +56,7 @@ export function Admin(props: { token?: string }) {
       <Load result={members}>
         {(m) => (
           <>
-            <div class="tabs">
+            <div class="tabs admin-tabs">
               <button type="button" class={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>
                 {t("活动")}
               </button>
@@ -380,10 +381,9 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
   const mayActOn = (m: MemberSummary) => ownerView || (!m.isOwner && !m.isAdmin);
   const [shown, setShown] = useState<{ name: string; link: string; fresh: boolean } | null>(null);
   const open = props.open ?? null;
-  // Kept underneath once seen, not drawn for a member opened straight from a link.
-  const listSeen = useRef(false);
-  if (!open) listSeen.current = true;
-  const setOpen = (id: string) => goDown({ tab: "members", member: id });
+  const wide = useWide();
+  // Beside an open member (wide screens) another one takes their place.
+  const setOpen = (id: string) => (wide ? goSide : goDown)({ tab: "members", member: id });
   const { busy, error, run } = useAction();
   const [emailMessage, setEmailMessage] = useState("");
   async function retryEmail(m: MemberSummary) {
@@ -631,133 +631,134 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
     </>
   );
 
-  // The list stays underneath, hidden, so coming back finds it as it was, scrolled where it was.
+  const detail = open ? (
+    <MemberDetail
+      manage={manage}
+      key={open}
+      base={props.base}
+      id={open}
+      readOnly={readOnly}
+      organizers={!!props.data.organizers}
+      onBack={() => goUp({ tab: "members" })}
+      onChange={props.onChange}
+    />
+  ) : null;
   return (
-    <>
-      {open && (
-        <MemberDetail
-          manage={manage}
-          key={open}
-          base={props.base}
-          id={open}
-          readOnly={readOnly}
-          organizers={!!props.data.organizers}
-          onBack={() => goUp({ tab: "members" })}
-          onChange={props.onChange}
+    <MasterDetail detail={detail} empty={t("在左边选一位成员")}>
+      {!open && linkCard}
+      {props.data.organizers && (
+        <Organizers
+          block={props.data.organizers}
+          ownerView={ownerView}
+          busy={busy}
+          onRevoke={(o) => revoke({ ...o, admin: o.role === "admin" })}
         />
       )}
-      {listSeen.current && (
-        <div class="flow" hidden={!!open}>
-          {linkCard}
-          {props.data.organizers && (
-            <Organizers
-              block={props.data.organizers}
-              ownerView={ownerView}
-              busy={busy}
-              onRevoke={(o) => revoke({ ...o, admin: o.role === "admin" })}
+      <GoogleProgress data={props.data} />
+      <Card title={t("成员（{n}）", { n: props.data.active.length })}>
+        {!open && emailMessage && <p role="status">{emailMessage}</p>}
+        {!open && error && <p class="error">{error}</p>}
+        {props.data.active.length === 0 && <Empty>{t("还没有成员")}</Empty>}
+        {props.data.active.length > 8 && (
+          <div class="field member-search">
+            <input
+              type="search"
+              placeholder={t("搜索名字或微信名")}
+              aria-label={t("搜索名字或微信名")}
+              value={query}
+              onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
             />
-          )}
-          <GoogleProgress data={props.data} />
-          <Card title={t("成员（{n}）", { n: props.data.active.length })}>
-            {!open && emailMessage && <p role="status">{emailMessage}</p>}
-            {!open && error && <p class="error">{error}</p>}
-            {props.data.active.length === 0 && <Empty>{t("还没有成员")}</Empty>}
-            {props.data.active.length > 8 && (
-              <div class="field member-search">
-                <input
-                  type="search"
-                  placeholder={t("搜索名字或微信名")}
-                  aria-label={t("搜索名字或微信名")}
-                  value={query}
-                  onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
-                />
-              </div>
-            )}
-            {found.length === 0 && props.data.active.length > 0 && <Empty>{t("没有找到成员")}</Empty>}
-            {found.map((m) => (
-              <button type="button" class="member-row" key={m.id} onClick={() => openMember(m)}>
-                <span class="who">
-                  <span class="who-name">{m.username}</span>
-                  {m.adminNote && <span class="note">{t("备注：{note}", { note: m.adminNote })}</span>}
-                  {m.isOwner && <span class="badge">{t("群主")}</span>}
-                  {m.isAdmin && <span class="badge">{t("管理员")}</span>}
-                  {m.isOrganizer && <span class="badge">{t("组织者")}</span>}
-                  <small>{t("微信：{name}", { name: m.wechatAccount || m.wechatNickname })}</small>
-                  {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && (
-                    <small class="error">{t("审核邮件没发出")}</small>
-                  )}
-                </span>
-                <span class="chevron">›</span>
-              </button>
-            ))}
-          </Card>
-          {props.data.inactive.length > 0 && (
-            <Card>
-              <details class="fold">
-                <summary>{t("已停用（{n}）", { n: props.data.inactive.length })}</summary>
-                <p class="muted small">{t("已停用的成员不能报名，但还能打开专属链接付清欠款。")}</p>
-                {props.data.inactive.map((m) => (
-                  <div class="row" key={m.id}>
-                    <div class="who">
-                      <button type="button" class="who-link" onClick={() => openMember(m)}>
-                        <span class="who-name">{m.username}</span>
-                        {m.adminNote && <span class="note">{t("备注：{note}", { note: m.adminNote })}</span>}
+          </div>
+        )}
+        {found.length === 0 && props.data.active.length > 0 && <Empty>{t("没有找到成员")}</Empty>}
+        {found.map((m) => (
+          <button
+            type="button"
+            class={m.id === open ? "member-row on" : "member-row"}
+            aria-current={m.id === open ? "page" : undefined}
+            key={m.id}
+            onClick={() => openMember(m)}
+          >
+            <span class="who">
+              <span class="who-name">{m.username}</span>
+              {m.adminNote && <span class="note">{t("备注：{note}", { note: m.adminNote })}</span>}
+              {m.isOwner && <span class="badge">{t("群主")}</span>}
+              {m.isAdmin && <span class="badge">{t("管理员")}</span>}
+              {m.isOrganizer && <span class="badge">{t("组织者")}</span>}
+              <small>{t("微信：{name}", { name: m.wechatAccount || m.wechatNickname })}</small>
+              {(m.googleEmail || m.email) && m.approvalEmailStatus && m.approvalEmailStatus !== "sent" && (
+                <small class="error">{t("审核邮件没发出")}</small>
+              )}
+            </span>
+            <span class="chevron">›</span>
+          </button>
+        ))}
+      </Card>
+      {props.data.inactive.length > 0 && (
+        <Card>
+          <details class="fold">
+            <summary>{t("已停用（{n}）", { n: props.data.inactive.length })}</summary>
+            <p class="muted small">{t("已停用的成员不能报名，但还能打开专属链接付清欠款。")}</p>
+            {props.data.inactive.map((m) => (
+              <div class="row" key={m.id}>
+                <div class="who">
+                  <button type="button" class="who-link" onClick={() => openMember(m)}>
+                    <span class="who-name">{m.username}</span>
+                    {m.adminNote && <span class="note">{t("备注：{note}", { note: m.adminNote })}</span>}
+                  </button>
+                  <small>
+                    {m.id} · {m.wechatNickname}
+                    {m.owingCents > 0 && (
+                      <span class="error"> · {t("欠 {amount}", { amount: usd(m.owingCents) })}</span>
+                    )}
+                  </small>
+                </div>
+                {!readOnly && (
+                  <div class="actions">
+                    {m.googleEmail ? null : m.hasLink ? (
+                      <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
+                        {t("链接")}
                       </button>
-                      <small>
-                        {m.id} · {m.wechatNickname}
-                        {m.owingCents > 0 && (
-                          <span class="error"> · {t("欠 {amount}", { amount: usd(m.owingCents) })}</span>
-                        )}
-                      </small>
-                    </div>
-                    {!readOnly && (
-                      <div class="actions">
-                        {m.googleEmail ? null : m.hasLink ? (
-                          <button type="button" class="button secondary" disabled={busy} onClick={() => view(m)}>
-                            {t("链接")}
-                          </button>
-                        ) : (
-                          <button type="button" class="button secondary" disabled={busy} onClick={() => newLink(m)}>
-                            {t("生成链接")}
-                          </button>
-                        )}
-                        <button type="button" class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
-                          {t("恢复")}
-                        </button>
-                        {ownerView && (
-                          <button
-                            type="button"
-                            class="button danger"
-                            disabled={busy || m.owingCents > 0}
-                            onClick={() => remove(m)}
-                          >
-                            {t("删除")}
-                          </button>
-                        )}
-                      </div>
+                    ) : (
+                      <button type="button" class="button secondary" disabled={busy} onClick={() => newLink(m)}>
+                        {t("生成链接")}
+                      </button>
+                    )}
+                    <button type="button" class="button secondary" disabled={busy} onClick={() => reactivate(m)}>
+                      {t("恢复")}
+                    </button>
+                    {ownerView && (
+                      <button
+                        type="button"
+                        class="button danger"
+                        disabled={busy || m.owingCents > 0}
+                        onClick={() => remove(m)}
+                      >
+                        {t("删除")}
+                      </button>
                     )}
                   </div>
-                ))}
-              </details>
-            </Card>
-          )}
-          {props.data.deleted.length > 0 && (
-            <Card>
-              <details class="fold">
-                <summary>{t("已删除（{n}）", { n: props.data.deleted.length })}</summary>
-                <p class="muted small">{t("专属链接已失效；以前的报名和付款记录仍然保留在统计和导出里。")}</p>
-                {props.data.deleted.map((m) => (
-                  <div class="row" key={m.id}>
-                    {who(m, openMember)}
-                  </div>
-                ))}
-              </details>
-            </Card>
-          )}
-          {!readOnly && <GroupLog base={props.base} />}
-        </div>
+                )}
+              </div>
+            ))}
+          </details>
+        </Card>
       )}
-    </>
+      {props.data.deleted.length > 0 && (
+        <Card>
+          <details class="fold">
+            <summary>{t("已删除（{n}）", { n: props.data.deleted.length })}</summary>
+            <p class="muted small">{t("专属链接已失效；以前的报名和付款记录仍然保留在统计和导出里。")}</p>
+            {props.data.deleted.map((m) => (
+              <div class="row" key={m.id}>
+                {who(m, openMember)}
+              </div>
+            ))}
+          </details>
+        </Card>
+      )}
+      {!readOnly && <GroupLog base={props.base} />}
+    </MasterDetail>
   );
 }
 

@@ -19,14 +19,15 @@ import { api } from "../api";
 import { Card, Field, LinkCard, Load, SettingRow, useAction } from "../components";
 import { signOutGoogle } from "../GoogleAccount";
 import { revokeSummary } from "../organizers";
-import { type Loaded, useApi } from "../hooks";
+import { type Loaded, useApi, useWide } from "../hooks";
 import { setAppNames, setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { BoardsPage } from "./AdminBoards";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
 import { DunningCard, SettleDeadlineCard, RemindersCard, TelegramCard, type TelegramStatus } from "./AdminTelegram";
 import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
-import { goDown, goUp, useOnReturn } from "../adminNav";
+import { goDown, goSide, goUp, useOnReturn } from "../adminNav";
+import { MasterDetail } from "../MasterDetail";
 import { SubBar } from "../SubBar";
 
 const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames", "boards"] as const;
@@ -45,13 +46,18 @@ const PARENT: Partial<Record<Sub, Sub>> = { sheets: "advanced", appNames: "looks
 function useSubPages(from: string | undefined, has: readonly Sub[], reload: () => void) {
   // Only the pages this person's 设置 has: an admin given a link to 账号与安全 gets the menu.
   const sub = has.includes(from as Sub) ? (from as Sub) : null;
+  const wide = useWide();
   useOnReturn(sub === null, reload);
   const open = (s: Sub | null) => {
     const up = s === null || PARENT[sub ?? ("" as Sub)] === s;
     if (up) goUp({ tab: "settings", sub: s ?? undefined });
+    // From the menu beside an open page (wide screens): in its place. A page under a page goes down.
+    else if (wide && !PARENT[s]) goSide({ tab: "settings", sub: s });
     else goDown({ tab: "settings", sub: s });
   };
-  return [sub, open] as const;
+  // The menu row to highlight: the page open, or the one it belongs under.
+  const top = sub && (PARENT[sub] ?? sub);
+  return [sub, open, top] as const;
 }
 
 /** A second-level page under 设置: the way back and its name. */
@@ -169,7 +175,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
   const [general, reloadGeneral] = useApi<GeneralSettings>(`${props.base}/settings`);
   // Shared by the Telegram card and 使用指南's checklist.
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
-  const [sub, open] = useSubPages(props.sub, SUBS, () => {
+  const [sub, open, top] = useSubPages(props.sub, SUBS, () => {
     reloadGeneral();
     reloadTelegram();
   });
@@ -184,66 +190,78 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
     location.reload();
   }
 
-  if (sub === "looks" || sub === "join" || sub === "appNames" || sub === "boards")
-    return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
-  if (sub === "sheets")
-    return (
-      <SubPage title={t("Google 表格同步")} back={() => open("advanced")} backLabel={t("高级设置")}>
-        <SheetsCard base={props.base} />
-      </SubPage>
-    );
-  if (sub === "pay")
-    return (
-      <SubPage title={t("收款设置")} back={home}>
-        <PaymentCard base={props.base} />
-        <SettleDeadlineCard base={props.base} />
-        <DunningCard base={props.base} />
-      </SubPage>
-    );
-  if (sub === "advanced")
-    return (
-      <SubPage title={t("高级设置")} back={home}>
-        <TelegramCard base={props.base} status={telegram} reload={reloadTelegram} />
-        <AdvancedCards base={props.base} openSheets={() => open("sheets")} />
-      </SubPage>
-    );
-  if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
+  const detail = (() => {
+    if (sub === "looks" || sub === "join" || sub === "appNames" || sub === "boards")
+      return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
+    if (sub === "sheets")
+      return (
+        <SubPage title={t("Google 表格同步")} back={() => open("advanced")} backLabel={t("高级设置")}>
+          <SheetsCard base={props.base} />
+        </SubPage>
+      );
+    if (sub === "pay")
+      return (
+        <SubPage title={t("收款设置")} back={home}>
+          <PaymentCard base={props.base} />
+          <SettleDeadlineCard base={props.base} />
+          <DunningCard base={props.base} />
+        </SubPage>
+      );
+    if (sub === "advanced")
+      return (
+        <SubPage title={t("高级设置")} back={home}>
+          <TelegramCard base={props.base} status={telegram} reload={reloadTelegram} />
+          <AdvancedCards base={props.base} openSheets={() => open("sheets")} />
+        </SubPage>
+      );
+    if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
 
+    return null;
+  })();
   const g = general.state === "ok" ? general.data : null;
   return (
-    <>
+    <MasterDetail detail={detail} empty={t("在左边选一项设置")}>
       <section class="card set-list">
         <SettingRow
           icon={<LooksIcon />}
           label={t("外观和公共页面")}
           value={g?.siteTitle}
+          current={top === "looks"}
           onClick={() => open("looks")}
         />
         <SettingRow
           icon={<JoinIcon />}
           label={t("入群和报名")}
           value={joinValue(general)}
+          current={top === "join"}
           onClick={() => open("join")}
         />
         <SettingRow
           icon={<PayIcon />}
           label={t("收款设置")}
           value={g && venmoValue(g.venmoUsername)}
+          current={top === "pay"}
           onClick={() => open("pay")}
         />
         <SettingRow
           icon={<GearIcon />}
           label={t("高级设置")}
           value={telegramValue(telegram)}
+          current={top === "advanced"}
           onClick={() => open("advanced")}
         />
-        <SettingRow icon={<LockIcon />} label={t("账号与安全")} onClick={() => open("security")} />
+        <SettingRow
+          icon={<LockIcon />}
+          label={t("账号与安全")}
+          current={top === "security"}
+          onClick={() => open("security")}
+        />
       </section>
       <AdminGuide base={props.base} telegram={telegram} />
       <button type="button" class="button secondary block" onClick={logout}>
         {t("退出登录")}
       </button>
-    </>
+    </MasterDetail>
   );
 }
 
@@ -422,63 +440,70 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
   const p = profile.state === "ok" ? profile.data : null;
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
   const [general, reloadGeneral] = useApi<GeneralSettings>(`${props.base}/settings`);
-  const [sub, open] = useSubPages(props.sub, ADMIN_SUBS, () => {
+  const [sub, open, top] = useSubPages(props.sub, ADMIN_SUBS, () => {
     reloadGeneral();
     reloadTelegram();
   });
   const home = () => open(null);
 
-  if (sub === "looks" || sub === "join" || sub === "appNames" || sub === "boards")
-    return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
-  if (sub === "sheets")
-    return (
-      <SubPage title={t("Google 表格同步")} back={() => open("advanced")} backLabel={t("高级设置")}>
-        <SheetsCard base={props.base} readOnly />
-      </SubPage>
-    );
-  if (sub === "pay")
-    return (
-      <SubPage title={t("收款设置")} back={home}>
-        <MyPaymentCard base={props.base} profile={profile} reload={reload} />
-        <ForwardingCard profile={p} />
-        <SettleDeadlineCard base={props.base} />
-        <DunningCard base={props.base} />
-      </SubPage>
-    );
-  if (sub === "advanced")
-    return (
-      <SubPage title={t("高级设置")} back={home}>
-        <TelegramCard base={props.base} organizer admin status={telegram} reload={reloadTelegram} />
-        <AdvancedCards base={props.base} readOnlySheets openSheets={() => open("sheets")} />
-      </SubPage>
-    );
+  const detail = (() => {
+    if (sub === "looks" || sub === "join" || sub === "appNames" || sub === "boards")
+      return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
+    if (sub === "sheets")
+      return (
+        <SubPage title={t("Google 表格同步")} back={() => open("advanced")} backLabel={t("高级设置")}>
+          <SheetsCard base={props.base} readOnly />
+        </SubPage>
+      );
+    if (sub === "pay")
+      return (
+        <SubPage title={t("收款设置")} back={home}>
+          <MyPaymentCard base={props.base} profile={profile} reload={reload} />
+          <ForwardingCard profile={p} />
+          <SettleDeadlineCard base={props.base} />
+          <DunningCard base={props.base} />
+        </SubPage>
+      );
+    if (sub === "advanced")
+      return (
+        <SubPage title={t("高级设置")} back={home}>
+          <TelegramCard base={props.base} organizer admin status={telegram} reload={reloadTelegram} />
+          <AdvancedCards base={props.base} readOnlySheets openSheets={() => open("sheets")} />
+        </SubPage>
+      );
 
+    return null;
+  })();
   const g = general.state === "ok" ? general.data : null;
   return (
-    <>
+    <MasterDetail detail={detail} empty={t("在左边选一项设置")}>
       <section class="card set-list">
         <SettingRow
           icon={<PayIcon />}
           label={t("收款设置")}
           value={p && venmoValue(p.venmoUsername ?? undefined)}
+          current={top === "pay"}
           onClick={() => open("pay")}
         />
         <SettingRow
           icon={<LooksIcon />}
           label={t("外观和公共页面")}
           value={g?.siteTitle}
+          current={top === "looks"}
           onClick={() => open("looks")}
         />
         <SettingRow
           icon={<JoinIcon />}
           label={t("入群和报名")}
           value={joinValue(general)}
+          current={top === "join"}
           onClick={() => open("join")}
         />
         <SettingRow
           icon={<GearIcon />}
           label={t("高级设置")}
           value={telegramValue(telegram)}
+          current={top === "advanced"}
           onClick={() => open("advanced")}
         />
       </section>
@@ -496,7 +521,7 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
       >
         {t("退出登录")}
       </button>
-    </>
+    </MasterDetail>
   );
 }
 

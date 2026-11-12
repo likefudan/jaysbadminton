@@ -6339,3 +6339,84 @@ label.set-row {
 .member-manage:not(:has(button, p)) {
   display: none;
 }
+
+/* ---- 管理页 on a wide screen: the list on the left, what is open on the right (Ke Li 2026-11-12, D2) ---- */
+.md-empty {
+  display: none;
+}
+.set-row.on {
+  background: var(--acc-soft);
+}
+/* A little wider than the row's text, without moving it. */
+.event-link.on,
+.member-row.on {
+  position: relative;
+  z-index: 0;
+  border-top-color: transparent;
+}
+.event-link.on + .event-link,
+.member-row.on + .member-row {
+  border-top-color: transparent;
+}
+.event-link.on::before,
+.member-row.on::before {
+  content: "";
+  position: absolute;
+  inset: 0 -10px;
+  z-index: -1;
+  border-radius: 12px;
+  background: var(--acc-soft);
+}
+@media (min-width: 800px) {
+  /* The big 管理页 title goes: the tabs sit right under the top bar. */
+  .page-body:has(> .admin-tabs) {
+    column-count: 1;
+  }
+  main:has(.admin-tabs) > .hero {
+    display: none;
+  }
+  .admin-tabs {
+    margin-top: 14px;
+  }
+  .md {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 26px;
+    align-items: start;
+  }
+  .md-list {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+  .md-detail {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    position: sticky;
+    top: 70px;
+    max-height: calc(100dvh - 82px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 2px 16px;
+    scrollbar-width: thin;
+  }
+  .md-empty {
+    display: block;
+    margin: 40px 0;
+    color: var(--muted);
+    text-align: center;
+  }
+  /* The detail's own bar: no full-bleed edge, no sticking to the very top (the site's top bar stays). */
+  .md-detail > .sub-bar {
+    position: static;
+    margin: 0 0 14px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+  }
+}
+.ev-admin-info .event-info {
+  margin-bottom: 10px;
+}

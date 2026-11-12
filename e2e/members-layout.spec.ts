@@ -87,3 +87,60 @@ test("the search box narrows a long member list as you type", async ({ page }) =
   await page.getByRole("searchbox").fill("nobody");
   await expect(page.getByText("没有找到成员")).toBeVisible();
 });
+
+/** An unfolded iPhone Duo held sideways (and tablets, computers): the list keeps the left half, the member opens in the right half. */
+test("on a wide screen the list stays on the left and the member opens on the right", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 890, height: 626 }, locale: "zh-CN" });
+  const page = await context.newPage();
+  const base = { wechatNickname: "", hasLink: false, adminNote: "", owingCents: 0, isOwner: false };
+  const active = Array.from({ length: 4 }, (_, i) => ({
+    ...base,
+    id: `M00${i + 1}`,
+    username: `Player${i}`,
+    wechatAccount: `wx${i}`,
+    googleEmail: "x@example.com",
+    isOwner: i === 0,
+  }));
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false } }));
+  await page.route("**/api/admin/test-token/members", (route) =>
+    route.fulfill({
+      json: {
+        pending: [],
+        active,
+        inactive: [],
+        deleted: [],
+        organizers: null,
+        viewer: {
+          id: "M001",
+          role: "owner",
+          caps: ["owner", "data", "group", "events.create", "event", "payee", "members.read", "self"],
+        },
+      },
+    }),
+  );
+  await page.goto("/admin/test-token?tab=members");
+  // No big 管理页 title; nothing open yet.
+  await expect(page.locator(".hero")).toBeHidden();
+  await expect(page.getByText("在左边选一位成员")).toBeVisible();
+  const before = await page.evaluate(() => history.length);
+  await page.locator(".member-row", { hasText: "Player1" }).click();
+  await expect(page).toHaveURL(/member=M002/);
+  // The list, the tabs and the top bar all stay; the member is in the right half.
+  await expect(page.locator(".member-row")).toHaveCount(4);
+  await expect(page.locator(".member-row", { hasText: "Player1" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".topbar")).toBeVisible();
+  await expect(page.locator(".admin-tabs")).toBeVisible();
+  const detail = page.locator(".md-detail");
+  await expect(detail.getByRole("button", { name: "停用" })).toBeVisible();
+  expect((await detail.boundingBox())!.x).toBeGreaterThan(440);
+  expect((await page.locator(".md-list").boundingBox())!.width).toBeLessThan(440);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(890);
+  // Another member takes the place of the first: one step back closes the right half.
+  await page.locator(".member-row", { hasText: "Player2" }).click();
+  await expect(page).toHaveURL(/member=M003/);
+  expect(await page.evaluate(() => history.length)).toBe(before + 1);
+  await detail.getByRole("button", { name: "成员" }).click();
+  await expect(page.getByText("在左边选一位成员")).toBeVisible();
+  await expect(page).not.toHaveURL(/member=/);
+  await context.close();
+});

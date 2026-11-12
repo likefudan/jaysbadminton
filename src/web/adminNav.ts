@@ -80,6 +80,15 @@ export function goDown(loc: AdminLoc) {
   set(loc, 0);
 }
 
+/**
+ * From the list beside an open page (wide screens): the newly picked one takes its place, so going
+ * back closes it instead of walking through every one looked at.
+ */
+export function goSide(loc: AdminLoc) {
+  if (depth() === 1) goReplace(loc);
+  else goDown(loc);
+}
+
 /** One level up, to `parent`: back through history when we came down that way, else in place. */
 export function goUp(parent: AdminLoc) {
   if (depth() > 0) history.back();
