@@ -32,4 +32,4 @@
 5. 新群的群主打开 `https://<domain>/admin`，用 `SITES_ADMIN_PASSWORD` 完成首次设置，然后在「设置」里：改密码、填 Venmo、在「Telegram 通知」里粘贴自己用 @BotFather 建的机器人 token 并连接。
 6. 群主在自己的 Gmail 里加过滤器，把 `venmo@venmo.com` 的邮件转发到 `venmo@<domain>`。
 
-站点的加密密钥不需要再备份（设置里的「备份网站密钥」会说明这一点）。
+站点的加密密钥不需要另外备份：它由 GitHub secret `SITES_KEY` 生成，每次部署都会核对。

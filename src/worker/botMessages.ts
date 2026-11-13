@@ -227,15 +227,6 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "不認識的話，可以在管理頁「成員」裡停用。",
     en: "If you don't know them, you can deactivate them under Members on the admin page.",
   },
-  "{site}的 TOKEN_KEY（{origin}）：": {
-    tw: "{site}的 TOKEN_KEY（{origin}）：",
-    en: "TOKEN_KEY of the {site} ({origin}):",
-  },
-  "请存进密码管理器，并存为 GitHub secret {secret}，然后删除这条消息。每次部署都会核对它；万一 Worker 的 secret 丢了，部署时会自动用它填回去。":
-    {
-      tw: "請存進密碼管理器，並存為 GitHub secret {secret}，然後刪除這條訊息。每次部署都會核對它；萬一 Worker 的 secret 丟了，部署時會自動用它填回去。",
-      en: "Save it in a password manager and as the GitHub secret {secret}, then delete this message. Every deploy checks it; if the Worker secret is ever lost, the deploy puts it back from there.",
-    },
   "🔁 {by} 把活动 {label} 转交给了 {to}。\n成员的钱以后付给 {to}，不再付给你。": {
     tw: "🔁 {by} 把活動 {label} 轉交給了 {to}。\n成員的錢以後付給 {to}，不再付給你。",
     en: "🔁 {by} handed event {label} over to {to}.\nMembers will pay {to} from now on, not you.",
@@ -312,8 +303,6 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   管理员: { tw: "管理員", en: "admin" },
   组织者: { tw: "組織者", en: "organizer" },
   历史收款人: { tw: "歷史收款人", en: "former payee" },
-  测试站: { tw: "測試站", en: "test site" },
-  正式网站: { tw: "正式網站", en: "live site" },
   "Venmo 通知邮箱": { tw: "Venmo 通知信箱", en: "Venmo notification email" },
   这次活动已从数据库永久删除: {
     tw: "這次活動已從資料庫永久刪除",

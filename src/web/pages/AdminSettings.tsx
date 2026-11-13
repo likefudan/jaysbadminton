@@ -287,7 +287,6 @@ function SecurityPage(props: { base: string; viaGoogle: boolean; back: () => voi
       <GoogleAdminCard base={props.base} viaGoogle={props.viaGoogle} />
       <PasswordCard base={props.base} />
       <AdminLinkCard base={props.base} onRotated={setNewPath} />
-      <BackupKey base={props.base} />
       <ResetAll base={props.base} />
     </SubPage>
   );
@@ -742,48 +741,6 @@ function RetireCard(props: { base: string; title?: string }) {
       <button type="button" class="button danger block" disabled={busy} onClick={retire}>
         {t("不再当{title}", { title })}
       </button>
-    </Card>
-  );
-}
-
-/** Sends TOKEN_KEY to the Owner's Telegram so it can be kept somewhere safe (Cloudflare can't show it). */
-function BackupKey(props: { base: string }) {
-  const [password, setPassword] = useState("");
-  const [done, setDone] = useState(false);
-  const { busy, error, run } = useAction();
-
-  async function submit(e: Event) {
-    e.preventDefault();
-    if (await run(() => api(`${props.base}/settings/backup-key`, { password }))) {
-      setDone(true);
-      setPassword("");
-    }
-  }
-
-  return (
-    <Card title={t("备份网站密钥")}>
-      <p class="muted small">
-        {t(
-          "TOKEN_KEY 用来加密保存成员链接和管理链接，Cloudflare 里看不到它的值。把它发到你的 Telegram，存进密码管理器后删掉那条消息。",
-        )}
-      </p>
-      {done ? (
-        <p>{t("已发送到 Telegram。")}</p>
-      ) : (
-        <form onSubmit={submit}>
-          <Field
-            label={t("群主密码")}
-            type="password"
-            value={password}
-            onInput={setPassword}
-            autocomplete="current-password"
-          />
-          {error && <p class="error">{error}</p>}
-          <button type="submit" class="button secondary block" disabled={busy || !password}>
-            {t("发送到 Telegram")}
-          </button>
-        </form>
-      )}
     </Card>
   );
 }

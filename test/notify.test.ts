@@ -532,32 +532,6 @@ describe("health alerts", () => {
   });
 });
 
-describe("backing up TOKEN_KEY", () => {
-  it("sends the key to the Owner's Telegram only, after the password", async () => {
-    const ctx = await setUpAdmin();
-    expect((await ctx.admin.call(`${ctx.base}/settings/backup-key`, { password: "initial-password" })).status).toBe(
-      400,
-    );
-    await connectChat();
-    expect((await ctx.admin.call(`${ctx.base}/settings/backup-key`, { password: "wrong" })).status).toBe(401);
-    expect(sent()).toEqual([]);
-
-    const res = await ctx.admin.call(`${ctx.base}/settings/backup-key`, { password: "initial-password" });
-    expect(res.status).toBe(200);
-    expect(JSON.stringify(res.data)).not.toContain(env.TOKEN_KEY);
-    expect(sent()).toHaveLength(1);
-    expect(sent()[0]).toContain(`<pre>${env.TOKEN_KEY}</pre>`);
-  });
-
-  it("is refused without the admin session", async () => {
-    const ctx = await setUpAdmin();
-    await connectChat();
-    const res = await new Client().call(`${ctx.base}/settings/backup-key`, { password: "initial-password" });
-    expect(res.status).toBe(401);
-    expect(sent()).toEqual([]);
-  });
-});
-
 describe("球馆账号显示方式", () => {
   it("is set in 设置 and reaches the 球场 card; 「列在登记球场里」 until then (Ke Li)", async () => {
     const ctx = await setUpAdmin();

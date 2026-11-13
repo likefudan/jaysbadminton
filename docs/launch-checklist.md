@@ -17,7 +17,6 @@
 - [ ] 在 `/admin` 做初次设置（成为 Owner），收藏管理链接，**把密码改成自己的**
 - [ ] 收款设置：Venmo 用户名、Venmo 通知邮箱、Zelle
 - [ ] 连接 Telegram，发送测试消息；再给机器人发「管理页面」，确认能找回链接
-- [ ] 设置 → **备份网站密钥**（使用指南里有这一步，但不会自动打勾；需要能改 GitHub 仓库的人一起做）：输入群主密码，把密钥发到 Telegram，存进密码管理器，并存成 GitHub secret `LINK_ENCRYPTION_KEY`（测试网站是 `LINK_ENCRYPTION_KEY_STAGING`），然后删掉那条消息。下一次部署的日志里会显示「matches」，说明备份对得上
 - [ ] Gmail 转发：添加转发地址（确认码会出现在 Telegram）→ 创建 `from:venmo@venmo.com` 过滤器
 - [ ] 设置 → 用 Google 登录管理页：绑定自己的 Google 账号（并给它开启两步验证），退出后用 Google 登录，确认能直接进入管理页
 - [ ] 提醒设置（含每周健康简报）、默认外观、网站标题、排行榜开关

@@ -35,9 +35,7 @@ import {
 } from "../members";
 import { memberProfile, setAdminNote } from "../profile";
 import { googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
-import { isStaging } from "../site";
-import { escapeHtml, saveBotToken, sendToOwner } from "../telegram";
-import { bt } from "../botLang";
+import { saveBotToken } from "../telegram";
 
 export const adminRoutes = new Hono<AdminEnv>();
 
@@ -339,32 +337,6 @@ adminRoutes.post("/:token/settings/password", async (c) => {
   const err = checkPasswordRule(next);
   if (err) throw badRequest(err);
   await setPassword(c.env, next);
-  return c.json({ ok: true });
-});
-
-/**
- * 备份 TOKEN_KEY: Cloudflare secrets can't be read back, so the Worker itself sends the key to the
- * Owner's Telegram, never to the browser. Needs the password like other rare, sensitive settings.
- */
-adminRoutes.post("/:token/settings/backup-key", async (c) => {
-  const body = await readJson(c.req.raw);
-  if (!(await checkPassword(c.env, str(body.password)))) throw new HttpError(401, "wrong_password", "密码不正确");
-  // Its key is derived from the GitHub secret SITES_KEY (scripts/sync-secrets.mjs), backed up there already.
-  if (c.env.SITE_ID)
-    throw badRequest("这个网站的密钥由网站维护者的 GitHub secret SITES_KEY 生成，已经有备份，不需要再备份");
-  const site = isStaging(c.env) ? "测试站" : "正式网站";
-  const secret = isStaging(c.env) ? "LINK_ENCRYPTION_KEY_STAGING" : "LINK_ENCRYPTION_KEY";
-  const sent = await sendToOwner(
-    c.env,
-    (l) =>
-      `🔑 ${bt(l, "{site}的 TOKEN_KEY（{origin}）：", { site: bt(l, site), origin: escapeHtml(c.env.SITE_ORIGIN) })}\n<pre>${escapeHtml(c.env.TOKEN_KEY)}</pre>\n` +
-      bt(
-        l,
-        "请存进密码管理器，并存为 GitHub secret {secret}，然后删除这条消息。每次部署都会核对它；万一 Worker 的 secret 丢了，部署时会自动用它填回去。",
-        { secret: `<code>${secret}</code>` },
-      ),
-  );
-  if (!sent) throw badRequest("发送失败：请先在设置里连接 Telegram");
   return c.json({ ok: true });
 });
 

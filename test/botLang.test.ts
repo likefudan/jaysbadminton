@@ -26,8 +26,6 @@ const DATA_KEYS = [
   ROLE_TITLE.admin,
   ROLE_TITLE.organizer,
   "历史收款人",
-  "测试站",
-  "正式网站",
   "Venmo 通知邮箱",
   "（空）",
   "自动记账",

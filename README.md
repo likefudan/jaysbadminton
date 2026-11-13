@@ -165,7 +165,7 @@ GitHub Actions secrets (none are needed for local development):
 | --- | --- |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | Deploys (Workers + D1 edit) |
 | `ADMIN_PASSWORD`, `ADMIN_PASSWORD_STAGING` | First-time / recovery Owner password for Jay's production and test site |
-| `LINK_ENCRYPTION_KEY`, `LINK_ENCRYPTION_KEY_STAGING` | Backups of each Jay's site's `TOKEN_KEY` (from Settings → key backup); checked on every deploy |
+| `LINK_ENCRYPTION_KEY`, `LINK_ENCRYPTION_KEY_STAGING` | Backups of each Jay's site's `TOKEN_KEY` (same value as the Worker secret); checked on every deploy |
 | `SITES_KEY`, `SITES_ADMIN_PASSWORD` | Shared by all sites in `sites.json`: each site's `TOKEN_KEY` is derived from `SITES_KEY` and its id; the password is for first-time setup |
 | `BACKUP_KEY` | Encrypts the database backups taken before each release |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in ([docs/google-login.zh.md](docs/google-login.zh.md)) |
