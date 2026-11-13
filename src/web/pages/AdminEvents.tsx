@@ -100,7 +100,7 @@ export function EventsTab(props: {
         {t("＋ 新建活动")}
       </button>
       {byManager && (
-        <label class="field">
+        <label class="field filter-row">
           <span>{t("负责人")}</span>
           <select value={manager} onChange={(e) => setManager((e.target as HTMLSelectElement).value)}>
             <option value="">{t("所有负责人")}</option>
@@ -633,7 +633,29 @@ function EventAdminBody(props: {
   const { busy, error, run } = useAction();
   // 名单: rows show 到场 only; 编辑 brings out 改名 and 删除 (Ke Li 2026-11-12, option B).
   const [editing, setEditing] = useState(false);
-  const [more, setMore] = useState<"transfer" | "audit" | null>(null);
+  // Each of the smaller jobs is a row that opens a panel (Ke Li 2026-11-13), so the page is the
+  // event, what to do now (结算 once sign-up closed), the roster and 更多.
+  const [more, setMore] = useState<"transfer" | "audit" | "mine" | "courts" | "add" | "reopen" | null>(null);
+  const me = props.members.find((m) => m.id === props.viewer.id);
+  const myRows = me ? e.roster.filter((r) => r.memberId === me.id || r.paidBy === me.id) : [];
+  const meOn = !!me && myRows.some((r) => r.memberId === me.id && r.friendIndex === 0);
+  const myExtra = myRows.length - (meOn ? 1 : 0);
+  const mySummary = meOn
+    ? myExtra > 0
+      ? t("✓ 已报名，带 {n} 人", { n: myExtra })
+      : t("✓ 已报名")
+    : myExtra > 0
+      ? t("没报名，带 {n} 人", { n: myExtra })
+      : t("没报名");
+  const canBook = e.status === "open" || e.status === "closed";
+  const done = () => {
+    setMore(null);
+    props.onChange();
+  };
+  async function closeNow() {
+    if (!confirm(t("立即截止后，成员不能再报名或修改。之后如有需要可以重新开放。确定吗？"))) return;
+    if (await run(() => api(`${eb}/close-now`, {}))) props.onChange();
+  }
 
   async function cancelEvent() {
     if (!confirm(t("取消后这次活动不产生费用，也不计入统计。确定取消吗？"))) return;
@@ -661,39 +683,75 @@ function EventAdminBody(props: {
         {editable && <EditEvent eb={eb} e={e} onDone={props.onChange} />}
         <CopyButton text={publicLink} label={t("复制活动链接")} />
       </Card>
-      <MySignup
-        eb={eb}
-        e={e}
-        members={props.members}
-        me={props.members.find((m) => m.id === props.viewer.id)}
-        title={props.viewer.role === "owner" ? t("群主") : props.viewer.role === "admin" ? t("管理员") : t("负责人")}
-        onDone={props.onChange}
-      />
-      {(e.status === "open" || e.status === "closed") && <BookedCourts eb={eb} e={e} onDone={props.onChange} />}
-      {e.status === "open" && <CloseNow eb={eb} onDone={props.onChange} />}
-      {e.status === "closed" && <Reopen eb={eb} e={e} onDone={props.onChange} />}
+      {(me || canBook) && (
+        <section class="card set-list bare quick-list">
+          {me && (
+            <SettingRow
+              label={t("我的报名")}
+              value={<span class={meOn ? "ok" : undefined}>{mySummary}</span>}
+              onClick={() => setMore("mine")}
+            />
+          )}
+          {canBook && (
+            <SettingRow
+              label={t("预定场地")}
+              value={e.courts.length ? e.courts.map((n) => t("{n} 号", { n })).join(t("、")) : t("还没填")}
+              onClick={() => setMore("courts")}
+            />
+          )}
+        </section>
+      )}
+      {more === "mine" && (
+        <Panel title={t("我的报名")} label={t("我的报名")} onClose={() => setMore(null)}>
+          <MySignup
+            eb={eb}
+            e={e}
+            members={props.members}
+            me={me}
+            title={
+              props.viewer.role === "owner" ? t("群主") : props.viewer.role === "admin" ? t("管理员") : t("负责人")
+            }
+            onDone={props.onChange}
+          />
+        </Panel>
+      )}
+      {more === "courts" && (
+        <Panel title={t("预定场地")} label={t("预定场地")} onClose={() => setMore(null)}>
+          <BookedCourts eb={eb} e={e} onDone={done} />
+        </Panel>
+      )}
     </>
   );
   const people = (
     <>
-      {/* Workflow order: add walk-ins, check the roster, then fill in the costs. */}
-      {editable && (
-        <AddPeople
-          eb={eb}
-          members={props.members}
-          me={props.viewer.id}
-          roster={e.roster}
-          payee={e.payee}
-          onDone={props.onChange}
-        />
+      {more === "add" && (
+        <Panel title={t("添加人员")} label={t("添加人员")} onClose={() => setMore(null)}>
+          <AddPeople
+            eb={eb}
+            members={props.members}
+            me={props.viewer.id}
+            roster={e.roster}
+            payee={e.payee}
+            onDone={done}
+          />
+        </Panel>
       )}
       <Card>
         <h2 class="with-action">
           <span>{t("名单（{n}）", { n: e.roster.length })}</span>
-          {editable && e.roster.length > 0 && (
-            <button type="button" class="head-action" aria-pressed={editing} onClick={() => setEditing(!editing)}>
-              {editing ? t("完成") : t("编辑")}
-            </button>
+          {editable && (
+            <span class="head-actions">
+              {!editing && (
+                <button type="button" class="head-action" onClick={() => setMore("add")}>
+                  {t("＋ 添加")}
+                </button>
+              )}
+              {e.roster.length > 0 && (
+                <button type="button" class="head-action" aria-pressed={editing} onClick={() => setEditing(!editing)}>
+                  {editing ? t("完成") : t("编辑")}
+                </button>
+              )}
+            </span>
           )}
         </h2>
         {error && <p class="error">{error}</p>}
@@ -753,6 +811,8 @@ function EventAdminBody(props: {
       {/* The rare ones in one list at the bottom (Ke Li 2026-11-12). */}
       <section class="card set-list bare more-list">
         <h2>{t("更多")}</h2>
+        {e.status === "open" && <SettingRow label={t("立即截止报名")} onClick={closeNow} />}
+        {e.status === "closed" && <SettingRow label={t("重新开放报名")} onClick={() => setMore("reopen")} />}
         {editable && props.organizers?.canManage && (
           <SettingRow
             label={e.noFee ? t("负责人") : t("负责人和收款人")}
@@ -774,6 +834,11 @@ function EventAdminBody(props: {
           <Transfer eb={eb} e={e} owner={owner} organizers={props.organizers} onDone={props.onChange} />
         </Panel>
       )}
+      {more === "reopen" && (
+        <Panel title={t("重新开放报名")} label={t("重新开放报名")} onClose={() => setMore(null)}>
+          <Reopen eb={eb} e={e} onDone={done} />
+        </Panel>
+      )}
       {more === "audit" && (
         <Panel title={t("操作记录")} label={t("操作记录")} onClose={() => setMore(null)}>
           <Card>
@@ -784,11 +849,15 @@ function EventAdminBody(props: {
       {e.deletable && isOwner && <DeleteEvent eb={eb} e={e} onDone={props.onBack} />}
     </>
   );
+  // Once sign-up has closed, 结算 (or ending a no-fee event) is the thing to do: above the roster,
+  // not under a dozen names.
+  const moneyFirst = e.status === "closed";
   return (
     <>
       {head}
+      {moneyFirst && money}
       {people}
-      {money}
+      {!moneyFirst && money}
       {tail}
     </>
   );
@@ -1071,7 +1140,7 @@ function MySignup(props: {
         : t("你还没有报名");
 
   return (
-    <Card title={t("我的报名")}>
+    <Card>
       {!editing && <p class={signedUp || broughtBy ? "ok" : "muted"}>{status}</p>}
       {canEdit && editing && (
         <>
@@ -1158,7 +1227,7 @@ function BookedCourts(props: { eb: string; e: EventDetail; onDone: () => void })
   const changed = courts.join() !== saved.join();
   const tooMany = courts.length > BOOKED_COURTS_MAX;
   return (
-    <Card title={t("预定场地")}>
+    <Card>
       {/* One element either way: swapping it would move the box below and close its list. */}
       <div class="chips booked-courts">
         {courts.length ? (
@@ -1220,7 +1289,7 @@ function Reopen(props: { eb: string; e: EventDetail; onDone: () => void }) {
   const [time, setTime] = useState(props.e.startTime);
   const { busy, error, run } = useAction();
   return (
-    <Card title={t("重新开放报名")}>
+    <Card>
       <div class="inline">
         <Field label={t("截止日期")} type="date" value={date} onInput={setDate} />
         <Field label={t("截止时间")} type="time" value={time} onInput={setTime} />
@@ -1291,7 +1360,7 @@ function AddPeople(props: {
   }
 
   return (
-    <Card title={t("添加人员")}>
+    <Card>
       <label class="field">
         <span>{t("成员")}</span>
         <select
@@ -1365,22 +1434,6 @@ function EndNoFee(props: { eb: string; e: EventDetail; onDone: () => void }) {
         </button>
       )}
     </Card>
-  );
-}
-
-function CloseNow(props: { eb: string; onDone: () => void }) {
-  const { busy, error, run } = useAction();
-  async function close() {
-    if (!confirm(t("立即截止后，成员不能再报名或修改。之后如有需要可以重新开放。确定吗？"))) return;
-    if (await run(() => api(`${props.eb}/close-now`, {}))) props.onDone();
-  }
-  return (
-    <div class="spaced">
-      {error && <p class="error">{error}</p>}
-      <button type="button" class="button secondary block" disabled={busy} onClick={close}>
-        {t("立即截止报名")}
-      </button>
-    </div>
   );
 }
 

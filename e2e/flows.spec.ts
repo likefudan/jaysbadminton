@@ -127,6 +127,8 @@ test("a newcomer finds Google only; an old email applicant still gets their link
   // 成员: the Owner sees who still has no Google account bound (the Owner is left out).
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
   const google = page.locator(".card", { has: page.getByRole("heading", { name: "还没用 Google 登录（1）" }) });
+  await expect(google.locator(".google-missing")).toBeHidden(); // one line until opened
+  await google.locator("summary").click();
   await expect(google.locator(".google-missing")).toHaveText("小明");
   await expect(google).toContainText("现在还有 1 个专属链接有效。");
 });
@@ -154,8 +156,12 @@ test("the Owner creates an event and is signed up for it", async ({ page }) => {
   await expect(info.locator(".event-notes")).toHaveText("请自带球拍\n提前十分钟到场");
   await expect(page.getByRole("heading", { name: "名单（1）" })).toBeVisible();
 
-  // 我的报名: the Owner manages their own sign-up right here.
-  const mySignup = page.locator(".card", { has: page.getByRole("heading", { name: "我的报名" }) });
+  // 我的报名 is one row saying where they stand; the Owner manages their own sign-up on its panel.
+  const myRow = page.getByRole("button", { name: /^我的报名/ });
+  await expect(myRow).toContainText("✓ 已报名");
+  await expect(page.getByRole("button", { name: /^预定场地/ })).toContainText("还没填");
+  await myRow.click();
+  const mySignup = page.locator(".panel .card");
   await expect(mySignup).toContainText("✓ 你已报名");
   await mySignup.getByRole("button", { name: "修改" }).click();
   await mySignup.locator(".stepper button").last().click();
@@ -168,6 +174,8 @@ test("the Owner creates an event and is signed up for it", async ({ page }) => {
   await mySignup.getByRole("button", { name: "报名" }).click();
   await mySignup.getByRole("button", { name: "确认报名" }).click();
   await expect(mySignup).toContainText("✓ 你已报名");
+  await page.locator(".panel").getByRole("button", { name: "返回" }).click();
+  await expect(myRow).toContainText("✓ 已报名");
   await expect(page.getByRole("heading", { name: "名单（1）" })).toBeVisible();
 });
 
@@ -388,8 +396,13 @@ test("the Owner closes sign-up and settles; the member sees the bill and a Venmo
   acceptDialogs(page);
   await openAdmin(page);
   await page.locator(".event-link", { hasText: VENUE }).click();
-  await page.getByRole("button", { name: "立即截止报名" }).click();
+  await page.getByRole("button", { name: /^立即截止报名/ }).click(); // in 更多
   await expect(field(page, "场地总费用（美元）")).toBeVisible();
+  // Sign-up closed: 结算 comes before the roster, and 重新开放报名 took its place in 更多.
+  const y = (h: string | RegExp) =>
+    page.getByRole("heading", { name: h }).evaluate((el) => el.getBoundingClientRect().top);
+  expect(await y("结算")).toBeLessThan(await y(/^名单（/));
+  await expect(page.getByRole("button", { name: /^重新开放报名/ })).toBeVisible();
 
   // Sign-up closed: the public card keeps 加入日历 but no longer offers 分享名片.
   const pub = await page.context().newPage();
@@ -439,7 +452,7 @@ test("the Owner appoints an organizer, hands them an event and revokes them", as
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
   const block = page.locator(".card", { has: page.getByRole("heading", { name: /^组织者（/ }) });
-  await expect(block).toContainText("还没有组织者");
+  await expect(block).toHaveCount(0); // nobody appointed yet: no empty card
   const ming = page.locator(".member-row", { hasText: "小明" });
   await memberAction(page, "小明", "设为组织者");
   // Linked to Google here without an email, so nobody could be told: the Owner is asked to.
@@ -468,7 +481,7 @@ test("the Owner appoints an organizer, hands them an event and revokes them", as
   await expect(page.getByText("已撤销 小明 的组织者身份")).toBeVisible();
   expect(dialogs.pop()).toContain("负责人转给群主，收款人不变");
   await expect(ming.locator(".badge")).toHaveCount(0);
-  await expect(block).toContainText("还没有组织者");
+  await expect(block).toHaveCount(0);
 });
 
 test("the Owner appoints an admin, demotes them to organizer and revokes them", async ({ page }) => {
@@ -546,17 +559,19 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await field(page, "场馆").fill("Ming Gym");
   await page.getByRole("button", { name: "完成" }).click();
   await page.getByRole("button", { name: "创建活动" }).click();
-  await expect(page.getByText("✓ 你已报名")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^我的报名/ })).toContainText("✓ 已报名");
 
-  // He changes his list: Jay comes too.
-  const add = page.locator(".card", { has: page.getByRole("heading", { name: "添加人员" }) });
+  // He changes his list: Jay comes too (＋ 添加 beside the roster's title opens the panel).
+  await page.getByRole("button", { name: "＋ 添加" }).click();
+  const add = page.locator(".panel .card");
   await add.locator("select").selectOption({ label: "Jay" });
   await add.getByRole("button", { name: "添加", exact: true }).click();
+  await expect(page.locator(".panel")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "名单（2）" })).toBeVisible();
   await expect(page.locator(".badge", { hasText: "代为添加" })).toBeVisible();
 
   // Finalize waits for his own Venmo.
-  await page.getByRole("button", { name: "立即截止报名" }).click();
+  await page.getByRole("button", { name: /^立即截止报名/ }).click();
   const settle = async () => {
     await field(page, "场地总费用（美元）").fill("30");
     await field(page, "用球个数").fill("2");

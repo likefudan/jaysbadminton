@@ -350,8 +350,16 @@ function GoogleProgress(props: { data: MembersResponse }) {
   const missing = props.data.active.filter((m) => !m.isOwner && !m.googleEmail);
   const inactive = props.data.inactive.filter((m) => !m.googleEmail).length;
   const links = [...props.data.active, ...props.data.inactive].filter((m) => m.hasLink).length;
+  // One line until opened (Ke Li 2026-11-13): it sat above the member list and pushed it down.
   return (
-    <Card title={missing.length ? t("还没用 Google 登录（{n}）", { n: missing.length }) : t("Google 登录")}>
+    <details class="card fold-card">
+      <summary>
+        <h2>{missing.length ? t("还没用 Google 登录（{n}）", { n: missing.length }) : t("Google 登录")}</h2>
+        {missing.length === 0 && <span class="ok">{t("✓ 都已绑定")}</span>}
+        <span class="chevron" aria-hidden="true">
+          ›
+        </span>
+      </summary>
       {missing.length === 0 ? (
         <p>{t("✓ 所有成员都已绑定 Google 账号。")}</p>
       ) : (
@@ -366,7 +374,7 @@ function GoogleProgress(props: { data: MembersResponse }) {
       <p class="muted small">
         {links ? t("现在还有 {links} 个专属链接有效。", { links }) : t("已经没有有效的专属链接。")}
       </p>
-    </Card>
+    </details>
   );
 }
 
@@ -844,11 +852,10 @@ function Organizers(props: {
 }) {
   const { list, former, canManage } = props.block;
   const admins = list.filter((o) => o.role === "admin").length;
+  // Nobody appointed yet: no empty card above the member list (Ke Li 2026-11-13).
+  if (list.length === 0 && former.length === 0) return null;
   return (
     <Card title={admins > 0 ? t("管理员和组织者（{n}）", { n: list.length }) : t("组织者（{n}）", { n: list.length })}>
-      {list.length === 0 && former.length === 0 && (
-        <Empty>{canManage ? t("还没有组织者。在下面的成员列表点「设为组织者」。") : t("还没有组织者")}</Empty>
-      )}
       {list.map((o) => (
         <div class="row" key={o.id}>
           <div class="who">
