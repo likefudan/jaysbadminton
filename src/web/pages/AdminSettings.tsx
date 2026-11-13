@@ -5,7 +5,6 @@ import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
 import type { QueueAccountsView } from "../../shared/courtQueue";
 import {
   APP_NAME_MAX,
-  GREETINGS,
   type Greeting,
   SITE_LANGS,
   type AppNames,
@@ -112,7 +111,6 @@ function SettingsSubPage(props: { base: string; sub: "looks" | "join" | "appName
     return (
       <SubPage title={t("外观和公共页面")} back={() => props.open(null)}>
         <ThemeCard base={props.base} />
-        <Load result={s}>{(v) => <GreetingCard base={props.base} initial={v.greeting} />}</Load>
         <Load result={s}>
           {(v) => (
             <PublicPageCard
@@ -841,52 +839,6 @@ interface GeneralSettings {
   venmoUsername: string;
   venmoEmail: string;
   zelleAccount: string;
-}
-
-/**
- * 我的活动页的问候语 (Ke Li 2026-11-12): 「你好，名字」 as the big title, a small line beside
- * 我的活动 / 个人信息 (saves room, above all on a phone held sideways), or not at all.
- */
-function GreetingCard(props: { base: string; initial: Greeting }) {
-  const [v, setV] = useState(props.initial);
-  const { busy, error, run } = useAction();
-  const label: Record<Greeting, string> = { big: t("大标题"), small: t("小字"), none: t("不显示") };
-  async function pick(next: Greeting) {
-    const was = v;
-    setV(next);
-    if (!(await run(() => api(`${props.base}/settings`, { greeting: next })))) setV(was);
-  }
-  return (
-    <>
-      <h3 class="set-head">{t("我的活动页的问候语")}</h3>
-      <section class="card set-list bare">
-        <div class="set-item set-seg">
-          <div class="seg" role="group" aria-label={t("我的活动页的问候语")}>
-            {GREETINGS.map((g) => (
-              <button
-                key={g}
-                type="button"
-                class={v === g ? "on" : ""}
-                aria-pressed={v === g}
-                disabled={busy}
-                onClick={() => pick(g)}
-              >
-                {label[g]}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-      <p class="set-foot">
-        {v === "big"
-          ? t("页面顶部用大字显示「你好，名字」。")
-          : v === "small"
-            ? t("「你好，名字」用小字放在「我的活动」「个人信息」按钮左边，省出一行。")
-            : t("不显示「你好，名字」，按钮直接在顶部。")}
-      </p>
-      {error && <p class="error">{error}</p>}
-    </>
-  );
 }
 
 /**

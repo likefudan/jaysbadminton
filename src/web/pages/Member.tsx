@@ -24,7 +24,7 @@ import { AvatarForm } from "../Avatar";
 import { RosterList } from "../Roster";
 import { StayPicker } from "../Stay";
 import { CourtQueue } from "../CourtQueue";
-import { useApi, useShort } from "../hooks";
+import { useApi } from "../hooks";
 import { CardCornerIcons, ShareCardButton } from "../ShareCard";
 import { siteCardText } from "../../shared/shareCard";
 import { SwipeSection } from "../Swipe";
@@ -53,25 +53,14 @@ export function Member(props: { token?: string }) {
   const [home] = useApi<HomeResponse>("/api/public/home");
   // One offer at a time: adding to the home screen first (iPhone needs it before push).
   const [installShown, setInstallShown] = useState(false);
-  // A phone on its side has no room for the big 你好: the small one, whatever the site's setting.
-  const short = useShort();
   return (
     <Load result={me}>
-      {(m0) => {
-        const m = short && m0.greeting === "big" ? { ...m0, greeting: "small" as const } : m0;
+      {(m) => {
         return (
-          <Page
-            title={t("你好，{name}", { name: m.username })}
-            subtitle={props.token ? t("请不要把这个链接转发给别人。") : undefined}
-            bare={m.greeting !== "big"}
-          >
-            <MemberNav
-              token={props.token}
-              current="events"
-              top={m.greeting !== "big"}
-              greeting={m.greeting === "small" ? t("你好，{name}", { name: m.username }) : undefined}
-            />
-            {m.greeting !== "big" && props.token && <p class="hint">{t("请不要把这个链接转发给别人。")}</p>}
+          // No big title (Ke Li 2026-11-13): the tabs say which page this is, as on the admin pages.
+          <Page title={t("你好，{name}", { name: m.username })} bare>
+            <MemberNav token={props.token} current="events" />
+            {props.token && <p class="hint">{t("请不要把这个链接转发给别人。")}</p>}
             {!m.active && (
               <p class="hint">{t("你的账号已停用，不能再报名活动。如果还有没付清的费用，可以在下面继续付款。")}</p>
             )}
@@ -101,31 +90,22 @@ export function Member(props: { token?: string }) {
 }
 
 /**
- * 我的活动 · 个人信息: the same row on both pages (管理页 is 「切换为管理员」 in the avatar's
- * menu: a fourth button here did not fit a small phone), the current one highlighted.
+ * 我的活动 · 个人信息: the same tab bar as the admin pages' (Ke Li 2026-11-13), right under the top
+ * bar on both pages, the current one highlighted. (管理页 is 「切换为管理员」 in the avatar's menu.)
  */
-function MemberNav(props: { token?: string; current: "events" | "profile"; greeting?: string; top?: boolean }) {
+function MemberNav(props: { token?: string; current: "events" | "profile" }) {
   const home = props.token ? `/m/${props.token}` : "/me";
   const link = (key: "events" | "profile", href: string, label: string) => (
     <a
-      class={`button secondary${props.current === key ? " on" : ""}`}
+      class={props.current === key ? "active" : ""}
       href={href}
       aria-current={props.current === key ? "page" : undefined}
     >
       {label}
     </a>
   );
-  // 问候语 小字 (设置 › 外观和公共页面): 「你好，名字」 on the left of the same row.
   return (
-    <nav
-      class={`page-links${props.top ? " top" : ""}${props.greeting ? " with-greeting" : ""}`}
-      aria-label={t("我的页面")}
-    >
-      {props.greeting && (
-        <p class="greeting" aria-hidden="true">
-          {props.greeting}
-        </p>
-      )}
+    <nav class="tabs page-tabs" aria-label={t("我的页面")}>
       {link("events", home, t("我的活动"))}
       {link("profile", `${home}/profile`, t("个人信息"))}
     </nav>
@@ -163,7 +143,7 @@ export function MemberProfilePage(props: { token?: string }) {
         const spent = s && thisYear(s);
         const days = p && activityCounts(p.activity);
         return (
-          <Page title={t("个人信息")}>
+          <Page title={t("个人信息")} bare>
             <MemberNav token={props.token} current="profile" />
             {m.active ? <YearReviewTop base={base} me={card} /> : <MeCard {...card} />}
             {(s || p || c) && (
