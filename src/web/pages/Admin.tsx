@@ -103,7 +103,7 @@ export function Admin(props: { token?: string }) {
               ) : has(m.viewer, "group") ? (
                 <AdminRoleSettings base={base} sub={loc.sub} />
               ) : (
-                <OrganizerSettings base={base} />
+                <OrganizerSettings base={base} sub={loc.sub} />
               ))}
           </>
         )}

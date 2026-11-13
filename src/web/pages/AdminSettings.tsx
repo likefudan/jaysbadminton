@@ -28,8 +28,9 @@ import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
 import { goDown, goSide, goUp, useOnReturn } from "../adminNav";
 import { MasterDetail } from "../MasterDetail";
 import { SubBar } from "../SubBar";
+import { VersionRow, VersionsPage } from "./AdminVersions";
 
-const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames", "boards"] as const;
+const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames", "boards", "versions"] as const;
 type Sub = (typeof SUBS)[number];
 /** An admin's 设置 has all but 账号与安全. */
 const ADMIN_SUBS = SUBS.filter((s) => s !== "security");
@@ -214,6 +215,12 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
         </SubPage>
       );
     if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
+    if (sub === "versions")
+      return (
+        <SubPage title={t("版本和更新记录")} back={home}>
+          <VersionsPage base={props.base} />
+        </SubPage>
+      );
 
     return null;
   })();
@@ -256,6 +263,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
           onClick={() => open("security")}
         />
       </section>
+      <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
       <AdminGuide base={props.base} telegram={telegram} />
       <button type="button" class="button secondary block" onClick={logout}>
         {t("退出登录")}
@@ -400,17 +408,25 @@ const LockIcon = () =>
  * 设置 for an organizer (design §10.2): their own payment settings with the Venmo forwarding steps,
  * their Telegram, and 不再当组织者. The group's settings, export and passwords stay the Owner's.
  */
-export function OrganizerSettings(props: { base: string }) {
+export function OrganizerSettings(props: { base: string; sub?: string }) {
   // One read for both cards, so saving the payment settings refreshes the forwarding status too.
   const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
   const p = profile.state === "ok" ? profile.data : null;
   // Shared with 给组织者的说明 the same way, so connecting Telegram ticks its step.
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
+  // Their 设置 has no menu, only this one page below it.
+  if (props.sub === "versions")
+    return (
+      <SubPage title={t("版本和更新记录")} back={() => goUp({ tab: "settings" })}>
+        <VersionsPage base={props.base} />
+      </SubPage>
+    );
   return (
     <>
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
       <ForwardingCard profile={p} />
       <TelegramCard base={props.base} organizer status={telegram} reload={reloadTelegram} />
+      <VersionRow base={props.base} onClick={() => goDown({ tab: "settings", sub: "versions" })} />
       <OrganizerGuide
         payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}
         forwarding={done(profile, (d) => !!d.lastVenmoEmailAt)}
@@ -470,6 +486,12 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
           <AdvancedCards base={props.base} readOnlySheets openSheets={() => open("sheets")} />
         </SubPage>
       );
+    if (sub === "versions")
+      return (
+        <SubPage title={t("版本和更新记录")} back={home}>
+          <VersionsPage base={props.base} />
+        </SubPage>
+      );
 
     return null;
   })();
@@ -506,6 +528,7 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
           onClick={() => open("advanced")}
         />
       </section>
+      <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
       <OrganizerGuide
         admin
         payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}

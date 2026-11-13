@@ -6382,3 +6382,57 @@ label.set-row {
 .ev-admin-info .event-info {
   margin-bottom: 10px;
 }
+
+/* ---- 设置 → 版本和更新记录 (AdminVersions.tsx) ---- */
+.ver-now {
+  text-align: center;
+  padding: 18px 16px;
+}
+.ver-label,
+.ver-sub,
+.ver-date,
+.ver-none {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.ver-tag {
+  font-size: 24px;
+  font-weight: 650;
+  margin: 2px 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.ver-h {
+  margin: 18px 4px 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.ver-item {
+  padding: 12px 16px;
+}
+.ver-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.ver-date {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.ver-cur {
+  color: var(--accent);
+  border-color: currentColor;
+}
+.ver-lines {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.ver-lines li + li {
+  margin-top: 4px;
+}
+.ver-none {
+  margin: 8px 0 0;
+}
