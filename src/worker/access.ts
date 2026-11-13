@@ -3,7 +3,7 @@ import { matchedRoutes } from "hono/route";
 import { assertAdminToken, hasSession } from "./auth";
 import { developerMember } from "./developer";
 import type { Env } from "./env";
-import { googleSession, memberByGoogle, requireSameOrigin } from "./googleAuth";
+import { googleSessionMember, requireSameOrigin } from "./googleAuth";
 import { HttpError, readJson } from "./http";
 import { isStaging } from "./site";
 import { type Capability, type Role, can, eventManager, inboundPayee, memberRole, ownerId } from "./organizers";
@@ -320,8 +320,7 @@ async function resolveActor(c: Ctx, rule: Rule | undefined): Promise<Actor> {
   if (c.req.param("token") === GOOGLE_ADMIN) {
     // The Google cookie is SameSite=Lax (the admin one is Strict), so writes must come from this site.
     if (c.req.method !== "GET") requireSameOrigin(c);
-    const session = await googleSession(c);
-    const m = session ? await memberByGoogle(c.env, session.google_sub) : null;
+    const { member: m } = await googleSessionMember(c);
     // memberRole only makes an organizer or admin while the ORGANIZERS flag is on, and reads the database on
     // every request, so revoking or disabling one shuts them out at once.
     const role = m && m.status === "active" ? memberRole(c.env, m) : "member";

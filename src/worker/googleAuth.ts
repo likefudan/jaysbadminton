@@ -63,13 +63,34 @@ export async function googleSession<E extends { Bindings: Env }>(c: Context<E>) 
 export const memberByGoogle = (env: Env, sub: string) =>
   env.DB.prepare("SELECT * FROM members WHERE google_sub = ? AND deleted_at IS NULL").bind(sub).first<MemberRow>();
 
+/**
+ * The Google session on this browser and the live member it belongs to, in one trip to the database:
+ * nearly every request starts here.
+ */
+export async function googleSessionMember<E extends { Bindings: Env }>(c: Context<E>) {
+  const raw = getCookie(c, MEMBER_COOKIE);
+  if (!raw) return { session: null, member: null };
+  const hash = await sha256(raw),
+    at = now();
+  const [s, m] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      "SELECT google_sub, email, picture FROM member_sessions WHERE id_hash = ? AND expires_at > ?",
+    ).bind(hash, at),
+    c.env.DB.prepare(
+      `SELECT * FROM members WHERE deleted_at IS NULL AND google_sub =
+         (SELECT google_sub FROM member_sessions WHERE id_hash = ? AND expires_at > ?)`,
+    ).bind(hash, at),
+  ]);
+  const session = (s!.results[0] as { google_sub: string; email: string; picture: string | null } | undefined) ?? null;
+  return { session, member: session ? ((m!.results[0] as MemberRow | undefined) ?? null) : null };
+}
+
 /** The member signed in on this browser: the test site's developer, else the Google account's. */
 async function sessionMember<E extends { Bindings: Env }>(c: Context<E>): Promise<MemberRow | null | "signed_out"> {
   const developer = await developerMember(c);
   if (developer) return developer;
-  const session = await googleSession(c);
-  if (!session) return "signed_out";
-  return (await memberByGoogle(c.env, session.google_sub)) ?? null;
+  const { session, member } = await googleSessionMember(c);
+  return session ? member : "signed_out";
 }
 
 /** The active member signed in on this browser, else null: who may see the members-only 排行榜. */
@@ -106,8 +127,7 @@ export async function sessionInfo<E extends { Bindings: Env }>(c: Context<E>) {
       organizers: organizersEnabled(c.env),
       developer: true,
     };
-  const session = await googleSession(c);
-  const member = session ? await memberByGoogle(c.env, session.google_sub) : null;
+  const { session, member } = await googleSessionMember(c);
   return {
     enabled: googleEnabled(c.env),
     signedIn: !!session,

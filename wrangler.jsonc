@@ -44,10 +44,11 @@
   "triggers": { "crons": ["*/15 * * * *"] },
   "routes": [{ "pattern": "jaysbadminton.llmat.dev", "custom_domain": true }],
   "observability": { "enabled": true },
-  // The databases live in US East while members are in the Bay Area: run the Worker next to the
-  // database, so a request crosses the country once instead of once per query. Staging and the
-  // sites in sites.json inherit this.
-  "placement": { "mode": "smart" },
+  // The databases live in US East (D1 region ENAM) while members are in the Bay Area: run the Worker
+  // next to the database, so a request crosses the country once instead of once per query. Smart
+  // Placement ("mode": "smart") was tried first and left the Worker where the visitor is, so the
+  // place is named. Staging and the sites in sites.json inherit this.
+  "placement": { "mode": "targeted", "region": "aws:us-east-1" },
 
   // Test site: its own Worker, database, domain and Telegram bot. Every merge to main lands here;
   // production only changes when a v* release tag is pushed (see .github/workflows/ci.yml).
