@@ -131,7 +131,35 @@ describe("球场排队", () => {
       ],
       bad: ["5. justaname", "6.Coco  moon 9"],
     });
-    expect(parseAccountList("no numbers here\nat all")).toEqual({ accounts: [], bad: [] });
+  });
+
+  it("reads a plain pasted list, skipping blank lines and Court lines (Ke Li 2026-11-13)", () => {
+    const text = [
+      "Court 1",
+      "Alice cat12",
+      "bob Dog7 ",
+      "",
+      "  Coco moon",
+      "COURT 11 half 9:26",
+      "court 2 9:40",
+      "Dana sun 3",
+      "龙小明 tiger5",
+      "ALICE again",
+      "justaname",
+      "Courtney lion4",
+      "",
+    ].join("\r\n");
+    expect(parseAccountList(text)).toEqual({
+      accounts: [
+        { username: "Alice", password: "cat12" },
+        { username: "bob", password: "Dog7" },
+        { username: "Coco", password: "moon" },
+        { username: "龙小明", password: "tiger5" },
+        { username: "Courtney", password: "lion4" },
+      ],
+      bad: ["Dana sun 3", "justaname"],
+    });
+    expect(parseAccountList("Court 3\n\nCourt 4 9:10\n")).toEqual({ accounts: [], bad: [] });
   });
 
   it("批量添加 skips accounts already on the event (any case) and keeps the cap", async () => {

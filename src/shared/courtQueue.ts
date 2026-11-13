@@ -156,23 +156,29 @@ export interface PastedAccount {
 }
 
 /**
- * 批量添加: reads a pasted list of numbered lines, "1. Cassie lion3", exactly as typed (no case
- * changes). Whatever comes before the first numbered line (a group note, a title) is skipped;
- * after it, a line that isn't "number. username password" is returned in `bad`. A username
- * repeated in the paste (any case) is kept once.
+ * 批量添加: reads a pasted account list exactly as typed (no case changes). Two layouts:
+ * - Numbered, "1. Cassie lion3": used when any line is numbered. Whatever comes before the first
+ *   numbered line (a group note, a title) is skipped; after it, a line that isn't
+ *   "number. username password" is returned in `bad`.
+ * - Plain, "Cassie lion3" (Ke Li 2026-11-13): blank lines and lines starting with "Court"
+ *   ("Court 11 half 9:26", any case) are skipped; every other line must be "username password".
+ * A username repeated in the paste (any case) is kept once.
  */
 export function parseAccountList(text: string): { accounts: PastedAccount[]; bad: string[] } {
   const accounts: PastedAccount[] = [];
   const bad: string[] = [];
   const seen = new Set<string>();
-  let started = false;
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    const numbered = /^\d+\s*[.、．)）]\s*(.*)$/.exec(line);
+  const numberedLine = /^\d+\s*[.、．)）]\s*(.*)$/;
+  const lines = text.split(/\r?\n/).map((raw) => raw.trim());
+  const numberedList = lines.some((line) => numberedLine.test(line));
+  let started = !numberedList;
+  for (const line of lines) {
+    const numbered = numberedLine.exec(line);
     if (!started && !numbered) continue;
     started = true;
     if (!line) continue;
-    const parts = numbered?.[1]?.split(/\s+/).filter(Boolean) ?? [];
+    if (!numberedList && /^court\b/i.test(line)) continue;
+    const parts = (numberedList ? numbered?.[1] : line)?.split(/\s+/).filter(Boolean) ?? [];
     if (parts.length !== 2) {
       bad.push(line);
       continue;

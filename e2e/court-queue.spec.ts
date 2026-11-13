@@ -510,7 +510,7 @@ test("批量添加 reads a pasted list as typed, skips accounts already there, a
   const posts = await setUp(page);
   const sheet = await openAccounts(page);
   await sheet.getByRole("button", { name: "批量添加" }).click();
-  const box = sheet.getByLabel("粘贴账号列表，每行「编号. 用户名 密码」");
+  const box = sheet.getByLabel("粘贴账号列表，每行「用户名 密码」");
   await expect(box).toHaveAttribute("autocapitalize", "none");
   await box.fill(
     [
