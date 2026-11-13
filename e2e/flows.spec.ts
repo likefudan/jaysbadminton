@@ -136,8 +136,16 @@ test("the Owner creates an event and is signed up for it", async ({ page }) => {
   await page.getByRole("button", { name: "＋ 新建活动" }).click();
   await expect(page.getByRole("switch", { name: /我自己也报名/ })).toBeChecked();
   await page.getByLabel("日期", { exact: true }).fill(inAWeek());
+  // One screen: a new venue, and the title and notes, are each on a panel a tap away.
+  await page.getByRole("button", { name: /^场馆/ }).click();
   await field(page, "场馆").fill(VENUE);
+  await page.getByRole("button", { name: "完成" }).click();
+  await expect(page.getByRole("button", { name: /^场馆/ })).toContainText(VENUE);
+  await page.getByRole("button", { name: /^标题和备注/ }).click();
   await page.getByLabel("备注（选填）").fill("请自带球拍\n提前十分钟到场");
+  await page.getByRole("button", { name: "完成" }).click();
+  await expect(page.locator("form").getByRole("button", { name: "取消" })).toHaveCount(0); // 返回 is in the bar
+  expect(await page.evaluate(() => document.querySelector("form")!.getBoundingClientRect().bottom)).toBeLessThan(844);
   await page.getByRole("button", { name: "创建活动" }).click();
   // It opens the new event: open for sign-up, with the Owner on the roster.
   const info = page.locator(".card", { hasText: VENUE }).first();
@@ -175,15 +183,20 @@ test("the Owner forgets a venue from 最近的场馆 with its ✕", async ({ pag
   // 需要收款 + 自动对账 is on unless the venue's last event collected nothing.
   await expect(page.getByRole("switch", { name: "需要收款 + 自动对账" })).toBeChecked();
   await page.screenshot({ path: test.info().outputPath("create-queue.png"), fullPage: true });
-  await page.getByRole("button", { name: VENUE, exact: true }).click();
+  // The recent venues are on the form itself: one tap switches venue, address and its settings.
+  await page.locator("form").getByRole("button", { name: VENUE, exact: true }).click();
   await expect(queue).not.toBeChecked();
+  await expect(page.locator("form .chip-remove")).toHaveCount(0); // forgetting one is on the 场馆 panel
+  await page.getByRole("button", { name: /^场馆/ }).click();
   await page.getByRole("button", { name: `从最近的场馆中删除「${VENUE}」` }).click(); // no confirmation dialog
   await expect(page.getByText("最近的场馆")).toHaveCount(0);
+  await page.getByRole("button", { name: "完成" }).click();
+  await expect(page.locator("form .chip")).toHaveCount(0);
   await page.reload();
   await openAdmin(page);
   await page.getByRole("button", { name: "＋ 新建活动" }).click();
   await expect(page.getByLabel("日期", { exact: true })).toBeVisible();
-  await expect(page.getByText("最近的场馆")).toHaveCount(0);
+  await expect(page.locator("form .chip")).toHaveCount(0);
 });
 
 test("the member signs up with a friend and can add it to a calendar", async ({ page }) => {
@@ -527,9 +540,11 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await expect(page.getByText("没有进行中的活动")).toBeVisible();
   await expect(page.locator(".event-link", { hasText: VENUE })).toHaveCount(0);
   await page.getByRole("button", { name: "＋ 新建活动" }).click();
-  await expect(page.locator(".chip-remove")).toHaveCount(0); // forgetting a venue is the Owner's
   await page.getByLabel("日期", { exact: true }).fill(inAWeek());
+  await page.getByRole("button", { name: /^场馆/ }).click();
+  await expect(page.locator(".chip-remove")).toHaveCount(0); // forgetting a venue is the Owner's
   await field(page, "场馆").fill("Ming Gym");
+  await page.getByRole("button", { name: "完成" }).click();
   await page.getByRole("button", { name: "创建活动" }).click();
   await expect(page.getByText("✓ 你已报名")).toBeVisible();
 
