@@ -169,7 +169,12 @@ export function parseAccountList(text: string): { accounts: PastedAccount[]; bad
   const bad: string[] = [];
   const seen = new Set<string>();
   const numberedLine = /^\d+\s*[.、．)）]\s*(.*)$/;
-  const lines = text.split(/\r?\n/).map((raw) => raw.trim());
+  // Any line break a phone may paste (\r\n, \r, U+2028/2029, NEL), and invisible zero-width marks
+  // dropped, so a list copied from another app reads the same everywhere.
+  const lines = text
+    .replace(/[\u200b-\u200d\u2060\ufeff]/g, "")
+    .split(/\r\n|[\r\n\u0085\u2028\u2029]/)
+    .map((raw) => raw.trim());
   const numberedList = lines.some((line) => numberedLine.test(line));
   let started = !numberedList;
   for (const line of lines) {

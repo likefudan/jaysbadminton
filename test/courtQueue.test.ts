@@ -162,6 +162,20 @@ describe("球场排队", () => {
     expect(parseAccountList("Court 3\n\nCourt 4 9:10\n")).toEqual({ accounts: [], bad: [] });
   });
 
+  it("reads a pasted list whatever line breaks or invisible marks the phone pastes", () => {
+    const want = {
+      accounts: [
+        { username: "Alice", password: "cat12" },
+        { username: "bob", password: "Dog7" },
+      ],
+      bad: [],
+    };
+    for (const br of ["\n", "\r\n", "\r", "\u2028", "\u2029", "\u0085"]) {
+      expect(parseAccountList(["\ufeffCourt 1", "Alice cat12", "", "bob\u00a0Dog7\u200b"].join(br))).toEqual(want);
+    }
+    expect(parseAccountList("1. Alice cat12\u20282. bob Dog7")).toEqual(want);
+  });
+
   it("批量添加 skips accounts already on the event (any case) and keeps the cap", async () => {
     const { alice, bob, q, card, e } = await scenario();
     await anon.call(`${alice.base}${q}/accounts`, { username: "Mark", password: "1357" });
