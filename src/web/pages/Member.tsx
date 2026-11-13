@@ -101,8 +101,8 @@ export function Member(props: { token?: string }) {
 }
 
 /**
- * 我的活动 · 个人信息: the same row on both pages (管理页 is 「切换为管理员」 in the top
- * bar: a fourth button here did not fit a small phone), the current one highlighted.
+ * 我的活动 · 个人信息: the same row on both pages (管理页 is 「切换为管理员」 in the avatar's
+ * menu: a fourth button here did not fit a small phone), the current one highlighted.
  */
 function MemberNav(props: { token?: string; current: "events" | "profile"; greeting?: string; top?: boolean }) {
   const home = props.token ? `/m/${props.token}` : "/me";

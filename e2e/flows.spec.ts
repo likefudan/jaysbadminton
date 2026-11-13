@@ -367,6 +367,7 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await page.goto("/admin/google");
   await expect(page.locator(".tabs")).toBeVisible();
   await page.goto("/me");
+  await page.getByRole("button", { name: /^Google 账号/ }).click();
   await expect(page.getByRole("link", { name: "切换为管理员", exact: true })).toHaveAttribute("href", "/admin/google");
 });
 
@@ -500,10 +501,11 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await memberAction(page, "小明", "设为组织者");
   await expect(page.getByText(/小明 已成为组织者/)).toBeVisible();
 
-  // 小明 signs in with Google; his own page offers 切换为管理员 in the top bar.
+  // 小明 signs in with Google; his avatar's menu offers 切换为管理员.
   const ming = googleSession("google-ming", "ming@example.com");
   await context.addCookies([{ name: "jb_member", value: ming, url: baseURL! }]);
   await page.goto("/me");
+  await page.getByRole("button", { name: /^Google 账号/ }).click();
   await page.getByRole("link", { name: "切换为管理员", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/google$/);
   const tabs = page.locator(".tabs");

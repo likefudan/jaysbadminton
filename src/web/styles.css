@@ -6170,7 +6170,7 @@ label.set-row {
     font-size: 13px;
     padding: 0 3px;
   }
-  /* 切换为普通成员 next to three round buttons left "Jay's 羽…" of the site's name. */
+  /* 登录 / 注册 next to the round buttons: leave room for the site's name. */
   .topbar-actions:has(.profile-switch) {
     gap: 6px;
   }
