@@ -501,7 +501,7 @@ select:focus {
 .tabs::-webkit-scrollbar {
   display: none;
 }
-.tabs button {
+.tabs :is(button, a) {
   flex: 1;
   min-height: 40px;
   padding: 0 12px;
@@ -517,7 +517,7 @@ select:focus {
     background 0.2s,
     color 0.2s;
 }
-.tabs button.active {
+.tabs :is(button, a).active {
   background: var(--glass-strong);
   color: var(--accent);
   box-shadow:
@@ -1977,19 +1977,19 @@ input[role="switch"]:checked {
   -webkit-backdrop-filter: var(--blur);
   backdrop-filter: var(--blur);
 }
-.tabs button {
+.tabs :is(button, a) {
   min-height: 38px;
   border-radius: 9px;
   font-size: 14px;
   font-weight: 500;
   color: var(--muted);
 }
-.tabs button.active {
+.tabs :is(button, a).active {
   background: var(--seg-on);
   color: var(--text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
-[data-style="aurora"] .tabs button {
+[data-style="aurora"] .tabs :is(button, a) {
   border-radius: 12px;
 }
 .seg {
@@ -3835,49 +3835,18 @@ button.heatmap-cell:not(:disabled) {
   color: var(--danger);
 }
 
-/* ---- 我的活动: links to 个人信息 / 管理页, and the folded 历史活动 ---- */
-.page-links {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin: -4px 0 4px;
-}
-/* 问候语 小字: the name on the left, the buttons keep the right. */
-.page-links.with-greeting {
-  align-items: center;
-}
-.page-links .greeting {
-  flex: 1;
-  min-width: 0;
-  margin: 0 4px 0 2px;
-  overflow: hidden;
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-/* No big title above: a little room under the top bar. */
-.page-links.top {
+/* ---- 我的活动 / 个人信息 and the admin tabs: the first thing under the top bar (no big title) ---- */
+.page-body > .tabs:first-child {
   margin-top: 14px;
 }
-.page-links .button {
-  min-height: 36px;
-  padding: 0 14px;
-  font-size: 14px;
+.tabs a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 a.back {
   text-decoration: none;
-}
-.page-links .button.on {
-  border-color: var(--acc-line);
-  background: var(--acc-soft);
-  color: var(--acc-ink);
-}
-[data-mode="dark"] .page-links .button.on {
-  border-color: var(--acc);
-  background: transparent;
-  color: var(--acc);
 }
 .application-message {
   margin: 4px 0 0;
@@ -6116,7 +6085,7 @@ label.set-row {
   .page-body > .flow > .field {
     break-after: avoid;
   }
-  .page-body > :is(.sub-bar, .tabs, .page-links, .split, .card-grid),
+  .page-body > :is(.sub-bar, .tabs, .split, .card-grid),
   .page-body > .section-title:has(+ .card-grid) {
     column-span: all;
   }
@@ -6162,11 +6131,11 @@ label.set-row {
   }
 }
 /* 管理页's five tabs fit a phone in English too ("Settings" used to be pushed off the edge). */
-.tabs button {
+.tabs :is(button, a) {
   padding: 0 6px;
 }
 @media (max-width: 430px) {
-  .tabs button {
+  .tabs :is(button, a) {
     font-size: 13px;
     padding: 0 3px;
   }
@@ -6180,7 +6149,7 @@ label.set-row {
   }
 }
 @media (max-width: 359px) {
-  .tabs button {
+  .tabs :is(button, a) {
     font-size: 12px;
     padding: 0 2px;
   }
@@ -6254,9 +6223,6 @@ label.set-row {
   }
   .hero h1 {
     font-size: 22px;
-  }
-  .page-links.top {
-    margin-top: 8px;
   }
 }
 
@@ -6371,15 +6337,8 @@ label.set-row {
   background: var(--acc-soft);
 }
 @media (min-width: 800px) {
-  /* The big 管理页 title goes: the tabs sit right under the top bar. */
   .page-body:has(> .admin-tabs) {
     column-count: 1;
-  }
-  main:has(.admin-tabs) > .hero {
-    display: none;
-  }
-  .admin-tabs {
-    margin-top: 14px;
   }
   .md {
     display: grid;
