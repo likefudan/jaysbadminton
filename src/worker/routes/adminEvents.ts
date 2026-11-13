@@ -62,6 +62,7 @@ import {
   deadlineOffset,
 } from "../events";
 import { endNoFeeEvent } from "../noFee";
+import { listReleases } from "../releases";
 import { SETTLE_DEADLINE_MAX_HOURS, settleDeadline } from "../settleDeadline";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
@@ -1627,6 +1628,9 @@ function chatOwner(actor: Actor): ChatOwner {
   if (!actor.memberId) throw new HttpError(403, "forbidden", "没有权限做这个操作");
   return actor.memberId;
 }
+
+/** 设置 → 版本和更新记录: this site's version and releases, for everyone in the 管理页. */
+adminEventRoutes.get("/releases", async (c) => c.json(await listReleases(c.env)));
 
 adminEventRoutes.get("/telegram", async (c) => c.json(await telegramStatus(c.env, chatOwner(c.get("actor")))));
 

@@ -644,3 +644,21 @@ export interface AddressSuggestion {
   place: string; // business name, e.g. "Bay Badminton Center", or "" for plain addresses
   label: string; // address text shown (and used directly when there is no id)
 }
+
+/** One production release in 设置 → 版本和更新记录 (src/worker/releases.ts). */
+export interface ReleaseEntry {
+  tag: string;
+  /** When CI recorded it here, right after deploying it (ISO). */
+  at: string;
+  /** Plain lines per language, as told in Telegram; empty lists: nothing users can see changed. */
+  lines: { "zh-CN": string[]; "zh-TW": string[]; en: string[] } | null;
+  /** Without lines: the merged PR titles (Simplified Chinese). */
+  changes: string[];
+}
+
+export interface ReleasesResponse {
+  /** The version running here (vYYYY.MM.DD, main-<sha> on the test site), null when unknown. */
+  current: string | null;
+  /** Newest first. */
+  releases: ReleaseEntry[];
+}

@@ -284,6 +284,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   // Anyone signed in; the handler returns only what they may see
   "GET /events": cap(null),
   "GET /inbound": cap(null),
+  "GET /releases": cap(null),
 };
 
 /** The admin routes' paths start with this (the mount point, then the token). */

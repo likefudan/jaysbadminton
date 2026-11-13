@@ -1007,6 +1007,18 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   入群要审核: { tw: "入群要審核", en: "Joining needs approval" },
   高级设置: { tw: "進階設定", en: "Advanced" },
   账号与安全: { tw: "帳號與安全", en: "Account & security" },
+  版本和更新记录: { tw: "版本和更新記錄", en: "Version & release notes" },
+  当前版本: { tw: "目前版本", en: "Current version" },
+  当前: { tw: "目前", en: "Current" },
+  未知: { tw: "未知", en: "Unknown" },
+  "{date}发布": { tw: "{date}發布", en: "Released {date}" },
+  更新记录: { tw: "更新記錄", en: "Release notes" },
+  "还没有正式版的更新记录。": { tw: "還沒有正式版的更新記錄。", en: "No release notes yet." },
+  "这次没有大家能看到的变化，只是内部改进。": {
+    tw: "這次沒有大家看得到的變化，只是內部改進。",
+    en: "Nothing you can see changed; only behind-the-scenes improvements.",
+  },
+  "这次没有记下改动。": { tw: "這次沒有記下改動。", en: "No changes were recorded for this one." },
   收款账户: { tw: "收款帳戶", en: "Payment accounts" },
   "🔒 修改收款账户（需要群主密码）": {
     tw: "🔒 修改收款帳戶（需要群主密碼）",
