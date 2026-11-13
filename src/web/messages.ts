@@ -899,9 +899,9 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   密码: { tw: "密碼", en: "Password" },
   请填写密码: { tw: "請填寫密碼", en: "Please enter a password" },
   批量添加: { tw: "批次新增", en: "Add many" },
-  "粘贴账号列表，每行「编号. 用户名 密码」": {
-    tw: "貼上帳號清單，每行「編號. 使用者名稱 密碼」",
-    en: 'Paste the list, one "number. username password" per line',
+  "粘贴账号列表，每行「用户名 密码」": {
+    tw: "貼上帳號清單，每行「使用者名稱 密碼」",
+    en: 'Paste the list, one "username password" per line',
   },
   "会添加 {n} 个": { tw: "會新增 {n} 個", en: "Will add {n}" },
   "已经有了，跳过 {n} 个：{names}": {

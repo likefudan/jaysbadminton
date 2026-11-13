@@ -1178,8 +1178,8 @@ function AccountsList(props: { base: string; e: MyEvent; q: QueueInfo; bar: Acco
 }
 
 /**
- * 批量添加: paste a numbered list ("1. Cassie lion3", one account per line, a group note above
- * is skipped). It is read here exactly as typed, and the preview says what will be added, what is
+ * 批量添加: paste a list, "Cassie lion3" or numbered "1. Cassie lion3", one account per line
+ * ("Court …" lines and, in a numbered list, a group note above are skipped). It is read here exactly as typed, and the preview says what will be added, what is
  * already on the event and which lines couldn't be read, before anything is saved.
  */
 function BatchAdd(props: { path: string; q: QueueInfo; onDone: () => void }) {
@@ -1201,11 +1201,11 @@ function BatchAdd(props: { path: string; q: QueueInfo; onDone: () => void }) {
   return (
     <div class="cq-batch">
       <label class="field">
-        <span>{t("粘贴账号列表，每行「编号. 用户名 密码」")}</span>
+        <span>{t("粘贴账号列表，每行「用户名 密码」")}</span>
         <textarea
           rows={6}
           value={text}
-          placeholder={"1. Alice cat12\n2. bob dog7"}
+          placeholder={"Court 1\nAlice cat12\nbob dog7"}
           autocapitalize="none"
           autocorrect="off"
           spellcheck={false}
