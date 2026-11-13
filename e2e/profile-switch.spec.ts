@@ -65,6 +65,7 @@ for (const role of ["owner", "organizer"] as const) {
       return route.fulfill({ json: { ok: true } });
     });
     await page.goto("/admin/google");
+    await page.getByRole("button", { name: /^Google 账号/ }).click();
     await page.getByRole("link", { name: "切换为普通成员", exact: true }).click();
     await expect(page).toHaveURL(/\/me$/);
     await expect(page.getByRole("heading", { name: "你好，Manager" })).toBeVisible();
@@ -72,8 +73,10 @@ for (const role of ["owner", "organizer"] as const) {
     await page.getByRole("button", { name: "确认报名" }).click();
     await expect(page.locator(".status-mine")).toHaveText("我已报名");
     await page.screenshot({ path: testInfo.outputPath(`member-view-${role}.png`) });
+    await page.getByRole("button", { name: /^Google 账号/ }).click();
     await page.getByRole("link", { name: "切换为管理员", exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/google$/);
+    await page.getByRole("button", { name: /^Google 账号/ }).click();
     await expect(page.getByRole("link", { name: "切换为普通成员", exact: true })).toBeVisible();
   });
 }
@@ -84,5 +87,8 @@ test("ordinary members have no administrator profile switch", async ({ page }) =
   );
   await page.goto("/privacy");
   await expect(page.getByRole("button", { name: "Google 账号：member@gmail.com" })).toBeVisible();
-  await expect(page.locator(".profile-switch")).toHaveCount(0);
+  await page.getByRole("button", { name: "Google 账号：member@gmail.com" }).click();
+  const panel = page.getByRole("region", { name: "Google 账号信息" });
+  await expect(panel.getByRole("link", { name: "我的活动" })).toBeVisible();
+  await expect(panel.getByRole("link", { name: /^切换为/ })).toHaveCount(0);
 });

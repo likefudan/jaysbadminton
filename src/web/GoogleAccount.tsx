@@ -63,15 +63,6 @@ export function GoogleAccount(props: { onAppearance: () => void }) {
   }
   return (
     <>
-      {canManage && (
-        <a
-          class="profile-switch"
-          href={administrative ? "/me" : "/admin/google"}
-          title={administrative ? t("进入自己的活动页面，报名其他组织者的活动") : t("返回活动管理页面")}
-        >
-          {administrative ? t("切换为普通成员") : t("切换为管理员")}
-        </a>
-      )}
       <div class="google-account" ref={container}>
         <button
           type="button"
@@ -117,14 +108,17 @@ export function GoogleAccount(props: { onAppearance: () => void }) {
             <p class="google-account-label">{t("已登录 Google")}</p>
             <p class="google-account-email">{email}</p>
             {canManage && <p class="small muted">{administrative ? t("当前：管理员视图") : t("当前：普通成员视图")}</p>}
-            {canManage && (
-              <a class="button secondary block" href="/admin/google" onClick={() => setOpen(false)}>
-                {t("管理页")}
+            {/* 切换 left the top bar for the menu's first row (Ke Li 2026-11-13); it takes the place
+                of 管理页 and 我的活动 for those who have both views. */}
+            {canManage ? (
+              <a class="button block" href={administrative ? "/me" : "/admin/google"} onClick={() => setOpen(false)}>
+                {administrative ? t("切换为普通成员") : t("切换为管理员")}
+              </a>
+            ) : (
+              <a class="button secondary block" href="/me" onClick={() => setOpen(false)}>
+                {t("我的活动")}
               </a>
             )}
-            <a class="button secondary block" href="/me" onClick={() => setOpen(false)}>
-              {t("我的活动")}
-            </a>
             <a class="button secondary block" href="/me/profile" onClick={() => setOpen(false)}>
               {t("个人信息")}
             </a>
