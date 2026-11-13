@@ -1958,6 +1958,52 @@ input[role="switch"]:checked {
   width: 64px;
   text-align: center;
 }
+/* A row that opens a panel (场馆, 标题和备注): what is set now on the right, then ›. */
+.opt-link {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+.opt-group > * + .opt-link {
+  border-top: 1px solid var(--line);
+}
+.opt-link-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 400;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.opt-link-value.empty {
+  color: var(--muted);
+}
+.opt-link .chevron {
+  flex: none;
+  line-height: 1;
+}
+/* 最近的场馆 under the 场馆 row: one tap switches, the row scrolls sideways when they don't fit. */
+.opt-chips {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+.opt-chips .chip {
+  padding: 0 12px;
+}
+.opt-note {
+  padding: 0 14px 10px;
+  color: var(--muted);
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
 
 /* ---- Segmented controls (tabs, leaderboard, appearance) ---- */
 .tabs {
@@ -6166,7 +6212,6 @@ label.set-row {
 }
 
 /* ---- Wide screens, second pass (UI review 2026-11-12, Ke Li picked the small Duo items) ---- */
-/* 新建活动: its two halves, one after the other on a phone. */
 @media (min-width: 800px) {
   /* The iPhone Duo's crease runs down the middle: keep card edges and buttons off it. */
   .page-body {
@@ -6175,15 +6220,6 @@ label.set-row {
   .card-grid:has(> :nth-child(2)),
   .split {
     gap: 14px 26px;
-  }
-  .form-cols {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 26px;
-    align-items: start;
-  }
-  .page-body > .card:has(> .form-cols) {
-    column-span: all;
   }
   /* 我的活动's 已结清 row runs across both halves instead of half the screen. */
   .page-body > .span-all {

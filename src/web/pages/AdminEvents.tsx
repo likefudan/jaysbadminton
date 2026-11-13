@@ -223,52 +223,123 @@ function CreateForm(props: { base: string; owner: boolean; d: EventDefaults; onD
     if (r) props.onDone(r.id);
   }
 
+  // 最近的场馆 are on the form itself, one tap each (Ke Li switches between three); the Owner
+  // forgets one on the 场馆 panel.
+  const [venues, setVenues] = useState(d.locations);
+  const [panel, setPanel] = useState<"venue" | "more" | null>(null);
+  const pickVenue = (v: Venue) => {
+    setLocation(v.name);
+    setAddress(v.address);
+    knownVenue(v);
+  };
+  // No confirmation: it only forgets a shortcut, and typing the venue again brings it back.
+  async function forget(name: string) {
+    const before = venues;
+    setVenues((list) => list.filter((v) => v.name !== name));
+    try {
+      await api(`${props.base}/locations/remove`, { name });
+    } catch {
+      setVenues(before);
+    }
+  }
+  const more = [title.trim(), notes.trim()].filter(Boolean).join(" · ");
+
   return (
     <Card>
-      {/* Two halves side by side on a wide screen (when and where | notes, switches, buttons), so
-          the form fits one screen of an unfolded iPhone Duo; one after the other on a phone. */}
-      <form class="form-cols" onSubmit={submit}>
-        <div>
-          <OptionRows>
-            <OptionSwitch label={t("我自己也报名")} on={joinSelf} onOn={setJoinSelf} />
-          </OptionRows>
-          <Field label={t("活动标题")} value={title} onInput={setTitle} />
-          <WhenRows date={date} start={startTime} end={endTime} onDate={setDate} onStart={setStart} onEnd={setEnd} />
-          <VenueFields
-            base={props.base}
-            canForget={props.owner}
-            venues={d.locations}
-            venue={location}
-            address={address}
-            onVenue={setLocation}
-            onAddress={setAddress}
-            onKnown={knownVenue}
+      {/* One screen on a phone (Ke Li 2026-11-13): when and where as one list, the switches as
+          another; a new venue or address, and the title and notes, are a tap away on a panel.
+          One column on a wide screen too: it sits beside the list there, in half the width. */}
+      <form onSubmit={submit}>
+        <OptionRows>
+          <WhenRowsInner
+            date={date}
+            start={startTime}
+            end={endTime}
+            onDate={setDate}
+            onStart={setStart}
+            onEnd={setEnd}
           />
-        </div>
-        <div>
-          <NotesField value={notes} onInput={setNotes} />
-          <OptionRows>
-            <FeeField noFee={noFee} onNoFee={setNoFee} />
-            <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
-            <DeadlineField
-              on={deadlineOn}
-              days={days}
-              hours={hours}
-              onOn={setDeadlineOn}
-              onDays={setDays}
-              onHours={setHours}
-            />
-          </OptionRows>
-          {error && <p class="error">{error}</p>}
-          <button type="submit" class="button block" disabled={busy || !date}>
-            {t("创建活动")}
-          </button>
-          <button class="button secondary block" type="button" onClick={() => props.onDone()}>
-            {t("取消")}
-          </button>
-        </div>
+          <OptionLink label={t("场馆")} value={location.trim()} empty={t("填写")} onOpen={() => setPanel("venue")} />
+          {venues.length > 0 && (
+            <div class="opt-chips chips">
+              {venues.map((v) => (
+                <button
+                  type="button"
+                  key={v.name}
+                  class={v.name === location ? "chip on" : "chip"}
+                  aria-pressed={v.name === location}
+                  onClick={() => pickVenue(v)}
+                >
+                  {v.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {address.trim() && <div class="opt-note">{address}</div>}
+        </OptionRows>
+        <OptionRows>
+          <OptionSwitch label={t("我自己也报名")} on={joinSelf} onOn={setJoinSelf} />
+          <FeeField noFee={noFee} onNoFee={setNoFee} />
+          <QueueField on={queueOn} minutes={roundMin} onOn={setQueueOn} onMinutes={setRoundMin} />
+          <DeadlineField
+            on={deadlineOn}
+            days={days}
+            hours={hours}
+            onOn={setDeadlineOn}
+            onDays={setDays}
+            onHours={setHours}
+          />
+          <OptionLink label={t("标题和备注")} value={more} empty={t("选填")} onOpen={() => setPanel("more")} />
+        </OptionRows>
+        {error && <p class="error">{error}</p>}
+        <button type="submit" class="button block" disabled={busy || !date}>
+          {t("创建活动")}
+        </button>
       </form>
+      {panel === "venue" && (
+        <Panel title={t("场馆")} label={t("场馆")} onClose={() => setPanel(null)}>
+          <Card>
+            <VenueFields
+              base={props.base}
+              venues={venues}
+              onForget={props.owner ? forget : undefined}
+              venue={location}
+              address={address}
+              onVenue={setLocation}
+              onAddress={setAddress}
+              onKnown={knownVenue}
+            />
+            <button type="button" class="button block" onClick={() => setPanel(null)}>
+              {t("完成")}
+            </button>
+          </Card>
+        </Panel>
+      )}
+      {panel === "more" && (
+        <Panel title={t("标题和备注")} label={t("标题和备注")} onClose={() => setPanel(null)}>
+          <Card>
+            <Field label={t("活动标题")} value={title} onInput={setTitle} />
+            <NotesField value={notes} onInput={setNotes} />
+            <button type="button" class="button block" onClick={() => setPanel(null)}>
+              {t("完成")}
+            </button>
+          </Card>
+        </Panel>
+      )}
     </Card>
+  );
+}
+
+/** A row of the list that opens a panel: its label, what is set now (or a grey word), and ›. */
+function OptionLink(props: { label: string; value: string; empty: string; onOpen: () => void }) {
+  return (
+    <button type="button" class="opt-row opt-link" onClick={props.onOpen}>
+      <span>{props.label}</span>
+      <span class={props.value ? "opt-link-value" : "opt-link-value empty"}>{props.value || props.empty}</span>
+      <span class="chevron" aria-hidden="true">
+        ›
+      </span>
+    </button>
   );
 }
 
@@ -289,9 +360,25 @@ function WhenRows(props: {
   onStart: (v: string) => void;
   onEnd: (v: string) => void;
 }) {
-  const value = (on: (v: string) => void) => (e: Event) => on((e.target as HTMLInputElement).value);
   return (
     <OptionRows>
+      <WhenRowsInner {...props} />
+    </OptionRows>
+  );
+}
+
+/** The two rows of {@link WhenRows}, for a list that goes on (新建活动 has 场馆 under them). */
+function WhenRowsInner(props: {
+  date: string;
+  start: string;
+  end: string;
+  onDate: (v: string) => void;
+  onStart: (v: string) => void;
+  onEnd: (v: string) => void;
+}) {
+  const value = (on: (v: string) => void) => (e: Event) => on((e.target as HTMLInputElement).value);
+  return (
+    <>
       <label class="opt-row">
         <span>{t("日期")}</span>
         <input type="date" class="opt-value" value={props.date} onInput={value(props.onDate)} />
@@ -310,7 +397,7 @@ function WhenRows(props: {
           <input type="time" class="opt-value" aria-label={t("结束")} value={props.end} onInput={value(props.onEnd)} />
         </span>
       </div>
-    </OptionRows>
+    </>
   );
 }
 
@@ -421,13 +508,13 @@ function NotesField(props: { value: string; onInput: (value: string) => void }) 
 }
 
 /**
- * 场馆 + 地址, with one-tap 最近的场馆 that fill both and the venue's 排队系统 setting (the Owner
- * can also forget one with ✕).
+ * 场馆 + 地址, with one-tap 最近的场馆 that fill both and the venue's 排队系统 setting (with
+ * `onForget`, the Owner's, each has a ✕ that forgets it).
  */
 function VenueFields(props: {
   base: string;
-  canForget?: boolean;
   venues: Venue[];
+  onForget?: (name: string) => void;
   venue: string;
   address: string;
   onVenue: (v: string) => void;
@@ -435,21 +522,13 @@ function VenueFields(props: {
   /** A recent venue was picked: set 排队系统 and 无需收款 the way its last event had them. */
   onKnown?: (v: Venue) => void;
 }) {
-  const [venues, setVenues] = useState(props.venues);
+  const venues = props.venues;
+  const forget = props.onForget;
   const pick = (v: Venue) => {
     props.onVenue(v.name);
     props.onAddress(v.address);
     props.onKnown?.(v);
   };
-  // No confirmation: it only forgets a shortcut, and typing the venue again brings it back.
-  async function forget(name: string) {
-    setVenues((list) => list.filter((v) => v.name !== name));
-    try {
-      await api(`${props.base}/locations/remove`, { name });
-    } catch {
-      setVenues(props.venues);
-    }
-  }
   return (
     <>
       {venues.length > 0 && (
@@ -461,7 +540,7 @@ function VenueFields(props: {
                 <button type="button" class={v.name === props.venue ? "chip on" : "chip"} onClick={() => pick(v)}>
                   {v.name}
                 </button>
-                {props.canForget && (
+                {forget && (
                   <button
                     type="button"
                     class="chip-remove"

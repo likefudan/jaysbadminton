@@ -333,6 +333,8 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   最近的场馆: { tw: "最近的場館", en: "Recent venues" },
   "从最近的场馆中删除「{name}」": { tw: "從最近的場館中刪除「{name}」", en: 'Remove "{name}" from recent venues' },
   场馆: { tw: "場館", en: "Venue" },
+  标题和备注: { tw: "標題和備註", en: "Title and notes" },
+  选填: { tw: "選填", en: "Optional" },
   代为添加: { tw: "代為新增", en: "Added for them" },
   群主添加: { tw: "群主新增", en: "Added by owner" },
   "取消后这次活动不产生费用，也不计入统计。确定取消吗？": {
