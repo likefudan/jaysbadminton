@@ -132,12 +132,6 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
               },
             )}
           </Step>
-          <Step>
-            {tx(
-              "{b}（「设置 → 账号与安全 → 备份网站密钥」，要先连接 Telegram）：密钥发到 Telegram 后存进密码管理器，再交给网站维护者存成 GitHub secret。万一 Cloudflare 里的密钥丢了，部署时会用它自动恢复，成员链接、管理链接和表格同步脚本才能继续显示和找回。",
-              { b: <b>{t("备份网站密钥")}</b> },
-            )}
-          </Step>
           <Step done={s?.venmo}>
             {tx(
               "{b}（「设置 → 收款设置」，保存时要输入群主密码）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。",

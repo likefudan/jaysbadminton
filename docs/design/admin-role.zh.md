@@ -35,7 +35,6 @@
 | --- | --- | --- |
 | 任命、撤销管理员 | （新增） | Ke Li 指定 |
 | 清空所有数据 | `POST /settings/reset` | Ke Li 指定 |
-| 备份 TOKEN_KEY（发到群主 Telegram） | `POST /settings/backup-key` | Ke Li 指定：密钥类 |
 | 群主密码、管理链接 | `POST /settings/password`、`/settings/rotate-admin` | 群主自己的登录方式 |
 | 群主的 Google 绑定 | `/settings/google*` | 群主自己的账户 |
 | 群主自己的收款设置 | `POST /settings/payment` | 群主自己的钱；管理员改自己的走 `/payment-profile` |

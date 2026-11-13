@@ -108,12 +108,14 @@ if (backup) {
   else if (ok) console.log(`✓ ${backupName} matches the key this site's links are encrypted with`);
   else {
     console.log(
-      `::error::${backupName} does not match the key this site's links are encrypted with; send the key again from 设置 → 备份网站密钥 and update the GitHub secret`,
+      `::error::${backupName} does not match the key this site's links are encrypted with; put the GitHub secret back to its earlier value (Cloudflare can't show TOKEN_KEY)`,
     );
     process.exitCode = 1;
   }
 } else {
-  console.log(`::warning::No ${backupName} GitHub secret: TOKEN_KEY has no backup (设置 → 备份网站密钥)`);
+  console.log(
+    `::warning::No ${backupName} GitHub secret: TOKEN_KEY has no backup (set it before a site's first deploy so the key is generated from it)`,
+  );
 }
 
 if (Object.keys(secrets).length === 0) process.exit();

@@ -612,12 +612,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "（組織者負責的活動的提醒發給組織者，見第四部分）",
     en: " (reminders for events run by organizers go to the organizers; see part 4)",
   },
-  "{b}（「设置 → 账号与安全 → 备份网站密钥」，要先连接 Telegram）：密钥发到 Telegram 后存进密码管理器，再交给网站维护者存成 GitHub secret。万一 Cloudflare 里的密钥丢了，部署时会用它自动恢复，成员链接、管理链接和表格同步脚本才能继续显示和找回。":
-    {
-      tw: "{b}（「設定 → 帳號與安全 → 備份網站金鑰」，要先連線 Telegram）：金鑰發到 Telegram 後存進密碼管理器，再交給網站維護者存成 GitHub secret。萬一 Cloudflare 裡的金鑰丟了，部署時會用它自動恢復，成員連結、管理連結和表格同步腳本才能繼續顯示和找回。",
-      en: '{b} ("Settings → Account & security → Back up site key"; connect Telegram first): the key is sent to Telegram; save it in a password manager, then give it to the site maintainer to store as a GitHub secret. If the key in Cloudflare is ever lost, deploys restore it automatically, so member links, the admin link and the sheet sync script keep working.',
-    },
-  备份网站密钥: { tw: "備份網站金鑰", en: "Back up the site key" },
   "{b}（「设置 → 收款设置」，保存时要输入群主密码）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。":
     {
       tw: "{b}（「設定 → 收款設定」，儲存時要輸入群主密碼）：Venmo 使用者名稱、Venmo 通知電子郵件（Venmo 帳戶裡登記的、收款通知發到的那個電子郵件），Zelle 選填。",
@@ -1125,13 +1119,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "你負責的活動會交給群主。已經結算的活動，成員的錢仍然付到你的帳戶，直到收齊。",
     en: "Events you run go to the owner. For events already billed, members still pay into your account until everyone has paid.",
   },
-  "TOKEN_KEY 用来加密保存成员链接和管理链接，Cloudflare 里看不到它的值。把它发到你的 Telegram，存进密码管理器后删掉那条消息。":
-    {
-      tw: "TOKEN_KEY 用來加密儲存成員連結和管理連結，Cloudflare 裡看不到它的值。把它發到你的 Telegram，存進密碼管理器後刪掉那條訊息。",
-      en: "TOKEN_KEY encrypts the stored member links and admin link, and its value can't be seen in Cloudflare. Send it to your Telegram, save it in a password manager, then delete the message.",
-    },
-  "已发送到 Telegram。": { tw: "已傳送到 Telegram。", en: "Sent to Telegram." },
-  "发送到 Telegram": { tw: "傳送到 Telegram", en: "Send to Telegram" },
   清空所有数据: { tw: "清空所有資料", en: "Clear all data" },
   "清空后，所有成员、活动、报名、付款记录和设置都会被删除，网站回到初次设置状态。确定要继续吗？": {
     tw: "清空後，所有成員、活動、報名、付款記錄和設定都會被刪除，網站回到初次設定狀態。確定要繼續嗎？",

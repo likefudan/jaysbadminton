@@ -233,7 +233,6 @@ describe("an admin", () => {
     const { asAdmin } = await scenario();
     for (const [path, body] of [
       ["/settings/reset", { confirm: "清空所有数据", password: "initial-password" }],
-      ["/settings/backup-key", { password: "initial-password" }],
       ["/settings/password", { current: "initial-password", next: "another-password-1" }],
       ["/settings/rotate-admin", {}],
       ["/settings/payment", { password: "initial-password" }],

@@ -625,7 +625,7 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   await expect(page.getByRole("heading", { name: "给管理员的说明" })).toBeVisible();
   await expect(page.getByRole("button", { name: "不再当管理员" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^账号与安全/ })).toHaveCount(0);
-  const ownerOnly = ["修改群主密码", "管理链接", "备份网站密钥", "危险操作", "用 Google 登录管理页", "收款账户"];
+  const ownerOnly = ["修改群主密码", "管理链接", "危险操作", "用 Google 登录管理页", "收款账户"];
   await page.getByRole("button", { name: /^收款设置/ }).click();
   await expect(page.getByRole("heading", { name: "我的收款设置" })).toBeVisible();
   for (const heading of ownerOnly)
