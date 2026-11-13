@@ -18,7 +18,7 @@ export async function signOutGoogle(): Promise<void> {
 }
 
 /** Shows the avatar received from the verified Google profile, with a fallback. */
-export function GoogleAccount() {
+export function GoogleAccount(props: { onAppearance: () => void }) {
   const [session] = useApi<{ signedIn: boolean; email: string | null; picture: string | null; role?: string }>(
     "/api/auth/session",
   );
@@ -128,6 +128,16 @@ export function GoogleAccount() {
             <a class="button secondary block" href="/me/profile" onClick={() => setOpen(false)}>
               {t("个人信息")}
             </a>
+            <button
+              type="button"
+              class="button secondary block"
+              onClick={() => {
+                setOpen(false);
+                props.onAppearance();
+              }}
+            >
+              {t("外观")}
+            </button>
             <button type="button" class="button secondary block" disabled={busy} onClick={logout}>
               {busy ? t("正在退出…") : t("退出登录")}
             </button>

@@ -114,3 +114,18 @@ test.describe("on a computer-wide screen", () => {
     await expect(page).toHaveURL(/\/me\/profile$/);
   });
 });
+
+test("外观 is in the avatar's menu and the footer, not the top bar (Ke Li)", async ({ page }) => {
+  const email = "demo.member@gmail.com";
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { enabled: true, signedIn: true, email, hasMember: true } }),
+  );
+  await page.goto("/privacy");
+  await expect(page.locator(".topbar-actions button")).toHaveCount(2); // the avatar and 文A
+  await page.getByRole("button", { name: `Google 账号：${email}`, exact: true }).click();
+  const panel = page.getByRole("region", { name: "Google 账号信息" });
+  await panel.getByRole("button", { name: "外观" }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "外观" })).toBeVisible();
+  await expect(page.locator("footer").getByRole("button", { name: "外观" })).toHaveCount(1);
+});
