@@ -9,20 +9,8 @@ const MODES: { id: Mode; label: string }[] = [
   { id: "dark", label: tk("深色") },
 ];
 
-/** The 「外观」 button in the top bar. */
-export function AppearanceButton(props: { onClick: () => void }) {
-  return (
-    <button type="button" class="appearance-btn" aria-label={t("外观")} onClick={props.onClick}>
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-        <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6" />
-        <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" />
-      </svg>
-    </button>
-  );
-}
-
 /**
- * Its sheet. Rendered outside the top bar: the bar's backdrop-filter would otherwise become the
+ * The 「外观」 sheet, opened from the footer or the avatar's menu. Rendered outside the top bar: the bar's backdrop-filter would otherwise become the
  * containing block of this position: fixed overlay. Choices stay on this phone only.
  */
 export function AppearanceSheet(props: { onClose: () => void }) {

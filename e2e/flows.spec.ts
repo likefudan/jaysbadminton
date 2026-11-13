@@ -683,7 +683,9 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
 test("a visitor's appearance choice survives a reload", async ({ page }) => {
   await page.goto(memberPath);
   await expect(page.locator("html")).toHaveAttribute("data-style", "minimal");
-  await page.getByRole("button", { name: "外观" }).click();
+  // 外观 left the top bar for the footer (and the avatar's menu), Ke Li 2026-11-13.
+  await expect(page.locator(".topbar").getByRole("button", { name: "外观" })).toHaveCount(0);
+  await page.locator("footer").getByRole("button", { name: "外观" }).click();
   const sheet = page.getByRole("dialog", { name: "外观" });
   await sheet.getByRole("button", { name: "极光" }).click();
   await sheet.getByRole("button", { name: "深色" }).click();

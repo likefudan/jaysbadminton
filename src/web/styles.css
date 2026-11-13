@@ -1654,7 +1654,7 @@ details.fold[open] summary {
 .google-account-panel {
   position: absolute;
   top: calc(100% + 12px);
-  right: -44px;
+  right: 0;
   width: min(300px, calc(100vw - 32px));
   padding: 18px;
   border: 1px solid var(--line);
@@ -1689,20 +1689,6 @@ details.fold[open] summary {
   border-radius: 9px;
   background: linear-gradient(135deg, rgb(var(--a1)), rgb(var(--a2)));
   box-shadow: 0 4px 14px rgba(var(--a1), 0.4);
-}
-.appearance-btn {
-  flex: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--text-2);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  cursor: pointer;
 }
 .hero {
   padding: 22px 2px 18px;
@@ -3409,6 +3395,16 @@ button.calendar-link {
   color: inherit;
 }
 
+.legal-looks {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .legal-links .sponsor {
   flex-basis: 100%;
   margin: 0;
@@ -4110,9 +4106,9 @@ ul.audit li:first-child {
   text-align: center;
 }
 
-/* The 文A language button in the top bar, between the Google avatar and 外观: the avatar's panel reaches past both. */
+/* The 文A language button in the top bar, right of the Google avatar: the avatar's panel reaches past it. */
 .topbar-actions:has(.lang-switch) .google-account-panel {
-  right: -88px;
+  right: -44px;
 }
 .lang-switch {
   position: relative;

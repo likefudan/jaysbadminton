@@ -1,7 +1,7 @@
 import type { AccessibleInputHTMLAttributes, ComponentChildren, HTMLInputTypeAttribute } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import type { Loaded } from "./hooks";
-import { AppearanceButton, AppearanceSheet } from "./Appearance";
+import { AppearanceSheet } from "./Appearance";
 import { useSiteIcon, useSiteTitle, useSponsor, useStaging } from "./site";
 import { DeveloperSwitch } from "./DeveloperTools";
 import { GoogleAccount } from "./GoogleAccount";
@@ -41,9 +41,8 @@ export function Page(props: {
         </a>
         <div class="topbar-actions">
           {!admin && !SIGN_IN_PAGES.test(path) && <TopSignIn />}
-          <GoogleAccount />
+          <GoogleAccount onAppearance={() => setLooks(true)} />
           <LangSwitch />
-          <AppearanceButton onClick={() => setLooks(true)} />
         </div>
       </header>
       {!admin && <SignedOutWeChatBanner />}
@@ -65,6 +64,11 @@ export function Page(props: {
         <a href="/privacy">{t("隐私政策")}</a>
         <span aria-hidden="true">·</span>
         <a href="/terms">{t("使用条款")}</a>
+        <span aria-hidden="true">·</span>
+        {/* 外观 left the top bar (Ke Li 2026-11-13): here for everyone, and in the avatar's menu. */}
+        <button type="button" class="legal-looks" onClick={() => setLooks(true)}>
+          {t("外观")}
+        </button>
         {sponsor && (
           <p class="sponsor">
             <span aria-hidden="true">♥ </span>

@@ -7,7 +7,7 @@ import { expect, test } from "@playwright/test";
 test("on a wide screen a panel opens over the right half", async ({ page }) => {
   await page.setViewportSize({ width: 890, height: 626 });
   await page.goto("/privacy");
-  await page.locator(".topbar-actions button").last().click();
+  await page.locator("footer").getByRole("button", { name: "外观" }).click();
   const panel = page.locator(".panel");
   await expect(panel).toBeVisible();
   // After the slide-in.
@@ -23,7 +23,7 @@ test("on a wide screen a panel opens over the right half", async ({ page }) => {
 
 test("on a phone a panel still covers the whole screen", async ({ page }) => {
   await page.goto("/privacy");
-  await page.locator(".topbar-actions button").last().click();
+  await page.locator("footer").getByRole("button", { name: "外观" }).click();
   const box = (await page.locator(".panel").boundingBox())!;
   expect(Math.round(box.width)).toBe(390);
 });
