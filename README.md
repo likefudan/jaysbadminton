@@ -7,6 +7,21 @@ Sign-ups, rosters, fees and payments for badminton groups, in one mobile-first w
 - **Other groups' sites**: https://sbbc.llmat.dev, https://bewithyou.llmat.dev, https://coco.llmat.dev
 - **Release admin site**: https://badminton.llmat.dev (maintainer only)
 
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/events.jpg" width="240" alt="My events"><br><sub>My events: sign-up status and the live court queue</sub></td>
+    <td align="center"><img src="docs/screenshots/bill.jpg" width="240" alt="Bill"><br><sub>The bill: one tap to pay with Venmo</sub></td>
+    <td align="center"><img src="docs/screenshots/leaderboard.jpg" width="240" alt="Leaderboard"><br><sub>Leaderboards and past events</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/profile.jpg" width="240" alt="Profile"><br><sub>Profile: yearly review and milestones</sub></td>
+    <td align="center"><img src="docs/screenshots/admin-events.jpg" width="240" alt="Admin events"><br><sub>Admin view: all events</sub></td>
+    <td align="center"><img src="docs/screenshots/admin-payments.jpg" width="240" alt="Payment board"><br><sub>Admin view: payment board of one event</sub></td>
+  </tr>
+</table>
+
+Screenshots use demo data; the names, venues and accounts are made up.
+
 ---
 
 ## 1. Introduction
