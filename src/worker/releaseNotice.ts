@@ -20,7 +20,7 @@ const MAX_LINES = 10;
 const MAX_ATTEMPTS = 3;
 
 /** Lines per language, and how many changes were left out (only when they are the bare titles). */
-type Lines = Record<BotLang, string[]> & { more: number };
+type Lines = Record<BotLang, string[]> & { more: number; titles?: true };
 
 const SCHEMA = {
   type: "object",
@@ -54,7 +54,13 @@ ${changes.map((c) => `- ${c}`).join("\n")}`;
 export async function describeChanges(env: Env, changes: string[]): Promise<Lines | null> {
   if (changes.length === 0) return null;
   const titles = changes.slice(0, MAX_LINES);
-  const fallback: Lines = { "zh-CN": titles, "zh-TW": titles, en: titles, more: changes.length - titles.length };
+  const fallback: Lines = {
+    "zh-CN": titles,
+    "zh-TW": titles,
+    en: titles,
+    more: changes.length - titles.length,
+    titles: true,
+  };
   if (!aiEnabled(env)) return fallback;
   try {
     const answer = await askAi(env, "notes", { text: prompt(changes), schema: SCHEMA, maxTokens: 16000 });

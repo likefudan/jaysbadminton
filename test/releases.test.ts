@@ -58,6 +58,24 @@ describe("版本和更新记录", () => {
     expect((await listReleases({ ...env, APP_VERSION: undefined })).current).toBeNull();
   });
 
+  it("shows a change only under the oldest release that lists it", async () => {
+    // v2 never reached anyone, so CI listed v3's changes since v1, v2's included.
+    await record("v2026.11.01", ["甲"], undefined, "2026-11-01T00:00:00Z");
+    await record("v2026.11.02", ["乙"], undefined, "2026-11-02T00:00:00Z");
+    await record(
+      "v2026.11.03",
+      ["乙", "丙"],
+      { "zh-CN": ["乙", "丙"], "zh-TW": ["乙", "丙"], en: ["乙", "丙"], more: 0, titles: true },
+      "2026-11-03T00:00:00Z",
+    );
+    const r = await listReleases(env);
+    expect(r.releases.map((x) => [x.tag, x.lines, x.changes])).toEqual([
+      ["v2026.11.03", null, ["丙"]],
+      ["v2026.11.02", null, ["乙"]],
+      ["v2026.11.01", null, ["甲"]],
+    ]);
+  });
+
   it("is open to the Owner, admins and organizers, not to others", async () => {
     const ctx = await setUpAdmin();
     await record("v2026.11.10", ["a"], undefined, "2026-11-10T09:11:00Z");

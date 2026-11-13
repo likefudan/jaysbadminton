@@ -60,6 +60,15 @@ function useSubPages(from: string | undefined, has: readonly Sub[], reload: () =
   return [sub, open, top] as const;
 }
 
+/** 设置 → 版本和更新记录, for everyone in the 管理页. */
+function VersionsSubPage(props: { base: string; back: () => void }) {
+  return (
+    <SubPage title={t("版本和更新记录")} back={props.back}>
+      <VersionsPage base={props.base} />
+    </SubPage>
+  );
+}
+
 /** A second-level page under 设置: the way back and its name. */
 function SubPage(props: { title: string; back: () => void; backLabel?: string; children: ComponentChildren }) {
   return (
@@ -215,12 +224,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
         </SubPage>
       );
     if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
-    if (sub === "versions")
-      return (
-        <SubPage title={t("版本和更新记录")} back={home}>
-          <VersionsPage base={props.base} />
-        </SubPage>
-      );
+    if (sub === "versions") return <VersionsSubPage base={props.base} back={home} />;
 
     return null;
   })();
@@ -409,18 +413,17 @@ const LockIcon = () =>
  * their Telegram, and 不再当组织者. The group's settings, export and passwords stay the Owner's.
  */
 export function OrganizerSettings(props: { base: string; sub?: string }) {
+  // Their 设置 has no menu, only this one page below it.
+  if (props.sub === "versions") return <VersionsSubPage base={props.base} back={() => goUp({ tab: "settings" })} />;
+  return <OrganizerSettingsPage base={props.base} />;
+}
+
+function OrganizerSettingsPage(props: { base: string }) {
   // One read for both cards, so saving the payment settings refreshes the forwarding status too.
   const [profile, reload] = useApi<PaymentProfile>(`${props.base}/payment-profile`);
   const p = profile.state === "ok" ? profile.data : null;
   // Shared with 给组织者的说明 the same way, so connecting Telegram ticks its step.
   const [telegram, reloadTelegram] = useApi<TelegramStatus>(`${props.base}/telegram`);
-  // Their 设置 has no menu, only this one page below it.
-  if (props.sub === "versions")
-    return (
-      <SubPage title={t("版本和更新记录")} back={() => goUp({ tab: "settings" })}>
-        <VersionsPage base={props.base} />
-      </SubPage>
-    );
   return (
     <>
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
@@ -486,12 +489,7 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
           <AdvancedCards base={props.base} readOnlySheets openSheets={() => open("sheets")} />
         </SubPage>
       );
-    if (sub === "versions")
-      return (
-        <SubPage title={t("版本和更新记录")} back={home}>
-          <VersionsPage base={props.base} />
-        </SubPage>
-      );
+    if (sub === "versions") return <VersionsSubPage base={props.base} back={home} />;
 
     return null;
   })();
