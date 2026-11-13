@@ -38,27 +38,32 @@ function parse(json: string | null): unknown {
 export async function listReleases(env: Env): Promise<ReleasesResponse> {
   // Only a tag newer than any before is recorded, so the newest rows are the newest releases.
   const { results } = await env.DB.prepare(
-    "SELECT tag, changes, created_at, lines FROM release_notices ORDER BY created_at DESC LIMIT ?",
+    "SELECT tag, changes, created_at, lines, delivered FROM release_notices ORDER BY created_at DESC LIMIT ?",
   )
     .bind(MAX_RELEASES)
-    .all<{ tag: string; changes: string; created_at: string; lines: string | null }>();
+    .all<{ tag: string; changes: string; created_at: string; lines: string | null; delivered: string }>();
   // CI lists the changes since the last release that reached someone in Telegram, so after one
-  // that didn't, a title can be listed again: each shows under the oldest release that has it.
-  const seen = new Set<string>();
+  // that didn't, its titles are listed again: they show only under the first. Claude's lines for
+  // the later one can't be taken apart and may repeat them.
+  let relisted = new Set<string>();
   const releases = results
     .filter((r) => TAG_RE.test(r.tag))
     .sort((a, b) => compareTags(a.tag, b.tag))
     .map((r): ReleaseEntry => {
-      const changes = (list(parse(r.changes)) ?? []).filter((c) => !seen.has(c));
-      for (const c of changes) seen.add(c);
+      const all = list(parse(r.changes)) ?? [];
+      const changes = all.filter((c) => !relisted.has(c));
+      const delivered = list(parse(r.delivered)) ?? [];
+      if (delivered.length) relisted = new Set();
+      else for (const c of all) relisted.add(c);
       const l = parse(r.lines) as Record<string, unknown> | null;
       const zh = l && list(l["zh-CN"]);
       const tw = l && list(l["zh-TW"]);
       const en = l && list(l.en);
       // Without a model the notice carried the bare titles (maybe cut short): those show as the
       // full list of changes instead. Marked since this page; older notices had the same titles in
-      // every language.
-      const bare = l?.titles === true || (!!zh && zh.length > 0 && JSON.stringify(zh) === JSON.stringify(en));
+      // all three languages.
+      const same = (a: string[] | null) => JSON.stringify(a) === JSON.stringify(zh);
+      const bare = l?.titles === true || (!!zh && zh.length > 0 && same(tw) && same(en));
       const lines = zh && tw && en && !bare ? { "zh-CN": zh, "zh-TW": tw, en } : null;
       return { tag: r.tag, at: r.created_at, lines, changes: lines ? [] : changes };
     })

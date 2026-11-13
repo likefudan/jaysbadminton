@@ -34,6 +34,7 @@ async function mock(page: import("@playwright/test").Page, role: "owner" | "orga
   await page.route(`${T}telegram`, (r) => r.fulfill({ json: {} }));
   await page.route(`${T}settings`, (r) => r.fulfill({ json: {} }));
   await page.route(`${T}payment-profile`, (r) => r.fulfill({ json: {} }));
+  await page.route("**/api/health", (r) => r.fulfill({ json: { ok: true, version: "v2026.11.10" } }));
   await page.route(`${T}releases`, (r) => r.fulfill({ json: RELEASES }));
 }
 

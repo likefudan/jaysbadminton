@@ -5,9 +5,15 @@ import { GOOGLE, appoint, approveMember, request, setUpAdmin } from "./helpers";
 
 /** 设置 → 版本和更新记录: this site's version and the releases CI recorded for it. */
 
-const record = (tag: string, changes: string[], lines: unknown, at: string) =>
-  env.DB.prepare("INSERT INTO release_notices (tag, changes, created_at, lines) VALUES (?, ?, ?, ?)")
-    .bind(tag, JSON.stringify(changes), at, lines === undefined ? null : JSON.stringify(lines))
+const record = (tag: string, changes: string[], lines: unknown, at: string, delivered: string[] = ["1"]) =>
+  env.DB.prepare("INSERT INTO release_notices (tag, changes, created_at, lines, delivered) VALUES (?, ?, ?, ?, ?)")
+    .bind(
+      tag,
+      JSON.stringify(changes),
+      at,
+      lines === undefined ? null : JSON.stringify(lines),
+      JSON.stringify(delivered),
+    )
     .run();
 
 describe("版本和更新记录", () => {
@@ -58,10 +64,10 @@ describe("版本和更新记录", () => {
     expect((await listReleases({ ...env, APP_VERSION: undefined })).current).toBeNull();
   });
 
-  it("shows a change only under the oldest release that lists it", async () => {
+  it("shows a re-listed change only under the release that first had it", async () => {
     // v2 never reached anyone, so CI listed v3's changes since v1, v2's included.
     await record("v2026.11.01", ["甲"], undefined, "2026-11-01T00:00:00Z");
-    await record("v2026.11.02", ["乙"], undefined, "2026-11-02T00:00:00Z");
+    await record("v2026.11.02", ["乙"], undefined, "2026-11-02T00:00:00Z", []);
     await record(
       "v2026.11.03",
       ["乙", "丙"],
@@ -74,6 +80,9 @@ describe("版本和更新记录", () => {
       ["v2026.11.02", null, ["乙"]],
       ["v2026.11.01", null, ["甲"]],
     ]);
+    // A later PR with the same title as one in a release that reached people still shows.
+    await record("v2026.11.04", ["甲"], undefined, "2026-11-04T00:00:00Z");
+    expect((await listReleases(env)).releases[0]?.changes).toEqual(["甲"]);
   });
 
   it("is open to the Owner, admins and organizers, not to others", async () => {

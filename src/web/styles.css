@@ -6395,6 +6395,9 @@ label.set-row {
   color: var(--text-2);
   font-size: 13px;
 }
+.ver-none {
+  margin: 8px 0 0;
+}
 .ver-tag {
   font-size: 24px;
   font-weight: 650;
@@ -6432,7 +6435,4 @@ label.set-row {
 }
 .ver-lines li + li {
   margin-top: 4px;
-}
-.ver-none {
-  margin: 8px 0 0;
 }

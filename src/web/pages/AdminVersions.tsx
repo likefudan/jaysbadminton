@@ -29,13 +29,14 @@ const VersionIcon = () => (
 
 /** The menu row under 设置's groups, with the version on the right. */
 export function VersionRow(props: { base: string; current?: boolean; onClick: () => void }) {
-  const [r] = useApi<ReleasesResponse>(`${props.base}/releases`);
+  // Just the version: the health check carries it, without the list.
+  const [r] = useApi<{ version?: string }>("/api/health");
   return (
     <section class="card set-list">
       <SettingRow
         icon={<VersionIcon />}
         label={t("版本和更新记录")}
-        value={r.state === "ok" ? (r.data.current ?? undefined) : undefined}
+        value={r.state === "ok" ? r.data.version : undefined}
         current={props.current}
         onClick={props.onClick}
       />
