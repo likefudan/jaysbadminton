@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "dev.llmat.badminton"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.llmat.badminton"
