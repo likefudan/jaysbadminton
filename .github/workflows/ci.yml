@@ -122,7 +122,7 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
       - name: Browser tests (main flows on a local Worker)
-        run: npx playwright test ${{ matrix.shard == 1 && 'flows' || format('--shard={0}/2', matrix.shard - 1) }}
+        run: npx playwright test ${{ matrix.shard == 1 && 'flows' || (matrix.shard == 2 && '--shard=1/2' || '--shard=2/2') }}
         env:
           WRANGLER_SEND_METRICS: "false"
           E2E_SKIP_FLOWS: ${{ matrix.shard != 1 && '1' || '' }}
