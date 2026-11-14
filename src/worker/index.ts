@@ -201,8 +201,8 @@ export default {
       console.error("payment diagnostic cleanup failed:", err);
     }
     try {
-      await purgeEndedQueues(env); // 球馆账号, courts and photos once the event's queue is over
-      await purgeCourtPhotos(env); // and any photo after 7 days
+      await purgeEndedQueues(env); // 球馆账号, courts and what photos showed once the event's queue is over
+      await purgeCourtPhotos(env); // and what photos showed, after 7 days
     } catch (err) {
       console.error("court queue cleanup failed:", err);
     }

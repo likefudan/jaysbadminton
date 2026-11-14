@@ -362,7 +362,7 @@ describe("reset all data", () => {
     // Rows hanging off the event that the reset must clear first (court queue, calories, AI usage).
     await env.DB.batch([
       env.DB.prepare(
-        "INSERT INTO queue_photos (event_id, member_id, image, created_at) VALUES (?, ?, x'ffd8', '2026-11-03T00:00:00Z')",
+        "INSERT INTO queue_photos (event_id, member_id, created_at) VALUES (?, ?, '2026-11-03T00:00:00Z')",
       ).bind(e.id, alice.id),
       env.DB.prepare(
         `INSERT INTO ai_usage (request, use, event_id, model, effort, input_tokens, output_tokens, ok, created_at)
