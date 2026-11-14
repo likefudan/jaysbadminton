@@ -127,7 +127,7 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 export const APP_JS = `"use strict";
 const app = document.getElementById("app");
 // 简 / 繁 / English (i18n.ts): the page's lang says which; the texts' Simplified Chinese is the key.
-const LANG = document.documentElement.lang;
+const LANG = ["zh-TW", "en"].includes(document.documentElement.lang) ? document.documentElement.lang : "zh-CN";
 const MSG = ${JSON.stringify(MESSAGES)};
 const t = (key, vars) => {
   const m = MSG[key];
