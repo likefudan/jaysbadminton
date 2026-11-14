@@ -6283,6 +6283,62 @@ label.set-row {
   font-weight: 500;
   cursor: pointer;
 }
+.head-actions {
+  display: flex;
+  flex: none;
+  gap: 10px;
+}
+/* 我的报名 and 预定场地 on the event's admin page: a row each, opening a panel. */
+.quick-list .set-value .ok {
+  color: var(--ok);
+}
+/* 负责人 above the list of events: one slim line, not a label over a full-width box. */
+.field.filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.field.filter-row span {
+  margin: 0;
+}
+.field.filter-row select {
+  width: auto;
+  max-width: 60%;
+  min-height: 36px;
+  height: 36px;
+  padding: 0 30px 0 12px;
+  font-size: 14.5px;
+}
+/* A card that is one line until opened (还没用 Google 登录). */
+.fold-card > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+}
+.fold-card > summary::-webkit-details-marker {
+  display: none;
+}
+.fold-card > summary h2 {
+  flex: 1;
+  margin: 0;
+}
+.fold-card > summary .ok {
+  color: var(--ok);
+  font-size: 14.5px;
+}
+.fold-card > summary .chevron {
+  line-height: 1;
+  transition: transform 0.15s;
+}
+.fold-card[open] > summary .chevron {
+  transform: rotate(90deg);
+}
+.fold-card[open] > summary {
+  margin-bottom: 10px;
+}
 /* 修改 in the corner of the event's own card; the text beside it wraps before it. */
 .ev-admin-info {
   position: relative;
