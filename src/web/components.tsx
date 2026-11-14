@@ -5,6 +5,7 @@ import { AppearanceSheet } from "./Appearance";
 import { useSiteIcon, useSiteTitle, useSponsor, useStaging } from "./site";
 import { DeveloperSwitch } from "./DeveloperTools";
 import { GoogleAccount } from "./GoogleAccount";
+import { AppTabs, tabOf, useAppTabs } from "./AppTabs";
 import { useLocation } from "preact-iso";
 import { isAdminPath, t, tm, tx } from "./i18n";
 import { LangSwitch } from "./LangSwitch";
@@ -26,11 +27,13 @@ export function Page(props: {
   const [looks, setLooks] = useState(false);
   const { path } = useLocation();
   const admin = isAdminPath(path);
+  const tabs = useAppTabs();
   useEffect(() => {
     document.title = props.title === site ? site : `${props.title} · ${site}`;
   }, [props.title, site]);
   return (
-    <div class="page">
+    // In the app added to the home screen the tabs sit at the bottom; the footer's links are under 我的 only.
+    <div class={tabs ? `page has-app-tabs${tabOf(path) === "me" ? " tab-me" : ""}` : "page"}>
       {staging && <div class="env-banner">{t("测试环境 · 数据和正式网站分开，请不要转发这里的链接")}</div>}
       <header class="topbar">
         <a href="/" class="brand">
@@ -84,6 +87,7 @@ export function Page(props: {
           </p>
         )}
       </footer>
+      {tabs && <AppTabs tabs={tabs} />}
     </div>
   );
 }

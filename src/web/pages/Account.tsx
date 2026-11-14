@@ -7,7 +7,7 @@ import { ApplicationFields } from "../ApplicationFields";
 import { Card, Field, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
 import { inWeChat, WeChatSheet } from "../WeChat";
-import { Member, MemberProfilePage } from "./Member";
+import { Member, MemberBoardsPage, MemberProfilePage } from "./Member";
 import { t, tk, tm } from "../i18n";
 
 type Session = {
@@ -94,6 +94,7 @@ export function GoogleLink(props: { token: string }) {
 
 /** /me/profile: 个人信息 for the Google-signed-in member (the sign-in steps otherwise, as on /me). */
 export const AccountProfile = () => <Account page="profile" />;
+export const AccountBoards = () => <Account page="boards" />;
 
 /** 登录 / 注册: Google is the one way in for new members; old members may still use their /m/ link. */
 function SignIn(props: { googleEnabled: boolean }) {
@@ -130,7 +131,7 @@ function SignIn(props: { googleEnabled: boolean }) {
   );
 }
 
-export function Account(props: { page?: "profile" }) {
+export function Account(props: { page?: "profile" | "boards" }) {
   const [session, reload] = useApi<Session>("/api/auth/session");
   return (
     <Load result={session}>
@@ -153,7 +154,13 @@ export function Account(props: { page?: "profile" }) {
             </Page>
           );
         if (s.hasMember && !sessionStorage.getItem("google-link-member"))
-          return props.page === "profile" ? <MemberProfilePage /> : <Member />;
+          return props.page === "profile" ? (
+            <MemberProfilePage />
+          ) : props.page === "boards" ? (
+            <MemberBoardsPage />
+          ) : (
+            <Member />
+          );
         return <Profile email={s.email!} onDone={reload} />;
       }}
     </Load>
