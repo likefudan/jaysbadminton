@@ -6,6 +6,7 @@
 // Whatever the site saves between the export here and that next deploy stays in the old database.
 // Usage: node scripts/move-d1.mjs staging [undo]
 import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const SITES = { staging: "jaysbadminton-staging" };
 const from = SITES[process.argv[2]];
@@ -42,11 +43,76 @@ if (undo) {
 if (!exists(from)) throw new Error(`${from} does not exist`);
 if (exists(to)) throw new Error(`${to} already exists: the database was moved before`);
 
+// Photos (BLOB columns) do not fit in the export: it writes each row as one statement, and D1 takes
+// statements up to 100 KB. Their rows are left out of the file and copied below in pieces.
+const tables = query(from, "SELECT name FROM sqlite_master WHERE type = 'table'").map((t) => t.name);
+const photoTables = [];
+for (const table of tables) {
+  const columns = query(from, `PRAGMA table_info("${table}")`);
+  const blobs = columns.filter((c) => c.type.toUpperCase() === "BLOB").map((c) => c.name);
+  if (!blobs.length) continue;
+  const keys = columns.filter((c) => c.pk > 0).map((c) => c.name);
+  if (!keys.length) throw new Error(`${table} has a BLOB column and no primary key`);
+  photoTables.push({ table, blobs, keys, plain: columns.map((c) => c.name).filter((c) => !blobs.includes(c)) });
+}
+const PIECE = 40_000; // bytes of a photo per statement: 80 KB as hex
+const LIMIT = 95_000;
+const photoRows = (name, { table, blobs, keys }) => {
+  const where = (row) => keys.map((k, i) => `"${k}" = ${row[`k${i}`]}`).join(" AND ");
+  const ids = query(
+    name,
+    `SELECT ${keys.map((k, i) => `quote("${k}") AS k${i}`).join(", ")} FROM "${table}" ORDER BY 1`,
+  );
+  return ids.map((id) => ({ where: where(id), blobs }));
+};
+const photo = (name, { table, plain, blobs }, where) =>
+  query(
+    name,
+    `SELECT ${[
+      ...plain.map((c, i) => `quote("${c}") AS p${i}`),
+      ...blobs.map((c, i) => `typeof("${c}") AS t${i}, hex("${c}") AS b${i}`),
+    ].join(", ")} FROM "${table}" WHERE ${where}`,
+  )[0];
+
 const before = snapshot(from);
 wrangler("d1", "export", from, "--remote", "--output", "move.sql");
+const inserts = new RegExp(`^INSERT INTO "?(${photoTables.map((t) => t.table).join("|") || "-"})"? `);
+const lines = readFileSync("move.sql", "utf8")
+  .split("\n")
+  .filter((line) => !inserts.test(line));
+const long = lines.find((line) => Buffer.byteLength(line) > LIMIT);
+if (long) throw new Error(`A statement in the export is too long for D1: ${long.slice(0, 40)}…`);
+writeFileSync("move.sql", lines.join("\n"));
+
+const photos = [];
+const statements = [];
+for (const t of photoTables) {
+  for (const { where } of photoRows(from, t)) {
+    const row = photo(from, t, where);
+    photos.push({ t, where, row });
+    const columns = [...t.plain, ...t.blobs].map((c) => `"${c}"`).join(", ");
+    const values = [
+      ...t.plain.map((_, i) => row[`p${i}`]),
+      ...t.blobs.map((_, i) => `X'${row[`b${i}`].slice(0, PIECE * 2)}'`),
+    ];
+    statements.push(`INSERT INTO "${t.table}" (${columns}) VALUES (${values.join(", ")});`);
+    t.blobs.forEach((c, i) => {
+      for (let at = PIECE * 2; at < row[`b${i}`].length; at += PIECE * 2) {
+        const piece = row[`b${i}`].slice(at, at + PIECE * 2);
+        statements.push(`UPDATE "${t.table}" SET "${c}" = CAST("${c}" || X'${piece}' AS BLOB) WHERE ${where};`);
+      }
+    });
+  }
+}
+console.log(`${photos.length} photo rows in ${photoTables.map((t) => t.table).join(", ") || "no tables"}`);
+
 wrangler("d1", "create", to, "--location", "wnam");
 try {
   wrangler("d1", "execute", to, "--remote", "--yes", "--file", "move.sql");
+  if (statements.length) {
+    writeFileSync("photos.sql", statements.join("\n"));
+    wrangler("d1", "execute", to, "--remote", "--yes", "--file", "photos.sql");
+  }
   const copy = snapshot(to);
   const after = snapshot(from);
   const differences = [];
@@ -62,6 +128,13 @@ try {
     console.log(`${ok ? "ok  " : "DIFF"} ${table}: ${n} rows, copy ${copy.rows[table]}`);
     if (!ok) differences.push(`${table}: ${n} rows, copy has ${copy.rows[table]}`);
   }
+  // Every photo, byte for byte.
+  let same = 0;
+  for (const { t, where, row } of photos) {
+    if (JSON.stringify(photo(to, t, where)) === JSON.stringify(row)) same++;
+    else differences.push(`${t.table} ${where}: the photo in the copy is not the same`);
+  }
+  console.log(`${same} of ${photos.length} photo rows are the same byte for byte`);
   if (differences.length) throw new Error(`The copy is not the same:\n${differences.join("\n")}`);
 } catch (error) {
   // A half-filled copy must not be left behind: the next deploy would use it.
