@@ -2,7 +2,8 @@
 // US West (WNAM), where the members are. A D1 database cannot change region or name, so the copy is
 // a new database, <name>-wnam; scripts/resolve-d1.mjs uses it once it exists, so the next deploy of
 // the test site switches over. The old database is left as it is: `undo` deletes the new one and
-// the next deploy goes back.
+// the next deploy goes back (then also take `placement: off` out of env.staging in wrangler.jsonc: the
+// old database is in US East).
 // Whatever the site saves between the export here and that next deploy stays in the old database.
 // Usage: node scripts/move-d1.mjs staging [undo|check]
 import { execFileSync } from "node:child_process";
