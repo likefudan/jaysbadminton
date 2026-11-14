@@ -122,7 +122,7 @@ export function MemberProfilePage(props: { token?: string }) {
   const home = props.token ? `/m/${props.token}` : "/me";
   const [me, reloadMe] = useApi<MeResponse>(`${base}/me`);
   const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
-  const [stats] = useApi<MyStats>(`${base}/stats`);
+  const [stats, reloadStats] = useApi<MyStats>(`${base}/stats`);
   const [calories, reloadCalories] = useApi<MyCalories>(`${base}/calories`);
   const [open, setOpen] = useState<"spend" | "activity" | "calories" | "settings" | "avatar" | null>(null);
   const close = () => setOpen(null);
@@ -193,7 +193,7 @@ export function MemberProfilePage(props: { token?: string }) {
             {props.token && <GoogleLink token={props.token} />}
             {open === "spend" && s && (
               <Panel title={t("我的花费")} label={t("我的花费")} onClose={close}>
-                <SpendingCard stats={s} />
+                <SpendingCard stats={s} base={base} onChanged={reloadStats} />
               </Panel>
             )}
             {open === "activity" && p && (

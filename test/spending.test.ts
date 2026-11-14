@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, bucketTitle, niceScale, rangeStart, summarize } from "../src/shared/spending";
+import { addMonths, bucketTitle, niceScale, parseDollars, rangeStart, summarize } from "../src/shared/spending";
 import type { SpendEntry } from "../src/shared/types";
 
-const e = (date: string, cents: number, attended = true): SpendEntry => ({
+let nextId = 1;
+const e = (date: string, cents: number, attended = true, extraCents = 0): SpendEntry => ({
+  id: nextId++,
   date,
   title: "",
   location: "Gym",
   cents,
+  extraCents,
   attended,
 });
 const TODAY = "2026-10-02"; // a Friday
@@ -71,6 +74,19 @@ describe("我的统计 ranges", () => {
     expect(all.buckets[0]).toMatchObject({ start: "2024-03-05", label: "3月" });
     expect(all.buckets.find((b) => b.start === "2025-01-01")!.label).toBe("2025"); // the year turns over
     expect(summarize([e("2020-01-01", 500)], "ALL", TODAY).unit).toBe("year");
+  });
+
+  it("adds 自付费用 to the totals and keeps it apart", () => {
+    const withExtra = [e("2026-09-29", 2500, true, 1500), e("2026-10-01", 0, true, 1000), e("2026-10-02", 1200)];
+    const week = summarize(withExtra, "7D", TODAY);
+    expect(week).toMatchObject({ count: 3, cents: 6200, extraCents: 2500, avgCents: 2067 });
+    expect(week.buckets.find((b) => b.start === "2026-09-29")).toMatchObject({ cents: 4000, extraCents: 1500 });
+    expect(week.buckets.find((b) => b.start === "2026-10-01")).toMatchObject({ cents: 1000, extraCents: 1000 });
+  });
+
+  it("reads typed dollar amounts", () => {
+    expect(["15", "$15", " 15.5 ", "15.05", "0", "15."].map(parseDollars)).toEqual([1500, 1500, 1550, 1505, 0, 1500]);
+    expect(["", "abc", "1.234", "-5", "1,000"].map(parseDollars)).toEqual([null, null, null, null, null]);
   });
 
   it("picks a clean axis and readable column titles", () => {

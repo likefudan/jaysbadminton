@@ -12,7 +12,7 @@ import type {
 } from "../../shared/types";
 import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail } from "../profile";
-import { myStats, yearReview } from "../stats";
+import { myStats, setExtraSpend, yearReview } from "../stats";
 import { can, eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payeeProfile } from "../organizers";
 import { ownerName, payeeName } from "../payees";
 import {
@@ -116,6 +116,12 @@ memberRoutes.post("/:token/avatar/mode", async (c) => {
 });
 
 memberRoutes.get("/:token/stats", async (c) => c.json(await myStats(c.env, c.get("member").id)));
+// 自付费用: what they paid themselves for one event in 我的花费 (cents, 0 clears). Theirs alone.
+memberRoutes.post("/:token/stats/extra", async (c) => {
+  const body = await readJson(c.req.raw);
+  await setExtraSpend(c.env, c.get("member").id, Number(body.eventId), Number(body.cents));
+  return c.json({ ok: true });
+});
 
 // 年度回顾: their own year, ?year= for an earlier one.
 memberRoutes.get("/:token/year", async (c) =>

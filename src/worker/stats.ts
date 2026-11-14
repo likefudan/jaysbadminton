@@ -15,6 +15,7 @@ import { avatarsById, avatarUrl } from "./avatars";
 import { getSettings } from "./db";
 import { COUNTED_LIKE } from "./likes";
 import type { Env } from "./env";
+import { badRequest, HttpError } from "./http";
 
 /**
  * Attendance follows the Owner's 到场 marks, so only settled-up events count (finalized or
@@ -282,43 +283,64 @@ export async function boardSettings(env: Env): Promise<{ public: BoardKey[]; ord
   return { public: order.filter((k) => picked.includes(k)), order, anon: s.leaderboard_anon === "1" };
 }
 
-/** 个人统计: only on the member's own page. Spending is what they were billed (incl. friends). */
+/**
+ * 个人统计: only on the member's own page. Spending is what they were billed (incl. friends) plus
+ * what they noted they paid themselves (自付费用, e.g. a drop-in fee at the door).
+ */
 export async function myStats(env: Env, memberId: string): Promise<MyStats> {
   const today = toPacific(new Date()).date;
   const year = today.slice(0, 4);
   const lastYear = String(Number(year) - 1);
   const sameDayLastYear = `${lastYear}${today.slice(4)}`;
 
-  const { results: visits } = await env.DB.prepare(
-    `SELECT e.id, e.date FROM registrations r JOIN events e ON e.id = r.event_id
-     WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index = 0 AND r.attended = 1`,
-  )
-    .bind(memberId)
-    .all<{ id: number; date: string }>();
-  const { results: bills } = await env.DB.prepare(
-    `SELECT e.id, e.date, e.title, e.location, p.amount_due_cents FROM payments p JOIN events e ON e.id = p.event_id
-     WHERE ${COUNTED} AND p.member_id = ?`,
-  )
-    .bind(memberId)
-    .all<{ id: number; date: string; title: string; location: string; amount_due_cents: number }>();
+  type Row = { id: number; date: string; title: string; location: string };
+  const [visitRows, billRows, extraRows] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT e.id, e.date, e.title, e.location FROM registrations r JOIN events e ON e.id = r.event_id
+       WHERE ${COUNTED} AND r.member_id = ? AND r.friend_index = 0 AND r.attended = 1`,
+    ).bind(memberId),
+    env.DB.prepare(
+      `SELECT e.id, e.date, e.title, e.location, p.amount_due_cents FROM payments p JOIN events e ON e.id = p.event_id
+       WHERE ${COUNTED} AND p.member_id = ?`,
+    ).bind(memberId),
+    env.DB.prepare("SELECT event_id, cents FROM extra_spend WHERE member_id = ?").bind(memberId),
+  ]);
+  const visits = visitRows!.results as Row[];
+  const bills = billRows!.results as (Row & { amount_due_cents: number })[];
+  const extra = new Map(
+    (extraRows!.results as { event_id: number; cents: number }[]).map((x) => [x.event_id, x.cents]),
+  );
 
   // One entry per counted event they came to or were billed for, oldest first: the page picks a range.
   const came = new Set(visits.map((v) => v.id));
   const history: SpendEntry[] = bills.map((b) => ({
+    id: b.id,
     date: b.date,
     title: b.title,
     location: b.location,
     cents: b.amount_due_cents,
+    extraCents: extra.get(b.id) ?? 0,
     attended: came.has(b.id),
   }));
   const billed = new Set(bills.map((b) => b.id));
   for (const v of visits)
-    if (!billed.has(v.id)) history.push({ date: v.date, title: "", location: "", cents: 0, attended: true });
-  history.sort((a, b) => a.date.localeCompare(b.date));
+    if (!billed.has(v.id))
+      history.push({
+        id: v.id,
+        date: v.date,
+        title: v.title,
+        location: v.location,
+        cents: 0,
+        extraCents: extra.get(v.id) ?? 0,
+        attended: true,
+      });
+  history.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
 
   const inYear = (d: string, y: string, upTo?: string) => d.startsWith(y) && (!upTo || d <= upTo);
+  const spent = (y: string, upTo?: string) =>
+    history.filter((h) => inYear(h.date, y, upTo)).reduce((t, h) => t + h.cents + h.extraCents, 0);
   const yearCount = visits.filter((v) => inYear(v.date, year)).length;
-  const yearSpend = bills.filter((b) => inYear(b.date, year)).reduce((t, b) => t + b.amount_due_cents, 0);
+  const yearSpend = spent(year);
   return {
     year: Number(year),
     yearCount,
@@ -326,12 +348,40 @@ export async function myStats(env: Env, memberId: string): Promise<MyStats> {
     yearSpendCents: yearSpend,
     avgSpendCents: yearCount ? Math.round(yearSpend / yearCount) : 0,
     lastYearCount: visits.filter((v) => inYear(v.date, lastYear, sameDayLastYear)).length,
-    lastYearSpendCents: bills
-      .filter((b) => inYear(b.date, lastYear, sameDayLastYear))
-      .reduce((t, b) => t + b.amount_due_cents, 0),
+    lastYearSpendCents: spent(lastYear, sameDayLastYear),
     today,
     history,
   };
+}
+
+/** Most one can note for one event: a typo guard, far above any court fee. */
+export const EXTRA_MAX_CENTS = 100_000;
+
+/**
+ * 自付费用 (Ke Li 2026-11-14, option B): sets, or with 0 clears, what the member paid themselves for
+ * an event. Only for events in their own 我的花费: counted ones they came to or were billed for.
+ */
+export async function setExtraSpend(env: Env, memberId: string, eventId: number, cents: number): Promise<void> {
+  if (!Number.isInteger(cents) || cents < 0 || cents > EXTRA_MAX_CENTS)
+    throw badRequest(`金额要在 $0 到 $${EXTRA_MAX_CENTS / 100} 之间`);
+  const mine = await env.DB.prepare(
+    `SELECT 1 FROM events e WHERE e.id = ?1 AND ${COUNTED} AND (
+       EXISTS (SELECT 1 FROM registrations r
+               WHERE r.event_id = e.id AND r.member_id = ?2 AND r.friend_index = 0 AND r.attended = 1)
+       OR EXISTS (SELECT 1 FROM payments p WHERE p.event_id = e.id AND p.member_id = ?2))`,
+  )
+    .bind(eventId, memberId)
+    .first();
+  if (!mine) throw new HttpError(404, "not_in_history", "这场活动不在你的花费记录里");
+  if (cents === 0)
+    await env.DB.prepare("DELETE FROM extra_spend WHERE member_id = ? AND event_id = ?").bind(memberId, eventId).run();
+  else
+    await env.DB.prepare(
+      `INSERT INTO extra_spend (member_id, event_id, cents, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (member_id, event_id) DO UPDATE SET cents = excluded.cents, updated_at = excluded.updated_at`,
+    )
+      .bind(memberId, eventId, cents, new Date().toISOString())
+      .run();
 }
 
 /**

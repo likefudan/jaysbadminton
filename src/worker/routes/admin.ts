@@ -543,6 +543,7 @@ const RESET_TABLES = [
   "queue_accounts",
   "queue_credits",
   "likes",
+  "extra_spend",
   "calorie_uploads",
   "calories",
   "events",

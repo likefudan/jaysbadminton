@@ -3880,6 +3880,116 @@ button.heatmap-cell:not(:disabled) {
 .spend-absent {
   color: var(--danger);
 }
+/* 自付费用: the lighter top of a column, the split line under the figures and the 明细 buttons */
+.spend-bar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.spend-bar-extra {
+  display: block;
+  flex: none;
+  background: var(--acc-line);
+}
+.spend-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: -4px 0 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.spend-key {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 2px;
+  background: var(--acc);
+}
+.spend-key.extra {
+  background: var(--acc-line);
+}
+.spend-detail td.spend-extra-cell {
+  width: 1%;
+  padding: 4px 0 4px 8px;
+  vertical-align: middle;
+  text-align: right;
+}
+.spend-extra-btn {
+  padding: 2px 8px;
+  border: 1px dashed var(--acc-line);
+  border-radius: 8px;
+  background: none;
+  color: var(--acc-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.spend-extra-btn.set {
+  border-style: solid;
+  border-color: transparent;
+  background: var(--acc-soft);
+  font-variant-numeric: tabular-nums;
+}
+.spend-detail tr.spend-extra-edit td {
+  padding: 2px 0 10px;
+  border-top: 0;
+}
+.spend-extra-edit form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.spend-extra-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--muted);
+}
+.spend-extra-input input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.spend-extra-edit .button {
+  width: auto;
+  margin: 0;
+  padding: 0 14px;
+  min-height: 36px;
+}
+.spend-extra-edit .link-button {
+  width: auto;
+  margin: 0;
+  padding: 4px 2px;
+  font-size: 13.5px;
+  text-decoration: none;
+}
+.spend-extra-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.spend-extra-hint.error {
+  color: var(--danger);
+}
 
 /* ---- 我的活动 / 个人信息 and the admin tabs: the first thing under the top bar (no big title) ---- */
 .page-body > .tabs:first-child {

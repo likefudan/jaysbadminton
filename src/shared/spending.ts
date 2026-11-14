@@ -11,7 +11,9 @@ export interface Bucket {
   end: string;
   /** Short axis label: "10/2", "9月", "2027". */
   label: string;
+  /** Billed plus 自付; extraCents is the 自付 part. */
   cents: number;
+  extraCents: number;
   /** Times they came (not counting events they were billed for but missed). */
   count: number;
 }
@@ -23,7 +25,9 @@ export interface RangeSummary {
   buckets: Bucket[];
   entries: SpendEntry[];
   count: number;
+  /** Billed plus 自付; extraCents is the 自付 part. */
   cents: number;
+  extraCents: number;
   /** null when they didn't come at all in the range. */
   avgCents: number | null;
 }
@@ -114,12 +118,14 @@ export function summarize(history: SpendEntry[], range: RangeId, today: string):
       start: from,
       end: to,
       label: label(b, unit, start.slice(0, 4), today.slice(0, 4)),
-      cents: inside.reduce((t, e) => t + e.cents, 0),
+      cents: inside.reduce((t, e) => t + e.cents + e.extraCents, 0),
+      extraCents: inside.reduce((t, e) => t + e.extraCents, 0),
       count: inside.filter((e) => e.attended).length,
     });
   }
   const count = entries.filter((e) => e.attended).length;
-  const cents = entries.reduce((t, e) => t + e.cents, 0);
+  const cents = entries.reduce((t, e) => t + e.cents + e.extraCents, 0);
+  const extraCents = entries.reduce((t, e) => t + e.extraCents, 0);
   return {
     start,
     end: today,
@@ -128,6 +134,7 @@ export function summarize(history: SpendEntry[], range: RangeId, today: string):
     entries,
     count,
     cents,
+    extraCents,
     avgCents: count ? Math.round(cents / count) : null,
   };
 }
@@ -148,4 +155,11 @@ export function bucketTitle(b: Bucket, unit: BucketUnit): string {
   if (unit === "month") return `${b.start.slice(0, 4)}年${Number(b.start.slice(5, 7))}月`;
   if (unit === "year") return `${b.start.slice(0, 4)}年`;
   return `${md(b.start)}–${md(b.end)}`;
+}
+
+/** "15", "$15.5", "15.00" → cents; null when it isn't an amount. */
+export function parseDollars(text: string): number | null {
+  const m = /^\s*\$?\s*(\d{1,6})(?:\.(\d{0,2}))?\s*$/.exec(text);
+  if (!m) return null;
+  return Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
 }
