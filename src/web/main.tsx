@@ -4,7 +4,7 @@ import { LocationProvider, Route, Router } from "preact-iso";
 import { EventPage } from "./pages/EventPage";
 import { Home } from "./pages/Home";
 import { Member, MemberProfilePage } from "./pages/Member";
-import { Account, AccountProfile } from "./pages/Account";
+import { Account, AccountBoards, AccountProfile } from "./pages/Account";
 import { NotFound } from "./pages/NotFound";
 import { PullToRefresh } from "./PullToRefresh";
 import { addMessages, chosenLang, listeners, useActiveLang } from "./i18n";
@@ -99,6 +99,7 @@ function App() {
           <Route path="/login" component={Account} />
           <Route path="/me" component={Account} />
           <Route path="/me/profile" component={AccountProfile} />
+          <Route path="/me/boards" component={AccountBoards} />
           <Route path="/privacy" component={Privacy} />
           <Route path="/terms" component={Terms} />
           <Route path="/e/:code" component={EventPage} />

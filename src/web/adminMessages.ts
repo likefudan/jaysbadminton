@@ -40,7 +40,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   前往开发者登录: { tw: "前往開發者登入", en: "Go to developer sign-in" },
   链接无效: { tw: "連結無效", en: "Invalid link" },
   "这个管理链接已失效。": { tw: "這個管理連結已失效。", en: "This admin link no longer works." },
-  活动: { tw: "活動", en: "Events" },
   收款: { tw: "收款", en: "Payments" },
   待审核: { tw: "待審核", en: "Pending" },
   成员: { tw: "成員", en: "Members" },
@@ -492,7 +491,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   负责人和收款人: { tw: "負責人和收款人", en: "Runs it / gets paid" },
   搜索名字或微信名: { tw: "搜尋名字或微信名", en: "Search by name or WeChat name" },
   没有找到成员: { tw: "沒有找到成員", en: "No members found" },
-  管理: { tw: "管理", en: "Manage" },
   "在左边选一个活动，或者新建一个": {
     tw: "在左邊選一個活動，或者新建一個",
     en: "Pick an event on the left, or create one",

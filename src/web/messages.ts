@@ -1034,6 +1034,11 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "修改请联系{name}": { tw: "修改請聯絡{name}", en: "Contact {name} to make changes" },
   // Shown outside the 管理页 too (the address box, the test site's developer tools, an organizer's own notices).
   排行榜: { tw: "排行榜", en: "Leaderboard" },
+  // The bottom tab bar of the app added to the home screen (AppTabs.tsx); 管理 is on the 管理页 too.
+  活动: { tw: "活動", en: "Events" },
+  我的: { tw: "我的", en: "Me" },
+  管理: { tw: "管理", en: "Manage" },
+  主导航: { tw: "主導覽", en: "Main navigation" },
   地址: { tw: "地址", en: "Address" },
   "搜索中…": { tw: "搜尋中…", en: "Searching…" },
   "输入地址或球馆名，会自动联想": {

@@ -93,7 +93,7 @@ export function Member(props: { token?: string }) {
  * 我的活动 · 个人信息: the same tab bar as the admin pages' (Ke Li 2026-11-13), right under the top
  * bar on both pages, the current one highlighted. (管理页 is 「切换为管理员」 in the avatar's menu.)
  */
-function MemberNav(props: { token?: string; current: "events" | "profile" }) {
+function MemberNav(props: { token?: string; current?: "events" | "profile" }) {
   const home = props.token ? `/m/${props.token}` : "/me";
   const link = (key: "events" | "profile", href: string, label: string) => (
     <a
@@ -109,6 +109,31 @@ function MemberNav(props: { token?: string; current: "events" | "profile" }) {
       {link("events", home, t("我的活动"))}
       {link("profile", `${home}/profile`, t("个人信息"))}
     </nav>
+  );
+}
+
+/**
+ * 排行榜 on a page of its own, for the bottom tab bar of the app added to the home screen (AppTabs.tsx),
+ * where 我的活动 leaves it out. The same boards as under the event cards in a browser.
+ */
+export function MemberBoardsPage() {
+  const [home] = useApi<HomeResponse>("/api/public/home");
+  return (
+    <Page title={t("排行榜")} bare>
+      <MemberNav />
+      <Load result={home}>
+        {(d) =>
+          d.leaderboard ? (
+            <div class="boards-page">
+              <Leaders board={d.leaderboard} />
+              <ShareCardButton text={siteCardText(location.origin, t)} />
+            </div>
+          ) : (
+            <Empty>{t("这段时间还没有人上榜")}</Empty>
+          )
+        }
+      </Load>
+    </Page>
   );
 }
 
