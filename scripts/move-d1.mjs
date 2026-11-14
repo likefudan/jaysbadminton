@@ -4,7 +4,7 @@
 // the test site switches over. The old database is left as it is: `undo` deletes the new one and
 // the next deploy goes back.
 // Whatever the site saves between the export here and that next deploy stays in the old database.
-// Usage: node scripts/move-d1.mjs staging [undo]
+// Usage: node scripts/move-d1.mjs staging [undo|check]
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -13,12 +13,16 @@ const from = SITES[process.argv[2]];
 if (!from) throw new Error(`unknown site ${process.argv[2]}`);
 const to = `${from}-wnam`;
 const undo = process.argv[3] === "undo";
+// `check`: read the old database and write the files, without creating the new one.
+const check = process.argv[3] === "check";
 
 const wrangler = (...args) =>
   execFileSync("npx", ["wrangler", ...args], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
 const exists = (name) => JSON.parse(wrangler("d1", "list", "--json")).some((db) => db.name === name);
-const query = (name, sql) =>
-  JSON.parse(wrangler("d1", "execute", name, "--remote", "--json", "--command", sql))[0].results;
+// Several statements in one call (a call takes seconds): one list of rows per statement.
+const queries = (name, sqls) =>
+  JSON.parse(wrangler("d1", "execute", name, "--remote", "--json", "--command", sqls.join("; "))).map((r) => r.results);
+const query = (name, sql) => queries(name, [sql])[0];
 
 // Tables, indexes and row counts: what must be the same in the copy. Cloudflare's own _cf_ tables
 // and SQLite's are not exported.
@@ -26,11 +30,15 @@ const OBJECTS =
   "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE '\\_cf\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY type, name";
 const snapshot = (name) => {
   const objects = query(name, OBJECTS);
-  const rows = {};
-  for (const o of objects) {
-    if (o.type === "table") rows[o.name] = query(name, `SELECT COUNT(*) AS n FROM "${o.name}"`)[0].n;
-  }
-  return { objects: objects.map((o) => `${o.type} ${o.name} ${(o.sql ?? "").replace(/\s+/g, " ")}`), rows };
+  const tables = objects.filter((o) => o.type === "table").map((o) => o.name);
+  const counts = queries(
+    name,
+    tables.map((t) => `SELECT COUNT(*) AS n FROM "${t}"`),
+  );
+  return {
+    objects: objects.map((o) => `${o.type} ${o.name} ${(o.sql ?? "").replace(/\s+/g, " ")}`),
+    rows: Object.fromEntries(tables.map((t, i) => [t, counts[i][0].n])),
+  };
 };
 
 if (undo) {
@@ -45,16 +53,22 @@ if (exists(to)) throw new Error(`${to} already exists: the database was moved be
 
 // Photos (BLOB columns) do not fit in the export: it writes each row as one statement, and D1 takes
 // statements up to 100 KB. Their rows are left out of the file and copied below in pieces.
-const tables = query(from, "SELECT name FROM sqlite_master WHERE type = 'table'").map((t) => t.name);
+const tables = query(from, OBJECTS)
+  .filter((o) => o.type === "table")
+  .map((o) => o.name);
+const infos = queries(
+  from,
+  tables.map((t) => `PRAGMA table_info("${t}")`),
+);
 const photoTables = [];
-for (const table of tables) {
-  const columns = query(from, `PRAGMA table_info("${table}")`);
+tables.forEach((table, i) => {
+  const columns = infos[i];
   const blobs = columns.filter((c) => c.type.toUpperCase() === "BLOB").map((c) => c.name);
-  if (!blobs.length) continue;
+  if (!blobs.length) return;
   const keys = columns.filter((c) => c.pk > 0).map((c) => c.name);
   if (!keys.length) throw new Error(`${table} has a BLOB column and no primary key`);
   photoTables.push({ table, blobs, keys, plain: columns.map((c) => c.name).filter((c) => !blobs.includes(c)) });
-}
+});
 const PIECE = 40_000; // bytes of a photo per statement: 80 KB as hex
 const LIMIT = 95_000;
 const photoRows = (name, { table, blobs, keys }) => {
@@ -76,7 +90,7 @@ const photo = (name, { table, plain, blobs }, where) =>
 
 const before = snapshot(from);
 wrangler("d1", "export", from, "--remote", "--output", "move.sql");
-const inserts = new RegExp(`^INSERT INTO "?(${photoTables.map((t) => t.table).join("|") || "-"})"? `);
+const inserts = new RegExp(`^INSERT INTO "?(${photoTables.map((t) => t.table).join("|") || "-"})"?[ (]`);
 const lines = readFileSync("move.sql", "utf8")
   .split("\n")
   .filter((line) => !inserts.test(line));
@@ -106,6 +120,11 @@ for (const t of photoTables) {
 }
 console.log(`${photos.length} photo rows in ${photoTables.map((t) => t.table).join(", ") || "no tables"}`);
 
+if (check) {
+  console.log(`Check only: move.sql and photos.sql are written, ${to} is not created`);
+  writeFileSync("photos.sql", statements.join("\n"));
+  process.exit(0);
+}
 wrangler("d1", "create", to, "--location", "wnam");
 try {
   wrangler("d1", "execute", to, "--remote", "--yes", "--file", "move.sql");
