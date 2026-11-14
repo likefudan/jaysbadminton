@@ -47,8 +47,9 @@
   // The databases live in US East (D1 region ENAM) while members are in the Bay Area: run the Worker
   // next to the database, so a request crosses the country once instead of once per query. Smart
   // Placement ("mode": "smart") was tried first and left the Worker where the visitor is, so the
-  // place is named. Staging inherits this (its database is in US East too); the sites in sites.json
-  // do not (scripts/site-config.mjs): their databases are in US West.
+  // place is named. Only Jay's site: the test site's database was moved to US West (scripts/move-d1.mjs)
+  // and it turns this off below; the sites in sites.json drop it (scripts/site-config.mjs), their
+  // databases are in US West too.
   "placement": { "mode": "targeted", "region": "aws:us-east-1" },
 
   // Test site: its own Worker, database, domain and Telegram bot. Every merge to main lands here;
@@ -56,6 +57,8 @@
   "env": {
     "staging": {
       "name": "jaysbadminton-staging",
+      // Its database is in US West, where the visitors are: run wherever the visitor is.
+      "placement": { "mode": "off" },
       "assets": {
         "directory": "./dist/web",
         "binding": "ASSETS",
