@@ -33,7 +33,7 @@ const config = {
 };
 // wrangler.jsonc runs production's Worker in US East, next to Jay's database. These sites' databases
 // are in US West (WNAM), where their members are: their Workers run wherever the visitor is.
-delete config.placement;
+config.placement = { mode: "off" };
 // The AI sponsor thanked in the footer is production's unless the site lists its own: "sponsor": null for
 // none, or { "name": …, "url": … }.
 if ("sponsor" in site) {

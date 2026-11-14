@@ -7,7 +7,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 // `moved`: the copy of the database in US West (scripts/move-d1.mjs), used once it exists. A D1
 // database cannot change region or name.
 const ENVS = {
-  production: { name: "jaysbadminton", placeholder: "00000000-0000-0000-0000-000000000000" },
+  production: {
+    name: "jaysbadminton",
+    moved: "jaysbadminton-wnam",
+    placeholder: "00000000-0000-0000-0000-000000000000",
+  },
   staging: {
     name: "jaysbadminton-staging",
     moved: "jaysbadminton-staging-wnam",
@@ -38,5 +42,13 @@ if (!db) throw new Error(`D1 database ${NAME} not found after create`);
 
 const config = readFileSync("wrangler.jsonc", "utf8");
 if (!config.includes(PLACEHOLDER)) throw new Error(`database_id placeholder for ${target} missing from wrangler.jsonc`);
-writeFileSync("wrangler.jsonc", config.replace(PLACEHOLDER, db.uuid));
+let resolved = config.replace(PLACEHOLDER, db.uuid);
+// wrangler.jsonc keeps Jay's Worker in US East, next to the old database. Next to the moved one it
+// runs wherever the visitor is, like the other sites.
+const PLACEMENT = /^( *"placement": )\{ "mode": "targeted"[^}]*\}/m;
+if (target === "production" && db.name === MOVED && PLACEMENT.test(resolved)) {
+  resolved = resolved.replace(PLACEMENT, '$1{ "mode": "off" }');
+  console.log("The database is in US West: the Worker is not kept in US East");
+}
+writeFileSync("wrangler.jsonc", resolved);
 console.log(`Using D1 database ${db.name} (${db.uuid}) for ${target}`);
