@@ -31,6 +31,7 @@ const TABLES = [
   "queue_accounts",
   "queue_credits",
   "likes",
+  "extra_spend",
   "member_avatars",
   "events",
   "locations",

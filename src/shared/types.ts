@@ -496,12 +496,17 @@ export interface MyStats {
   history: SpendEntry[];
 }
 
-/** One event in 我的统计: its date, the member's bill (friends included) and whether they came. */
+/**
+ * One event in 我的统计: its date, the member's bill (friends included), what they noted they paid
+ * themselves (自付费用) and whether they came.
+ */
 export interface SpendEntry {
+  id: number;
   date: string; // Pacific YYYY-MM-DD
   title: string;
   location: string;
   cents: number;
+  extraCents: number;
   attended: boolean;
 }
 
