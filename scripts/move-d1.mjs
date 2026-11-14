@@ -1,24 +1,51 @@
-// One-off helper (Actions → Move database): copies the test site's D1 database into a new one in
-// US West (WNAM), where the members are. A D1 database cannot change region or name, so the copy is
-// a new database, <name>-wnam; scripts/resolve-d1.mjs uses it once it exists, so the next deploy of
-// the test site switches over. The old database is left as it is: `undo` deletes the new one and
-// the next deploy goes back (then also take `placement: off` out of env.staging in wrangler.jsonc: the
-// old database is in US East).
-// Whatever the site saves between the export here and that next deploy stays in the old database.
-// Usage: node scripts/move-d1.mjs staging [undo|check]
+// Helper for Actions → Move database: copies a site's D1 database into a new one in US West (WNAM),
+// where the members are. A D1 database cannot change region or name, so the copy is a new database,
+// <name>-wnam; scripts/resolve-d1.mjs uses it once it exists, so the next deploy switches over.
+// The old database is left as it is.
+//
+//   node scripts/move-d1.mjs staging             copy and check; the workflow then deploys the test site
+//   node scripts/move-d1.mjs staging undo        delete the copy; the next deploy goes back (then also take
+//                                                `placement: off` out of env.staging in wrangler.jsonc)
+//   node scripts/move-d1.mjs <site> check        read the old database and write the files only
+//   node scripts/move-d1.mjs production          copy and check; the workflow then deploys the version
+//                                                Jay's site runs, bound to the copy, within seconds
+//   node scripts/move-d1.mjs production abort    after a failed deploy: delete the copy, unless the site
+//                                                already uses it
+//   node scripts/move-d1.mjs production finish   after the deploy: was the old database written to between
+//                                                the copy and the switch? Then lock it against old versions
+//
+// Production is live while this runs. The copy is only kept when, once it is complete, every row of
+// every table in it equals the old database at that moment; `finish` reads the old database again
+// and fails loudly if anything in it changed after that (those changes are not in the copy and have
+// to be carried over by hand). Run it at a quiet hour, not at :00, :15, :30 or :45 (the cron).
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
-const SITES = { staging: "jaysbadminton-staging" };
-const from = SITES[process.argv[2]];
-if (!from) throw new Error(`unknown site ${process.argv[2]}`);
+const SITES = { staging: "jaysbadminton-staging", production: "jaysbadminton" };
+const site = process.argv[2];
+const from = SITES[site];
+if (!from) throw new Error(`unknown site ${site}`);
 const to = `${from}-wnam`;
-const undo = process.argv[3] === "undo";
-// `check`: read the old database and write the files, without creating the new one.
-const check = process.argv[3] === "check";
+const mode = process.argv[3] ?? "";
+const MODES = { staging: ["", "undo", "check"], production: ["", "check", "abort", "finish"] };
+if (!MODES[site].includes(mode)) throw new Error(`${site} has no ${mode}`);
+const undo = mode === "undo";
+const check = mode === "check";
+// The name old versions must not find in d1_migrations: their check-migrations.mjs then refuses to
+// deploy them onto the old database, which their resolve-d1.mjs would pick by its name.
+const LOCK = `9999_moved_to_${to}.sql`;
+const STATE = resolve("move-state.json");
 
-const wrangler = (...args) =>
-  execFileSync("npx", ["wrangler", ...args], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+// Run from an empty folder: in the repository, wrangler.jsonc would answer for the name
+// "jaysbadminton" with the placeholder id it holds until CI fills it in.
+const BIN = resolve("node_modules/.bin/wrangler");
+const AWAY = mkdtempSync(join(tmpdir(), "move-d1-"));
+const wrangler = (...args) => execFileSync(BIN, args, { cwd: AWAY, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+const MOVE_SQL = resolve("move.sql");
+const PHOTOS_SQL = resolve("photos.sql");
 const exists = (name) => JSON.parse(wrangler("d1", "list", "--json")).some((db) => db.name === name);
 // Several statements in one call (a call takes seconds): one list of rows per statement.
 const queries = (name, sqls) =>
@@ -42,10 +69,85 @@ const snapshot = (name) => {
   };
 };
 
+// Every row of every table, as one hash per table. Photos (BLOB columns) are left out here: they are
+// compared byte for byte on their own.
+const content = (name) => {
+  const tables = query(name, OBJECTS)
+    .filter((o) => o.type === "table")
+    .map((o) => o.name);
+  const infos = queries(
+    name,
+    tables.map((t) => `PRAGMA table_info("${t}")`),
+  );
+  const rows = queries(
+    name,
+    tables.map((t, i) => {
+      const columns = infos[i].filter((c) => c.type.toUpperCase() !== "BLOB").map((c) => `"${c.name}"`);
+      return `SELECT ${columns.join(", ")} FROM "${t}" ORDER BY rowid`;
+    }),
+  );
+  return Object.fromEntries(
+    tables.map((t, i) => [t, createHash("sha256").update(JSON.stringify(rows[i])).digest("hex")]),
+  );
+};
+const changed = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((t) => a[t] !== b[t]);
+
 if (undo) {
   if (!exists(to)) throw new Error(`${to} does not exist`);
   wrangler("d1", "delete", to, "--skip-confirmation");
   console.log(`Deleted ${to}; the next deploy uses ${from} again`);
+  process.exit(0);
+}
+
+if (mode === "abort") {
+  const copy = JSON.parse(wrangler("d1", "list", "--json")).find((db) => db.name === to);
+  if (!copy) {
+    console.log(`${to} does not exist: nothing to delete`);
+    process.exit(0);
+  }
+  const { CLOUDFLARE_ACCOUNT_ID: account, CLOUDFLARE_API_TOKEN: token } = process.env;
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/${from}/settings`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  const settings = await response.json();
+  if (!settings.success)
+    throw new Error(`Cannot read which database ${from} uses; ${to} is left as it is: look before the next release`);
+  const bound = settings.result.bindings.filter((b) => b.type === "d1").map((b) => b.id ?? b.database_id);
+  if (bound.includes(copy.uuid)) {
+    console.log(
+      `::error::The deploy reported a failure, but ${from} already uses ${to}. Nothing was deleted: check the site by hand, then run finish.`,
+    );
+    process.exit(1);
+  }
+  wrangler("d1", "delete", to, "--skip-confirmation");
+  console.log(`${from} still uses its old database. Deleted ${to}: nothing has changed.`);
+  process.exit(0);
+}
+
+if (mode === "finish") {
+  const was = JSON.parse(readFileSync(STATE, "utf8"));
+  const now = content(from);
+  const tables = changed(was, now);
+  wrangler(
+    "d1",
+    "execute",
+    from,
+    "--remote",
+    "--yes",
+    "--command",
+    `INSERT OR IGNORE INTO d1_migrations (name) VALUES ('${LOCK}')`,
+  );
+  console.log(`${from} is locked against versions from before the move (${LOCK} in its d1_migrations)`);
+  if (tables.length) {
+    console.log(
+      `::error::${from} was written to after the copy, before the site switched: ${tables.join(", ")}. Those changes are not in ${to}: compare these tables in the two databases and carry them over by hand.`,
+    );
+    process.exit(1);
+  }
+  console.log(`Nothing was written to ${from} between the copy and the switch: ${to} has everything.`);
   process.exit(0);
 }
 
@@ -90,14 +192,14 @@ const photo = (name, { table, plain, blobs }, where) =>
   )[0];
 
 const before = snapshot(from);
-wrangler("d1", "export", from, "--remote", "--output", "move.sql");
+wrangler("d1", "export", from, "--remote", "--output", MOVE_SQL);
 const inserts = new RegExp(`^INSERT INTO "?(${photoTables.map((t) => t.table).join("|") || "-"})"?[ (]`);
-const lines = readFileSync("move.sql", "utf8")
+const lines = readFileSync(MOVE_SQL, "utf8")
   .split("\n")
   .filter((line) => !inserts.test(line));
 const long = lines.find((line) => Buffer.byteLength(line) > LIMIT);
 if (long) throw new Error(`A statement in the export is too long for D1: ${long.slice(0, 40)}…`);
-writeFileSync("move.sql", lines.join("\n"));
+writeFileSync(MOVE_SQL, lines.join("\n"));
 
 const photos = [];
 const statements = [];
@@ -123,15 +225,15 @@ console.log(`${photos.length} photo rows in ${photoTables.map((t) => t.table).jo
 
 if (check) {
   console.log(`Check only: move.sql and photos.sql are written, ${to} is not created`);
-  writeFileSync("photos.sql", statements.join("\n"));
+  writeFileSync(PHOTOS_SQL, statements.join("\n"));
   process.exit(0);
 }
 wrangler("d1", "create", to, "--location", "wnam");
 try {
-  wrangler("d1", "execute", to, "--remote", "--yes", "--file", "move.sql");
+  wrangler("d1", "execute", to, "--remote", "--yes", "--file", MOVE_SQL);
   if (statements.length) {
-    writeFileSync("photos.sql", statements.join("\n"));
-    wrangler("d1", "execute", to, "--remote", "--yes", "--file", "photos.sql");
+    writeFileSync(PHOTOS_SQL, statements.join("\n"));
+    wrangler("d1", "execute", to, "--remote", "--yes", "--file", PHOTOS_SQL);
   }
   const copy = snapshot(to);
   const after = snapshot(from);
@@ -155,7 +257,11 @@ try {
     else differences.push(`${t.table} ${where}: the photo in the copy is not the same`);
   }
   console.log(`${same} of ${photos.length} photo rows are the same byte for byte`);
+  // Every row, as the old database is now: what `finish` compares it with after the switch.
+  const old = content(from);
+  for (const table of changed(old, content(to))) differences.push(`${table}: the rows in the copy are not the same`);
   if (differences.length) throw new Error(`The copy is not the same:\n${differences.join("\n")}`);
+  writeFileSync(STATE, JSON.stringify(old));
 } catch (error) {
   // A half-filled copy must not be left behind: the next deploy would use it.
   wrangler("d1", "delete", to, "--skip-confirmation");
@@ -163,4 +269,4 @@ try {
   throw error;
 }
 console.log(wrangler("d1", "info", to));
-console.log(`${to} is a full copy of ${from}. The next deploy of the test site uses it.`);
+console.log(`${to} is a full copy of ${from}. The next deploy of the site uses it.`);
