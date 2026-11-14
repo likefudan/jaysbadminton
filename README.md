@@ -226,6 +226,8 @@ One Cloudflare Worker per site serves the single-page app and the JSON API, rece
 - `scripts/check-migrations.mjs` refuses to deploy a version older than the site's database.
 - Decrypt a backup on your own computer:
   `BACKUP_KEY='…' openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_KEY -in FILE.sql.gz.enc | gunzip > FILE.sql`
+- Load a decrypted backup into a new, empty D1 database (photos make some rows longer than D1's 100 KB limit per statement; `split-sql.mjs` rewrites those rows in pieces and checks the result holds the same data):
+  `node scripts/split-sql.mjs FILE.sql FILE.import.sql && npx wrangler d1 execute NEW_DATABASE --remote --file FILE.import.sql`
 
 ### Rollback limits
 A rollback replaces the code but does not undo migrations, and old code does not understand data from migrations it doesn't have. So a site can only go back to a version whose `migrations/` folder contains every migration its database has run. Two exceptions:
