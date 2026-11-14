@@ -124,6 +124,14 @@ export function replacedBy(
 export const queueWait = (minutesLeft: number, position: number, roundMin: number): number =>
   minutesLeft + Math.max(0, position - 1) * roundMin;
 
+/**
+ * Which group in the court's queue a waiting entry is in now (Ke Li 2026-11-14): it moves up one
+ * each time a round ends ahead of it, so with `minutesLeft` to wait it is group ⌈wait / round⌉,
+ * never behind where it was entered and never before group 1. 2 minutes left = 第1组.
+ */
+export const queueGroupNow = (entered: number, minutesLeft: number, roundMin: number): number =>
+  Math.max(1, Math.min(entered, Math.ceil(minutesLeft / Math.max(1, roundMin))));
+
 /** 拍照登记: the photo is shrunk on the phone to this many pixels on its long side (Ke Li). */
 export const PHOTO_MAX_SIDE = 1600;
 

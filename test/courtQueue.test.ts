@@ -6,6 +6,7 @@ import {
   idleAccounts,
   idleTooMany,
   parseAccountList,
+  queueGroupNow,
   queueWait,
   replacedBy,
 } from "../src/shared/courtQueue";
@@ -505,6 +506,17 @@ describe("courtPhase / queueWait", () => {
     expect(courtPhase(c, now)).toEqual({ phase: "queued", minutes: 49 });
     expect(courtPhase(c, now + 50 * 60_000)).toEqual({ phase: "playing", minutes: 44 });
     expect(courtPhase(c, now + 94 * 60_000)).toEqual({ phase: "done" });
+  });
+
+  it("queueGroupNow: a waiting group moves up as rounds ahead of it end", () => {
+    expect(queueGroupNow(3, 2, 45)).toBe(1);
+    expect(queueGroupNow(3, 58, 45)).toBe(2);
+    expect(queueGroupNow(3, 95, 45)).toBe(3);
+    expect(queueGroupNow(2, 12, 45)).toBe(1);
+    expect(queueGroupNow(2, 45, 45)).toBe(1);
+    expect(queueGroupNow(2, 46, 45)).toBe(2);
+    // Never behind where it was entered (a longer wait than the rounds explain).
+    expect(queueGroupNow(1, 80, 45)).toBe(1);
   });
 
   it("replacedBy: the group playing, or the same group still waiting, on the same court", () => {
