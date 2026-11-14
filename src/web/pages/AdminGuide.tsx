@@ -1,5 +1,5 @@
-import type { ComponentChildren } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import type { ComponentChildren, Ref } from "preact";
+import { useRef } from "preact/hooks";
 import { Card, CopyButton } from "../components";
 import { type Loaded, useApi } from "../hooks";
 import type { TelegramStatus } from "./AdminTelegram";
@@ -29,36 +29,119 @@ function useStatus(base: string, telegram: Loaded<TelegramStatus>): Status | nul
   };
 }
 
-function Step(props: { done?: boolean; optional?: boolean; children: ComponentChildren }) {
+/**
+ * One line of 开始使用: a tick, what to do, a few words on why, and (while it is not done) a button
+ * that goes straight to that setting (Ke Li 2026-11-13: the paths used to be spelled out in brackets).
+ */
+function Step(props: {
+  done?: boolean;
+  optional?: boolean;
+  name: string;
+  why: string;
+  go?: () => void;
+  /** 去设置 unless the button does something else (看步骤). */
+  goLabel?: string;
+}) {
   return (
     <li class={props.done ? "done" : ""}>
-      <span class="tick">{props.done ? "✓" : "○"}</span>
-      <div>
-        {props.children}
+      <span class="tick">{props.done ? "✓" : ""}</span>
+      <div class="ck-text">
+        <b>{props.name}</b>
         {props.optional && <span class="badge">{t("可选")}</span>}
+        <small>{props.why}</small>
       </div>
+      {!props.done && props.go && (
+        <button type="button" class="ck-go" onClick={props.go}>
+          {props.goLabel ?? t("去设置")} ›
+        </button>
+      )}
     </li>
   );
 }
 
-/**
- * Whether a checklist starts open: decided once, when its statuses have loaded (`todo` is no longer
- * undefined), so a step getting done later doesn't fold the list away under the reader.
- */
-function useOpenOnce(todo: boolean | undefined): boolean {
-  const [open, setOpen] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (todo !== undefined && open === null) setOpen(todo);
-  }, [todo]);
-  return open ?? false;
+/** 开始使用 · 还差 N 步, over the checklist; undefined while the statuses are loading. */
+function Progress(props: { left: number | undefined }) {
+  return (
+    <h3 class="guide-head">
+      {t("开始使用")}
+      {props.left !== undefined && (
+        <small class={props.left ? "" : "ok"}>
+          {props.left ? t(" · 还差 {n} 步", { n: props.left }) : t(" · 都做好了 ✓")}
+        </small>
+      )}
+    </h3>
+  );
 }
 
-function Section(props: { title: string; open?: boolean; children: ComponentChildren }) {
+/** A question of 怎么做, closed until tapped. */
+function Section(props: { title: string; r?: Ref<HTMLDetailsElement>; children: ComponentChildren }) {
   return (
-    <details class="guide-section" open={props.open}>
+    <details class="guide-section" ref={props.r}>
       <summary>{props.title}</summary>
       <div class="guide-body">{props.children}</div>
     </details>
+  );
+}
+
+/** A how-to: a few short numbered steps. */
+function Steps(props: { children: ComponentChildren[] }) {
+  return (
+    <ol class="steps">
+      {props.children.filter(Boolean).map((c, i) => (
+        <li key={i}>{c}</li>
+      ))}
+    </ol>
+  );
+}
+
+/** 办一场活动, the same for everyone who runs one. */
+function RunAnEvent(props: { deadlineWhere: string }) {
+  return (
+    <Section title={t("办一场活动")}>
+      <Steps>
+        {t("「活动」里点「＋ 新建活动」，选日期和场馆，点「创建活动」。")}
+        {t("点「复制活动链接」，发到微信群，大家点开就能报名。")}
+        {t("订好场地后，在活动页的「预定场地」填上场号。报名的人开始前 10 分钟会收到提醒。")}
+        {t("有人临时要来：点名单右上角的「＋ 添加」。")}
+        {t("打完球，填场地费和用球数，先点「预览每人金额」，再点「结算费用」，每个人就收到账单。")}
+        {t("大家用 Venmo 付款，系统自动记账。全部付清后活动自动归档。")}
+      </Steps>
+      <p class="muted small">
+        {t("没结算的话每 30 分钟提醒你一次。超过结算期限（默认 48 小时{where}）活动自动归档，不再收费。", {
+          where: props.deadlineWhere,
+        })}
+      </p>
+    </Section>
+  );
+}
+
+/** The how-tos every event runner shares, after 办一场活动. */
+function EventHowTos(props: { admin: boolean }) {
+  return (
+    <>
+      <Section title={t("这场不收钱，到场自付")}>
+        <Steps>
+          {t("新建活动时关掉「需要收款 + 自动对账」。")}
+          {t("每个人到球馆自己付钱。活动结束 1 小时后自动结束，不用结算。")}
+        </Steps>
+      </Section>
+      <Section title={t("有人付了钱，系统没记上")}>
+        <Steps>
+          {t("Venmo 付款：到「收款 › 待确认」找到那一笔，点「关联」，选他的账单。")}
+          {t("Zelle 或现金：在活动页他的账单上点「标记已付」。")}
+          {t("最常见的原因是付款备注里没带付款编号，提醒大家照付款页上的编号填。")}
+        </Steps>
+      </Section>
+      <Section title={t("用球场排队")}>
+        <Steps>
+          {t("新建活动时打开「排队系统」，填每轮多少分钟。同一个场馆下次会记住。")}
+          {t("大家在活动页的「球馆账号」里加自己的账号，在球场上登记在打或排队。")}
+          {props.admin
+            ? t("空着的账号太多时页面会提醒，比例在「设置 › 高级设置 › 空闲账号提醒」里改。")
+            : t("空着的账号太多时页面会提醒你。")}
+        </Steps>
+      </Section>
+    </>
   );
 }
 
@@ -105,70 +188,73 @@ export function ForwardingSteps(props: { confirm: ComponentChildren; otherMail?:
   );
 }
 
-/** 使用指南: what to set up, how Venmo forwarding works and is tested, and how to recover access. */
-export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatus> }) {
+/** 使用指南 (the Owner's): what is left to set up, then how to do each thing. */
+export function AdminGuide(props: {
+  base: string;
+  telegram: Loaded<TelegramStatus>;
+  /** Opens one of 设置's sub-pages. */
+  go: (sub: "pay" | "advanced" | "sheets") => void;
+}) {
   const s = useStatus(props.base, props.telegram);
-  const setupOpen = useOpenOnce(s ? !(s.venmo && s.telegram) : undefined);
   const organizers = props.telegram.state === "ok" && props.telegram.data.organizers;
-  const telegramBot = props.telegram.state === "ok" && props.telegram.data.botReady;
   const join = `${location.origin}/login`; // 登录 / 注册: Google
+  const admin = `${location.origin}/admin`;
+  const venmo = useRef<HTMLDetailsElement>(null);
+  const showVenmo = () => {
+    if (!venmo.current) return;
+    venmo.current.open = true;
+    venmo.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  // Google 表格同步 is optional and doesn't count.
+  const left = s ? [s.venmo, s.telegram, !!s.email.lastAt].filter((d) => !d).length : undefined;
 
   return (
     <Card title={t("使用指南")}>
-      <Section title={t("一、第一次设置后要做的事")} open={setupOpen}>
-        <ol class="checklist">
-          <Step>
-            {tx(
-              "{b}。打开管理页需要「管理链接 + 群主密码」两样。如果是用初始密码登录的，请在「设置 → 账号与安全 → 修改群主密码」里改成你自己的。",
-              { b: <b>{t("收藏管理链接")}</b> },
-            )}
-          </Step>
-          <Step done={s?.telegram}>
-            {tx(
-              "{b}（「设置 → 高级设置 → Telegram 通知」→ 连接，然后发送测试消息）。所有提醒、账单提醒、收款异常都发到这里{x}；以后忘了管理链接也能在这里找回。",
-              {
-                b: <b>{t("连接 Telegram")}</b>,
-                x: organizers && t("（组织者负责的活动的提醒发给组织者，见第四部分）"),
-              },
-            )}
-          </Step>
-          <Step done={s?.venmo}>
-            {tx(
-              "{b}（「设置 → 收款设置」，保存时要输入群主密码）：Venmo 用户名、Venmo 通知邮箱（Venmo 账户里登记的、收款通知发到的那个邮箱），Zelle 选填。",
-              { b: <b>{t("填写收款设置")}</b> },
-            )}
-          </Step>
-          <Step done={!!s?.email.lastAt}>
-            {tx("{b}，让系统自动对账，见下面第二部分。", { b: <b>{t("设置 Venmo 邮件转发")}</b> })}
-          </Step>
-          <Step>
-            {tx("{b}（「设置 → 高级设置」和「设置 → 收款设置」）：截止前几小时提醒、每天几点发账单提醒。", {
-              b: <b>{t("检查提醒设置")}</b>,
-            })}
-          </Step>
-          <Step done={s?.sheets} optional>
-            {tx("{b}（「设置 → 高级设置 → Google 表格同步」）：每天把数据备份到你自己的 Google 表格。", {
-              b: <b>{t("Google 表格同步")}</b>,
-            })}
-          </Step>
-          <Step optional>{tx("{b}（「设置 → 外观和公共页面」）：网站标题和配色。", { b: <b>{t("外观")}</b> })}</Step>
-          <Step>
-            {tx(
-              "{b}：把网站首页发到微信群，大家点「登录 / 注册」，用 Google 账号申请（新成员只能用 Google）。在「待审核」里通过后，对方直接用 Google 登录就能报名。",
-              { b: <b>{t("邀请成员")}</b> },
-            )}
+      <Progress left={left} />
+      <ol class="checklist">
+        <Step done={s?.venmo} name={t("填写收款设置")} why={t("成员把钱付到这个 Venmo")} go={() => props.go("pay")} />
+        <Step
+          done={s?.telegram}
+          name={t("连接 Telegram")}
+          why={t("提醒和收款异常发到这里，忘了管理链接也靠它找回")}
+          go={() => props.go("advanced")}
+        />
+        <Step
+          done={s ? !!s.email.lastAt : undefined}
+          name={t("设置 Venmo 邮件转发")}
+          why={t("成员付款后自动记账")}
+          go={showVenmo}
+          goLabel={t("看步骤")}
+        />
+        <Step
+          done={s?.sheets}
+          optional
+          name={t("Google 表格同步")}
+          why={t("每天把数据备份到你自己的表格")}
+          go={() => props.go("sheets")}
+        />
+      </ol>
+
+      <h3 class="guide-head">{t("怎么做")}</h3>
+      <Section title={t("邀请成员")}>
+        <Steps>
+          <>
+            {t("把登录页发到微信群：")}
             <div class="inline-copy">
               <code>{join}</code> <CopyButton text={join} label={t("复制")} />
             </div>
-          </Step>
-          <Step>{tx("{b}：在「活动」里新建，然后点「复制活动链接」发到群里。", { b: <b>{t("新建活动")}</b> })}</Step>
-        </ol>
+          </>
+          {t("新成员点「登录 / 注册」，用 Google 账号申请。")}
+          {t("你在「待审核」里点「通过」，对方用 Google 登录就能报名。")}
+          {t("不想每个都审：在「设置 › 入群和报名」打开「入群不需要审核」。")}
+        </Steps>
       </Section>
-
-      <Section title={t("二、Venmo 收款邮件转发：设置与测试")}>
+      <RunAnEvent deadlineWhere={t("，在「设置 › 收款设置」里改")} />
+      <EventHowTos admin />
+      <Section title={t("Venmo 自动记账（邮件转发）")} r={venmo}>
         <p class="small">
           {t(
-            "系统读取 Venmo 发来的收款通知邮件，按备注里的付款编号自动记账。你的邮箱密码系统拿不到，只是用 Gmail 把 Venmo 的邮件转发过来；和羽毛球无关的收款会被忽略，不会保存。",
+            "系统读 Venmo 发来的收款通知邮件，按备注里的付款编号记账。你的邮箱密码系统拿不到，只是让 Gmail 把 Venmo 的邮件转过来；和羽毛球无关的收款会被忽略，不保存。",
           )}
         </p>
         <ForwardingSteps
@@ -185,260 +271,145 @@ export function AdminGuide(props: { base: string; telegram: Loaded<TelegramStatu
               ? t("{time} 收到 —— {outcome}", { time: fmtInstant(s.email.lastAt), outcome: s.email.outcome ?? "" })
               : t("还没有收到过邮件")}
         </div>
+      </Section>
+      <Section title={t("提醒什么时候发")}>
+        <Steps>
+          {t("报名截止前几小时提醒：「设置 › 高级设置」。")}
+          {t("每天几点催没付的账单：「设置 › 收款设置」。")}
+        </Steps>
+      </Section>
+      {organizers && (
+        <Section title={t("请人帮忙管理（组织者、管理员）")}>
+          <Steps>
+            {t("「成员」里点开那个人，点「设为组织者」或「设为管理员」。他要先用 Google 登录过。")}
+            {t("组织者只管自己发起的活动，钱进他自己的 Venmo，你去打他的球也付给他。")}
+            {t("管理员和你一样管整个群：审核、成员、所有活动和收款、群设置，也能发起自己的活动。")}
+            {t("他在自己的「设置」里填收款、设邮件转发、连 Telegram。成员页最上面能看到他做好了没有。")}
+            {t("他的活动的提醒发给他，你只收到三条抄送：发起、结算完成、收齐。")}
+            {t("撤销时页面会先列出受影响的活动：没结算的转给你，在收款的钱继续付到他账户直到收齐。")}
+          </Steps>
+          <p class="muted small">
+            {t(
+              "只有你能做：任命和撤销管理员、群主密码和管理链接、清空数据、永久删除活动和收款、删除成员。谁做了什么都记在成员页最下面的「群操作记录」。",
+            )}
+          </p>
+        </Section>
+      )}
+      <Section title={t("忘了管理链接或密码")}>
+        <Steps>
+          {t("忘了链接：在 Telegram 里给机器人发「管理页面」，它把链接发给你。")}
+          <>
+            {tx("没连 Telegram：请网站维护者重置管理链接，然后打开 {code}，用群主密码重新生成。", {
+              code: <code>{admin}</code>,
+            })}
+          </>
+          {t(
+            "忘了密码：请网站维护者重置群主密码，用新密码登录后，到「设置 › 账号与安全」改成你自己的。所有设备会退出登录。",
+          )}
+        </Steps>
         <p class="muted small">
           {t(
-            "成员付款时，备注里要带他专属页面上显示的付款编号（例如 xiaoming-jbm20261007-m002），系统才能自动记到他的账上。对不上的会进入「收款 → 待确认」，由你手动关联。",
+            "给网站维护者：GitHub › Actions › CI › Run workflow，「Use workflow from」选最新的版本标签（v 开头，测试环境选 main）。重置链接勾选 reset_admin_link；重置密码先改仓库的 ADMIN_PASSWORD（测试环境是 ADMIN_PASSWORD_STAGING）再运行。",
           )}
         </p>
       </Section>
-
-      <Section title={t("三、忘记密码或管理链接怎么办")}>
-        <ul class="steps">
-          <li>
-            {tx(
-              "{b}：在 Telegram 里给机器人发送「管理页面」，它会把链接发给你（只回复已连接的那个账号）。没连 Telegram 的话，请网站维护者在 GitHub → Actions → CI → Run workflow，「Use workflow from」选最新的版本标签（v 开头），勾选 reset_admin_link 运行一次（测试环境则选 main），然后打开 {code} {x}",
-              {
-                b: <b>{t("忘记管理链接")}</b>,
-                code: <code>{location.origin}/admin</code>,
-                x: t(
-                  "用当前的群主密码重新生成（没在管理页改过密码的话，就是 GitHub 里的 ADMIN_PASSWORD，测试环境是 ADMIN_PASSWORD_STAGING）。",
-                ),
-              },
-            )}
-          </li>
-          <li>
-            {tx(
-              "{b}：网站维护者把 GitHub 仓库里的 ADMIN_PASSWORD 改成一个新密码，然后在 Actions → CI → Run workflow 运行一次（「Use workflow from」选最新的版本标签，v 开头）。部署完成后用新密码登录，再到这里改成你自己的密码。所有设备会被退出登录。",
-              { b: <b>{t("忘记密码")}</b> },
-            )}
-          </li>
-          <li>{tx("{b}：用管理链接打开，输入密码即可；每台设备记住登录 30 天。", { b: <b>{t("换一部手机")}</b> })}</li>
-          <li>
-            {tx(
-              "{b}：用「设置 → 账号与安全」里的「清空所有数据」重置网站，新群主用群主密码在 {code} 做初次设置，再按本指南走一遍。",
-              {
-                b: <b>{t("交接给新的群主")}</b>,
-                code: <code>{location.origin}/admin</code>,
-              },
-            )}
-          </li>
-        </ul>
+      <Section title={t("换手机、交接给新群主")}>
+        <Steps>
+          {t("换手机：用管理链接打开，输入群主密码。每台设备记住登录 30 天，所以管理链接要收藏好。")}
+          {t("还在用初始密码的话，到「设置 › 账号与安全 › 修改群主密码」改成你自己的。")}
+          <>
+            {tx("交接：用「设置 › 账号与安全」里的「清空所有数据」重置网站，新群主在 {code} 用群主密码重新设置。", {
+              code: <code>{admin}</code>,
+            })}
+          </>
+        </Steps>
       </Section>
-
-      {organizers && (
-        <Section title={t("四、组织者")}>
-          <ul class="steps">
-            <li>
-              {tx(
-                "{b}：在「成员」里点对方的「设为组织者」。对方要是正常状态的成员，并且已经关联了 Google 账号（组织者只能用 Google 账号进入管理页）。系统会发邮件告诉他；邮件服务没配置时页面会提示，你要自己告诉他。",
-                { b: <b>{t("任命")}</b> },
-              )}
-            </li>
-            <li>
-              {tx(
-                "{b}（他的「设置」里有「给组织者的说明」）：填自己的收款设置（Venmo 用户名和通知邮箱，不填不能结算）、在自己的 Gmail 里设同样的 Venmo 邮件转发{x}。成员页最上面的「组织者」区块显示每个人做好了没有。",
-                { b: <b>{t("他要做的事")}</b>, x: telegramBot && t("、连接自己的 Telegram") },
-              )}
-            </li>
-            <li>
-              {tx(
-                "{b}：他发起的活动（以及结算前转交给他的），成员把钱付到他的 Venmo，他自己的账单自动算已付；你去打他的球也要付钱给他。",
-                { b: <b>{t("钱进谁的账户")}</b> },
-              )}
-            </li>
-            <li>
-              {tx(
-                "{b}：他的活动的提醒发给他；他没连 Telegram 时改发给你，消息开头写明原因。你另外收到三条抄送：发起、结算完成、收齐。",
-                { b: <b>{t("通知")}</b> },
-              )}
-            </li>
-            <li>
-              {tx(
-                "{b}：只能管理自己负责的活动和进了自己账户的收款；「待审核」「成员」只读，看不到成员的专属链接。你能看到、也能修改他的活动，每场的「操作记录」里写着谁改了什么。",
-                { b: <b>{t("他能看到什么")}</b> },
-              )}
-            </li>
-            <li>
-              {tx(
-                "{b}：活动页的「转交」把活动交给另一位组织者或你自己；成员页的「撤销组织者」会先列出受影响的活动：还没结算的转给你，已经在收款的由你接手管理，钱继续付到他的账户直到收齐。",
-                { b: <b>{t("转交和撤销")}</b> },
-              )}
-            </li>
-          </ul>
-        </Section>
-      )}
-
-      {organizers && (
-        <Section title={t("五、管理员")}>
-          <ul class="steps">
-            <li>
-              {tx(
-                "{b}：在「成员」里点「设为管理员」（组织者那一行是「升为管理员」，他原来的活动、收款设置和 Telegram 都保留）。条件和组织者一样：正常状态、已关联 Google。只有你能任命、降为组织者或撤销管理员。",
-                { b: <b>{t("任命")}</b> },
-              )}
-            </li>
-            <li>
-              {tx(
-                "{b}：和你一样管理整个群：审核申请、管理成员、任命和撤销组织者、管理和转交所有活动、确认所有收款、修改群设置、导出数据、查看表格同步状态。他也能发起自己的活动，钱进他自己的 Venmo，和组织者一样要填收款设置、设 Gmail 转发。",
-                { b: <b>{t("他能做什么")}</b> },
-              )}
-            </li>
-            <li>
-              {tx(
-                "{b}：任命和撤销管理员、群主密码和管理链接、备份密钥、清空数据、你自己的 Google 绑定和收款设置、表格同步的开关和脚本、付款诊断、永久删除活动和收款、删除成员。管理员也不能动你和其他管理员的成员记录（链接、停用）。",
-                { b: <b>{t("只有你能做")}</b> },
-              )}
-            </li>
-            <li>
-              {tx(
-                "{b}：新成员申请发给你和每位连了 Telegram 的管理员；他的活动的发起、结算完成、收齐抄送给你。别人把你收款的活动转走时你会收到通知。",
-                { b: <b>{t("通知")}</b> },
-              )}
-            </li>
-            <li>
-              {tx("{b}：成员页最下面的「群操作记录」写着谁通过了申请、停用了谁、任命了谁、改了什么设置、导出了什么。", {
-                b: <b>{t("群操作记录")}</b>,
-              })}
-            </li>
-          </ul>
-        </Section>
-      )}
     </Card>
   );
 }
 
 /**
- * 给组织者的说明 (card 11): the three things an organizer sets up, ticked as they get done, and how
- * running an event works for them. `payment` and `forwarding` come from their payment profile,
- * `telegram` from the status the Telegram card shares, so connecting there ticks it here; null when
- * the site has no Telegram bot, so there is nothing to connect. Undefined means still loading.
+ * 给组织者的说明 / 给管理员的说明: the same shape as the Owner's guide. `payment` and `forwarding`
+ * come from their payment profile, `telegram` from the status the Telegram card shares, so
+ * connecting there ticks it here; null when the site has no Telegram bot, so there is nothing to
+ * connect. Undefined means still loading.
  */
 export function OrganizerGuide(props: {
   payment?: boolean;
   forwarding?: boolean;
   telegram?: boolean | null;
-  /** 给管理员的说明: the same first steps; they run the whole group, not only their own events. */
+  /** 给管理员的说明: they run the whole group, and their settings are one level down (`go`). */
   admin?: boolean;
+  go?: (sub: "pay" | "advanced") => void;
 }) {
-  const { payment, forwarding, telegram } = props;
-  // The first Venmo email can take days, so the list must not fold away when it ticks.
+  const { payment, forwarding, telegram, go } = props;
   const known = payment !== undefined && forwarding !== undefined && telegram !== undefined;
-  const open = useOpenOnce(known ? !(payment && forwarding && telegram !== false) : undefined);
+  const left = known ? [payment, forwarding, telegram !== false].filter((d) => !d).length : undefined;
   return (
     <Card title={props.admin ? t("给管理员的说明") : t("给组织者的说明")}>
-      <Section title={t("一、开始前要做的事")} open={open}>
-        <ol class="checklist">
-          <Step done={payment}>
-            {props.admin
-              ? tx(
-                  "{b}（「设置 › 收款设置」）：要收场地费才需要。填 Venmo 用户名和通知邮箱，Zelle 选填，成员把钱付到这里。不填也能办不收款的活动。",
-                  { b: <b>{t("填好收款设置")}</b> },
-                )
-              : tx(
-                  "{b}（上面的「我的收款设置」）：要收场地费才需要。填 Venmo 用户名和通知邮箱，Zelle 选填，成员把钱付到这里。不填也能办不收款的活动。",
-                  { b: <b>{t("填好收款设置")}</b> },
-                )}
-          </Step>
-          <Step done={forwarding}>
-            {props.admin
-              ? tx(
-                  "{b}（「设置 › 收款设置」里的步骤）：要收场地费才需要，设好后付款自动记账，第一封收款邮件到了会显示「已生效」。",
-                  { b: <b>{t("设置 Venmo 邮件转发")}</b> },
-                )
-              : tx(
-                  "{b}（上面「Venmo 邮件转发」的步骤）：要收场地费才需要，设好后付款自动记账，第一封收款邮件到了会显示「已生效」。",
-                  { b: <b>{t("设置 Venmo 邮件转发")}</b> },
-                )}
-          </Step>
-          {telegram !== null && (
-            <Step done={telegram}>
-              {props.admin
-                ? tx("{b}（「设置 › 高级设置」）：你的活动的提醒和新成员申请发给你。", {
-                    b: <b>{t("连接你的 Telegram")}</b>,
-                  })
-                : tx("{b}（上面的「我的 Telegram」）：你的活动的提醒发给你；没连接时发给群主。", {
-                    b: <b>{t("连接你的 Telegram")}</b>,
-                  })}
-            </Step>
-          )}
-        </ol>
-      </Section>
-      <Section title={t("二、怎么组织一场活动")}>
-        <ul class="steps">
-          <li>
-            {tx("{b}：「活动 › ＋ 新建活动」，你就是这场的负责人和收款人；建好后「复制活动链接」发到群里。", {
-              b: <b>{t("新建")}</b>,
-            })}
-          </li>
-          <li>
-            {tx(
-              "{b}：「需要收款 + 自动对账」关掉的话，每人到场自付，活动结束 1 小时后自动结束，不用结算；「排队系统」打开球场排队；「报名截止时间」关掉的话，活动结束前一直能报名。{x}",
-              {
-                b: <b>{t("三个开关")}</b>,
-                x: props.admin && t("已经开始的活动也能补建，建好就是截止状态，不发通知。"),
-              },
-            )}
-          </li>
-          <li>
-            {tx(
-              "{b}：「预定场地」填上场号，报名的人都能看到，开始前 10 分钟会收到提醒。成员报名时可以选几点到、几点走，名单上有每 15 分钟的人数图。",
-              { b: <b>{t("活动当天")}</b> },
-            )}
-          </li>
-          <li>
-            {tx("{b}：大家在「球馆账号」里加账号，在球场上登记在打或排队；空着的账号太多时会提醒你。{x}", {
-              b: <b>{t("球场排队")}</b>,
-              x: props.admin && t("提醒比例在「设置 › 高级设置 › 空闲账号提醒」；你还能批量删除球场、清空账号。"),
-            })}
-          </li>
-          <li>
-            {tx(
-              "{b}：活动结束后填场地费和用球数，预览后点「结算费用」，成员就能看到账单付钱给你。没结算前每 30 分钟提醒一次，超过结算期限（{x}默认 48 小时）自动归档，不再收费。",
-              { b: <b>{t("结算")}</b>, x: props.admin ? t("「设置 › 收款设置」，") : "" },
-            )}
-          </li>
-          <li>
-            {tx(
-              "{b}：没自动对上的 Venmo 付款在「收款 › 待确认」里关联到账单；Zelle 和现金在账单里手动标记已付。全部付清后自动归档。",
-              { b: <b>{t("收款")}</b> },
-            )}
-          </li>
-        </ul>
-      </Section>
-      <Section title={props.admin ? t("三、管理整个群") : t("三、你能看到什么")}>
-        <ul class="steps">
-          {props.admin ? (
-            <>
-              <li>
-                {t(
-                  "和群主一样：审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、修改群设置、导出数据。",
-                )}
-              </li>
-              <li>
-                {tx("{b}：在「设置 › 入群和报名」里打开，新成员申请后直接入群，每天有人数上限。", {
-                  b: <b>{t("入群不需要审核")}</b>,
-                })}
-              </li>
-              <li>
-                {tx("{b}：任命管理员、密码和密钥、清空数据、永久删除，以及修改群主和管理员的成员记录。", {
-                  b: <b>{t("只有群主能做")}</b>,
-                })}
-              </li>
-            </>
-          ) : (
-            <li>
+      <Progress left={left} />
+      <ol class="checklist">
+        <Step
+          done={payment}
+          name={t("填写收款设置")}
+          why={go ? t("要收场地费才需要，成员把钱付到这里") : t("在上面的「我的收款设置」，要收场地费才需要")}
+          go={go && (() => go("pay"))}
+        />
+        <Step
+          done={forwarding}
+          name={t("设置 Venmo 邮件转发")}
+          why={go ? t("付款自动记账，第一封收款邮件到了就算做好") : t("照上面「Venmo 邮件转发」的步骤，付款自动记账")}
+          go={go && (() => go("pay"))}
+          goLabel={t("看步骤")}
+        />
+        {telegram !== null && (
+          <Step
+            done={telegram}
+            name={t("连接 Telegram")}
+            why={
+              props.admin ? t("你的活动的提醒和新成员申请发给你") : t("在上面的「我的 Telegram」，没连接时提醒发给群主")
+            }
+            go={go && (() => go("advanced"))}
+          />
+        )}
+      </ol>
+
+      <h3 class="guide-head">{t("怎么做")}</h3>
+      <RunAnEvent deadlineWhere={props.admin ? t("，在「设置 › 收款设置」里改") : ""} />
+      <EventHowTos admin={!!props.admin} />
+      {props.admin ? (
+        <>
+          <Section title={t("管理整个群")}>
+            <Steps>
               {t(
-                "群主和管理员能看到并修改你的活动；群主会收到发起、结算完成、收齐三条抄送。你看不到别人的活动和收款，「待审核」「成员」只能看。",
+                "你和群主一样能审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、改群设置、导出数据。",
               )}
-            </li>
-          )}
-          <li>
-            {props.admin
-              ? t("不想再当管理员时，点下面的「不再当管理员」，弹窗会先列出你的活动会怎么处理。")
-              : t("不想再当组织者时，点下面的「不再当组织者」，弹窗会先列出你的活动会怎么处理。")}
-          </li>
-        </ul>
-      </Section>
+              {t("不想每个申请都审：在「设置 › 入群和报名」打开「入群不需要审核」，每天有人数上限。")}
+              {t("已经开始的活动也能补建，建好就是截止状态，不发通知。")}
+              {t("球场排队里你还能批量删除球场、清空账号。")}
+            </Steps>
+            <p class="muted small">
+              {t("只有群主能做：任命管理员、密码和管理链接、清空数据、永久删除，以及修改群主和管理员的成员记录。")}
+            </p>
+          </Section>
+          <Section title={t("不再当管理员")}>
+            <p>{t("点下面的「不再当管理员」，弹窗会先列出你的活动会怎么处理。")}</p>
+          </Section>
+        </>
+      ) : (
+        <>
+          <Section title={t("我能看到什么")}>
+            <Steps>
+              {t("你管自己发起的活动和进了你账户的收款，看不到别人的活动和收款。")}
+              {t("「待审核」和「成员」只能看。")}
+              {t("群主和管理员能看到并修改你的活动；群主会收到发起、结算完成、收齐三条抄送。")}
+            </Steps>
+          </Section>
+          <Section title={t("不再当组织者")}>
+            <p>{t("点下面的「不再当组织者」，弹窗会先列出你的活动会怎么处理。")}</p>
+          </Section>
+        </>
+      )}
     </Card>
   );
 }
