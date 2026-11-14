@@ -83,7 +83,10 @@ const content = (name) => {
     name,
     tables.map((t, i) => {
       const columns = infos[i].filter((c) => c.type.toUpperCase() !== "BLOB").map((c) => `"${c.name}"`);
-      return `SELECT ${columns.join(", ")} FROM "${t}" ORDER BY rowid`;
+      // Ordered by the values themselves, not by rowid: photo rows are copied one by one in key order,
+      // so the copy holds the same rows under other rowids.
+      const order = columns.map((_, n) => n + 1).join(", ");
+      return `SELECT ${columns.join(", ")} FROM "${t}" ORDER BY ${order}`;
     }),
   );
   return Object.fromEntries(
