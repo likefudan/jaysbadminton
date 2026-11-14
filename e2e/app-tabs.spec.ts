@@ -69,8 +69,7 @@ async function signedIn(page: Page, opts: { app: boolean; role?: string }) {
     await page.route(`**/api/m/session/${path}*`, (route) =>
       route.fulfill({ status: 503, json: { error: { message: "x" } } }),
     );
-  if (opts.app)
-    await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { get: () => true }));
+  if (opts.app) await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { get: () => true }));
 }
 
 test("in the home-screen app the tabs are at the bottom", async ({ page }) => {
