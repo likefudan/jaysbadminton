@@ -4,6 +4,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { forget, MainMoved, release, releaseList, restore, state } from "./github";
 import { type Env, pickSites, randomToken, sha256, sign, sites, TAG, unsign } from "./logic";
+import { isLang, LANG_COOKIE, type Lang, langOf, tr } from "./i18n";
 import { APP_CSS, APP_JS, page } from "./page";
 
 const SESSION = "__Host-ops";
@@ -87,10 +88,11 @@ async function who(req: Request, env: Env): Promise<string | null> {
   return email && email === env.OPS_EMAIL.trim().toLowerCase() ? email : null;
 }
 
-function ready(env: Env): string | null {
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return "还没有 Google 登录的设置（GOOGLE_CLIENT_ID）";
-  if (!env.OPS_EMAIL) return "还没有设置允许登录的邮箱（GitHub secret OPS_EMAIL）";
-  if (!env.OPS_SESSION_KEY) return "还没有登录密钥（下次部署时自动生成）";
+function ready(env: Env, lang: Lang): string | null {
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET)
+    return tr(lang, "还没有 Google 登录的设置（GOOGLE_CLIENT_ID）");
+  if (!env.OPS_EMAIL) return tr(lang, "还没有设置允许登录的邮箱（GitHub secret OPS_EMAIL）");
+  if (!env.OPS_SESSION_KEY) return tr(lang, "还没有登录密钥（下次部署时自动生成）");
   return null;
 }
 
@@ -162,49 +164,58 @@ export default {
     if (path === "/app.js") return respond(APP_JS, { type: "text/javascript; charset=utf-8" });
     if (path === "/app.css") return respond(APP_CSS, { type: "text/css; charset=utf-8" });
     if (path === "/health") return json({ ok: true });
+    const lang = langOf(req);
+    // The 文A menu's links: remember the language for a year and go back to the page.
+    const to = path.match(/^\/lang\/([\w-]+)$/)?.[1];
+    if (to && req.method === "GET")
+      return redirect(
+        "/",
+        isLang(to) ? [`${LANG_COOKIE}=${to}; Path=/; Max-Age=${365 * DAY}; Secure; SameSite=Lax`] : [],
+      );
 
     // Changes come only from this site's own page.
     if (req.method !== "GET" && req.method !== "HEAD" && req.headers.get("Origin") !== env.OPS_ORIGIN)
-      return json({ error: "来源不对" }, 403);
+      return json({ error: tr(lang, "来源不对") }, 403);
 
-    const problem = ready(env);
+    const problem = ready(env, lang);
     if (path === "/login") return problem ? redirect("/") : startLogin(env);
     if (path === "/auth/callback") return problem ? redirect("/") : finishLogin(req, env, ctx);
     if (path === "/logout" && req.method === "POST") return redirect("/", [cookie(SESSION, "", 0)]);
 
     const email = await who(req, env);
     if (path === "/")
-      return respond(page({ email, problem, error: url.searchParams.get("error") }), {
+      return respond(page({ email, problem, error: url.searchParams.get("error"), lang }), {
         type: "text/html; charset=utf-8",
       });
-    if (!email) return json({ error: "请先登录" }, 401);
-    if (!env.OPS_GITHUB_TOKEN) return json({ error: "还没有设置 GitHub 令牌（GitHub secret OPS_GITHUB_TOKEN）" }, 503);
+    if (!email) return json({ error: tr(lang, "请先登录") }, 401);
+    if (!env.OPS_GITHUB_TOKEN)
+      return json({ error: tr(lang, "还没有设置 GitHub 令牌（GitHub secret OPS_GITHUB_TOKEN）") }, 503);
 
     if (path === "/api/state" && req.method === "GET") {
       try {
         return json(await state(env));
       } catch (err) {
         console.error("ops state failed:", err);
-        return json({ error: `读取失败：${(err as Error).message}` }, 502);
+        return json({ error: tr(lang, "读取失败：{msg}", { msg: (err as Error).message }) }, 502);
       }
     }
     if (path === "/api/releases" && req.method === "GET") {
       const n = Number(url.searchParams.get("page") ?? "1");
-      if (!Number.isInteger(n) || n < 1 || n > 50) return json({ error: "页码不对" }, 400);
+      if (!Number.isInteger(n) || n < 1 || n > 50) return json({ error: tr(lang, "页码不对") }, 400);
       try {
         return json(await releaseList(env, n));
       } catch (err) {
         console.error("ops releases failed:", err);
-        return json({ error: `读取失败：${(err as Error).message}` }, 502);
+        return json({ error: tr(lang, "读取失败：{msg}", { msg: (err as Error).message }) }, 502);
       }
     }
     if (path === "/api/restore" && req.method === "POST") {
       const body = (await req.json().catch(() => null)) as { site?: unknown; tag?: unknown; confirm?: unknown } | null;
       const site = sites(env).find((x) => x.id === body?.site);
       const tag = body?.tag;
-      if (!site) return json({ error: "请选择站点" }, 400);
-      if (typeof tag !== "string" || !TAG.test(tag)) return json({ error: "版本不对" }, 400);
-      if (body?.confirm !== site.id) return json({ error: `请输入 ${site.id} 确认` }, 400);
+      if (!site) return json({ error: tr(lang, "请选择站点") }, 400);
+      if (typeof tag !== "string" || !TAG.test(tag)) return json({ error: tr(lang, "版本不对") }, 400);
+      if (body?.confirm !== site.id) return json({ error: tr(lang, "请输入 {id} 确认", { id: site.id }) }, 400);
       try {
         await restore(env, site.id, tag);
         forget();
@@ -218,7 +229,7 @@ export default {
         return json({ ok: true });
       } catch (err) {
         console.error("ops restore failed:", err);
-        return json({ error: `没能开始恢复：${(err as Error).message}` }, 502);
+        return json({ error: tr(lang, "没能开始恢复：{msg}", { msg: (err as Error).message }) }, 502);
       }
     }
     if (path === "/api/release" && req.method === "POST") {
@@ -226,11 +237,12 @@ export default {
       const chosen = pickSites(body?.sites, sites(env));
       const tag = body?.tag ?? null;
       const main = body?.main;
-      if (!chosen) return json({ error: "请选择站点" }, 400);
-      if (tag !== null && (typeof tag !== "string" || !TAG.test(tag))) return json({ error: "版本不对" }, 400);
+      if (!chosen) return json({ error: tr(lang, "请选择站点") }, 400);
+      if (tag !== null && (typeof tag !== "string" || !TAG.test(tag)))
+        return json({ error: tr(lang, "版本不对") }, 400);
       // A new version names the commit the page listed the changes of.
       if (tag === null && (typeof main !== "string" || !/^[0-9a-f]{40}$/.test(main)))
-        return json({ error: "请刷新页面再试" }, 400);
+        return json({ error: tr(lang, "请刷新页面再试") }, 400);
       try {
         await release(env, chosen, tag === null ? { expect: main as string } : { tag });
         forget();
@@ -249,12 +261,12 @@ export default {
       } catch (err) {
         if (err instanceof MainMoved) {
           forget();
-          return json({ error: "main 上有了新的改动，页面已经刷新，请看过再发布", moved: true }, 409);
+          return json({ error: tr(lang, "main 上有了新的改动，页面已经刷新，请看过再发布"), moved: true }, 409);
         }
         console.error("ops release failed:", err);
-        return json({ error: `没能开始发布：${(err as Error).message}` }, 502);
+        return json({ error: tr(lang, "没能开始发布：{msg}", { msg: (err as Error).message }) }, 502);
       }
     }
-    return json({ error: "找不到这个地址" }, 404);
+    return json({ error: tr(lang, "找不到这个地址") }, 404);
   },
 } satisfies ExportedHandler<Env>;

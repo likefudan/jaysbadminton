@@ -1,3 +1,4 @@
+import { LANGS, type Lang, MESSAGES, tr } from "./i18n";
 import { TAG } from "./logic";
 
 // The release site's page: a shell, its stylesheet and its script (no inline code, so the content policy
@@ -11,31 +12,45 @@ const ERRORS: Record<string, string> = {
   account: "这个 Google 账号不能管理发布。",
 };
 
+// The 文A button, as on the badminton sites. A <details> menu of plain links, so it works on the sign-in
+// page too, which runs no script.
+function langSwitch(lang: Lang): string {
+  const now = LANGS.find((l) => l.id === lang)!;
+  const items = LANGS.map(
+    (l) =>
+      `<a role="menuitemradio" aria-checked="${l.id === lang}" lang="${l.id}"${l.id === lang ? ' class="on"' : ""} href="/lang/${l.id}">${l.name}</a>`,
+  ).join("");
+  return `<details class="lang-switch"><summary class="lang-btn" aria-label="${esc(tr(lang, "语言：{name}", { name: now.name }))}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor"><text x="1" y="13" font-size="12" font-weight="600">文</text><text x="12.5" y="21.5" font-size="12" font-weight="700">A</text></svg></summary><div class="lang-menu" role="menu">${items}</div></details>`;
+}
+
 export function page({
   email,
   problem,
   error,
+  lang = "zh-CN",
 }: {
   email: string | null;
   problem: string | null;
   error: string | null;
+  lang?: Lang;
 }) {
-  const top = email
-    ? `<form method="post" action="/logout"><button class="link" title="${esc(email)}">退出</button></form>`
+  const t = (key: string) => tr(lang, key);
+  const out = email
+    ? `<form method="post" action="/logout"><button class="link" title="${esc(email)}">${t("退出")}</button></form>`
     : "";
   let body: string;
-  if (problem) body = `<div class="card"><b>还不能用</b><p class="muted">${esc(problem)}</p></div>`;
+  if (problem) body = `<div class="card"><b>${t("还不能用")}</b><p class="muted">${esc(problem)}</p></div>`;
   else if (!email)
-    body = `<div class="card login"><p>只有管理员的 Google 账号可以登录。</p>${
-      error && ERRORS[error] ? `<p class="warn">${ERRORS[error]}</p>` : ""
-    }<a class="btn p" href="/login">用 Google 登录</a></div>`;
-  else body = `<div id="app"><p class="muted center">正在读取…</p></div><script src="/app.js"></script>`;
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+    body = `<div class="card login"><p>${t("只有管理员的 Google 账号可以登录。")}</p>${
+      error && ERRORS[error] ? `<p class="warn">${t(ERRORS[error])}</p>` : ""
+    }<a class="btn p" href="/login">${t("用 Google 登录")}</a></div>`;
+  else body = `<div id="app"><p class="muted center">${t("正在读取…")}</p></div><script src="/app.js"></script>`;
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="robots" content="noindex"><title>站点发布管理</title>
+<meta name="robots" content="noindex"><title>${t("站点发布管理")}</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23e8664f'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app.css"></head><body>
-<header class="top"><b>站点发布管理</b>${top}</header><main class="wrap">${body}</main></body></html>`;
+<header class="top"><b>${t("站点发布管理")}</b><span class="acts">${langSwitch(lang)}${out}</span></header><main class="wrap">${body}</main></body></html>`;
 }
 
 export const APP_CSS = `
@@ -45,6 +60,15 @@ export const APP_CSS = `
 body{margin:0;font-family:-apple-system,"PingFang SC","Noto Sans CJK SC",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:15px;-webkit-text-size-adjust:100%}
 .top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
 .top b{font-size:17px}
+.acts{display:flex;align-items:center;gap:10px}
+.lang-switch{position:relative}
+.lang-btn{list-style:none;width:34px;height:34px;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.lang-btn::-webkit-details-marker{display:none}
+.lang-switch[open] .lang-btn,.lang-btn:hover{color:var(--text);background:var(--soft)}
+.lang-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:20;display:flex;flex-direction:column;min-width:132px;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.lang-menu a{padding:9px 12px;border-radius:9px;color:var(--text);text-decoration:none;font-size:14px;font-weight:500}
+.lang-menu a:hover{background:var(--soft)}
+.lang-menu a.on{color:var(--accent);font-weight:600}.lang-menu a.on::after{content:" ✓"}
 .wrap{padding:12px 14px 40px;max-width:640px;margin:0 auto}
 .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
 .hero{background:var(--hero)}
@@ -79,7 +103,7 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 .siterow:first-child{border-top:0}
 .siterow .name{width:112px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .siterow .mid{flex:1;display:flex;align-items:center;gap:6px;min-width:0}
-.siterow .lbl{font-size:12px;color:var(--muted);white-space:nowrap;width:78px;flex:none;text-align:right}.siterow .lbl.bad{color:var(--bad)}.siterow .lbl.ok{color:var(--ok)}
+.siterow .lbl{font-size:12px;color:var(--muted);white-space:nowrap;min-width:78px;flex:none;text-align:right}.siterow .lbl.bad{color:var(--bad)}.siterow .lbl.ok{color:var(--ok)}
 .siterow .chev{font-size:18px}
 .seg{display:flex;gap:3px;flex:1}.seg i{flex:1;height:6px;border-radius:3px;background:var(--line)}
 .seg i.d{background:var(--accent)}.seg i.n{background:var(--accent);animation:pulse 1s infinite alternate}
@@ -102,6 +126,21 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 
 export const APP_JS = `"use strict";
 const app = document.getElementById("app");
+// 简 / 繁 / English (i18n.ts): the page's lang says which; the texts' Simplified Chinese is the key.
+const LANG = document.documentElement.lang;
+const MSG = ${JSON.stringify(MESSAGES)};
+const t = (key, vars) => {
+  const m = MSG[key];
+  const s = LANG === "zh-CN" || !m ? key : LANG === "en" ? m.en : m.tw;
+  return s.replace(/\\{(\\w+)\\}/g, (all, k) => (vars && k in vars ? String(vars[k]) : all));
+};
+const EN = LANG === "en";
+const list = (names) => names.join(EN ? ", " : "、");
+// Site names end in 羽毛球, which English shows as Badminton.
+const full = (name) => EN ? name.replace(/\\s*羽毛球$/, " Badminton") : name;
+// The 文A menu closes when tapping elsewhere.
+const langMenu = document.querySelector(".lang-switch");
+document.addEventListener("pointerdown", (e) => { if (langMenu && langMenu.open && !langMenu.contains(e.target)) langMenu.open = false; });
 let data = null, panel = null, pollUntil = 0, timer = 0, chosen = null;
 // Keep browser code inside this script: serializing a bundled server function can leak
 // build helpers (such as __name) that do not exist in the browser.
@@ -149,8 +188,8 @@ async function load() {
     data = body;
     render();
   } catch (err) {
-    app.replaceChildren(h("div", { class: "card" }, h("b", {}, "读取失败"), h("p", { class: "muted" }, String(err.message || err)),
-      h("button", { class: "btn", onclick: load }, "再试一次")));
+    app.replaceChildren(h("div", { class: "card" }, h("b", {}, t("读取失败")), h("p", { class: "muted" }, String(err.message || err)),
+      h("button", { class: "btn", onclick: load }, t("再试一次"))));
   }
   // Also while main is still being tested, so the 发布 button turns on by itself when it passes.
   const busy = data && (data.busy || (data.pendingCount > 0 && data.mainCi === "running"));
@@ -158,13 +197,13 @@ async function load() {
 }
 
 async function send(sites, tag) {
-  const names = sites.length === data.sites.length ? "全部 " + sites.length + " 个站点" : sites.map(siteName).join("、");
-  const what = tag ? "把 " + tag : "从 main 打新版本 " + data.next + " 并";
-  if (!confirm(what + " 发布到：" + names + "？\\n\\n每个站点发布前都会先备份数据库，约 3–5 分钟完成。")) return false;
+  const names = sites.length === data.sites.length ? t("全部 {n} 个站点", { n: sites.length }) : list(sites.map((id) => full(siteName(id))));
+  const what = tag ? t("把 {tag} 发布到：{names}？", { tag, names }) : t("从 main 打新版本 {tag} 并发布到：{names}？", { tag: data.next, names });
+  if (!confirm(what + "\\n\\n" + t("每个站点发布前都会先备份数据库，约 3–5 分钟完成。"))) return false;
   const res = await fetch("/api/release", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sites, tag, main: tag ? undefined : data.main }) });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) { toast(body.error || "没能开始发布"); if (body.moved) load(); return false; }
-  toast("已开始发布，下面「最近的部署」会显示进度");
+  if (!res.ok) { toast(body.error || t("没能开始发布")); if (body.moved) load(); return false; }
+  toast(t("已开始发布，下面「最近的部署」会显示进度"));
   pollUntil = Date.now() + 10 * 60000;
   clearTimeout(timer);
   timer = setTimeout(load, 8000);
@@ -173,35 +212,35 @@ async function send(sites, tag) {
 
 function heroCard() {
   if (!data.pendingCount) {
-    return h("div", { class: "card" }, h("b", {}, "没有新改动"),
-      h("div", { class: "muted" }, "main 上的改动都已经在 " + (data.latest || "最新版本") + " 里了"));
+    return h("div", { class: "card" }, h("b", {}, t("没有新改动")),
+      h("div", { class: "muted" }, t("main 上的改动都已经在 {tag} 里了", { tag: data.latest || t("最新版本") })));
   }
-  const ci = { success: "测试站已通过", running: "测试站还在测试", failure: "测试没通过，先别发布", none: "还没有测试结果" }[data.mainCi] || data.mainCi;
+  const ci = { success: t("测试站已通过"), running: t("测试站还在测试"), failure: t("测试没通过，先别发布"), none: t("还没有测试结果") }[data.mainCi] || data.mainCi;
   // The ticks survive the page refreshing itself while a deploy runs.
   if (!chosen) chosen = new Set(data.sites.map((s) => s.id));
-  const button = h("button", { class: "btn p", disabled: !chosen.size || data.mainCi !== "success" }, "发布 " + data.next);
+  const button = h("button", { class: "btn p", disabled: !chosen.size || data.mainCi !== "success" }, t("发布 {tag}", { tag: data.next }));
   button.addEventListener("click", async () => {
-    if (!chosen.size) return toast("请至少选一个站点");
+    if (!chosen.size) return toast(t("请至少选一个站点"));
     button.disabled = true;
     if (!(await send(data.sites.map((s) => s.id).filter((id) => chosen.has(id)), null))) button.disabled = false;
   });
   const chips = data.sites.map((s) => {
     const box = h("input", { type: "checkbox", checked: chosen.has(s.id) });
     box.addEventListener("change", () => { box.checked ? chosen.add(s.id) : chosen.delete(s.id); button.disabled = !chosen.size || data.mainCi !== "success"; });
-    return h("label", { class: "chip" }, box, h("span", { class: "dot", style: "background:" + s.color + ";margin:0 0 0 2px" }), s.name.replace(/\\s*羽毛球$/, ""));
+    return h("label", { class: "chip" }, box, h("span", { class: "dot", style: "background:" + s.color + ";margin:0 0 0 2px" }), short(s.name));
   });
-  const more = data.pendingCount > data.pending.length ? h("li", { class: "muted" }, "还有 " + (data.pendingCount - data.pending.length) + " 个") : null;
+  const more = data.pendingCount > data.pending.length ? h("li", { class: "muted" }, t("还有 {n} 个", { n: data.pendingCount - data.pending.length })) : null;
   return h("div", { class: "card hero" },
-    h("b", {}, "新版本可以发布"),
-    h("div", { class: "muted" }, "main 比 " + (data.latest || "上个版本") + " 多 " + data.pendingCount + " 个改动 · " + ci),
+    h("b", {}, t("新版本可以发布")),
+    h("div", { class: "muted" }, t("main 比 {tag} 多 {n} 个改动", { tag: data.latest || t("上个版本"), n: data.pendingCount }) + " · " + ci),
     h("ul", { class: "changes" }, data.pending.map((c) => h("li", {}, c)), more),
-    h("div", { class: "muted" }, "发布到："),
+    h("div", { class: "muted" }, t("发布到：")),
     h("div", { class: "chips" }, chips),
     h("div", { class: "row", style: "justify-content:flex-end" }, button));
 }
 
 const short = (name) => name.replace(/\\s*羽毛球$/, "");
-const STEPS = ["测试", "备份", "迁移", "部署", "检查"];
+const STEPS = ["测试", "备份", "迁移", "部署", "检查"].map((s) => t(s));
 const live = (id) => data.progress && data.progress.sites[id];
 
 function seg(p) {
@@ -216,14 +255,14 @@ function siteRow(s) {
   const p = live(s.id);
   const middle = p
     ? h("span", { class: "mid" }, h("span", { class: "lock" }, "🔒"), seg(p))
-    : h("span", { class: "mid tag" }, s.version || "版本未知");
+    : h("span", { class: "mid tag" }, s.version || t("版本未知"));
   const right = p
-    ? h("span", { class: "lbl" + (p.failed ? " bad" : p.done >= 5 ? " ok" : "") }, p.label)
-    : !s.ok ? h("span", { class: "pill bad" }, "打不开")
-    : s.behind > 0 ? h("span", { class: "pill old" }, "落后 " + s.behind)
-    : !s.version ? h("span", { class: "muted" }, "下次发布后显示")
-    : h("span", { class: "pill" }, "正常");
-  return h("div", { class: "siterow", onclick: () => (p && !p.failed && p.done < 5 ? toast(short(s.name) + " 正在发布，完成后再换版本") : openPanel(s)) },
+    ? h("span", { class: "lbl" + (p.failed ? " bad" : p.done >= 5 ? " ok" : "") }, t(p.label))
+    : !s.ok ? h("span", { class: "pill bad" }, t("打不开"))
+    : s.behind > 0 ? h("span", { class: "pill old" }, t("落后 {n}", { n: s.behind }))
+    : !s.version ? h("span", { class: "muted" }, t("下次发布后显示"))
+    : h("span", { class: "pill" }, t("正常"));
+  return h("div", { class: "siterow", onclick: () => (p && !p.failed && p.done < 5 ? toast(t("{name} 正在发布，完成后再换版本", { name: short(s.name) })) : openPanel(s)) },
     h("span", { class: "name" }, h("span", { class: "dot", style: "background:" + s.color }), short(s.name)),
     middle, right, p ? null : h("span", { class: "muted chev" }, "›"));
 }
@@ -234,20 +273,20 @@ function progressCard() {
   const elapsed = h("span", {}, "");
   const tick = () => {
     const sec = Math.max(0, Math.round((Date.now() - new Date(p.at)) / 1000));
-    elapsed.textContent = "已用 " + Math.floor(sec / 60) + " 分 " + (sec % 60) + " 秒";
+    elapsed.textContent = t("已用 {m} 分 {s} 秒", { m: Math.floor(sec / 60), s: sec % 60 });
   };
   tick();
   clearInterval(window.__tick);
   window.__tick = setInterval(tick, 1000);
   return h("div", { class: "card hero" },
-    h("div", { class: "row" }, h("b", {}, p.restoring ? "正在恢复数据库" : p.tag ? "正在发布 " + p.tag : "正在准备发布"),
-      h("a", { class: "muted", href: p.url, target: "_blank", rel: "noopener" }, "详情 ›")),
-    h("div", { class: "muted" }, (n ? n + " 个站点 · " : ""), elapsed, p.restoring ? " · 先备份、恢复，再换版本，一般 8 分钟左右" : " · 一般 5 分钟左右"),
+    h("div", { class: "row" }, h("b", {}, p.restoring ? t("正在恢复数据库") : p.tag ? t("正在发布 {tag}", { tag: p.tag }) : t("正在准备发布")),
+      h("a", { class: "muted", href: p.url, target: "_blank", rel: "noopener" }, t("详情 ›"))),
+    h("div", { class: "muted" }, (n ? t("{n} 个站点", { n }) + " · " : ""), elapsed, " · " + (p.restoring ? t("先备份、恢复，再换版本，一般 8 分钟左右") : t("一般 5 分钟左右"))),
     h("div", { class: "muted", style: "margin-top:6px" }, STEPS.join(" → ")));
 }
 
 function deploysCard() {
-  if (!data.deploys.length) return h("div", { class: "card muted" }, "还没有记录");
+  if (!data.deploys.length) return h("div", { class: "card muted" }, t("还没有记录"));
   // One version sent to more sites later (补发) is one line: back-to-back runs of the same tag merge.
   const merged = [];
   for (const d of data.deploys) {
@@ -264,13 +303,13 @@ function deploysCard() {
   return h("div", { class: "card" }, merged.map((d) => {
     const mark = d.running ? "⏳" : d.ok ? "✓" : "✗";
     if (!d.tag) return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },
-      h("div", { class: "row" }, h("span", { class: "warn" }, "✗ 发布没开始，点开看原因"), h("span", { class: "muted nowrap" }, when(d.at)))));
+      h("div", { class: "row" }, h("span", { class: "warn" }, t("✗ 发布没开始，点开看原因")), h("span", { class: "muted nowrap" }, when(d.at)))));
     // When a site failed or is still going, each site says how it went.
-    const one = (j) => siteName(j.id).replace(/\\s*羽毛球$/, "");
+    const one = (j) => short(siteName(j.id));
     const mixed = d.sites.some((j) => j.conclusion !== "success");
-    const names = !d.sites.length ? (d.running ? "准备中" : "没有部署")
-      : mixed ? d.sites.map((j) => one(j) + (j.conclusion === "success" ? " ✓" : j.status !== "completed" ? " ⏳" : " ✗")).join("、")
-      : d.sites.length === data.sites.length ? "全部" : d.sites.map(one).join("、");
+    const names = !d.sites.length ? (d.running ? t("准备中") : t("没有部署"))
+      : mixed ? list(d.sites.map((j) => one(j) + (j.conclusion === "success" ? " ✓" : j.status !== "completed" ? " ⏳" : " ✗")))
+      : d.sites.length === data.sites.length ? t("全部") : list(d.sites.map(one));
     return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },
       h("div", { class: "row" }, h("span", {}, mark + " ", h("span", { class: "tag" }, d.tag), " → " + names), h("span", { class: "muted nowrap" }, when(d.at)))));
   }));
@@ -278,7 +317,7 @@ function deploysCard() {
 
 function openPanel(s) {
   let pick = null, restoreFirst = false;
-  const go = h("button", { class: "btn p", disabled: true }, "选一个版本");
+  const go = h("button", { class: "btn p", disabled: true }, t("选一个版本"));
   go.addEventListener("click", async () => {
     if (restoreFirst) return openRestore(s, pick);
     go.disabled = true;
@@ -288,11 +327,11 @@ function openPanel(s) {
     const current = v.tag === s.version;
     const locked = !s.movable.includes(v.tag);
     const newer = isTag(s.version) && cmpTag(v.tag, s.version) > 0;
-    const label = current ? h("span", { class: "muted" }, "当前")
-      : !v.perSite ? h("span", { class: "muted" }, "太旧，不能在这里换")
-      : locked ? h("span", { class: "muted nowrap" }, "需恢复 🔒")
-      : newer || !isTag(s.version) ? h("span", { class: "pill" }, v.tag === data.latest ? "最新" : "较新")
-      : h("span", { class: "muted" }, "回滚");
+    const label = current ? h("span", { class: "muted" }, t("当前"))
+      : !v.perSite ? h("span", { class: "muted" }, t("太旧，不能在这里换"))
+      : locked ? h("span", { class: "muted nowrap" }, t("需恢复 🔒"))
+      : newer || !isTag(s.version) ? h("span", { class: "pill" }, v.tag === data.latest ? t("最新") : t("较新"))
+      : h("span", { class: "muted" }, t("回滚"));
     // A locked version can still be chosen: it needs the database restored first (恢复备份).
     const radio = h("input", { type: "radio", name: "v", disabled: current || !v.perSite });
     radio.addEventListener("change", () => {
@@ -300,26 +339,26 @@ function openPanel(s) {
       restoreFirst = locked;
       go.disabled = false;
       go.className = "btn p" + (locked ? " danger" : "");
-      go.textContent = locked ? "恢复备份并换到 " + v.tag : "换到 " + v.tag;
+      go.textContent = locked ? t("恢复备份并换到 {tag}", { tag: v.tag }) : t("换到 {tag}", { tag: v.tag });
     });
     // 说明 opens this version's release notes under the row, without choosing it.
     const box = h("div", { class: "optnotes", hidden: true });
-    const more = h("button", { class: "notesbtn", type: "button" }, "说明 ⌄");
+    const more = h("button", { class: "notesbtn", type: "button" }, t("说明") + " ⌄");
     more.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
       box.hidden = !box.hidden;
-      more.textContent = box.hidden ? "说明 ⌄" : "说明 ⌃";
+      more.textContent = t("说明") + (box.hidden ? " ⌄" : " ⌃");
       if (box.hidden || box.childElementCount) return;
-      box.append(h("p", { class: "muted notes" }, "读取中…"));
+      box.append(h("p", { class: "muted notes" }, t("读取中…")));
       try {
         const r = await releaseNotes(v.tag);
-        box.replaceChildren(r ? notesOf(r) : h("p", { class: "muted notes" }, "没有找到这一版的说明"));
+        box.replaceChildren(r ? notesOf(r) : h("p", { class: "muted notes" }, t("没有找到这一版的说明")));
       } catch {
         box.replaceChildren();
         box.hidden = true;
-        more.textContent = "说明 ⌄";
-        toast("没读到说明，请再点一次");
+        more.textContent = t("说明") + " ⌄";
+        toast(t("没读到说明，请再点一次"));
       }
     });
     return h("div", {},
@@ -329,9 +368,10 @@ function openPanel(s) {
       box);
   });
   panel = h("div", { class: "panel" },
-    h("header", { class: "top" }, h("button", { class: "back", onclick: closePanel }, "‹ 返回"), h("b", {}, s.name), h("span", { style: "width:40px" })),
+    h("header", { class: "top" }, h("button", { class: "back", onclick: closePanel }, t("‹ 返回")), h("b", {}, full(s.name)), h("span", { style: "width:40px" })),
     h("div", { class: "list" },
-      h("p", { class: "muted", style: "margin:0 0 6px" }, s.domain + (s.ok ? "" : "（现在打不开）") + "。" + (s.version ? "现在是 " + s.version + "。" : "") + "换版本前会自动备份这个站点的数据库。回滚到更早的版本，如果数据库已经有它不认识的改动，会被自动拒绝。"),
+      h("p", { class: "muted", style: "margin:0 0 6px" }, [t(s.ok ? "{domain}。" : "{domain}（现在打不开）。", { domain: s.domain }), s.version ? t("现在是 {tag}。", { tag: s.version }) : null,
+        t("换版本前会自动备份这个站点的数据库。回滚到更早的版本，如果数据库已经有它不认识的改动，会被自动拒绝。")].filter(Boolean).join(EN ? " " : "")),
       rows),
     h("div", { class: "foot" }, go));
   document.body.append(panel);
@@ -341,7 +381,7 @@ function openPanel(s) {
 function notesOf(r) {
   const pr = (n) => h("a", { href: r.url.split("/releases/")[0] + "/pull/" + n, target: "_blank", rel: "noopener", class: "muted" }, " #" + n);
   return r.notes.length ? h("ul", { class: "notes" }, r.notes.map((n) => h("li", {}, n.text, n.pr ? pr(n.pr) : null)))
-    : h("p", { class: "muted notes" }, "没有说明");
+    : h("p", { class: "muted notes" }, t("没有说明"));
 }
 // The newest 20 releases with their notes, read once when a site's version list first needs them.
 let recentNotes = null;
@@ -359,25 +399,25 @@ function openRestore(s, tag) {
   const from = data.versions.filter((v) => v.migration && want && want.migration && v.migration > want.migration)
     .sort((a, b) => a.date.localeCompare(b.date))[0];
   const input = h("input", { class: "confirm", autocapitalize: "off", autocomplete: "off", spellcheck: "false", placeholder: s.id });
-  const ok = h("button", { class: "btn p danger", disabled: true }, "恢复并换到 " + tag);
+  const ok = h("button", { class: "btn p danger", disabled: true }, t("恢复并换到 {tag}", { tag }));
   input.addEventListener("input", () => { ok.disabled = input.value.trim().toLowerCase() !== s.id; });
   const box = h("div", { class: "sheet" },
     h("div", { class: "sheetin" },
-      h("b", {}, "恢复 " + short(s.name) + " 的数据库"),
-      h("p", {}, "数据库会回到它第一次执行 " + tag + " 不认识的数据库改动之前" + (from ? "（不早于 " + when(from.date) + "，" + from.tag + " 发布的时间）" : "") + "，然后换到 " + tag + "。"),
-      h("p", { class: "bad" }, "这之后这个站点上的报名、付款、设置改动都会丢失。"),
-      h("p", { class: "muted" }, "恢复前会先把现在的数据库备份一份（保存 90 天），万一需要还能找回。只能恢复到 30 天以内。其他站点不受影响。"),
-      h("p", {}, "请输入 ", h("b", {}, s.id), " 确认："),
+      h("b", {}, t("恢复 {name} 的数据库", { name: short(s.name) })),
+      h("p", {}, t("数据库会回到它第一次执行 {tag} 不认识的数据库改动之前{when}，然后换到 {tag}。", { tag, when: from ? t("（不早于 {date}，{from} 发布的时间）", { date: when(from.date), from: from.tag }) : "" })),
+      h("p", { class: "bad" }, t("这之后这个站点上的报名、付款、设置改动都会丢失。")),
+      h("p", { class: "muted" }, t("恢复前会先把现在的数据库备份一份（保存 90 天），万一需要还能找回。只能恢复到 30 天以内。其他站点不受影响。")),
+      h("p", {}, ...t("请输入 {id} 确认：").split("{id}").flatMap((part, i) => i ? [h("b", {}, s.id), part] : [part])),
       input,
-      h("div", { class: "sheetbtns" }, h("button", { class: "btn", onclick: () => box.remove() }, "取消"), ok)));
+      h("div", { class: "sheetbtns" }, h("button", { class: "btn", onclick: () => box.remove() }, t("取消")), ok)));
   ok.addEventListener("click", async () => {
     ok.disabled = true;
     const res = await fetch("/api/restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: s.id, tag, confirm: input.value.trim().toLowerCase() }) });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) { toast(body.error || "没能开始恢复"); ok.disabled = false; return; }
+    if (!res.ok) { toast(body.error || t("没能开始恢复")); ok.disabled = false; return; }
     box.remove();
     closePanel();
-    toast("已开始恢复，完成后会自动换到 " + tag);
+    toast(t("已开始恢复，完成后会自动换到 {tag}", { tag }));
     pollUntil = Date.now() + 15 * 60000;
     clearTimeout(timer);
     setTimeout(load, 3000);
@@ -389,20 +429,20 @@ function openRestore(s, tag) {
 // Every published version with its notes, newest first, 20 at a time.
 function openReleases() {
   const list = h("div", { class: "list" });
-  const more = h("button", { class: "btn", style: "width:100%;margin-top:4px" }, "加载更多");
+  const more = h("button", { class: "btn", style: "width:100%;margin-top:4px" }, t("加载更多"));
   let page = 0;
   const one = (r) => {
     const on = data.sites.filter((s) => s.version === r.tag).map((s) => short(s.name));
     return h("div", { class: "card rel" },
       h("div", { class: "row" },
-        h("span", {}, h("a", { href: r.url, target: "_blank", rel: "noopener", class: "tag" }, r.tag), r.tag === data.latest ? h("span", { class: "pill", style: "margin-left:8px" }, "最新") : null),
+        h("span", {}, h("a", { href: r.url, target: "_blank", rel: "noopener", class: "tag" }, r.tag), r.tag === data.latest ? h("span", { class: "pill", style: "margin-left:8px" }, t("最新")) : null),
         h("span", { class: "muted nowrap" }, when(r.date))),
-      on.length ? h("div", { class: "muted relon" }, "在用：" + on.join("、")) : null,
+      on.length ? h("div", { class: "muted relon" }, t("在用：{names}", { names: list(on) })) : null,
       notesOf(r));
   };
   const next = async () => {
     more.disabled = true;
-    more.textContent = "读取中…";
+    more.textContent = t("读取中…");
     try {
       const res = await fetch("/api/releases?page=" + (page + 1));
       const body = await res.json();
@@ -410,15 +450,15 @@ function openReleases() {
       page++;
       list.append(...body.releases.map(one));
       more.hidden = !body.more;
-      more.textContent = "加载更多";
+      more.textContent = t("加载更多");
     } catch (err) {
-      more.textContent = "没读到，点这里重试（" + err.message + "）";
+      more.textContent = t("没读到，点这里重试（{msg}）", { msg: err.message });
     }
     more.disabled = false;
   };
   more.addEventListener("click", next);
   panel = h("div", { class: "panel" },
-    h("header", { class: "top" }, h("button", { class: "back", onclick: closePanel }, "‹ 返回"), h("b", {}, "所有版本"), h("span", { style: "width:40px" })),
+    h("header", { class: "top" }, h("button", { class: "back", onclick: closePanel }, t("‹ 返回")), h("b", {}, t("所有版本")), h("span", { style: "width:40px" })),
     h("div", { class: "list" }, list, more));
   document.body.append(panel);
   history.pushState({ panel: true }, "");
@@ -435,9 +475,9 @@ addEventListener("popstate", () => { if (panel) { panel.remove(); panel = null; 
 function render() {
   if (!data.progress) clearInterval(window.__tick);
   app.replaceChildren(data.progress ? progressCard() : heroCard(),
-    h("button", { class: "card linkrow", onclick: openReleases }, h("span", {}, "所有版本和发布说明"), h("span", { class: "muted chev" }, "›")),
-    h("h3", {}, "各站点"),
-    h("div", { class: "card rows" }, data.sites.map(siteRow)), h("h3", {}, "最近的部署"), deploysCard());
+    h("button", { class: "card linkrow", onclick: openReleases }, h("span", {}, t("所有版本和发布说明")), h("span", { class: "muted chev" }, "›")),
+    h("h3", {}, t("各站点")),
+    h("div", { class: "card rows" }, data.sites.map(siteRow)), h("h3", {}, t("最近的部署")), deploysCard());
 }
 load();
 
@@ -449,7 +489,7 @@ if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) {
   const tip = h("div", { class: "ptr", role: "status" });
   const show = () => {
     if (dy < 12) return tip.remove();
-    tip.textContent = dy >= PULL ? "松开刷新" : "下拉刷新";
+    tip.textContent = dy >= PULL ? t("松开刷新") : t("下拉刷新");
     tip.style.transform = "translate(-50%," + Math.min(dy - PULL, 0) + "px)";
     if (!tip.isConnected) document.body.append(tip);
   };
@@ -464,7 +504,7 @@ if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) {
     show();
   }, { passive: true });
   const end = () => {
-    if (startY !== null && dy >= PULL) { tip.textContent = "刷新中…"; tip.style.transform = "translate(-50%,0)"; location.reload(); return; }
+    if (startY !== null && dy >= PULL) { tip.textContent = t("刷新中…"); tip.style.transform = "translate(-50%,0)"; location.reload(); return; }
     startY = null; dy = 0; tip.remove();
   };
   addEventListener("touchend", end);

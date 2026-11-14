@@ -1,6 +1,7 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { forget, state } from "../ops/src/github";
+import { langOf, MESSAGES, tr } from "../ops/src/i18n";
 import ops from "../ops/src/index";
 import {
   canMoveTo,
@@ -16,6 +17,7 @@ import {
   sitesFromStepName,
   unsign,
 } from "../ops/src/logic";
+import { APP_JS } from "../ops/src/page";
 
 /** 发布管理网站 badminton.llmat.dev: only Ke Li's account gets in, and it starts the Release workflow. */
 
@@ -367,5 +369,54 @@ describe("restore a site's database, then change its version", () => {
       url: "https://api.github.com/repos/likefudan/jaysbadminton/actions/workflows/restore.yml/dispatches",
       body: { ref: "main", inputs: { site: "sbbc", tag: "v2026.11.10.4", confirm: "sbbc" } },
     });
+  });
+});
+
+describe("简 / 繁 / English", () => {
+  it("has both translations for every text the page script and the progress labels use", () => {
+    const keys = [...APP_JS.matchAll(/\bt\("((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]!);
+    keys.push(...["测试", "备份", "迁移", "部署", "检查"].flatMap((s) => [s, `${s}中`, `${s}失败`]));
+    keys.push("测试没通过", "等 Jay's 先发", "排队中", "完成", "没有部署", "恢复中", "准备中");
+    expect(keys.length).toBeGreaterThan(60);
+    for (const k of keys) expect(MESSAGES[k], k).toBeTruthy();
+    for (const [k, m] of Object.entries(MESSAGES)) {
+      expect(m.en, k).not.toMatch(/[\u4e00-\u9fff]/);
+      expect(m.tw, k).toBeTruthy();
+      // The same {placeholders} in every language.
+      const holes = (s: string) => [...s.matchAll(/\{\w+\}/g)].map((x) => x[0]).sort();
+      expect(holes(m.en), k).toEqual(holes(k));
+      expect(holes(m.tw), k).toEqual(holes(k));
+    }
+    // The script fills in {placeholders} and strips 羽毛球 (backslashes survive the template string).
+    expect(APP_JS).toContain(String.raw`.replace(/\{(\w+)\}/g`);
+    expect(APP_JS).toContain(String.raw`.replace(/\s*羽毛球$/, " Badminton")`);
+    // The script still parses with the texts in it.
+    expect(() => new Function(APP_JS)).not.toThrow();
+  });
+
+  it("picks the saved language, else 繁體 for Traditional Chinese browsers and 简体 for the rest", () => {
+    const req = (h: Record<string, string>) => new Request("https://x/", { headers: h });
+    expect(langOf(req({ Cookie: "a=b; ops-lang=en" }))).toBe("en");
+    expect(langOf(req({ "Accept-Language": "zh-TW,zh;q=0.9" }))).toBe("zh-TW");
+    expect(langOf(req({ "Accept-Language": "en-US,en;q=0.9" }))).toBe("zh-CN");
+    expect(langOf(req({ Cookie: "ops-lang=xx" }))).toBe("zh-CN");
+    expect(tr("en", "落后 {n}", { n: 2 })).toBe("2 behind");
+  });
+
+  it("remembers the choice from the 文A menu and draws the page in it", async () => {
+    const res = await call("/lang/en");
+    expect(res.headers.get("Location")).toBe("/");
+    expect(res.headers.get("Set-Cookie")).toMatch(/^ops-lang=en; Path=\/; Max-Age=\d+; Secure; SameSite=Lax$/);
+    expect((await call("/lang/fr")).headers.get("Set-Cookie")).toBeNull();
+    const page = await (await call("/?error=account", { headers: { Cookie: "ops-lang=en" } })).text();
+    expect(page).toContain('<html lang="en">');
+    expect(page).toContain("<title>Release Service</title>");
+    expect(page).toContain("Sign in with Google");
+    expect(page).toContain("This Google account can't manage releases.");
+    expect(page).toContain('href="/lang/zh-TW"');
+    const zh = await (await call("/")).text();
+    expect(zh).toContain("<title>站点发布管理</title>");
+    const res2 = await call("/api/state", { headers: { Cookie: "ops-lang=zh-TW" } });
+    expect(await res2.json()).toEqual({ error: "請先登入" });
   });
 });
