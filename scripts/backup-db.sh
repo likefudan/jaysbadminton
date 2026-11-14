@@ -9,6 +9,9 @@
 # Restore (on your own computer):
 #   BACKUP_KEY='…' openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_KEY \
 #     -in <stem>.sql.gz.enc | gunzip > <stem>.sql
+# then, into a new empty database (rows with photos are too long for D1 as exported):
+#   node scripts/split-sql.mjs <stem>.sql <stem>.import.sql
+#   npx wrangler d1 execute <database> --remote --file <stem>.import.sql
 set -euo pipefail
 
 if [ -z "${BACKUP_KEY:-}" ]; then
