@@ -345,7 +345,7 @@ export async function removeCourts(env: Env, e: EventRow, body: Record<string, u
 
 /**
  * Cron: once an event's 球场排队 is over (3 hours after its end, as the card goes; cancelled; or the
- * switch turned off), its 球馆账号 (usernames and passwords), the courts entered and the photos are
+ * switch turned off), its 球馆账号 (usernames and passwords), the courts entered and what photos showed are
  * deleted for good (Ke Li 2026-11-10): none of it is kept past the evening it was for.
  */
 export async function purgeEndedQueues(env: Env, at = new Date()) {

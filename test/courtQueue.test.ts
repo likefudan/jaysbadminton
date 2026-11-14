@@ -661,11 +661,12 @@ describe("拍照登记", () => {
     expect(seen[0].output_config.effort).toBe("low");
     expect(seen[0].messages[0].content[0].source).toMatchObject({ media_type: "image/jpeg", data: image });
     expect(seen[0].messages[0].content[1].text).toContain("Peggy, Jayx, Wenxi, Orianne");
-    // Nothing is saved as a court; the photo and what was read are kept.
-    const kept = await env.DB.prepare("SELECT result FROM queue_photos WHERE event_id = ?")
+    // Nothing is saved as a court; what was read is kept, the photo itself is not stored anywhere.
+    const kept = await env.DB.prepare("SELECT * FROM queue_photos WHERE event_id = ?")
       .bind(e.id)
       .all<{ result: string }>();
     expect(kept.results).toHaveLength(1);
+    expect(Object.keys(kept.results[0]!)).not.toContain("image");
     expect(JSON.parse(kept.results[0]!.result).courts).toHaveLength(2);
     expect(
       (
@@ -787,8 +788,8 @@ describe("拍照登记", () => {
     )
       .bind(e.id, endAt, alice.id, alice.id, endAt, endAt)
       .run();
-    await env.DB.prepare("INSERT INTO queue_photos (event_id, member_id, image, created_at) VALUES (?, ?, ?, ?)")
-      .bind(e.id, alice.id, new Uint8Array([0xff, 0xd8]), endAt)
+    await env.DB.prepare("INSERT INTO queue_photos (event_id, member_id, created_at) VALUES (?, ?, ?)")
+      .bind(e.id, alice.id, endAt)
       .run();
     const rows = async () => {
       const n = async (t: string) =>
@@ -804,12 +805,12 @@ describe("拍照登记", () => {
     expect(await rows()).toEqual([0, 0, 0, 1]);
   });
 
-  it("forgets photos after 7 days", async () => {
+  it("forgets what photos showed after 7 days", async () => {
     const { e, alice } = await scenario();
     const member = alice.id;
     const put = (iso: string) =>
-      env.DB.prepare("INSERT INTO queue_photos (event_id, member_id, image, created_at) VALUES (?, ?, ?, ?)")
-        .bind(e.id, member, new Uint8Array([0xff, 0xd8]), iso)
+      env.DB.prepare("INSERT INTO queue_photos (event_id, member_id, created_at) VALUES (?, ?, ?)")
+        .bind(e.id, member, iso)
         .run();
     const now = new Date("2026-10-20T12:00:00Z");
     await put("2026-10-13T11:00:00Z");

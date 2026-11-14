@@ -24,7 +24,11 @@ import { badRequest, HttpError } from "./http";
  * quickly" line cut a photo with few of our accounts from 9 to 2.5 seconds on Fable.
  */
 
-/** Kept this long so a wrong reading can be looked at, then removed by the cron job (Ke Li). */
+/**
+ * What was read (not the photo: that is never stored, Ke Li 2026-11-14; the phone shows it until
+ * saved) is kept this long for the hourly limit and to look into a wrong reading, then the cron job
+ * removes it.
+ */
 const KEEP_MS = 7 * 24 * 3600_000;
 /** The phone sends about 300 KB; this only stops a stray full-size photo. */
 const MAX_BYTES = 2_000_000;
@@ -147,7 +151,7 @@ const failed = () => new HttpError(502, "photo_failed", "照片没有识别出�
 /** 拍照登记: read the photo and return the courts with our accounts, for the form to fill in. */
 export async function readCourtPhoto(env: Env, e: EventRow, memberId: string, body: Record<string, unknown>) {
   if (!photoEnabled(env)) throw badRequest("拍照登记还没有开通，请手动填写");
-  const image = jpeg(body.image);
+  jpeg(body.image); // checked only: it is sent on to the model as it came, never stored
   const { results } = await env.DB.prepare("SELECT username FROM queue_accounts WHERE event_id = ? ORDER BY id")
     .bind(e.id)
     .all<{ username: string }>();
@@ -160,10 +164,11 @@ export async function readCourtPhoto(env: Env, e: EventRow, memberId: string, bo
     .bind(e.id, memberId, new Date(Date.parse(ts) - 3600_000).toISOString())
     .first<{ n: number }>();
   if ((recent?.n ?? 0) >= PER_HOUR) throw badRequest("拍照登记用得太频繁了，请稍后再试或手动填写");
+  // Only a row to count toward the hourly limit; the photo itself goes to the model and nowhere else.
   const saved = await env.DB.prepare(
-    "INSERT INTO queue_photos (event_id, member_id, image, created_at) VALUES (?, ?, ?, ?) RETURNING id",
+    "INSERT INTO queue_photos (event_id, member_id, created_at) VALUES (?, ?, ?) RETURNING id",
   )
-    .bind(e.id, memberId, image, ts)
+    .bind(e.id, memberId, ts)
     .first<{ id: number }>();
 
   const raw = await askAi(
@@ -183,7 +188,7 @@ export async function readCourtPhoto(env: Env, e: EventRow, memberId: string, bo
   return result;
 }
 
-/** Cron: photos go after 7 days. */
+/** Cron: the readings go after 7 days. */
 export async function purgeCourtPhotos(env: Env, at = new Date()) {
   await env.DB.prepare("DELETE FROM queue_photos WHERE created_at < ?")
     .bind(new Date(at.getTime() - KEEP_MS).toISOString())
