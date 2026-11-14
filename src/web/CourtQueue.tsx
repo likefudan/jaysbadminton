@@ -13,6 +13,7 @@ import {
   QUEUE_GROUP_MAX,
   QUEUE_MAX_POSITION,
   QUEUE_SOON_MIN,
+  queueGroupNow,
   type QueueAccount,
   type QueueCourt,
   parseAccountList,
@@ -155,7 +156,7 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
                 key={c.id}
                 c={c}
                 tone="queue"
-                line={t("第{k}组 ≈{n}分", { k: c.position, n: p.minutes })}
+                line={t("第{k}组 ≈{n}分", { k: queueGroupNow(c.position, p.minutes, q.roundMin), n: p.minutes })}
                 picked={choosing ? picked.has(c.id) : undefined}
                 onOpen={() => open(c)}
               />
@@ -331,8 +332,9 @@ function CourtSheet(props: {
 }) {
   const c = props.court;
   const phase = c ? courtPhase(c, props.now) : null;
-  // A queued group whose time has come is edited as playing.
-  const startPos = !c ? 0 : phase?.phase === "queued" ? c.position : 0;
+  // A queued group whose time has come is edited as playing; one still waiting, at the group it is
+  // in now (it moves up as rounds ahead of it end).
+  const startPos = !c ? 0 : phase?.phase === "queued" ? queueGroupNow(c.position, phase.minutes, props.q.roundMin) : 0;
   const [court, setCourt] = useState(c ? String(c.court) : "");
   const [position, setPosition] = useState(startPos);
   const [minutes, setMinutes] = useState(phase && phase.phase !== "done" ? String(phase.minutes) : "");
