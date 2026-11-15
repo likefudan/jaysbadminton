@@ -121,3 +121,44 @@ test("a browser keeps the tabs at the top", async ({ page }) => {
   await page.getByRole("button", { name: /Google 账号/ }).click();
   await expect(page.getByRole("link", { name: "切换为管理员" })).toBeVisible();
 });
+
+/** The number on the home-screen icon: the events waiting for this member's payment. */
+test("the icon's badge counts the bills still to pay", async ({ page }) => {
+  await signedIn(page, { app: true });
+  const billed = {
+    ...event,
+    id: 10,
+    code: "26-1110",
+    date: "2026-11-10",
+    status: "finalized",
+    canEdit: false,
+    payment: {
+      amountCents: 2392,
+      paidCents: 0,
+      refundCents: 0,
+      status: "unpaid",
+      code: "E2",
+      shares: [{ name: "小明", friendIndex: 0, attended: true, courtCents: 2000, shuttleCents: 392 }],
+      payeeName: "Jay",
+      venmoUsername: "jay",
+      zelleAccount: "",
+    },
+  };
+  await page.route("**/api/m/session/events", (route) =>
+    route.fulfill({ json: { events: [event, billed], history: [], friendCap: 2 } }),
+  );
+  await page.addInitScript(() => {
+    const w = window as { badge?: number };
+    Object.assign(navigator, {
+      setAppBadge: async (n: number) => {
+        w.badge = n;
+      },
+      clearAppBadge: async () => {
+        w.badge = 0;
+      },
+    });
+  });
+  await page.goto("/me");
+  await expect(page.locator(".ev-card").first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as { badge?: number }).badge)).toBe(1);
+});
