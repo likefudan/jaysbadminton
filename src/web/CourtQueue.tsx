@@ -6,7 +6,6 @@ import {
   courtPhase,
   idleAccounts,
   idleTooMany,
-  PHOTO_MAX_SIDE,
   type PhotoCourt,
   type PhotoResult,
   QUEUE_COURT_MAX,
@@ -25,8 +24,9 @@ import { toPacific } from "../shared/time";
 import type { MyEvent } from "../shared/types";
 import { api } from "./api";
 import { CourtCombo } from "./CourtCombo";
-import { CourtMap, hasCourtMap } from "./CourtMap";
+import { CourtMap, showsCourtMap } from "./CourtMap";
 import { useAction } from "./components";
+import { shrinkPhoto } from "./photo";
 import { t } from "./i18n";
 
 /** Over this many accounts, the lists get a search box. */
@@ -54,7 +54,7 @@ type Sheet = { kind: "court"; court: QueueCourt | null } | { kind: "accounts" } 
 export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => void }) {
   const q = props.e.queue!;
   const now = useNow();
-  const hasMap = hasCourtMap(props.e);
+  const hasMap = showsCourtMap(q);
   const [sheet, setSheet] = useState<Sheet>(null);
   // 选择 (the Owner and admins): the ticked courts' ids; null when not choosing.
   const [picked, setPicked] = useState<Set<number> | null>(null);
@@ -232,7 +232,9 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           onSaved={props.onChange}
         />
       )}
-      {sheet?.kind === "map" && hasMap && <CourtMap courts={q.courts} now={now} onClose={close} />}
+      {sheet?.kind === "map" && hasMap && (
+        <CourtMap base={props.base} e={props.e} q={q} now={now} onClose={close} onChange={props.onChange} />
+      )}
       {sheet?.kind === "accounts" && (
         <AccountsSheet base={props.base} e={props.e} q={q} onClose={close} onChange={props.onChange} />
       )}
@@ -626,26 +628,6 @@ function CourtSheet(props: {
       )}
     </SheetFrame>
   );
-}
-
-/**
- * The photo shrunk to PHOTO_MAX_SIDE on its long side and saved as JPEG (Ke Li: 照片分辨率请压缩), as
- * base64 for the request; about 300 KB from a phone's 3-5 MB.
- */
-async function shrinkPhoto(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.8));
-  if (!blob) throw new Error("toBlob");
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
 }
 
 /** 拍照登记: take or pick a photo of the hall's screen; what is read fills the form below. */

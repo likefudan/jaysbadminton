@@ -1,3 +1,5 @@
+import type { CourtMapLayout } from "./courtMap";
+
 /**
  * 球场排队: events at halls where courts are taken by queuing on the hall's own computer. Players
  * share hall accounts on the event and enter, by hand, the courts we hold or queue for; the pages
@@ -62,6 +64,10 @@ export interface QueueInfo {
   idleAlert: { pct: number; from: string; to: string } | null;
   /** How 登记球场 shows the hall accounts (设置, Ke Li): see QueueAccountsView. */
   accountsView: QueueAccountsView;
+  /** 球场图: the venue's floor plan, null until someone sets one. */
+  map: CourtMapLayout | null;
+  /** The viewer may set or remove the plan: the Owner, admins and whoever runs the event. */
+  mapEdit: boolean;
 }
 
 /**

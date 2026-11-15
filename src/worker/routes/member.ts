@@ -1,3 +1,4 @@
+import { readCourtMapPhoto, removeCourtMap, saveCourtMap } from "../courtMap";
 import { Hono } from "hono";
 import { settle } from "../../shared/settle";
 import type {
@@ -393,7 +394,9 @@ async function myEvents(
         roster: names,
         // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
         queue:
-          (onIt || runs) && queueOnCard(row, always) ? await queueInfo(env, row, m.id, managesQueue(env, m)) : null,
+          (onIt || runs) && queueOnCard(row, always)
+            ? await queueInfo(env, row, m.id, managesQueue(env, m), runs || managesQueue(env, m))
+            : null,
         courts: onIt || runs ? bookedCourts(row) : [],
         kcal: mine.kcalOf(e.id),
         kcalOpen: canRead(row, selfOn, readDays),
@@ -551,6 +554,31 @@ memberRoutes.post("/:token/events/:id/queue/courts", async (c) => {
 memberRoutes.post("/:token/events/:id/queue/photo", async (c) => {
   const { e, m } = await queueEventFor(c, c.req.param("id"));
   return c.json(await readCourtPhoto(c.env, e, m.id, await readJson(c.req.raw)));
+});
+
+// 球场图: the Owner, admins and whoever runs the event photograph the venue's plan, check it and
+// save it for the venue (Ke Li 2026-11-15). Reading saves nothing.
+async function courtMapEditor(c: { env: Env; get: (k: "member") => MemberRow }, id: string) {
+  const { e, m, runs } = await queueEventFor(c, id);
+  if (!runs && !managesQueue(c.env, m)) throw badRequest("只有群主、管理员和这个活动的组织者可以设置球场图");
+  return { e, m };
+}
+
+memberRoutes.post("/:token/events/:id/queue/map/photo", async (c) => {
+  const { e, m } = await courtMapEditor(c, c.req.param("id"));
+  return c.json(await readCourtMapPhoto(c.env, e, m.id, await readJson(c.req.raw)));
+});
+
+memberRoutes.post("/:token/events/:id/queue/map", async (c) => {
+  const { e, m } = await courtMapEditor(c, c.req.param("id"));
+  await saveCourtMap(c.env, e, m.id, await readJson(c.req.raw));
+  return c.json({ ok: true });
+});
+
+memberRoutes.post("/:token/events/:id/queue/map/remove", async (c) => {
+  const { e } = await courtMapEditor(c, c.req.param("id"));
+  await removeCourtMap(c.env, e);
+  return c.json({ ok: true });
 });
 
 // 批量删除: the Owner and admins clear several courts at once (Ke Li); others remove them one by one.
