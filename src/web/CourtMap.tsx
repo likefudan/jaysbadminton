@@ -5,6 +5,7 @@ import {
   type CourtMapItem,
   type CourtMapLayout,
   type CourtMapOld,
+  type CourtMapVenue,
   courtNumber,
   moveStep,
   snapMove,
@@ -31,8 +32,8 @@ export function courtTones(courts: QueueCourt[], now: number): Map<number, Tone>
   return tones;
 }
 
-/** The 球场图 button shows when the venue has a plan, or when the viewer can make one. */
-export const showsCourtMap = (q: QueueInfo) => q.map !== null || q.mapEdit;
+/** The card's 球场图 button shows only when the venue has a plan (they are made in 设置). */
+export const showsCourtMap = (q: QueueInfo) => q.map !== null;
 
 /** The legend below the plan, in the plan's own frame so it turns with it. */
 const LEGEND_H = 30;
@@ -287,26 +288,45 @@ const BLANK: CourtMapLayout = {
 };
 
 /**
- * 球场图 (Ke Li 2026-11-15): the venue's floor plan with our courts coloured as on the card. One
- * plan per venue (its address). The Owner, admins and organizers add one by photographing the plan
- * posted at the venue (the model draws it), put it right in 编辑, and change or remove it later.
+ * 球场图 on an event's card (Ke Li 2026-11-15): the venue's floor plan with our courts coloured as
+ * on the card, to look at only. Plans are made and changed in 设置 → 球场图.
  */
-export function CourtMap(props: {
+export function CourtMap(props: { e: MyEvent; q: QueueInfo; now: number; onClose: () => void }) {
+  const map = props.q.map;
+  return (
+    <Panel title={t("球场图")} label={t("球场图")} class="cm-panel" onClose={props.onClose}>
+      {props.e.address && <p class="muted small cm-where">{props.e.address}</p>}
+      {map && <Plan layout={map} tones={courtTones(props.q.courts, props.now)} legend />}
+    </Panel>
+  );
+}
+
+const when = (iso: string) => {
+  const p = toPacific(iso);
+  return `${p.date.slice(5).replace("-", "/")} ${p.time}`;
+};
+
+/**
+ * 设置 → 球场图 → one venue (Ke Li 2026-11-15: 在设置里管理): the Owner, admins and organizers add
+ * its plan by photographing the one posted at the venue (the model draws it) or by hand, put it
+ * right in the editor, replace or remove it, and bring back one of 以前的图.
+ */
+export function CourtMapManager(props: {
   base: string;
-  e: MyEvent;
-  q: QueueInfo;
-  now: number;
+  venue: CourtMapVenue;
+  /** The site has a key for the model that reads the photo. */
+  photo: boolean;
   onClose: () => void;
   onChange: () => void;
 }) {
-  const path = `${props.base}/events/${props.e.id}/queue/map`;
+  const path = `${props.base}/court-maps`;
+  const { venue, address, map } = props.venue;
+  const where = { venue, address };
   const [draft, setDraft] = useState<CourtMapLayout | null>(null);
   const [problem, setProblem] = useState("");
   // 以前的图: null until asked for.
   const [old, setOld] = useState<CourtMapOld[] | null>(null);
   const { busy, error, run } = useAction();
-  const q = props.q;
-  const venue = props.e.location;
 
   async function read(file: File) {
     await run(async () => {
@@ -327,7 +347,7 @@ export function CourtMap(props: {
     setProblem(bad || "");
     if (bad) return;
     await run(async () => {
-      await api(path, { layout: draft });
+      await api(`${path}/save`, { ...where, layout: draft });
       setDraft(null);
       props.onChange();
     });
@@ -336,18 +356,14 @@ export function CourtMap(props: {
   async function remove() {
     if (!confirm(t("删掉「{venue}」的球场图？以后在这里的活动都不再显示。", { venue }))) return;
     await run(async () => {
-      await api(`${path}/remove`, {});
+      await api(`${path}/remove`, where);
       props.onChange();
     });
   }
 
   async function history() {
-    await run(async () => setOld((await api<{ history: CourtMapOld[] }>(`${path}/history`, {})).history));
+    await run(async () => setOld((await api<{ history: CourtMapOld[] }>(`${path}/history`, where)).history));
   }
-  const when = (iso: string) => {
-    const p = toPacific(iso);
-    return `${p.date.slice(5).replace("-", "/")} ${p.time}`;
-  };
   const historyButton = (
     <button type="button" class="button secondary" disabled={busy} onClick={history}>
       {t("以前的图")}
@@ -411,53 +427,45 @@ export function CourtMap(props: {
         </div>
       </>
     );
-  } else if (q.map) {
+  } else if (map) {
     body = (
       <>
-        <Plan layout={q.map} tones={courtTones(q.courts, props.now)} legend />
-        {q.mapEdit && (
-          <div class="cm-actions cm-manage">
-            {q.photo && <PhotoInputs busy={busy} onPick={read} again />}
-            <div class="cm-actions row">
-              <button type="button" class="button secondary" disabled={busy} onClick={() => setDraft(q.map)}>
-                {t("修改")}
-              </button>
-              {historyButton}
-              <button type="button" class="button secondary danger" disabled={busy} onClick={remove}>
-                {t("删除")}
-              </button>
-            </div>
+        <Plan layout={map} />
+        <div class="cm-actions cm-manage">
+          {props.photo && <PhotoInputs busy={busy} onPick={read} again />}
+          <div class="cm-actions row">
+            <button type="button" class="button secondary" disabled={busy} onClick={() => setDraft(map)}>
+              {t("修改")}
+            </button>
+            {historyButton}
+            <button type="button" class="button secondary danger" disabled={busy} onClick={remove}>
+              {t("删除")}
+            </button>
           </div>
-        )}
+        </div>
       </>
     );
   } else {
     body = (
       <div class="cm-empty">
         <p>{t("「{venue}」还没有球场图。", { venue })}</p>
-        {q.mapEdit && (
+        {props.photo && (
           <>
-            {q.photo && (
-              <>
-                <p class="muted small">
-                  {t("拍一张场馆贴的球场平面图，会自动画出来，可以再改编号和位置。照片不会保存。")}
-                </p>
-                <PhotoInputs busy={busy} onPick={read} />
-              </>
-            )}
-            <button type="button" class="button secondary" disabled={busy} onClick={() => setDraft(BLANK)}>
-              {t("不拍照，手动画")}
-            </button>
-            {historyButton}
+            <p class="muted small">{t("拍一张场馆贴的球场平面图，会自动画出来，可以再改编号和位置。照片不会保存。")}</p>
+            <PhotoInputs busy={busy} onPick={read} />
           </>
         )}
+        <button type="button" class="button secondary" disabled={busy} onClick={() => setDraft(BLANK)}>
+          {t("不拍照，手动画")}
+        </button>
+        {historyButton}
       </div>
     );
   }
 
   return (
-    <Panel title={draft ? t("编辑球场图") : t("球场图")} label={t("球场图")} class="cm-panel" onClose={props.onClose}>
-      {props.e.address && !draft && <p class="muted small cm-where">{props.e.address}</p>}
+    <Panel title={draft ? t("编辑球场图") : venue} label={t("球场图")} class="cm-panel" onClose={props.onClose}>
+      {address && !draft && <p class="muted small cm-where">{address}</p>}
       {body}
       {error && <p class="error">{error}</p>}
     </Panel>

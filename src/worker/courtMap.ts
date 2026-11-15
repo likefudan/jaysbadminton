@@ -4,24 +4,39 @@ import {
   COURT_MAP_ITEMS_MAX,
   type CourtMapLayout,
   type CourtMapOld,
+  type CourtMapVenue,
   cleanLayout,
   courtMapPlace,
 } from "../shared/courtMap";
 import { aiEnabled, askAi } from "./ai";
 import { now } from "./db";
 import type { Env } from "./env";
-import type { EventRow } from "./events";
+import { checkVenue } from "./events";
 import { badRequest, HttpError } from "./http";
 
 /**
  * 球场图 (Ke Li 2026-11-15): one floor plan per venue, the venue being its address (courtMapPlace).
  * Read from a photo of the venue's posted court map by the 拍照登记 model, then fixed by hand in
  * the page (numbers, positions, courts added or removed); the photo is only sent to the model,
- * never kept (as with 拍照登记). The Owner, admins and organizers add, change and remove it from
- * the 球场排队 card of any event at the venue.
+ * never kept (as with 拍照登记). The Owner, admins and organizers add, change and remove it in
+ * 设置 → 球场图 (Ke Li: 在设置里管理); an event's 球场排队 card only shows it.
  */
 
-/** Same limit as 拍照登记 (the two share the count): a stuck button can't run up the bill. */
+/** A venue as events and 最近的场馆 carry it: its name and address as typed. */
+export interface Venue {
+  location: string;
+  address: string;
+}
+
+/** The venue a 设置 request is about. */
+export function venueOf(body: Record<string, unknown>): Venue {
+  const location = typeof body.venue === "string" ? body.venue.trim() : "";
+  const address = typeof body.address === "string" ? body.address.trim() : "";
+  checkVenue(location, address);
+  return { location, address };
+}
+
+/** Court map photos an hour, for the whole site: a stuck button can't run up the bill. */
 const PER_HOUR = 20;
 const MAX_BYTES = 2_000_000;
 
@@ -66,7 +81,7 @@ Items:
 
 Give at most ${COURT_MAP_ITEMS_MAX} items. Do not invent courts you cannot see.`;
 
-export async function getCourtMap(env: Env, e: Pick<EventRow, "location" | "address">): Promise<CourtMapLayout | null> {
+export async function getCourtMap(env: Env, e: Venue): Promise<CourtMapLayout | null> {
   const row = await env.DB.prepare("SELECT layout FROM court_maps WHERE place = ?")
     .bind(courtMapPlace(e.location, e.address))
     .first<{ layout: string }>();
@@ -91,30 +106,22 @@ function checkJpeg(v: unknown) {
 }
 
 /** Reads the photo into a layout for the page to show; nothing is saved until 保存. */
-export async function readCourtMapPhoto(
-  env: Env,
-  e: EventRow,
-  memberId: string,
-  body: Record<string, unknown>,
-): Promise<CourtMapLayout> {
+export async function readCourtMapPhoto(env: Env, body: Record<string, unknown>): Promise<CourtMapLayout> {
   if (!aiEnabled(env)) throw badRequest("拍照识别还没有开通");
   checkJpeg(body.image);
-  const ts = now();
+  // These calls belong to no event; each is one row in ai_usage (two when the fallback answers).
   const recent = await env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM queue_photos WHERE event_id = ? AND member_id = ? AND created_at > ?",
+    "SELECT COUNT(DISTINCT request) AS n FROM ai_usage WHERE use = 'photo' AND event_id IS NULL AND created_at > ?",
   )
-    .bind(e.id, memberId, new Date(Date.parse(ts) - 3600_000).toISOString())
+    .bind(new Date(Date.now() - 3600_000).toISOString())
     .first<{ n: number }>();
   if ((recent?.n ?? 0) >= PER_HOUR) throw badRequest("拍照用得太频繁了，请稍后再试");
-  await env.DB.prepare("INSERT INTO queue_photos (event_id, member_id, created_at) VALUES (?, ?, ?)")
-    .bind(e.id, memberId, ts)
-    .run();
-  const raw = await askAi(
-    env,
-    "photo",
-    { text: PROMPT, image: body.image as string, schema: SCHEMA, maxTokens: 32000 },
-    { eventId: e.id },
-  );
+  const raw = await askAi(env, "photo", {
+    text: PROMPT,
+    image: body.image as string,
+    schema: SCHEMA,
+    maxTokens: 32000,
+  });
   if (raw === undefined) throw new HttpError(502, "photo_failed", "照片没有识别出来，请重拍一张");
   const layout = (raw as { found?: unknown }).found === false ? null : cleanLayout(raw);
   if (!layout) throw badRequest("照片上没有找到球场图，请对准场馆贴的平面图重拍一张");
@@ -140,7 +147,7 @@ function keepOld(env: Env, place: string, at: string): D1PreparedStatement[] {
 }
 
 /** 保存: the layout as fixed in the page becomes the venue's one plan; the one before it is kept. */
-export async function saveCourtMap(env: Env, e: EventRow, memberId: string, body: Record<string, unknown>) {
+export async function saveCourtMap(env: Env, e: Venue, memberId: string, body: Record<string, unknown>) {
   const layout = cleanLayout(body.layout);
   if (!layout) throw badRequest("球场图里至少要有一片场地");
   const place = courtMapPlace(e.location, e.address);
@@ -162,7 +169,7 @@ export async function saveCourtMap(env: Env, e: EventRow, memberId: string, body
 }
 
 /** 删除: the venue has no plan any more; the one removed is kept with 以前的图. */
-export async function removeCourtMap(env: Env, e: EventRow) {
+export async function removeCourtMap(env: Env, e: Venue) {
   const place = courtMapPlace(e.location, e.address);
   await env.DB.batch([
     ...keepOld(env, place, now()),
@@ -171,7 +178,7 @@ export async function removeCourtMap(env: Env, e: EventRow) {
 }
 
 /** 以前的图 of the event's venue, newest first, each ready to open in the editor and save again. */
-export async function courtMapHistory(env: Env, e: EventRow): Promise<CourtMapOld[]> {
+export async function courtMapHistory(env: Env, e: Venue): Promise<CourtMapOld[]> {
   const { results } = await env.DB.prepare(
     `SELECT h.id, h.layout, h.updated_at, h.replaced_at, m.username AS by_name
      FROM court_map_history h LEFT JOIN members m ON m.id = h.updated_by
@@ -196,4 +203,61 @@ export async function purgeCourtMapHistory(env: Env, at = new Date()) {
   await env.DB.prepare("DELETE FROM court_map_history WHERE replaced_at < ?")
     .bind(historyFloor(at.toISOString()))
     .run();
+}
+
+/**
+ * Plans saved under a place as an earlier version spelled it move to the place their address has
+ * now, with their 以前的图; where two meet, the one saved last stays.
+ */
+export async function rekeyCourtMaps(env: Env) {
+  const { results } = await env.DB.prepare(
+    "SELECT place, venue, address FROM court_maps ORDER BY updated_at DESC",
+  ).all<{ place: string; venue: string; address: string }>();
+  const taken = new Set<string>();
+  // Rows that lose their place go first, so the one moving in finds it free.
+  const drop: D1PreparedStatement[] = [];
+  const move: D1PreparedStatement[] = [];
+  for (const r of results) {
+    const place = courtMapPlace(r.venue, r.address);
+    if (taken.has(place))
+      drop.push(
+        ...keepOld(env, r.place, now()),
+        env.DB.prepare("DELETE FROM court_maps WHERE place = ?").bind(r.place),
+      );
+    else if (place !== r.place)
+      move.push(env.DB.prepare("UPDATE court_maps SET place = ? WHERE place = ?").bind(place, r.place));
+    if (place !== r.place)
+      move.push(env.DB.prepare("UPDATE court_map_history SET place = ? WHERE place = ?").bind(place, r.place));
+    taken.add(place);
+  }
+  if (drop.length + move.length) await env.DB.batch([...drop, ...move]);
+}
+
+/**
+ * 设置 → 球场图: the venues to choose from, each with its plan when it has one. They are 最近的场馆
+ * and every venue that already has a plan (it may have dropped off that list), one row per place.
+ */
+export async function courtMapVenues(env: Env): Promise<CourtMapVenue[]> {
+  await rekeyCourtMaps(env);
+  const [maps, recent] = await env.DB.batch<Record<string, string>>([
+    env.DB.prepare("SELECT place, venue, address, layout, updated_at FROM court_maps ORDER BY updated_at DESC"),
+    env.DB.prepare("SELECT name, address FROM locations ORDER BY last_used_at DESC LIMIT 30"),
+  ]);
+  const out = new Map<string, CourtMapVenue>();
+  for (const r of recent!.results) {
+    const place = courtMapPlace(r.name!, r.address!);
+    if (!out.has(place)) out.set(place, { venue: r.name!, address: r.address!, map: null, updatedAt: null });
+  }
+  for (const m of maps!.results) {
+    let map: CourtMapLayout | null = null;
+    try {
+      map = cleanLayout(JSON.parse(m.layout!));
+    } catch {}
+    if (!map) continue;
+    const known = out.get(m.place!);
+    // The name as events use it now, when the venue is still on the list.
+    out.set(m.place!, { venue: known?.venue ?? m.venue!, address: m.address!, map, updatedAt: m.updated_at! });
+  }
+  // Venues with a plan first, then the rest as 最近的场馆 has them.
+  return [...out.values()].sort((a, b) => Number(!!b.map) - Number(!!a.map));
 }

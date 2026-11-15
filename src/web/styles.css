@@ -6942,6 +6942,9 @@ label.set-row {
 .cm-where {
   margin: 0;
 }
+.cm-intro {
+  margin: 0 4px 12px;
+}
 .cm-old {
   display: flex;
   flex-direction: column;

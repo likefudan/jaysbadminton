@@ -229,9 +229,7 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           onSaved={props.onChange}
         />
       )}
-      {sheet?.kind === "map" && hasMap && (
-        <CourtMap base={props.base} e={props.e} q={q} now={now} onClose={close} onChange={props.onChange} />
-      )}
+      {sheet?.kind === "map" && hasMap && <CourtMap e={props.e} q={q} now={now} onClose={close} />}
       {sheet?.kind === "accounts" && (
         <AccountsSheet base={props.base} e={props.e} q={q} onClose={close} onChange={props.onChange} />
       )}

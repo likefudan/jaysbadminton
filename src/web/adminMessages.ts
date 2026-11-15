@@ -1477,4 +1477,14 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "結束後活動存進歷史活動，名單不能再改。確定結束嗎？",
     en: "Once ended, the event moves to past events and its list can't be changed. End it now?",
   },
+  "每个球馆一张图，按地址对应。活动卡片上的「球场图」只能看，在这里添加和修改。": {
+    tw: "每個球館一張圖，按地址對應。活動卡片上的「球場圖」只能看，在這裡新增和修改。",
+    en: "One map per venue, matched by address. The Court map button on an event card only shows it; add and change maps here.",
+  },
+  "还没有球馆。新建一次活动后，球馆会出现在这里。": {
+    tw: "還沒有球館。新建一次活動後，球館會出現在這裡。",
+    en: "No venues yet. A venue appears here once an event has been created there.",
+  },
+  "{n} 片 · {day}": { tw: "{n} 片 · {day}", en: "{n} courts · {day}" },
+  未添加: { tw: "未新增", en: "Not added" },
 };

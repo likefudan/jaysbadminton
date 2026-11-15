@@ -64,13 +64,7 @@ export async function queueAccountsView(env: Env): Promise<QueueAccountsView> {
 }
 
 /** Everything the card shows: shared accounts (with who added them) and the courts entered. */
-export async function queueInfo(
-  env: Env,
-  e: EventRow,
-  viewer: string,
-  manage: boolean,
-  mapEdit: boolean,
-): Promise<QueueInfo> {
+export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: boolean): Promise<QueueInfo> {
   const [pct, view, map, accounts, courts] = await Promise.all([
     idleAlertPct(env),
     queueAccountsView(env),
@@ -128,7 +122,6 @@ export async function queueInfo(
     idleAlert: pct ? { pct, from: e.start_at, to: e.end_at } : null,
     accountsView: view,
     map,
-    mapEdit,
   };
 }
 
