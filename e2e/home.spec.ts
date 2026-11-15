@@ -17,13 +17,13 @@ const event = (o: object) => ({
 
 type Rank = { rank: number; name: string; value: number };
 const KEYS = ["calories", "attendance", "hours", "progress", "streak", "friends", "queue", "early"];
-/** A leaderboard as /api/public/home sends it: the given boards' year lists, months empty. */
+/** A leaderboard as /api/public/home sends it: the given boards' month lists (月度 shows first), years empty. */
 const board = (lists: Record<string, Rank[]>, boards = ["calories", "attendance", "streak", "friends"]) => ({
   year: 2026,
   month: 11,
   boards,
-  ...Object.fromEntries(KEYS.map((k) => [k, lists[k] ?? []])),
-  monthly: Object.fromEntries(KEYS.map((k) => [k, []])),
+  ...Object.fromEntries(KEYS.map((k) => [k, []])),
+  monthly: Object.fromEntries(KEYS.map((k) => [k, lists[k] ?? []])),
 });
 
 /** 首页: the next event as one big card, 排行榜 and 历史活动 as rows that scroll sideways, not the page. */
@@ -83,10 +83,13 @@ test("the home page leads with the next event and scrolls the small cards sidewa
 
   await page.getByRole("tab", { name: "连续" }).click();
   await expect(page.locator("main")).toContainText("这段时间还没有人上榜");
-  // 月度 shows this month's lists, under its own title.
+  // 月度 comes first and is shown first; 年度 shows the year's lists, under its own title (Ke Li 2026-11-15).
   await page.getByRole("tab", { name: "出勤" }).click();
-  await page.getByRole("button", { name: "月度" }).click();
+  await expect(page.locator(".period-seg button")).toHaveText(["月度", "年度"]);
+  await expect(page.getByRole("button", { name: "月度" })).toHaveClass(/\bon\b/);
   await expect(page.locator(".section-title", { hasText: "2026 年 11 月排行榜" })).toBeVisible();
+  await page.getByRole("button", { name: "年度" }).click();
+  await expect(page.locator(".section-title", { hasText: "2026 年排行榜" })).toBeVisible();
   await expect(page.locator("main")).toContainText("这段时间还没有人上榜");
 });
 
