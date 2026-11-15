@@ -1,4 +1,4 @@
-// 发布管理网站 badminton.llmat.dev: Ke Li sees which release each production site runs and releases a
+// 发布管理网站 badminton.llmat.dev: Ke Li (and the release engineers she approves) sees which release each production site runs and releases a
 // version to chosen sites (it starts the Release workflow). Deployed from main by CI (deploy-ops), not by
 // releases. Secrets (scripts/sync-ops-secrets.mjs): OPS_GITHUB_TOKEN, OPS_EMAIL, GOOGLE_CLIENT_ID,
 // GOOGLE_CLIENT_SECRET, OPS_SESSION_KEY (made once by CI).
@@ -13,7 +13,11 @@
     "OPS_ORIGIN": "https://badminton.llmat.dev",
     "GITHUB_REPO": "likefudan/jaysbadminton",
     // Jay's site: the production Worker from wrangler.jsonc; the others come from sites.json.
-    "MAIN_SITE_DOMAIN": "jaysbadminton.llmat.dev"
+    "MAIN_SITE_DOMAIN": "jaysbadminton.llmat.dev",
+    "OWNER_NAME": "Ke Li"
   },
+  // Who else may sign in (users.ts): applicants, viewers and release engineers, in one Durable Object.
+  "durable_objects": { "bindings": [{ "name": "USERS", "class_name": "OpsUsers" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OpsUsers"] }],
   "observability": { "enabled": true }
 }

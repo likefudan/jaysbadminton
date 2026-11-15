@@ -1,5 +1,6 @@
 import { LANGS, type Lang, MESSAGES, tr } from "./i18n";
 import { TAG } from "./logic";
+import { MAX_NOTE, type Role, type User } from "./users";
 
 // The release site's page: a shell, its stylesheet and its script (no inline code, so the content policy
 // allows only this site's own files). The script draws everything from /api/state.
@@ -9,8 +10,33 @@ const esc = (s: string) =>
 
 const ERRORS: Record<string, string> = {
   login: "登录没有完成，请再试一次。",
-  account: "这个 Google 账号不能管理发布。",
+  account: "这个 Google 账号不能用（邮箱还没有验证）。",
+  name: "请填写你的名字。",
+  full: "申请的人太多了，请稍后再试。",
+  decided: "这个账号的申请已经处理过了。",
 };
+
+/** A signed-in account that is not approved: the application form, or where its application stands. */
+function applyCard(
+  t: (k: string, v?: Record<string, string>) => string,
+  email: string,
+  user: User | null,
+  owner: string,
+  error: string | null,
+) {
+  const err = error && ERRORS[error] ? `<p class="warn">${t(ERRORS[error])}</p>` : "";
+  const as = `<p class="muted">${esc(t("已登录：{email}", { email }))}</p>`;
+  if (user?.status === "rejected")
+    return `<div class="card login"><b>${t("这个账号没有权限")}</b>${as}<p class="muted">${esc(t("有需要请直接联系 {owner}。", { owner }))}</p></div>`;
+  if (user?.status === "pending")
+    return `<div class="card login"><b>${t("申请已提交")}</b>${as}<p>${esc(t("等 {owner} 批准后，刷新这个页面就能看到。", { owner }))}</p>${
+      user.note ? `<p class="muted">${esc(t("你写的说明：{note}", { note: user.note }))}</p>` : ""
+    }</div>`;
+  return `<div class="card"><b>${t("申请使用")}</b>${as}<p>${esc(t("这个网站管理各羽毛球网站的发布。申请后，{owner} 批准了你才能查看；发布、回滚和恢复只有发布工程师可以做。", { owner }))}</p>${err}
+<form method="post" action="/apply" class="apply"><label>${t("你的名字")}<input name="name" required maxlength="60" autocomplete="name"></label>
+<label>${t("说明（可不填）")}<textarea name="note" maxlength="${MAX_NOTE}" rows="3" placeholder="${esc(t("比如：你是谁，为什么需要"))}"></textarea></label>
+<button class="btn p">${t("提交申请")}</button></form></div>`;
+}
 
 // The 文A button, as on the badminton sites. A <details> menu of plain links, so it works on the sign-in
 // page too, which runs no script.
@@ -25,25 +51,32 @@ function langSwitch(lang: Lang): string {
 
 export function page({
   email,
+  role = null,
+  user = null,
+  owner = "",
   problem,
   error,
   lang = "zh-CN",
 }: {
   email: string | null;
+  role?: Role | null;
+  user?: User | null;
+  owner?: string;
   problem: string | null;
   error: string | null;
   lang?: Lang;
 }) {
-  const t = (key: string) => tr(lang, key);
+  const t = (key: string, vars?: Record<string, string>) => tr(lang, key, vars);
   const out = email
     ? `<form method="post" action="/logout"><button class="link" title="${esc(email)}">${t("退出")}</button></form>`
     : "";
   let body: string;
   if (problem) body = `<div class="card"><b>${t("还不能用")}</b><p class="muted">${esc(problem)}</p></div>`;
   else if (!email)
-    body = `<div class="card login"><p>${t("只有管理员的 Google 账号可以登录。")}</p>${
+    body = `<div class="card login"><p>${t("用 Google 登录。第一次来的人登录后可以申请。")}</p>${
       error && ERRORS[error] ? `<p class="warn">${t(ERRORS[error])}</p>` : ""
     }<a class="btn p" href="/login">${t("用 Google 登录")}</a></div>`;
+  else if (!role) body = applyCard(t, email, user, owner, error);
   else body = `<div id="app"><p class="muted center">${t("正在读取…")}</p></div><script src="/app.js"></script>`;
   return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -122,6 +155,12 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 .ptr{position:fixed;top:max(10px,env(safe-area-inset-top));left:50%;background:var(--card);color:var(--muted);padding:6px 14px;border-radius:99px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:9}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:9;max-width:90vw}
 .login{text-align:center;padding:28px 14px}
+.apply{display:flex;flex-direction:column;gap:12px;margin-top:12px}.apply label{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+.apply input,.apply textarea{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}
+.user{padding:12px 0;border-top:1px solid var(--line)}.user:first-child{border-top:0}.user .note{margin:6px 0 0;font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.user .acts2{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.user .btn{padding:7px 12px;font-size:14px}
+.pill.wait{background:var(--warnbg);color:var(--warn)}.pill.no{background:var(--soft);color:var(--muted)}
+.badge{display:inline-block;min-width:20px;padding:1px 7px;border-radius:99px;background:var(--accent);color:#fff;font-size:12px;text-align:center;margin-left:6px}
 `;
 
 export const APP_JS = `"use strict";
@@ -210,6 +249,10 @@ async function send(sites, tag) {
   return true;
 }
 
+// Viewers see everything but change nothing; the server refuses them anyway.
+const canRelease = () => data.me && (data.me.role === "owner" || data.me.role === "engineer");
+const readOnly = () => h("div", { class: "muted" }, t("你是只读用户：可以查看，发布、回滚和恢复只有发布工程师可以做。"));
+
 function heroCard() {
   if (!data.pendingCount) {
     return h("div", { class: "card" }, h("b", {}, t("没有新改动")),
@@ -230,6 +273,12 @@ function heroCard() {
     return h("label", { class: "chip" }, box, h("span", { class: "dot", style: "background:" + s.color + ";margin:0 0 0 2px" }), short(s.name));
   });
   const more = data.pendingCount > data.pending.length ? h("li", { class: "muted" }, t("还有 {n} 个", { n: data.pendingCount - data.pending.length })) : null;
+  if (!canRelease())
+    return h("div", { class: "card hero" },
+      h("b", {}, t("新版本可以发布")),
+      h("div", { class: "muted" }, t("main 比 {tag} 多 {n} 个改动", { tag: data.latest || t("上个版本"), n: data.pendingCount }) + " · " + ci),
+      h("ul", { class: "changes" }, data.pending.map((c) => h("li", {}, c)), more),
+      readOnly());
   return h("div", { class: "card hero" },
     h("b", {}, t("新版本可以发布")),
     h("div", { class: "muted" }, t("main 比 {tag} 多 {n} 个改动", { tag: data.latest || t("上个版本"), n: data.pendingCount }) + " · " + ci),
@@ -333,7 +382,7 @@ function openPanel(s) {
       : newer || !isTag(s.version) ? h("span", { class: "pill" }, v.tag === data.latest ? t("最新") : t("较新"))
       : h("span", { class: "muted" }, t("回滚"));
     // A locked version can still be chosen: it needs the database restored first (恢复备份).
-    const radio = h("input", { type: "radio", name: "v", disabled: current || !v.perSite });
+    const radio = h("input", { type: "radio", name: "v", disabled: current || !v.perSite || !canRelease() });
     radio.addEventListener("change", () => {
       pick = v.tag;
       restoreFirst = locked;
@@ -373,7 +422,7 @@ function openPanel(s) {
       h("p", { class: "muted", style: "margin:0 0 6px" }, [t(s.ok ? "{domain}。" : "{domain}（现在打不开）。", { domain: s.domain }), s.version ? t("现在是 {tag}。", { tag: s.version }) : null,
         t("换版本前会自动备份这个站点的数据库。回滚到更早的版本，如果数据库已经有它不认识的改动，会被自动拒绝。")].filter(Boolean).join(EN ? " " : "")),
       rows),
-    h("div", { class: "foot" }, go));
+    h("div", { class: "foot" }, canRelease() ? go : readOnly()));
   document.body.append(panel);
   history.pushState({ panel: true }, "");
 }
@@ -464,20 +513,70 @@ function openReleases() {
   history.pushState({ panel: true }, "");
   next();
 }
+// 用户和权限 (the owner only): applications to approve, and who is a viewer or a release engineer.
+const STATUS = { pending: ["等批准", "wait"], engineer: ["发布工程师", ""], viewer: ["只读", "old"], rejected: ["没有权限", "no"] };
+const ACTIONS = {
+  pending: [["viewer", "批准（只读）", ""], ["engineer", "批准为发布工程师", "p"], ["rejected", "拒绝", ""]],
+  viewer: [["engineer", "设为发布工程师", "p"], ["rejected", "取消权限", ""]],
+  engineer: [["viewer", "改为只读", ""], ["rejected", "取消权限", ""]],
+  rejected: [["viewer", "批准（只读）", ""], ["remove", "删除（可以重新申请）", ""]],
+};
+function openUsers() {
+  const list = h("div", { class: "card rows" }, h("p", { class: "muted" }, t("读取中…")));
+  const draw = (users) => {
+    data.waiting = users.filter((u) => u.status === "pending").length;
+    if (!users.length) return list.replaceChildren(h("p", { class: "muted" }, t("还没有人申请")));
+    list.replaceChildren(...users.map((u) => {
+      const [name, cls] = STATUS[u.status];
+      const buttons = ACTIONS[u.status].map(([action, text, p]) => {
+        const b = h("button", { class: "btn" + (p ? " p" : "") }, t(text));
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          const res = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: u.email, action }) });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) { b.disabled = false; return toast(body.error || t("没能保存")); }
+          draw(body.users);
+        });
+        return b;
+      });
+      return h("div", { class: "user" },
+        h("div", { class: "row" }, h("b", {}, u.name || u.email), h("span", { class: "pill " + cls }, t(name))),
+        h("div", { class: "muted" }, u.email + " · " + t("申请于 {when}", { when: when(u.appliedAt) })),
+        u.note ? h("p", { class: "note" }, u.note) : null,
+        h("div", { class: "acts2" }, buttons));
+    }));
+  };
+  panel = h("div", { class: "panel" },
+    h("header", { class: "top" }, h("button", { class: "back", onclick: () => { closePanel(); render(); } }, t("‹ 返回")), h("b", {}, t("用户和权限")), h("span", { style: "width:40px" })),
+    h("div", { class: "list" },
+      h("p", { class: "muted", style: "margin:0 0 10px" }, t("只读用户可以看这个页面；发布工程师还可以发布、回滚和恢复。取消权限后对方立刻不能再用。")),
+      list));
+  document.body.append(panel);
+  history.pushState({ panel: true }, "");
+  fetch("/api/users").then(async (res) => {
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || res.status);
+    draw(body.users);
+  }).catch((err) => list.replaceChildren(h("p", { class: "warn" }, t("读取失败") + "：" + (err.message || err))));
+}
 function closePanel() {
   if (!panel) return;
   panel.remove();
   panel = null;
   if (history.state && history.state.panel) history.back();
 }
-addEventListener("popstate", () => { if (panel) { panel.remove(); panel = null; } });
+addEventListener("popstate", () => { if (panel) { panel.remove(); panel = null; if (data) render(); } });
 
 function render() {
   if (!data.progress) clearInterval(window.__tick);
-  app.replaceChildren(data.progress ? progressCard() : heroCard(),
+  const users = data.me && data.me.role === "owner"
+    ? h("button", { class: "card linkrow", onclick: openUsers }, h("span", {}, t("用户和权限"), data.waiting ? h("span", { class: "badge" }, t("{n} 个申请", { n: data.waiting })) : null), h("span", { class: "muted chev" }, "›"))
+    : null;
+  app.replaceChildren(...[data.progress ? progressCard() : heroCard(),
     h("button", { class: "card linkrow", onclick: openReleases }, h("span", {}, t("所有版本和发布说明")), h("span", { class: "muted chev" }, "›")),
+    users,
     h("h3", {}, t("各站点")),
-    h("div", { class: "card rows" }, data.sites.map(siteRow)), h("h3", {}, t("最近的部署")), deploysCard());
+    h("div", { class: "card rows" }, data.sites.map(siteRow)), h("h3", {}, t("最近的部署")), deploysCard()].filter(Boolean));
 }
 load();
 

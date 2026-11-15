@@ -174,7 +174,7 @@ GitHub Actions secrets (none are needed for local development):
 | `AZURE_FOUNDRY_API_KEY` | Optional AI models (photo check-in, plain-language release notes) |
 | `GOOGLE_MAPS_API_KEY` | Optional address suggestions (Photon is used without it) |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Optional outgoing email |
-| `OPS_EMAIL`, `OPS_GITHUB_TOKEN` | Release admin site: who may sign in, and the token that starts workflows |
+| `OPS_EMAIL`, `OPS_GITHUB_TOKEN` | Release admin site: the owner who approves others (viewers, release engineers), and the token that starts workflows |
 
 CI creates each site's `TOKEN_KEY` on first deploy and never changes it. It encrypts stored links and keys and peppers the Owner password hash, and Cloudflare never shows it again, so keep the backups above.
 
