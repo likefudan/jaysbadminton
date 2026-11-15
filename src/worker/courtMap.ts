@@ -4,6 +4,7 @@ import {
   COURT_MAP_ITEMS_MAX,
   type CourtMapLayout,
   type CourtMapOld,
+  type CourtMapRead,
   type CourtMapVenue,
   cleanLayout,
   courtMapPlace,
@@ -11,17 +12,17 @@ import {
 import { toPacific } from "../shared/time";
 import type { Actor } from "./access";
 import { aiEnabled, aiRequestCost, askAi } from "./ai";
-import { actorId, groupAudit } from "./audit";
+import { actorId, groupAudit, OWNER } from "./audit";
 import { now } from "./db";
 import type { Env } from "./env";
 import { checkVenue } from "./events";
-import { badRequest, HttpError } from "./http";
+import { badRequest } from "./http";
 
 /**
  * 球场图 (Ke Li 2026-11-15): one floor plan per venue, the venue being its address (courtMapPlace).
  * Read from a photo of the venue's posted court map by the 拍照登记 model, then fixed by hand in
- * the page (numbers, positions, courts added or removed); the photo is only sent to the model,
- * never kept (as with 拍照登记). The Owner, admins and organizers add, change and remove it in
+ * the page (numbers, positions, courts added or removed); the photo is kept only until the model
+ * has answered (as with 拍照登记, it is for the model alone). The Owner, admins and organizers add, change and remove it in
  * 设置 → 球场图 (Ke Li: 在设置里管理); an event's 球场排队 card only shows it.
  */
 
@@ -109,20 +110,24 @@ function checkJpeg(v: unknown) {
   } catch {
     throw badRequest("照片格式不对，请重新拍一张");
   }
-  if (bytes.length > MAX_BYTES) throw badRequest("照片太大了，请重新拍一张");
+  // It waits for the reader in a database row, as text: 2 MB at most for the whole row.
+  if (bytes.length > MAX_BYTES || v.length > 1_900_000) throw badRequest("照片太大了，请重新拍一张");
   if (bytes[0] !== 0xff || bytes[1] !== 0xd8) throw badRequest("照片格式不对，请重新拍一张");
 }
 
+/** A photo the model has had this long without an answer is given up (the model gets two minutes). */
+const READ_STALE_MS = 10 * 60_000;
+
 /**
- * Reads the photo into a layout for the page to show; nothing is saved until 保存. Only the Owner
- * and admins may (Ke Li 2026-11-15), ten a month for a venue and ten a month each. Every photo sent
- * is written down with what it cost, and goes into 群操作记录.
+ * 拍照: takes the photo and hands it to the reader; the answer comes later (Ke Li 2026-11-15: 拍了
+ * 之后可以返回其他页面，过一会儿回来看结果), in 设置 → 球场图 on the venue. Only the Owner and admins
+ * may, ten a month for a venue and ten a month each, one at a time per venue.
  */
-export async function readCourtMapPhoto(
+export async function sendCourtMapPhoto(
   env: Env,
   actor: Pick<Actor, "memberId">,
   body: Record<string, unknown>,
-): Promise<CourtMapLayout> {
+): Promise<void> {
   if (!aiEnabled(env)) throw badRequest("拍照识别还没有开通");
   const venue = venueOf(body);
   checkJpeg(body.image);
@@ -131,45 +136,127 @@ export async function readCourtMapPhoto(
   const ts = now();
   const month = toPacific(ts).date.slice(0, 7);
   const used = await env.DB.prepare(
-    `SELECT COALESCE(SUM(place = ?1), 0) AS here, COALESCE(SUM(member_id = ?2), 0) AS mine
-     FROM court_map_photos WHERE month = ?3 AND (place = ?1 OR member_id = ?2)`,
+    `SELECT COALESCE(SUM(place = ?1 AND month = ?3), 0) AS here,
+       COALESCE(SUM(member_id = ?2 AND month = ?3), 0) AS mine,
+       COALESCE(SUM(place = ?1 AND state = 'pending'), 0) AS waiting
+     FROM court_map_photos WHERE place = ?1 OR (member_id = ?2 AND month = ?3)`,
   )
     .bind(place, who, month)
-    .first<{ here: number; mine: number }>();
+    .first<{ here: number; mine: number; waiting: number }>();
+  if (used?.waiting) throw badRequest("这家球馆有一张照片正在识别，请等它好了再拍");
   if ((used?.here ?? 0) >= COURT_MAP_PHOTOS_MONTH) throw badRequest("这家球馆这个月已经拍了 10 张，请下个月再拍");
   if ((used?.mine ?? 0) >= COURT_MAP_PHOTOS_MONTH) throw badRequest("你这个月已经拍了 10 张，请下个月再拍");
-  // Counted before the model is asked, so photos sent at once can't get past the limit.
-  const request = crypto.randomUUID();
+  // Counted before the model is asked, so photos sent at once can't get past the limit. What an
+  // earlier photo of the venue came to is replaced by this one.
+  await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE court_map_photos SET state = 'done', layout = NULL WHERE place = ? AND state != 'pending'",
+    ).bind(place),
+    env.DB.prepare(
+      `INSERT INTO court_map_photos (place, venue, address, member_id, month, request, state, image, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+    ).bind(place, venue.location, venue.address, who, month, crypto.randomUUID(), body.image as string, ts),
+  ]);
+  await startCourtMapReader(env);
+}
+
+/** Wakes the reader (a PushSender of its own, off any request). Never throws: the cron wakes it otherwise. */
+async function startCourtMapReader(env: Env): Promise<void> {
+  try {
+    await env.PUSH.get(env.PUSH.idFromName("court-map")).readMaps();
+  } catch (err) {
+    console.error("court map reader failed to start:", err);
+  }
+}
+
+interface PhotoJob {
+  id: number;
+  place: string;
+  venue: string;
+  member_id: string;
+  month: string;
+  request: string;
+  image: string | null;
+}
+
+/**
+ * The reader's run: every photo waiting goes to the model, one after another, and what came of it
+ * is kept on its row for the page. Each photo is taken by one run only.
+ */
+export async function readCourtMapPhotos(env: Env): Promise<void> {
+  if (!aiEnabled(env)) return;
+  for (;;) {
+    const job = await env.DB.prepare(
+      `UPDATE court_map_photos SET started_at = ? WHERE id =
+         (SELECT id FROM court_map_photos WHERE state = 'pending' AND started_at IS NULL ORDER BY id LIMIT 1)
+       RETURNING id, place, venue, member_id, month, request, image`,
+    )
+      .bind(now())
+      .first<PhotoJob>();
+    if (!job) return;
+    let raw: unknown;
+    try {
+      // The 拍照登记 model, but asked to take care and given time (Ke Li 2026-11-15: read at 低 it
+      // left out labels and boxes): a venue's plan is read once and then kept, a queue screen many
+      // times a night.
+      raw = await askAi(
+        env,
+        "photo",
+        { text: PROMPT, image: job.image ?? "", schema: SCHEMA, maxTokens: 32000 },
+        { effort: "high", callMs: 120_000, request: job.request },
+      );
+    } catch (err) {
+      console.error("court map photo read failed:", err);
+    }
+    const layout = raw === undefined || (raw as { found?: unknown }).found === false ? null : cleanLayout(raw);
+    await finishPhoto(env, job, raw === undefined ? "failed" : layout ? "ready" : "none", layout);
+  }
+}
+
+/** The photo is let go, the outcome and its cost written down, and the read goes into 群操作记录. */
+async function finishPhoto(env: Env, job: PhotoJob, state: "ready" | "none" | "failed", layout: CourtMapLayout | null) {
+  const cost = await aiRequestCost(env, job.request);
   await env.DB.prepare(
-    "INSERT INTO court_map_photos (place, venue, member_id, month, request, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "UPDATE court_map_photos SET state = ?, ok = ?, cost = ?, layout = ?, image = NULL, finished_at = ? WHERE id = ?",
   )
-    .bind(place, venue.location, who, month, request, ts)
+    .bind(state, layout ? 1 : 0, cost, layout ? JSON.stringify(layout) : null, now(), job.id)
     .run();
-  // The 拍照登记 model, but asked to take care and given time (Ke Li 2026-11-15: read at 低 it left
-  // out labels and boxes): a venue's plan is read once and then kept, a queue screen many times a night.
-  const raw = await askAi(
-    env,
-    "photo",
-    { text: PROMPT, image: body.image as string, schema: SCHEMA, maxTokens: 32000 },
-    { effort: "high", callMs: 120_000, request },
-  );
-  const layout = raw === undefined || (raw as { found?: unknown }).found === false ? null : cleanLayout(raw);
-  const cost = await aiRequestCost(env, request);
-  await env.DB.prepare("UPDATE court_map_photos SET ok = ?, cost = ? WHERE request = ?")
-    .bind(layout ? 1 : 0, cost, request)
-    .run();
+  const nth = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM court_map_photos WHERE place = ? AND month = ? AND id <= ?",
+  )
+    .bind(job.place, job.month, job.id)
+    .first<{ n: number }>();
   const price = cost === null ? "费用未知" : `费用估算 $${cost.toFixed(2)}`;
-  const nth = `这家球馆本月第 ${(used?.here ?? 0) + 1} 张`;
   await groupAudit(
     env,
-    actor,
+    { memberId: job.member_id === OWNER ? null : job.member_id },
     "settings",
     null,
-    `拍照识别「${venue.location}」的球场图${layout ? "" : "（没有识别出来）"}，${price}，${nth}`,
+    `拍照识别「${job.venue}」的球场图${layout ? "" : "（没有识别出来）"}，${price}，这家球馆本月第 ${nth?.n ?? 1} 张`,
   );
-  if (raw === undefined) throw new HttpError(502, "photo_failed", "照片没有识别出来，请重拍一张");
-  if (!layout) throw badRequest("照片上没有找到球场图，请对准场馆贴的平面图重拍一张");
-  return layout;
+}
+
+/**
+ * Cron: a photo the reader took and never answered (its run died) is given up, and one it never
+ * took (it could not be woken) gets it woken again.
+ */
+export async function tendCourtMapPhotos(env: Env, at = new Date()) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, place, venue, member_id, month, request, image, started_at FROM court_map_photos
+     WHERE state = 'pending'`,
+  ).all<PhotoJob & { started_at: string | null }>();
+  const floor = new Date(at.getTime() - READ_STALE_MS).toISOString();
+  for (const job of results) if (job.started_at && job.started_at < floor) await finishPhoto(env, job, "failed", null);
+  if (results.some((job) => !job.started_at)) await startCourtMapReader(env);
+}
+
+/** 不要了 / 知道了: what the venue's last photo came to is put away. One still with the model stays. */
+export async function dropCourtMapRead(env: Env, e: Venue) {
+  await env.DB.prepare(
+    "UPDATE court_map_photos SET state = 'done', layout = NULL WHERE place = ? AND state != 'pending'",
+  )
+    .bind(courtMapPlace(e.location, e.address))
+    .run();
 }
 
 /** 以前的图 are kept this long, and this many per venue (Ke Li: 防止误操作). */
@@ -201,8 +288,21 @@ export async function saveCourtMap(env: Env, e: Venue, memberId: string, body: R
   const cur = await env.DB.prepare("SELECT layout FROM court_maps WHERE place = ?")
     .bind(place)
     .first<{ layout: string }>();
-  if (cur?.layout === json) return;
+  // The plan a photo came to, once saved, is no longer waiting on the venue.
+  const read =
+    body.read === true
+      ? [
+          env.DB.prepare(
+            "UPDATE court_map_photos SET state = 'done', layout = NULL WHERE place = ? AND state != 'pending'",
+          ).bind(place),
+        ]
+      : [];
+  if (cur?.layout === json) {
+    if (read.length) await env.DB.batch(read);
+    return;
+  }
   await env.DB.batch([
+    ...read,
     ...keepOld(env, place, ts),
     env.DB.prepare(
       `INSERT INTO court_maps (place, venue, address, layout, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)
@@ -277,20 +377,32 @@ export async function rekeyCourtMaps(env: Env) {
   if (drop.length + move.length) await env.DB.batch([...drop, ...move]);
 }
 
+const NO_MAP = { map: null, updatedAt: null, savedBy: null, read: null };
+
 /**
  * 设置 → 球场图: the venues to choose from, each with its plan when it has one. They are 最近的场馆
  * and every venue that already has a plan (it may have dropped off that list), one row per place.
  */
 export async function courtMapVenues(env: Env): Promise<CourtMapVenue[]> {
   await rekeyCourtMaps(env);
-  const [maps, recent] = await env.DB.batch<Record<string, string>>([
-    env.DB.prepare("SELECT place, venue, address, layout, updated_at FROM court_maps ORDER BY updated_at DESC"),
+  const [maps, recent, reads] = await env.DB.batch<Record<string, string | null>>([
+    env.DB.prepare(
+      `SELECT c.place, c.venue, c.address, c.layout, c.updated_at, m.username AS by_name
+       FROM court_maps c LEFT JOIN members m ON m.id = c.updated_by ORDER BY c.updated_at DESC`,
+    ),
     env.DB.prepare("SELECT name, address FROM locations ORDER BY last_used_at DESC LIMIT 30"),
+    // What each venue's last photo came to, until it is saved or put away.
+    env.DB.prepare(
+      `SELECT p.place, p.venue, p.address, p.state, p.layout, p.created_at, m.username AS by_name
+       FROM court_map_photos p
+       LEFT JOIN members m ON m.id = p.member_id OR (p.member_id = '${OWNER}' AND m.is_owner = 1)
+       WHERE p.state != 'done' ORDER BY p.id`,
+    ),
   ]);
   const out = new Map<string, CourtMapVenue>();
   for (const r of recent!.results) {
     const place = courtMapPlace(r.name!, r.address!);
-    if (!out.has(place)) out.set(place, { venue: r.name!, address: r.address!, map: null, updatedAt: null });
+    if (!out.has(place)) out.set(place, { venue: r.name!, address: r.address!, ...NO_MAP });
   }
   for (const m of maps!.results) {
     let map: CourtMapLayout | null = null;
@@ -300,8 +412,26 @@ export async function courtMapVenues(env: Env): Promise<CourtMapVenue[]> {
     if (!map) continue;
     const known = out.get(m.place!);
     // The name as events use it now, when the venue is still on the list.
-    out.set(m.place!, { venue: known?.venue ?? m.venue!, address: m.address!, map, updatedAt: m.updated_at! });
+    out.set(m.place!, {
+      venue: known?.venue ?? m.venue!,
+      address: m.address!,
+      map,
+      updatedAt: m.updated_at!,
+      savedBy: m.by_name ?? "",
+      read: null,
+    });
   }
-  // Venues with a plan first, then the rest as 最近的场馆 has them.
-  return [...out.values()].sort((a, b) => Number(!!b.map) - Number(!!a.map));
+  for (const r of reads!.results) {
+    let layout: CourtMapLayout | null = null;
+    try {
+      if (r.layout) layout = cleanLayout(JSON.parse(r.layout));
+    } catch {}
+    const state = r.state === "ready" && !layout ? "failed" : (r.state as CourtMapRead["state"]);
+    const read: CourtMapRead = { state, by: r.by_name ?? "", at: r.created_at!, layout };
+    const known = out.get(r.place!) ?? { venue: r.venue!, address: r.address!, ...NO_MAP };
+    out.set(r.place!, { ...known, read });
+  }
+  // Venues with a photo's answer or a plan first, then the rest as 最近的场馆 has them.
+  const rank = (v: CourtMapVenue) => (v.read ? 2 : v.map ? 1 : 0);
+  return [...out.values()].sort((a, b) => rank(b) - rank(a));
 }

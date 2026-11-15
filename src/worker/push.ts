@@ -1,3 +1,4 @@
+import { readCourtMapPhotos } from "./courtMap";
 import { DurableObject } from "cloudflare:workers";
 import type { Context } from "hono";
 import { dollars } from "../shared/settle";
@@ -261,7 +262,18 @@ export class PushSender extends DurableObject<Env> {
     if (set === null || set > at) await this.ctx.storage.setAlarm(at);
   }
 
+  /**
+   * 球场图 photos are read off the request too, by an instance of its own ("court-map") so a read
+   * of a minute or two never holds up pushes. Kept in this class: a new one would need a Durable
+   * Object migration, which no earlier release could be rolled back across.
+   */
+  async readMaps(): Promise<void> {
+    await this.ctx.storage.put("maps", true);
+    await this.ctx.storage.setAlarm(Date.now());
+  }
+
   async alarm(): Promise<void> {
+    if (await this.ctx.storage.get("maps")) return readCourtMapPhotos(this.env);
     if (await drainPushes(this.env)) await this.soon();
   }
 }

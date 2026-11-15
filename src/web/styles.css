@@ -7144,3 +7144,27 @@ html[data-nav="in"]::view-transition-new(root) {
     opacity: 0;
   }
 }
+/* What the venue's last photo came to: being read, ready to check, or not read. */
+.cm-read {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 0.9rem;
+}
+.cm-read p {
+  margin: 0;
+}
+.cm-read.ready {
+  background: var(--ok-soft);
+}
+.cm-read.none,
+.cm-read.failed {
+  background: var(--warn-soft);
+}
+.cm-saved {
+  margin: 6px 0 0;
+  text-align: center;
+}

@@ -17,7 +17,7 @@ import { dollars } from "../shared/settle";
 export const SYSTEM = "system";
 
 /** actor_id of the Owner before their member record exists (the link login at first setup). */
-const OWNER = "owner";
+export const OWNER = "owner";
 
 export type AuditAction =
   | "create"

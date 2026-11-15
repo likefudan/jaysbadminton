@@ -14,7 +14,17 @@ test("管理页: back goes up one level, reload stays, tabs replace", async ({ p
     r.fulfill({ json: { current: [], past: [], morePast: false } }),
   );
   await page.route("**/api/admin/test-token/telegram", (r) => r.fulfill({ json: {} }));
-  await page.route("**/api/admin/test-token/settings", (r) => r.fulfill({ json: {} }));
+  // Everything 高级设置's cards read: one that throws while drawing leaves the page before it on
+  // screen (it was drawn twice here about one run in five, when this answered {}).
+  const settings = {
+    likes: { hours: 48, pct: 50 },
+    calorieShortcut: { url: "", version: 1 },
+    ai: { photo: { model: "m", effort: "low" }, notes: { model: "m", effort: "low" } },
+  };
+  await page.route("**/api/admin/test-token/settings", (r) => r.fulfill({ json: settings }));
+  await page.route("**/api/admin/test-token/settings/ai-models", (r) =>
+    r.fulfill({ json: { models: ["m"], ready: true } }),
+  );
 
   // Where the 管理页 was opened from: going back from its first page leaves it.
   await page.goto("/privacy");

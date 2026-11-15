@@ -305,7 +305,7 @@ function PhotoInputs(props: { busy: boolean; onPick: (file: File) => void; again
     <div class="cq-photo-row">
       <label class={`button secondary cq-photo-button cq-photo-camera${props.busy ? " disabled" : ""}`}>
         <input type="file" accept="image/*" capture="environment" disabled={props.busy} onChange={pick} />
-        {props.busy ? t("识别中…") : props.again ? t("📷 重拍") : t("📷 拍场馆的球场图")}
+        {props.busy ? t("上传中…") : props.again ? t("📷 重拍") : t("📷 拍场馆的球场图")}
       </label>
       <label class={`button secondary cq-photo-button cq-photo-album${props.busy ? " disabled" : ""}`}>
         <input type="file" accept="image/*" disabled={props.busy} onChange={pick} />
@@ -491,9 +491,11 @@ export function CourtMapManager(props: {
   onChange: () => void;
 }) {
   const path = `${props.base}/court-maps`;
-  const { venue, address, map } = props.venue;
+  const { venue, address, map, read: sent } = props.venue;
   const where = { venue, address };
   const [draft, setDraft] = useState<CourtMapLayout | null>(null);
+  // The draft is what the venue's photo came to: saving it puts that answer away.
+  const [fromRead, setFromRead] = useState(false);
   const [problem, setProblem] = useState("");
   // 以前的图: null until asked for.
   const [old, setOld] = useState<CourtMapOld[] | null>(null);
@@ -508,17 +510,31 @@ export function CourtMapManager(props: {
         throw new Error(t("这张照片打不开，请重新拍一张"));
       }
       setOld(null);
-      setDraft(await api<CourtMapLayout>(`${path}/photo`, { ...where, image }));
-      setProblem("");
+      // Read in the background: the list says when it is done, here or after coming back.
+      await api(`${path}/photo`, { ...where, image });
+      props.onChange();
     });
   }
+
+  async function drop() {
+    await run(async () => {
+      await api(`${path}/photo/drop`, where);
+      props.onChange();
+    });
+  }
+  const edit = (layout: CourtMapLayout, read = false) => {
+    setDraft(layout);
+    setFromRead(read);
+    setOld(null);
+    setProblem("");
+  };
 
   async function save() {
     const bad = draft && numbersProblem(draft);
     setProblem(bad || "");
     if (bad) return;
     await run(async () => {
-      await api(`${path}/save`, { ...where, layout: draft });
+      await api(`${path}/save`, { ...where, layout: draft, read: fromRead });
       setDraft(null);
       props.onChange();
     });
@@ -541,6 +557,47 @@ export function CourtMapManager(props: {
     </button>
   );
 
+  // One photo at a time for a venue: no 拍照 while the last one is still being read.
+  const canPhoto = props.photo && sent?.state !== "pending";
+  const who = { name: sent?.by || "?", when: sent ? when(sent.at) : "" };
+  const notice = sent && (
+    <div class={`cm-read ${sent.state}`} role="status">
+      {sent.state === "pending" && (
+        <p>
+          {t(
+            "{name} {when} 拍的照片正在识别，大约要一两分钟。不用在这里等，可以先去别的页面，过一会儿回来看结果。",
+            who,
+          )}
+        </p>
+      )}
+      {sent.state === "ready" && sent.layout && (
+        <>
+          <p>{t("{name} {when} 拍的照片识别好了，请核对后保存。", who)}</p>
+          <div class="cm-actions row">
+            <button type="button" class="button" disabled={busy} onClick={() => edit(sent.layout!, true)}>
+              {t("查看并核对")}
+            </button>
+            <button type="button" class="button secondary" disabled={busy} onClick={drop}>
+              {t("不要了")}
+            </button>
+          </div>
+        </>
+      )}
+      {(sent.state === "none" || sent.state === "failed") && (
+        <>
+          <p>
+            {sent.state === "none"
+              ? t("{name} {when} 拍的照片上没有找到球场图，请对准场馆贴的平面图重拍一张。", who)
+              : t("{name} {when} 拍的照片没有识别出来，请重拍一张。", who)}
+          </p>
+          <button type="button" class="button secondary" disabled={busy} onClick={drop}>
+            {t("知道了")}
+          </button>
+        </>
+      )}
+    </div>
+  );
+
   let body: ComponentChildren;
   if (old && !draft) {
     body = (
@@ -559,14 +616,7 @@ export function CourtMapManager(props: {
                   })}
                 </small>
               </span>
-              <button
-                type="button"
-                class="button secondary"
-                onClick={() => {
-                  setDraft(o.layout);
-                  setOld(null);
-                }}
-              >
+              <button type="button" class="button secondary" onClick={() => edit(o.layout)}>
                 {t("恢复")}
               </button>
             </li>
@@ -601,11 +651,18 @@ export function CourtMapManager(props: {
   } else if (map) {
     body = (
       <>
+        {notice}
         <Plan layout={map} caption={address} />
+        <p class="muted small cm-saved">
+          {t("{name} 于 {when} 保存", {
+            name: props.venue.savedBy || "?",
+            when: props.venue.updatedAt ? when(props.venue.updatedAt) : "",
+          })}
+        </p>
         <div class="cm-actions cm-manage">
-          {props.photo && <PhotoInputs busy={busy} onPick={read} again />}
+          {canPhoto && <PhotoInputs busy={busy} onPick={read} again />}
           <div class="cm-actions row">
-            <button type="button" class="button secondary" disabled={busy} onClick={() => setDraft(map)}>
+            <button type="button" class="button secondary" disabled={busy} onClick={() => edit(map)}>
               {t("修改")}
             </button>
             {historyButton}
@@ -620,13 +677,18 @@ export function CourtMapManager(props: {
     body = (
       <div class="cm-empty">
         <p>{t("「{venue}」还没有球场图。", { venue })}</p>
-        {props.photo && (
+        {notice}
+        {canPhoto && (
           <>
-            <p class="muted small">{t("拍一张场馆贴的球场平面图，会自动画出来，可以再改编号和位置。照片不会保存。")}</p>
+            <p class="muted small">
+              {t(
+                "拍一张场馆贴的球场平面图，会在后台画出来，大约一两分钟，不用在这里等。画好后可以再改编号和位置。照片不会保存。",
+              )}
+            </p>
             <PhotoInputs busy={busy} onPick={read} />
           </>
         )}
-        <button type="button" class="button secondary" disabled={busy} onClick={() => setDraft(BLANK)}>
+        <button type="button" class="button secondary" disabled={busy} onClick={() => edit(BLANK)}>
           {t("不拍照，手动画")}
         </button>
         {historyButton}

@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { type CourtMapVenue, courtMapPlace } from "../../shared/courtMap";
 import { toPacific } from "../../shared/time";
 import { Load, SettingRow } from "../components";
@@ -50,11 +50,26 @@ export function CourtMapsPage(props: { base: string }) {
   // The venue open. The list has its fresh plan after a save; a venue no longer on 最近的场馆 leaves
   // the list when its plan is deleted, and stays open as it was so 以前的图 can bring the plan back.
   const [open, setOpen] = useState<CourtMapVenue | null>(null);
+  // A photo is being read in the background (Ke Li: 过一会儿回来看结果): look again every few
+  // seconds while this page is open, so the answer shows without a reload.
+  const waiting = list.state === "ok" && list.data.venues.some((v) => v.read?.state === "pending");
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(reload, 5000);
+    return () => clearInterval(timer);
+  }, [waiting]);
   return (
     <Load result={list}>
       {(d) => {
         const venue =
-          open && (d.venues.find((v) => placeOf(v) === placeOf(open)) ?? { ...open, map: null, updatedAt: null });
+          open &&
+          (d.venues.find((v) => placeOf(v) === placeOf(open)) ?? {
+            ...open,
+            map: null,
+            updatedAt: null,
+            savedBy: null,
+            read: null,
+          });
         return (
           <>
             <p class="muted small cm-intro">
@@ -70,12 +85,18 @@ export function CourtMapsPage(props: { base: string }) {
                     label={v.venue}
                     sub={v.address || undefined}
                     value={
-                      v.map
-                        ? t("{n} 片 · {day}", {
-                            n: v.map.items.filter((i) => i.kind === "court").length,
-                            day: v.updatedAt ? fmtDay(toPacific(v.updatedAt).date) : "",
-                          })
-                        : t("未添加")
+                      v.read?.state === "pending"
+                        ? t("正在识别…")
+                        : v.read?.state === "ready"
+                          ? t("识别好了，待核对")
+                          : v.read
+                            ? t("没有识别出来")
+                            : v.map
+                              ? t("{n} 片 · {day}", {
+                                  n: v.map.items.filter((i) => i.kind === "court").length,
+                                  day: v.updatedAt ? fmtDay(toPacific(v.updatedAt).date) : "",
+                                })
+                              : t("未添加")
                     }
                     onClick={() => setOpen(v)}
                   />

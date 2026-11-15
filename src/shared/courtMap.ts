@@ -42,12 +42,26 @@ export interface CourtMapOld {
   replacedAt: string;
 }
 
-/** 设置 → 球场图: a venue and its plan, null while it has none. */
+/**
+ * What a venue's last photo came to (Ke Li 2026-11-15: 拍了之后可以返回其他页面，过一会儿回来看结果):
+ * still with the model, read into `layout` and waiting to be checked and saved, without a court
+ * map on it, or failed. `by` and `at` say who sent it and when.
+ */
+export interface CourtMapRead {
+  state: "pending" | "ready" | "none" | "failed";
+  by: string;
+  at: string;
+  layout: CourtMapLayout | null;
+}
+
+/** 设置 → 球场图: a venue and its plan, null while it has none, with who saved it and when. */
 export interface CourtMapVenue {
   venue: string;
   address: string;
   map: CourtMapLayout | null;
   updatedAt: string | null;
+  savedBy: string | null;
+  read: CourtMapRead | null;
 }
 
 /** A posted plan has a few dozen courts and labels; this only stops a runaway answer. */

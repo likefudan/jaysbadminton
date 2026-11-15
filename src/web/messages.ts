@@ -857,9 +857,34 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "選的範圍裡沒有場地，請重新拖一個範圍",
     en: "No courts in that range. Please drag another",
   },
-  "拍一张场馆贴的球场平面图，会自动画出来，可以再改编号和位置。照片不会保存。": {
-    tw: "拍一張場館貼的球場平面圖，會自動畫出來，可以再改編號和位置。照片不會保存。",
-    en: "Take a photo of the court map posted at the venue. It is drawn for you, and you can fix numbers and positions. The photo itself isn't kept.",
+  "拍一张场馆贴的球场平面图，会在后台画出来，大约一两分钟，不用在这里等。画好后可以再改编号和位置。照片不会保存。": {
+    tw: "拍一張場館貼的球場平面圖，會在背景畫出來，大約一兩分鐘，不用在這裡等。畫好後可以再改編號和位置。照片不會儲存。",
+    en: "Take a photo of the court map posted at the venue. It is drawn in the background in a minute or two, so you don't have to wait here. You can then fix numbers and positions. The photo is not kept.",
+  },
+  "上传中…": { tw: "上傳中…", en: "Uploading…" },
+  "{name} {when} 拍的照片正在识别，大约要一两分钟。不用在这里等，可以先去别的页面，过一会儿回来看结果。": {
+    tw: "{name} {when} 拍的照片正在辨識，大約要一兩分鐘。不用在這裡等，可以先去別的頁面，過一會兒回來看結果。",
+    en: "The photo {name} sent at {when} is being read, which takes a minute or two. You don't have to wait here: go to another page and come back for the result.",
+  },
+  "{name} {when} 拍的照片识别好了，请核对后保存。": {
+    tw: "{name} {when} 拍的照片辨識好了，請核對後儲存。",
+    en: "The photo {name} sent at {when} has been read. Please check it and save.",
+  },
+  查看并核对: { tw: "查看並核對", en: "Check it" },
+  不要了: { tw: "不要了", en: "Discard" },
+  "{name} {when} 拍的照片上没有找到球场图，请对准场馆贴的平面图重拍一张。": {
+    tw: "{name} {when} 拍的照片上沒有找到球場圖，請對準場館貼的平面圖重拍一張。",
+    en: "No court map was found in the photo {name} sent at {when}. Please point at the posted floor plan and try again.",
+  },
+  "{name} {when} 拍的照片没有识别出来，请重拍一张。": {
+    tw: "{name} {when} 拍的照片沒有辨識出來，請重拍一張。",
+    en: "The photo {name} sent at {when} couldn't be read. Please take another one.",
+  },
+  知道了: { tw: "知道了", en: "OK" },
+  "{name} 于 {when} 保存": { tw: "{name} 於 {when} 儲存", en: "Saved by {name}, {when}" },
+  "这家球馆有一张照片正在识别，请等它好了再拍": {
+    tw: "這家球館有一張照片正在辨識，請等它好了再拍",
+    en: "A photo of this venue is still being read. Please wait for it to finish",
   },
   "不拍照，手动画": { tw: "不拍照，手動畫", en: "Draw it by hand instead" },
   其他场地: { tw: "其他場地", en: "Other courts" },

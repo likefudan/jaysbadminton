@@ -243,6 +243,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "GET /court-maps": cap("events.create"),
   // Reading a photo costs money: the Owner and admins only (Ke Li 2026-11-15)
   "POST /court-maps/photo": cap("group"),
+  "POST /court-maps/photo/drop": cap("events.create"),
   "POST /court-maps/save": cap("events.create"),
   "POST /court-maps/remove": cap("events.create"),
   "POST /court-maps/history": cap("events.create"),

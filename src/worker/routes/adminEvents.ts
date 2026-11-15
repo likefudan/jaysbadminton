@@ -1,5 +1,13 @@
 import { aiEnabled } from "../ai";
-import { courtMapHistory, courtMapVenues, readCourtMapPhoto, removeCourtMap, saveCourtMap, venueOf } from "../courtMap";
+import {
+  courtMapHistory,
+  courtMapVenues,
+  dropCourtMapRead,
+  sendCourtMapPhoto,
+  removeCourtMap,
+  saveCourtMap,
+  venueOf,
+} from "../courtMap";
 import { Hono } from "hono";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
 import {
@@ -252,9 +260,16 @@ adminEventRoutes.get("/court-maps", async (c) =>
   c.json({ venues: await courtMapVenues(c.env), photo: aiEnabled(c.env) && can(c.get("actor").role, "group") }),
 );
 
-adminEventRoutes.post("/court-maps/photo", async (c) =>
-  c.json(await readCourtMapPhoto(c.env, c.get("actor"), await readJson(c.req.raw))),
-);
+// The photo is read in the background; GET /court-maps says what came of it.
+adminEventRoutes.post("/court-maps/photo", async (c) => {
+  await sendCourtMapPhoto(c.env, c.get("actor"), await readJson(c.req.raw));
+  return c.json({ ok: true });
+});
+
+adminEventRoutes.post("/court-maps/photo/drop", async (c) => {
+  await dropCourtMapRead(c.env, venueOf(await readJson(c.req.raw)));
+  return c.json({ ok: true });
+});
 
 adminEventRoutes.post("/court-maps/save", async (c) => {
   const b = await readJson(c.req.raw);
