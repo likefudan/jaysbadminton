@@ -1,18 +1,18 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { addCourt, alignLayout, cleanLayout, courtMapPlace, moveStep, snapMove } from "../src/shared/courtMap";
-import { purgeCourtMapHistory } from "../src/worker/courtMap";
+import { purgeCourtMapHistory, rekeyCourtMaps } from "../src/worker/courtMap";
 import worker from "../src/worker/index";
-import { approveMember, appoint, Client, createTestEvent, ORIGIN, setUpAdmin } from "./helpers";
+import { approveMember, appoint, Client, createTestEvent, GOOGLE, ORIGIN, setUpAdmin } from "./helpers";
 
 const anon = new Client();
 const image = btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xe0, 1, 2, 3));
 /** Through the Worker with an AI key and the organizer roles on. GET without a body. */
-const post = async (path: string, body?: unknown) => {
+const post = async (path: string, body?: unknown, cookie = "") => {
   const res = await worker.fetch(
     new Request(`${ORIGIN}${path}`, {
       method: body === undefined ? "GET" : "POST",
-      headers: { Origin: ORIGIN, "Content-Type": "application/json" },
+      headers: { Cookie: cookie, Origin: ORIGIN, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
     { ...env, AZURE_FOUNDRY_API_KEY: "test-key", SITE_ORIGIN: ORIGIN, ORGANIZERS: "1" },
@@ -137,100 +137,137 @@ describe("alignment (Ke Li: 不允许随意旋转或者不对齐)", () => {
     expect(courtMapPlace("Bay Club", "")).toBe(courtMapPlace(" bay  club ", ""));
     expect(courtMapPlace("Bay Club", "")).not.toBe(courtMapPlace("", "Bay Club"));
   });
+
+  it("takes an address written another way for the same venue (Ke Li: Dr 和 Drive 不能当成两家)", () => {
+    const a = courtMapPlace("", "48900 Milmont Dr, Fremont, CA 94538");
+    for (const other of [
+      "48900 Milmont Drive, Fremont, CA 94538, USA",
+      "48900 Milmont Dr.",
+      "48900 MILMONT DRIVE #100 Fremont",
+      "48900 Milmont Dr, Suite B, Fremont, California",
+    ])
+      expect(courtMapPlace("", other)).toBe(a);
+    expect(courtMapPlace("", "48901 Milmont Dr, Fremont")).not.toBe(a);
+    expect(courtMapPlace("", "48900 Milmont Ave, Fremont")).not.toBe(a);
+    // Directions and other endings both ways; the word after the number is the street's name.
+    expect(courtMapPlace("", "1 North First Street, San Jose")).toBe(courtMapPlace("", "1 N First St"));
+    expect(courtMapPlace("", "100 Court Street, Oakland")).toBe("a:100 ct st");
+    // No ending to go by: the first line, or all of it without the zip and country.
+    expect(courtMapPlace("", "1234 El Camino Real, Santa Clara, CA 95050")).toBe(
+      courtMapPlace("", "1234 El Camino Real"),
+    );
+    expect(courtMapPlace("", "Stanford Arrillaga Gym, Stanford, CA 94305, USA")).toBe(
+      courtMapPlace("", "Stanford Arrillaga Gym, Stanford, CA"),
+    );
+  });
 });
 
 const ADDRESS = "48900 Milmont Dr, Fremont, CA 94538";
+const VENUE = { venue: "Bintang Fremont", address: ADDRESS };
 
 describe("球场图", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  async function scenario() {
+  /** Bob runs events (an admin, or an organizer); Alice only plays. Maps are kept in 设置. */
+  async function scenario(role: "admin" | "organizer" = "admin") {
     const ctx = await setUpAdmin();
     const e = await createTestEvent(ctx, { queueRoundMin: 45, location: "Bintang Fremont", address: ADDRESS });
     const alice = await approveMember(ctx, "Alice");
     const bob = await approveMember(ctx, "Bob");
     for (const m of [alice, bob]) await anon.call(`${m.base}/events/${e.id}/signup`, { friends: [] });
-    const q = `/events/${e.id}/queue`;
-    const queue = async (base: string) => (await post(`${base}/events/${e.id}`)).data.event.queue;
-    return { ctx, e, alice, bob, q, queue };
+    const cookie = await appoint(bob.id, "bob", role);
+    const maps = (path: string, body?: unknown) => post(`${GOOGLE}/court-maps${path}`, body, cookie);
+    const shown = async (id = e.id) => (await post(`${alice.base}/events/${id}`)).data.event.queue.map;
+    return { ctx, e, alice, bob, maps, shown };
   }
 
-  it("is read from a photo by the Owner, admins or organizers, fixed, then saved for the venue's address", async () => {
-    const { ctx, e, alice, bob, q, queue } = await scenario();
-    // A player can't set it, and sees no plan yet.
-    expect(await queue(alice.base)).toMatchObject({ map: null, mapEdit: false });
-    expect((await post(`${alice.base}${q}/map/photo`, { image })).status).toBe(400);
+  it("is read from a photo in 设置 by the Owner, admins or organizers, fixed, then saved for the venue's address", async () => {
+    const { ctx, e, alice, maps, shown } = await scenario();
+    // The event card only shows it: members have nothing to set it with.
+    expect(await shown()).toBeNull();
+    expect((await post(`${alice.base}/events/${e.id}/queue/map`, { layout: plan })).status).toBe(404);
+    expect((await post(`${GOOGLE}/court-maps`, undefined, "")).status).toBe(401);
 
-    await appoint(bob.id, "bob", "admin");
-    expect((await queue(bob.base)).mapEdit).toBe(true);
+    // 设置 lists the venues events were held at, none with a plan yet.
+    const list = await maps("");
+    expect(list.data).toMatchObject({ photo: true, venues: [{ ...VENUE, map: null, updatedAt: null }] });
+
     const seen = model(plan);
-    const read = await post(`${bob.base}${q}/map/photo`, { image });
+    const read = await maps("/photo", { image });
     expect(read.status).toBe(200);
     expect(read.data.items.filter((i: any) => i.kind === "court")).toHaveLength(2);
     expect(seen[0].messages[0].content.some((c: any) => c.type === "image")).toBe(true);
     // Reading saves nothing.
-    expect((await queue(alice.base)).map).toBeNull();
+    expect(await shown()).toBeNull();
 
     // The page sends back what was checked (court 2 renumbered 3).
     const checked = {
       ...read.data,
       items: read.data.items.map((i: any) => (i.label === "2" ? { ...i, label: "3" } : i)),
     };
-    expect((await post(`${bob.base}${q}/map`, { layout: checked })).status).toBe(200);
-    const map = (await queue(alice.base)).map;
+    expect((await maps("/save", { ...VENUE, layout: checked })).status).toBe(200);
+    const map = await shown();
     expect(map.items.map((i: any) => i.label)).toEqual(["3", "1", "JR", "BADMINTON COURTS", "FRONT DESK"]);
-    expect((await post(`${alice.base}${q}/map`, { layout: checked })).status).toBe(400);
+    expect((await maps("")).data.venues).toMatchObject([{ ...VENUE, map }]);
+    // The Owner's own 设置 does the same.
+    expect((await ctx.admin.call(`${ctx.base}/court-maps`)).data.venues).toHaveLength(1);
 
-    // One plan per venue, by address: another event there shows it whatever the venue is called;
-    // the same name at another address, or with no address, doesn't.
+    // One plan per venue, by address: another event there shows it whatever the venue is called
+    // and however the address is written; the same name with no address doesn't.
     const there = await createTestEvent(ctx, {
       queueRoundMin: 45,
       location: "Bintang",
-      address: ADDRESS.toLowerCase(),
+      address: "48900 milmont drive, Fremont, CA 94538, USA",
     });
     const sameName = await createTestEvent(ctx, { queueRoundMin: 45, location: "Bintang Fremont" });
     for (const id of [there.id, sameName.id]) await anon.call(`${alice.base}/events/${id}/signup`, { friends: [] });
-    expect((await post(`${alice.base}/events/${there.id}`)).data.event.queue.map).toEqual(map);
-    expect((await post(`${alice.base}/events/${sameName.id}`)).data.event.queue.map).toBeNull();
-    // Saved again from the other event: still one row, now the newer plan.
+    expect(await shown(there.id)).toEqual(map);
+    expect(await shown(sameName.id)).toBeNull();
+    // Saved again under the other spelling: still one row, now the newer plan.
     const fewer = { ...map, items: map.items.slice(0, 2) };
-    expect((await post(`${bob.base}/events/${e.id}/queue/map`, { layout: fewer })).status).toBe(200);
-    const rows = await env.DB.prepare("SELECT venue, address FROM court_maps").all();
-    expect(rows.results).toEqual([{ venue: "Bintang Fremont", address: ADDRESS }]);
-    expect((await post(`${alice.base}/events/${there.id}`)).data.event.queue.map.items).toHaveLength(2);
+    expect(
+      (await maps("/save", { venue: "Bintang", address: "48900 Milmont Drive, Fremont", layout: fewer })).status,
+    ).toBe(200);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM court_maps").first<{ n: number }>())!.n).toBe(1);
+    expect((await shown()).items).toHaveLength(2);
+    // The list has the venue once, with its plan, though 最近的场馆 has it under both spellings.
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM locations").first<{ n: number }>())!.n).toBe(2);
+    const venues = (await maps("")).data.venues;
+    expect(venues.map((v: any) => !!v.map)).toEqual([true]);
 
-    // A layout without courts isn't saved; 删除 takes it off the venue.
-    expect((await post(`${bob.base}${q}/map`, { layout: { aspect: 1, items: [] } })).status).toBe(400);
-    expect((await post(`${bob.base}${q}/map/remove`, {})).status).toBe(200);
-    expect((await queue(alice.base)).map).toBeNull();
+    // A layout without courts or a venue isn't saved; 删除 takes it off the venue.
+    expect((await maps("/save", { ...VENUE, layout: { aspect: 1, items: [] } })).status).toBe(400);
+    expect((await maps("/save", { venue: "", address: "", layout: checked })).status).toBe(400);
+    expect((await maps("/remove", VENUE)).status).toBe(200);
+    expect(await shown()).toBeNull();
   });
 
   it("keeps what a save or 删除 replaced for 30 days, the newest 10, to bring back (Ke Li: 防止误操作)", async () => {
-    const { bob, q, queue } = await scenario();
-    await appoint(bob.id, "bob", "admin");
+    const { maps, shown } = await scenario();
     const layout = (n: number) => ({
       aspect: 1.4,
       items: Array.from({ length: n }, (_, k) => court(String(k + 1), 0.05 + k * 0.07, 0.1)),
     });
-    const history = async () => (await post(`${bob.base}${q}/map/history`, {})).data.history as any[];
+    const save = (l: unknown) => maps("/save", { ...VENUE, layout: l });
+    const history = async () => (await maps("/history", VENUE)).data.history as any[];
     const courts = (h: any[]) => h.map((o) => o.layout.items.length);
 
-    expect((await post(`${bob.base}${q}/map`, { layout: layout(1) })).status).toBe(200);
+    expect((await save(layout(1))).status).toBe(200);
     expect(await history()).toEqual([]);
     // Saved unchanged: nothing new to keep. Changed: the old one is kept, with who made it.
-    await post(`${bob.base}${q}/map`, { layout: layout(1) });
+    await save(layout(1));
     expect(await history()).toEqual([]);
-    await post(`${bob.base}${q}/map`, { layout: layout(2) });
+    await save(layout(2));
     expect(await history()).toMatchObject([{ savedBy: "Bob", layout: { items: [{ label: "1" }] } }]);
     // 删除 by mistake: the plan removed is there to restore.
-    await post(`${bob.base}${q}/map/remove`, {});
-    expect((await queue(bob.base)).map).toBeNull();
+    await maps("/remove", VENUE);
+    expect(await shown()).toBeNull();
     expect(courts(await history())).toEqual([2, 1]);
-    await post(`${bob.base}${q}/map`, { layout: (await history())[0].layout });
-    expect((await queue(bob.base)).map.items).toHaveLength(2);
+    await save((await history())[0].layout);
+    expect((await shown()).items).toHaveLength(2);
 
     // Only the newest 10 stay.
-    for (let n = 3; n <= 13; n++) await post(`${bob.base}${q}/map`, { layout: layout(n) });
+    for (let n = 3; n <= 13; n++) await save(layout(n));
     expect(courts(await history())).toEqual([12, 11, 10, 9, 8, 7, 6, 5, 4, 3]);
     // After 30 days they go: from the list, at the next save, and in the nightly job.
     await env.DB.prepare(
@@ -243,17 +280,47 @@ describe("球场图", () => {
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM court_map_history").first<{ n: number }>())!.n).toBe(2);
   });
 
-  it("lets any organizer on the event set it, and says when the photo isn't a court map", async () => {
-    const { bob, q, queue } = await scenario();
-    await appoint(bob.id, "bob", "organizer");
-    expect((await queue(bob.base)).mapEdit).toBe(true);
+  it("lets any organizer set it, and says when the photo isn't a court map", async () => {
+    const { maps, shown } = await scenario("organizer");
     model({ found: false, aspect: 1, items: [] });
-    const res = await post(`${bob.base}${q}/map/photo`, { image });
+    const res = await maps("/photo", { image });
     expect(res.status).toBe(400);
     expect(res.data.error.message).toBe("照片上没有找到球场图，请对准场馆贴的平面图重拍一张");
     // Drawn by hand, without a photo.
     const layout = { aspect: 1.4, items: [court("1", 0.1, 0.1)] };
-    expect((await post(`${bob.base}${q}/map`, { layout })).status).toBe(200);
-    expect((await queue(bob.base)).map.items).toHaveLength(1);
+    expect((await maps("/save", { ...VENUE, layout })).status).toBe(200);
+    expect((await shown()).items).toHaveLength(1);
+  });
+
+  it("moves plans kept under an address as it used to be told apart to where it is now, with their history", async () => {
+    const { maps, shown } = await scenario();
+    const layout = JSON.stringify({ aspect: 1.4, items: [court("1", 0.1, 0.1)] });
+    const old = "a:48900 milmont dr fremont ca 94538";
+    await env.DB.prepare(
+      "INSERT INTO court_maps (place, venue, address, layout, updated_by, updated_at) VALUES (?, ?, ?, ?, '', ?)",
+    )
+      .bind(old, VENUE.venue, ADDRESS, layout, "2026-11-15T00:00:00.000Z")
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO court_map_history (place, layout, updated_by, updated_at, replaced_at) VALUES (?, ?, '', ?, ?)",
+    )
+      .bind(old, layout, "2026-11-14T00:00:00.000Z", new Date().toISOString())
+      .run();
+    expect(await shown()).toBeNull();
+    await rekeyCourtMaps(env);
+    expect((await shown()).items).toHaveLength(1);
+    expect((await maps("/history", VENUE)).data.history).toHaveLength(1);
+
+    // Two rows that are one venue now: the one saved last stays, the other joins 以前的图.
+    const two = JSON.stringify({ aspect: 1.4, items: [court("1", 0.1, 0.1), court("2", 0.3, 0.1)] });
+    await env.DB.prepare(
+      "INSERT INTO court_maps (place, venue, address, layout, updated_by, updated_at) VALUES (?, ?, ?, ?, '', ?)",
+    )
+      .bind("a:old spelling", "Bintang", "48900 Milmont Drive, Fremont", two, "2026-11-15T01:00:00.000Z")
+      .run();
+    await rekeyCourtMaps(env);
+    expect((await shown()).items).toHaveLength(2);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM court_maps").first<{ n: number }>())!.n).toBe(1);
+    expect((await maps("/history", VENUE)).data.history).toHaveLength(2);
   });
 });

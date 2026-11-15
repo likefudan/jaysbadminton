@@ -4,8 +4,8 @@ import { QUEUE_COURT_MAX } from "./courtQueue";
  * 球场图 (Ke Li 2026-11-15): the floor plan of a venue, so players see where our courts are. Every
  * venue is laid out differently, so nothing is drawn in code: the Owner, an admin or an organizer
  * photographs the venue's posted court map, the AI model reads it into this layout, they put it
- * right by hand and save it for that venue (its address, courtMapPlace). Events there then show it
- * from the 球场排队 card.
+ * right by hand and save it for that venue (its address, courtMapPlace), all in 设置 → 球场图.
+ * Events there then show it from the 球场排队 card, to look at only.
  *
  * Positions are fractions of the plan's outer border (0..1), so the drawing scales to any screen.
  */
@@ -42,6 +42,14 @@ export interface CourtMapOld {
   replacedAt: string;
 }
 
+/** 设置 → 球场图: a venue and its plan, null while it has none. */
+export interface CourtMapVenue {
+  venue: string;
+  address: string;
+  map: CourtMapLayout | null;
+  updatedAt: string | null;
+}
+
 /** A posted plan has a few dozen courts and labels; this only stops a runaway answer. */
 export const COURT_MAP_ITEMS_MAX = 200;
 export const COURT_MAP_LABEL_MAX = 24;
@@ -59,18 +67,80 @@ export function courtNumber(label: string): number | null {
   return n >= 1 && n <= QUEUE_COURT_MAX ? n : null;
 }
 
+/** Street words and directions as the post office shortens them, so both spellings are one. */
+const STREET_WORDS: Record<string, string> = {
+  street: "st",
+  avenue: "ave",
+  av: "ave",
+  drive: "dr",
+  road: "rd",
+  boulevard: "blvd",
+  lane: "ln",
+  court: "ct",
+  place: "pl",
+  parkway: "pkwy",
+  highway: "hwy",
+  expressway: "expy",
+  circle: "cir",
+  terrace: "ter",
+  square: "sq",
+  trail: "trl",
+  north: "n",
+  south: "s",
+  east: "e",
+  west: "w",
+  northeast: "ne",
+  northwest: "nw",
+  southeast: "se",
+  southwest: "sw",
+};
+const STREET_ENDS = new Set([
+  "st",
+  "ave",
+  "dr",
+  "rd",
+  "blvd",
+  "ln",
+  "ct",
+  "pl",
+  "pkwy",
+  "expy",
+  "cir",
+  "ter",
+  "sq",
+  "trl",
+  "way",
+]);
+
 /**
- * Which venue a plan belongs to (Ke Li: 一个球馆只有一张图，要跟球馆地址对应): the venue's address,
- * letter case, spaces and punctuation aside. An event without an address goes by its venue name.
+ * Which venue a plan belongs to (Ke Li: 一个球馆只有一张图，要跟球馆地址对应): the venue's street
+ * address, however it was typed (Ke Li: Dr 和 Drive 不能当成两家). Letter case, spaces and
+ * punctuation don't count, Drive is Dr and North is N, and for an address that starts with a house
+ * number only the number and the street do: the suite, city, state, zip and country after them may
+ * be there or not. An event without an address goes by its venue name.
  */
 export function courtMapPlace(venue: string, address: string): string {
-  const flat = (v: string) =>
+  const words = (v: string) =>
     v
       .toLowerCase()
-      .replace(/[\s,.，。#]+/g, " ")
-      .trim();
-  const a = flat(address);
-  return a ? `a:${a}` : `n:${flat(venue)}`;
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim()
+      .split(" ")
+      .filter(Boolean);
+  let a = words(address).map((w) => STREET_WORDS[w] ?? w);
+  if (a.length === 0) return `n:${words(venue).join(" ")}`;
+  if (/^\d/.test(a[0]!)) {
+    // "48900 Milmont Dr, Fremont, CA 94538": up to the street's Dr. The word right after the number
+    // is the street's name even when it reads like an ending ("100 Court St", "5 St Marys Rd").
+    const end = a.findIndex((w, k) => k >= 2 && STREET_ENDS.has(w));
+    const line = words(address.split(/[,，]/)[0]!).length;
+    if (end >= 0) a = a.slice(0, end + 1);
+    // No such word ("1234 El Camino Real, Santa Clara"): the first line, when commas mark one.
+    else if (line < a.length) a = a.slice(0, line);
+  }
+  // Else the whole address, but for a country or zip code at its end.
+  while (a.length > 1 && /^(usa|us|\d{5}|\d{4})$/.test(a[a.length - 1]!)) a.pop();
+  return `a:${a.join(" ")}`;
 }
 
 const median = (v: number[]) => {

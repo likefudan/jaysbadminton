@@ -64,10 +64,8 @@ export interface QueueInfo {
   idleAlert: { pct: number; from: string; to: string } | null;
   /** How 登记球场 shows the hall accounts (设置, Ke Li): see QueueAccountsView. */
   accountsView: QueueAccountsView;
-  /** 球场图: the venue's floor plan, null until someone sets one. */
+  /** 球场图: the venue's floor plan to look at, null until one is set in 设置. */
   map: CourtMapLayout | null;
-  /** The viewer may add, change or remove the plan: the Owner, admins and organizers. */
-  mapEdit: boolean;
 }
 
 /**

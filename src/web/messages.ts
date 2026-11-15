@@ -870,10 +870,6 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "No court map found in the photo. Please photograph the floor plan posted at the venue",
   },
   球场图里至少要有一片场地: { tw: "球場圖裡至少要有一片場地", en: "The court map needs at least one court" },
-  "只有群主、管理员和组织者可以设置球场图": {
-    tw: "只有群主、管理員和組織者可以設定球場圖",
-    en: "Only the Owner, admins and organizers can set the court map",
-  },
   "{name} 更新于 {time}": { tw: "{name} 更新於 {time}", en: "Updated by {name} at {time}" },
   "＋ 登记球场": { tw: "＋ 登記球場", en: "＋ Add court" },
   "排序：{by}": { tw: "排序：{by}", en: "Sort: {by}" },

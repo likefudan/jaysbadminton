@@ -1,3 +1,5 @@
+import { aiEnabled } from "../ai";
+import { courtMapHistory, courtMapVenues, readCourtMapPhoto, removeCourtMap, saveCourtMap, venueOf } from "../courtMap";
 import { Hono } from "hono";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
 import {
@@ -242,6 +244,36 @@ adminEventRoutes.post("/locations/remove", async (c) => {
   if (gone?.meta.changes) await groupAudit(c.env, c.get("actor"), "settings", null, `从最近的场馆里删掉「${name}」`);
   return c.json({ ok: true });
 });
+
+// 设置 → 球场图 (Ke Li 2026-11-15: 在设置里管理): each venue's one plan, read from a photo, put right
+// by hand, replaced or removed; what was replaced is kept 30 days. Event cards only show it.
+adminEventRoutes.get("/court-maps", async (c) =>
+  c.json({ venues: await courtMapVenues(c.env), photo: aiEnabled(c.env) }),
+);
+
+adminEventRoutes.post("/court-maps/photo", async (c) =>
+  c.json(await readCourtMapPhoto(c.env, await readJson(c.req.raw))),
+);
+
+adminEventRoutes.post("/court-maps/save", async (c) => {
+  const b = await readJson(c.req.raw);
+  const venue = venueOf(b);
+  // The Owner's member id is always there once the site is set up; the plan only records it.
+  await saveCourtMap(c.env, venue, c.get("actor").memberId ?? "", b);
+  await groupAudit(c.env, c.get("actor"), "settings", null, `保存「${venue.location}」的球场图`);
+  return c.json({ ok: true });
+});
+
+adminEventRoutes.post("/court-maps/remove", async (c) => {
+  const venue = venueOf(await readJson(c.req.raw));
+  await removeCourtMap(c.env, venue);
+  await groupAudit(c.env, c.get("actor"), "settings", null, `删除「${venue.location}」的球场图`);
+  return c.json({ ok: true });
+});
+
+adminEventRoutes.post("/court-maps/history", async (c) =>
+  c.json({ history: await courtMapHistory(c.env, venueOf(await readJson(c.req.raw))) }),
+);
 
 adminEventRoutes.post("/events", async (c) => {
   const b = await readJson(c.req.raw);
