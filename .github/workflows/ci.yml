@@ -294,16 +294,11 @@ jobs:
       - run: node scripts/resolve-d1.mjs production
       - name: The database is not newer than this release
         run: node scripts/check-migrations.mjs
-      # Encrypted with BACKUP_KEY: the plain SQL never leaves this runner.
+      # Encrypted with BACKUP_KEY into the private R2 bucket: nothing is kept on GitHub.
       - name: Back up the production database
         run: scripts/backup-db.sh "jaysbadminton-${GITHUB_REF_NAME}-$(date -u +%Y%m%dT%H%M%SZ)"
         env:
           BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
-      - uses: actions/upload-artifact@v7
-        with:
-          name: db-encrypted-${{ github.ref_name }}-${{ github.run_attempt }}
-          path: backup/
-          retention-days: 90
       - run: npx wrangler d1 migrations apply DB --remote
       - run: npx wrangler deploy --var "APP_VERSION:${GITHUB_REF_NAME}"
       - run: node scripts/sync-secrets.mjs production
@@ -374,11 +369,6 @@ jobs:
         run: scripts/backup-db.sh "jaysbadminton-${{ matrix.site }}-${GITHUB_REF_NAME}-$(date -u +%Y%m%dT%H%M%SZ)" --config "$CONFIG"
         env:
           BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
-      - uses: actions/upload-artifact@v7
-        with:
-          name: db-encrypted-${{ matrix.site }}-${{ github.ref_name }}-${{ github.run_attempt }}
-          path: backup/
-          retention-days: 90
       - run: npx wrangler d1 migrations apply DB --remote --config "$CONFIG"
       - run: npx wrangler deploy --config "$CONFIG" --var "APP_VERSION:${GITHUB_REF_NAME}"
       - run: node scripts/sync-secrets.mjs site ${{ matrix.site }}

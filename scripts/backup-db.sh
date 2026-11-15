@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# Backs up a D1 database for an Actions artifact, ENCRYPTED, so the plain SQL never leaves this
-# runner (anyone who can read the repository's Actions can download its artifacts).
-# Writes backup/<stem>.sql.gz.enc.
+# Backs up a D1 database, ENCRYPTED, into the private R2 bucket $BACKUP_BUCKET (default
+# jaysbadminton-backups) as <stem>.sql.gz.enc. Nothing is kept on GitHub: anyone who can read the
+# repository's Actions can download its artifacts, so backups are never uploaded as one. The plain
+# SQL never leaves this runner. The bucket is made on first use and deletes backups after 90 days.
 #
 # Usage: scripts/backup-db.sh <stem> [extra wrangler args, e.g. --config wrangler.sbbc.json]
-# Needs BACKUP_KEY (GitHub secret; keep a copy in a password manager, GitHub can't show it again).
+# Needs BACKUP_KEY (GitHub secret; keep a copy in a password manager, GitHub can't show it again) and
+# a CLOUDFLARE_API_TOKEN that may edit R2 (permission "Workers R2 Storage: Edit").
 #
 # Restore (on your own computer):
+#   npx wrangler r2 object get jaysbadminton-backups/<stem>.sql.gz.enc --remote --file <stem>.sql.gz.enc
 #   BACKUP_KEY='…' openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_KEY \
 #     -in <stem>.sql.gz.enc | gunzip > <stem>.sql
 # then, into a new empty database (rows with photos are too long for D1 as exported):
@@ -26,8 +29,7 @@ trap 'rm -rf "$plain"' EXIT
 npx wrangler d1 export DB --remote "$@" --output "$plain/$stem.sql"
 gzip -9 "$plain/$stem.sql"
 
-mkdir -p backup
-out="backup/$stem.sql.gz.enc"
+out="$plain/$stem.sql.gz.enc"
 openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass env:BACKUP_KEY -in "$plain/$stem.sql.gz" -out "$out"
 
 # Proves the file opens with the key before the plain copy is gone.
@@ -37,4 +39,23 @@ if [ "$want" != "$got" ]; then
   echo "::error::Encrypted backup does not decrypt to the export"
   exit 1
 fi
-echo "Encrypted backup: $out ($(stat -c %s "$out") bytes)"
+
+bucket=${BACKUP_BUCKET:-jaysbadminton-backups}
+key="$stem.sql.gz.enc"
+if ! npx wrangler r2 bucket info "$bucket" > /dev/null 2>&1; then
+  echo "Making the private bucket $bucket (backups are deleted after 90 days)"
+  if ! npx wrangler r2 bucket create "$bucket"; then
+    echo "::error::Cannot use the R2 bucket $bucket: turn on R2 in the Cloudflare dashboard and give the CLOUDFLARE_API_TOKEN the permission Workers R2 Storage: Edit"
+    exit 1
+  fi
+  npx wrangler r2 bucket lifecycle add "$bucket" expire-after-90-days --expire-days 90 --force
+fi
+npx wrangler r2 object put "$bucket/$key" --file "$out" --remote
+
+# Proves what the bucket holds is the file made here.
+npx wrangler r2 object get "$bucket/$key" --remote --file "$plain/stored.enc"
+if ! cmp -s "$out" "$plain/stored.enc"; then
+  echo "::error::The backup in R2 is not the file that was uploaded"
+  exit 1
+fi
+echo "Encrypted backup: R2 $bucket/$key ($(stat -c %s "$out") bytes)"
