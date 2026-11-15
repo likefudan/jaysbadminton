@@ -100,8 +100,8 @@ describe("money helpers", () => {
   });
 
   it("builds Venmo links", () => {
-    expect(venmoLink("@JayBadminton", 1273, "xiaoming-jbm20261006-m007")).toBe(
-      "https://venmo.com/?txn=pay&recipients=JayBadminton&amount=12.73&note=xiaoming-jbm20261006-m007",
+    expect(venmoLink("@JayVenmo", 1273, "xiaoming-jbm20261006-m007")).toBe(
+      "https://venmo.com/?txn=pay&recipients=JayVenmo&amount=12.73&note=xiaoming-jbm20261006-m007",
     );
   });
 });

@@ -1376,7 +1376,7 @@ function PaymentForm(props: {
     <Card title={t("收款账户")}>
       <form onSubmit={save}>
         {props.first && <p class="muted small">{t("成员付款时用的账号，一般只需要设置一次。")}</p>}
-        <Field label={t("你的 Venmo 用户名")} value={venmo} onInput={setVenmo} hint={t("不用加 @，例如 JayBadminton")} />
+        <Field label={t("你的 Venmo 用户名")} value={venmo} onInput={setVenmo} hint={t("不用加 @，例如 JayVenmo")} />
         <Field
           label={t("Venmo 通知邮箱")}
           type="email"

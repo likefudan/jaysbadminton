@@ -109,7 +109,7 @@ export async function billingScenario() {
   const ctx = await setUpAdmin();
   await ctx.admin.call(`${ctx.base}/settings/payment`, {
     password: "initial-password",
-    venmoUsername: "@JayBadminton",
+    venmoUsername: "@JayVenmo",
     venmoEmail: "Owner@Example.com",
     zelleAccount: "jay@example.com",
   });
