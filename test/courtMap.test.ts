@@ -302,6 +302,19 @@ describe("球场图", () => {
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM locations").first<{ n: number }>())!.n).toBe(2);
     const venues = (await maps("")).data.venues;
     expect(venues.map((v: any) => !!v.map)).toEqual([true]);
+    // 添加球馆 offers the venues of earlier events that the list no longer has (Ke Li: 历史活动过
+    // 的球馆也应该可以添加): here the one without an address, which 最近的场馆 keeps under its
+    // name with the address of the other. Venues on the list aren't offered again.
+    const past = [{ venue: "Bintang Fremont", address: "", date: sameName.date }];
+    expect((await maps("")).data.past).toEqual(past);
+    await env.DB.prepare("DELETE FROM locations").run();
+    expect((await maps("")).data).toMatchObject({ venues: [{ address: "48900 Milmont Drive, Fremont" }], past });
+    expect((await maps("/remove", VENUE)).status).toBe(200);
+    expect((await maps("")).data.past.map((v: any) => v.address).sort()).toEqual([
+      "",
+      "48900 milmont drive, Fremont, CA 94538, USA",
+    ]);
+    expect((await maps("/save", { ...VENUE, layout: fewer })).status).toBe(200);
 
     // A layout without courts or a venue isn't saved; 删除 takes it off the venue.
     expect((await maps("/save", { ...VENUE, layout: { aspect: 1, items: [] } })).status).toBe(400);

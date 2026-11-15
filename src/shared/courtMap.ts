@@ -54,6 +54,13 @@ export interface CourtMapRead {
   layout: CourtMapLayout | null;
 }
 
+/** 添加球馆: a venue events were held at that is not on the list, with the day of the last one there. */
+export interface CourtMapPastVenue {
+  venue: string;
+  address: string;
+  date: string;
+}
+
 /** 设置 → 球场图: a venue and its plan, null while it has none, with who saved it and when. */
 export interface CourtMapVenue {
   venue: string;

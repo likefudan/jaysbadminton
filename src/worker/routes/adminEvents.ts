@@ -1,6 +1,7 @@
 import { aiEnabled } from "../ai";
 import {
   courtMapHistory,
+  courtMapPastVenues,
   courtMapVenues,
   dropCourtMapRead,
   sendCourtMapPhoto,
@@ -255,10 +256,16 @@ adminEventRoutes.post("/locations/remove", async (c) => {
 
 // 设置 → 球场图 (Ke Li 2026-11-15: 在设置里管理): each venue's one plan, read from a photo, put right
 // by hand, replaced or removed; what was replaced is kept 30 days. Event cards only show it.
-adminEventRoutes.get("/court-maps", async (c) =>
-  // 拍照 is for the Owner and admins; organizers draw and change plans by hand.
-  c.json({ venues: await courtMapVenues(c.env), photo: aiEnabled(c.env) && can(c.get("actor").role, "group") }),
-);
+adminEventRoutes.get("/court-maps", async (c) => {
+  const venues = await courtMapVenues(c.env);
+  return c.json({
+    venues,
+    // 添加球馆 offers the venues of earlier events that are not on the list.
+    past: await courtMapPastVenues(c.env, venues),
+    // 拍照 is for the Owner and admins; organizers draw and change plans by hand.
+    photo: aiEnabled(c.env) && can(c.get("actor").role, "group"),
+  });
+});
 
 // The photo is read in the background; GET /court-maps says what came of it.
 adminEventRoutes.post("/court-maps/photo", async (c) => {

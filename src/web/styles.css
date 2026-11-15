@@ -7168,3 +7168,11 @@ html[data-nav="in"]::view-transition-new(root) {
   margin: 6px 0 0;
   text-align: center;
 }
+.cm-add-venue {
+  margin-top: 12px;
+}
+.cm-add-title {
+  margin: 14px 4px 8px;
+  font-size: 0.9rem;
+  color: var(--text-2);
+}

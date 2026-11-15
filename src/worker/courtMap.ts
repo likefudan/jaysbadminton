@@ -4,6 +4,7 @@ import {
   COURT_MAP_ITEMS_MAX,
   type CourtMapLayout,
   type CourtMapOld,
+  type CourtMapPastVenue,
   type CourtMapRead,
   type CourtMapVenue,
   cleanLayout,
@@ -375,6 +376,26 @@ export async function rekeyCourtMaps(env: Env) {
     taken.add(place);
   }
   if (drop.length + move.length) await env.DB.batch([...drop, ...move]);
+}
+
+/**
+ * 添加球馆 → 历史活动的球馆 (Ke Li 2026-11-15: 历史活动过的球馆也应该可以添加): the venues of all
+ * events there have been that `listed` doesn't have, one per place, the latest event's first.
+ */
+export async function courtMapPastVenues(env: Env, listed: CourtMapVenue[]): Promise<CourtMapPastVenue[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT location, address, MAX(date) AS date FROM events WHERE location != ''
+     GROUP BY location, address ORDER BY MAX(start_at) DESC LIMIT 200`,
+  ).all<{ location: string; address: string; date: string }>();
+  const seen = new Set(listed.map((v) => courtMapPlace(v.venue, v.address)));
+  const out: CourtMapPastVenue[] = [];
+  for (const r of results) {
+    const place = courtMapPlace(r.location, r.address);
+    if (seen.has(place)) continue;
+    seen.add(place);
+    out.push({ venue: r.location, address: r.address, date: r.date });
+  }
+  return out;
 }
 
 const NO_MAP = { map: null, updatedAt: null, savedBy: null, read: null };

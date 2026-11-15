@@ -27,6 +27,7 @@ async function setUp(page: Page, bintangMap: object | null, recent = true) {
     r.fulfill({
       json: {
         photo: true,
+        past: [{ venue: "Smash City", address: "2500 Old Crow Canyon Rd, San Ramon, CA 94583", date: "2030-06-08" }],
         venues: [
           ...(map || recent || posts.read
             ? [
@@ -238,4 +239,36 @@ test("设置 → 球场图: the list looks again by itself while a photo is bein
   await expect.poll(() => posts.find((p) => p.url.endsWith("/photo/drop"))?.body).toEqual(BINTANG);
   await expect(map.locator(".cm-read")).toHaveCount(0);
   await expect(map.locator('input[type="file"]')).toHaveCount(2);
+});
+
+test("设置 → 球场图: 添加球馆 takes a venue of an earlier event, or one typed in (Ke Li: 1和2都做)", async ({
+  page,
+}) => {
+  const posts = await setUp(page, null);
+  await page.route(`${API}/places?*`, (r) => r.fulfill({ json: { suggestions: [] } }));
+  // A venue an event was once held at, no longer among 最近的场馆.
+  await page.getByRole("button", { name: "＋ 添加球馆" }).click();
+  const add = page.getByRole("dialog", { name: "添加球馆" });
+  await expect(add.getByRole("button", { name: /Smash City/ })).toContainText("最近活动 2030年6月8日");
+  await page.screenshot({ path: test.info().outputPath("court-map-add-venue.png"), animations: "disabled" });
+  await add.getByRole("button", { name: /Smash City/ }).click();
+  const map = page.getByRole("dialog", { name: "球场图" });
+  await expect(map.getByText("「Smash City」还没有球场图。")).toBeVisible();
+  await map.locator(".panel-back").click();
+
+  // One typed in: the name is needed, then it opens to add its plan, drawn by hand here.
+  await page.getByRole("button", { name: "＋ 添加球馆" }).click();
+  await expect(add.getByRole("button", { name: "下一步" })).toBeDisabled();
+  await add.getByLabel("场馆").fill("  CBA Fremont ");
+  await add.getByLabel("地址").fill("4700 Calaveras Ave, Fremont");
+  await add.getByRole("button", { name: "下一步" }).click();
+  await expect(map.getByText("「CBA Fremont」还没有球场图。")).toBeVisible();
+  await map.getByRole("button", { name: "不拍照，手动画" }).click();
+  await map.getByRole("button", { name: "保存" }).click();
+  await expect
+    .poll(() => posts.find((p) => p.url.endsWith("/save"))?.body)
+    .toMatchObject({
+      venue: "CBA Fremont",
+      address: "4700 Calaveras Ave, Fremont",
+    });
 });
