@@ -1,9 +1,8 @@
 // Who may use the release site. Ke Li (OPS_EMAIL) is the owner: she always has every power, and she alone
 // approves applications and gives or takes the 发布工程师 (release engineer) role. Anyone else signs in
 // with Google, applies, and waits; once approved they can look (viewer), and release engineers can also
-// release, roll back and restore. Kept in one Durable Object (OpsUsers), so a change takes effect on the
+// release, roll back and restore. Kept in one Durable Object (OpsUsers, index.ts), so a change takes effect on the
 // very next request: the login cookie only says who someone is, never what they may do.
-import { DurableObject } from "cloudflare:workers";
 
 export type Role = "owner" | "engineer" | "viewer";
 export type Status = "pending" | "viewer" | "engineer" | "rejected";
@@ -27,6 +26,8 @@ export interface Storage {
 
 /** At most this many accounts (applicants included), so strangers cannot fill the storage. */
 export const MAX_USERS = 200;
+/** At most this many waiting at once, so a flood of applications stays small and stops the notices. */
+export const MAX_PENDING = 20;
 export const MAX_NOTE = 200;
 const MAX_NAME = 60;
 const key = (email: string) => `u:${email}`;
@@ -58,7 +59,11 @@ export class UserBook {
   async apply(email: string, name: unknown, note: unknown, now = new Date()): Promise<ApplyResult> {
     const had = await this.get(email);
     if (had && had.status !== "pending") return { ok: false, reason: "decided" };
-    if (!had && (await this.store.list({ prefix: "u:" })).size >= MAX_USERS) return { ok: false, reason: "full" };
+    if (!had) {
+      const all = [...(await this.store.list<User>({ prefix: "u:" })).values()];
+      if (all.length >= MAX_USERS || all.filter((u) => u.status === "pending").length >= MAX_PENDING)
+        return { ok: false, reason: "full" };
+    }
     const user: User = {
       email,
       name: clean(name, MAX_NAME) || had?.name || "",
@@ -83,26 +88,6 @@ export class UserBook {
   /** Forgets an account entirely, so it may apply again. */
   async remove(email: string): Promise<boolean> {
     return this.store.delete(key(email));
-  }
-}
-
-/** The one Durable Object holding the list (its built-in storage, nothing to set up). */
-export class OpsUsers extends DurableObject {
-  private book = new UserBook(this.ctx.storage);
-  get(email: string) {
-    return this.book.get(email);
-  }
-  list() {
-    return this.book.list();
-  }
-  apply(email: string, name: unknown, note: unknown) {
-    return this.book.apply(email, name, note);
-  }
-  decide(email: string, status: Exclude<Status, "pending">) {
-    return this.book.decide(email, status);
-  }
-  remove(email: string) {
-    return this.book.remove(email);
   }
 }
 

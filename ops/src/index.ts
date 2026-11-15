@@ -8,9 +8,8 @@ import { forget, MainMoved, release, releaseList, restore, state } from "./githu
 import { type Env, pickSites, randomToken, sha256, sign, sites, TAG, unsign } from "./logic";
 import { isLang, LANG_COOKIE, type Lang, langOf, tr } from "./i18n";
 import { APP_CSS, APP_JS, page } from "./page";
-import { canRelease, OpsUsers, type Role, roleOf, type User } from "./users";
-
-export { OpsUsers };
+import { DurableObject } from "cloudflare:workers";
+import { canRelease, type Role, roleOf, type Status, type User, UserBook } from "./users";
 
 const SESSION = "__Host-ops";
 const OAUTH = "__Host-ops-oauth";
@@ -22,7 +21,9 @@ const SECURITY = {
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   "X-Frame-Options": "DENY",
   "X-Content-Type-Options": "nosniff",
-  "Referrer-Policy": "no-referrer",
+  // same-origin, not no-referrer: with no-referrer browsers send "Origin: null" on form posts (/apply,
+  // /logout), which the origin check below would refuse. Nothing leaks to other sites either way.
+  "Referrer-Policy": "same-origin",
   "Cache-Control": "no-store",
 };
 
@@ -235,7 +236,7 @@ export default {
       const form = await req.formData().catch(() => null);
       const name = form?.get("name");
       if (typeof name !== "string" || !name.trim()) return redirect("/?error=name");
-      const done = await book(env).apply(email, name, form?.get("note"));
+      const done = await book(env).apply(email, name, typeof form?.get("note") === "string" ? form.get("note") : "");
       if (!done.ok) return redirect(`/?error=${done.reason}`);
       if (done.isNew) {
         console.log(`ops: ${email} applied`);
@@ -258,7 +259,7 @@ export default {
       if (req.method === "GET") return json({ users: await book(env).list() });
       if (req.method === "POST") {
         const body = (await req.json().catch(() => null)) as { email?: unknown; action?: unknown } | null;
-        const target = typeof body?.email === "string" ? body.email : "";
+        const target = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
         const action = body?.action;
         if (!EMAIL.test(target) || target === owner(env)) return json({ error: tr(lang, "找不到这个用户") }, 400);
         if (action === "remove") await book(env).remove(target);
@@ -355,3 +356,23 @@ export default {
     return json({ error: tr(lang, "找不到这个地址") }, 404);
   },
 } satisfies ExportedHandler<Env>;
+
+/** The one Durable Object holding the list (its built-in storage, nothing to set up). */
+export class OpsUsers extends DurableObject {
+  private book = new UserBook(this.ctx.storage);
+  get(email: string) {
+    return this.book.get(email);
+  }
+  list() {
+    return this.book.list();
+  }
+  apply(email: string, name: unknown, note: unknown) {
+    return this.book.apply(email, name, note);
+  }
+  decide(email: string, status: Exclude<Status, "pending">) {
+    return this.book.decide(email, status);
+  }
+  remove(email: string) {
+    return this.book.remove(email);
+  }
+}

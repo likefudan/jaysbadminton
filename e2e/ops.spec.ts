@@ -40,6 +40,7 @@ test("each site's row opens a usable version picker", async ({ page }) => {
     route.fulfill({
       json: {
         sites,
+        me: { role: "engineer" },
         latest: tags[0],
         pendingCount: 0,
         deploys: [],
@@ -83,5 +84,47 @@ test("each site's row opens a usable version picker", async ({ page }) => {
     expect(releases).toHaveLength(Number(site.id) + 1);
     expect(releases.at(-1)).toEqual({ sites: [site.id], tag: tags[0] });
   }
+  expect(errors).toEqual([]);
+});
+
+// A viewer sees the same list but cannot pick a version or release.
+test("a viewer's version list has no release button", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.route("**/api/state", (route) =>
+    route.fulfill({
+      json: {
+        sites: [
+          {
+            id: "jays",
+            name: "Jay's 羽毛球",
+            domain: "x",
+            color: "#e8664f",
+            version: "v2026.11.10",
+            ok: true,
+            behind: 0,
+            movable: ["v2026.11.10", "v2026.11.09"],
+          },
+        ],
+        me: { role: "viewer" },
+        latest: "v2026.11.10",
+        pendingCount: 0,
+        deploys: [],
+        versions: ["v2026.11.10", "v2026.11.09"].map((tag) => ({ tag, date: "2026-11-10T00:00:00Z", perSite: true })),
+      },
+    }),
+  );
+  await page.route("**/ops-viewer-test", (route) =>
+    route.fulfill({ contentType: "text/html", body: '<div id="app"></div>' }),
+  );
+  await page.goto("/ops-viewer-test");
+  await page.addStyleTag({ content: APP_CSS });
+  await page.addScriptTag({ content: APP_JS });
+  await page.locator(".siterow .chev").tap();
+  await expect(page.locator(".panel")).toBeVisible();
+  await expect(page.locator(".opt input").nth(1)).toBeDisabled();
+  await expect(page.locator(".panel .foot button")).toHaveCount(0);
+  await expect(page.locator(".panel .foot")).toContainText("只读");
+  await expect(page.getByText("用户和权限")).toHaveCount(0);
   expect(errors).toEqual([]);
 });

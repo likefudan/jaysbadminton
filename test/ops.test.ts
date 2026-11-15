@@ -18,7 +18,7 @@ import {
   unsign,
 } from "../ops/src/logic";
 import { APP_JS } from "../ops/src/page";
-import { MAX_USERS, roleOf, type Storage, UserBook } from "../ops/src/users";
+import { MAX_PENDING, MAX_USERS, roleOf, type Storage, UserBook } from "../ops/src/users";
 
 /** 发布管理网站 badminton.llmat.dev: Ke Li owns it, approves others, and it starts the Release workflow. */
 
@@ -210,6 +210,8 @@ describe("release site", () => {
     expect(tagRe.test("vX026.11.09")).toBe(false);
     expect(res.headers.get("Content-Security-Policy")).toContain("script-src 'self'");
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+    // Not no-referrer: then browsers send "Origin: null" on form posts and /apply, /logout get refused.
+    expect(res.headers.get("Referrer-Policy")).toBe("same-origin");
   });
 
   it("shows each site's version and which versions it may move to", async () => {
@@ -488,9 +490,17 @@ describe("users: apply, approve, release engineers", () => {
     expect(await book.remove("a@x.com")).toBe(true);
     expect(await book.get("a@x.com")).toBeNull();
 
+    // Waiting applications are capped; decided ones count only toward the overall cap.
     const full = new UserBook(memory());
-    for (let i = 0; i < MAX_USERS; i++) await full.apply(`u${i}@x.com`, "U", "");
+    for (let i = 0; i < MAX_PENDING; i++) await full.apply(`u${i}@x.com`, "U", "");
     expect(await full.apply("late@x.com", "L", "")).toEqual({ ok: false, reason: "full" });
+    await full.decide("u0@x.com", "rejected");
+    expect((await full.apply("late@x.com", "L", "")).ok).toBe(true);
+    for (let i = MAX_PENDING; i < MAX_USERS + 5; i++) {
+      await full.apply(`u${i}@x.com`, "U", "");
+      await full.decide(`u${i}@x.com`, "rejected");
+    }
+    expect(await full.apply("later@x.com", "L", "")).toEqual({ ok: false, reason: "full" });
   });
 
   it("gives the owner every power and others only what they were approved for", () => {

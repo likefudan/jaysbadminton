@@ -565,7 +565,7 @@ function closePanel() {
   panel = null;
   if (history.state && history.state.panel) history.back();
 }
-addEventListener("popstate", () => { if (panel) { panel.remove(); panel = null; } });
+addEventListener("popstate", () => { if (panel) { panel.remove(); panel = null; if (data) render(); } });
 
 function render() {
   if (!data.progress) clearInterval(window.__tick);

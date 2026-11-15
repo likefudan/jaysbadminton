@@ -1,7 +1,7 @@
 // The parts of the release site that need no network: sites, version order, which versions a site may
 // move to, the next version's name, and the signed cookies. Tested in test/ops.test.ts.
 import sitesJson from "../../sites.json";
-import type { OpsUsers } from "./users";
+import type { OpsUsers } from "./index";
 
 export interface Env {
   OPS_ORIGIN: string;
