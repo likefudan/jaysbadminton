@@ -1723,4 +1723,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "{n} 片 · {day}": { tw: "{n} 片 · {day}", en: "{n} courts · {day}" },
   未添加: { tw: "未新增", en: "Not added" },
+  "正在识别…": { tw: "正在辨識…", en: "Reading…" },
+  "识别好了，待核对": { tw: "辨識好了，待核對", en: "Read, to be checked" },
+  没有识别出来: { tw: "沒有辨識出來", en: "Couldn't be read" },
 };

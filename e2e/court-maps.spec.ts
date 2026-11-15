@@ -8,10 +8,13 @@ import { plan } from "./fixtures/courtPlan";
 const BINTANG = { venue: "Bintang Fremont", address: "48900 Milmont Dr, Fremont, CA 94538" };
 const SYNERGY = { venue: "Synergy Badminton", address: "" };
 const API = "**/api/admin/test-token";
+/** When the photo was sent: 10/20 20:05 Pacific. */
+const SENT = "2030-10-21T03:05:00Z";
 
 /** `recent` false: Bintang is no longer on 最近的场馆, so it is listed only while it has a plan. */
 async function setUp(page: Page, bintangMap: object | null, recent = true) {
-  const posts: { url: string; body: any }[] = [];
+  // `read`: what Bintang's last photo came to, as the reader in the background leaves it.
+  const posts: { url: string; body: any }[] & { read?: object | null } = [];
   let map = bintangMap;
   await page.route("**/api/auth/session", (r) => r.fulfill({ json: { signedIn: false } }));
   await page.route(`${API}/members`, (r) =>
@@ -25,16 +28,28 @@ async function setUp(page: Page, bintangMap: object | null, recent = true) {
       json: {
         photo: true,
         venues: [
-          ...(map || recent ? [{ ...BINTANG, map, updatedAt: map ? "2030-10-21T03:00:00Z" : null }] : []),
-          { ...SYNERGY, map: null, updatedAt: null },
+          ...(map || recent || posts.read
+            ? [
+                {
+                  ...BINTANG,
+                  map,
+                  updatedAt: map ? "2030-10-21T03:00:00Z" : null,
+                  savedBy: map ? "Jay" : null,
+                  read: posts.read ?? null,
+                },
+              ]
+            : []),
+          { ...SYNERGY, map: null, updatedAt: null, savedBy: null, read: null },
         ],
       },
     }),
   );
-  await page.route(`${API}/court-maps/*`, (route) => {
+  await page.route(`${API}/court-maps/**`, (route) => {
     const url = new URL(route.request().url()).pathname;
     const body = route.request().postDataJSON();
     posts.push({ url, body });
+    if (url.endsWith("/photo")) posts.read = { state: "pending", by: "Ke Li", at: SENT, layout: null };
+    if (url.endsWith("/drop") || body.read) posts.read = null;
     if (url.endsWith("/save")) map = body.layout;
     if (url.endsWith("/remove")) map = null;
     return route.fulfill({ json: { ok: true } });
@@ -43,12 +58,11 @@ async function setUp(page: Page, bintangMap: object | null, recent = true) {
   return posts;
 }
 
-test("设置 → 球场图: photographs a venue's plan, fixes a number, moves a court along the lines and saves", async ({
+test("设置 → 球场图: a photo is read in the background; back later, its plan is checked, put right and saved", async ({
   page,
 }) => {
   const posts = await setUp(page, null);
   const read = { aspect: 1.39, items: [...plan.items.slice(0, 3), { ...plan.items[3]!, label: "84" }] };
-  await page.route(`${API}/court-maps/photo`, (route) => route.fulfill({ json: read }));
   // Each venue is a row, with its address and whether it has a plan.
   const row = page.getByRole("button", { name: /Bintang Fremont/ });
   await expect(row).toContainText("48900 Milmont Dr, Fremont, CA 94538");
@@ -66,6 +80,23 @@ test("设置 → 球场图: photographs a venue's plan, fixes a number, moves a 
     .locator('input[type="file"]')
     .first()
     .setInputFiles({ name: "map.png", mimeType: "image/png", buffer: png });
+  // Sent: it is read in the background (Ke Li: 拍了之后可以返回其他页面，过一会儿回来看结果), and
+  // the venue says who sent it and when. No second photo meanwhile.
+  await expect(map.locator(".cm-read")).toContainText("Ke Li 10/20 20:05 拍的照片正在识别");
+  await expect(map.locator('input[type="file"]')).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("court-map-reading.png"), animations: "disabled" });
+  await map.locator(".panel-back").click();
+  await expect(row).toContainText("正在识别…");
+  // Off to another page and back: by then the reader has finished, and the row says so.
+  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
+  await expect(row).toHaveCount(0);
+  posts.read = { state: "ready", by: "Ke Li", at: SENT, layout: read };
+  await page.getByRole("button", { name: /^球场图/ }).click();
+  await expect(row).toContainText("识别好了，待核对");
+  await row.click();
+  await expect(map.locator(".cm-read")).toContainText("Ke Li 10/20 20:05 拍的照片识别好了");
+  await page.screenshot({ path: test.info().outputPath("court-map-ready.png"), animations: "disabled" });
+  await map.getByRole("button", { name: "查看并核对" }).click();
   await expect(map.locator(".cm-item.court")).toHaveCount(4);
   const box = (label: string) => map.getByRole("button", { name: label, exact: true });
 
@@ -95,13 +126,15 @@ test("设置 → 球场图: photographs a venue's plan, fixes a number, moves a 
   await map.getByRole("button", { name: "保存" }).click();
   await expect.poll(() => posts.find((p) => p.url.endsWith("/save"))).toBeTruthy();
   const saved = posts.find((p) => p.url.endsWith("/save"))!.body;
-  expect(saved).toMatchObject(BINTANG);
+  expect(saved).toMatchObject({ ...BINTANG, read: true });
   expect(saved.layout.items.map((i: { label: string }) => i.label)).toEqual(["53", "52", "51", "47", "1"]);
   const [c52, c47] = [saved.layout.items[1], saved.layout.items[3]];
   expect(c47.x).toBe(c52.x);
   expect(c47.w).toBe(c52.w);
-  // Saved: the venue's plan is shown, and its row says so.
+  // Saved: the venue's plan is shown with who saved it and when, and its row says so.
   await expect(map.getByRole("button", { name: "修改" })).toBeVisible();
+  await expect(map.locator(".cm-saved")).toHaveText("Jay 于 10/20 20:00 保存");
+  await expect(map.locator(".cm-read")).toHaveCount(0);
   await map.locator(".panel-back").click();
   await expect(row).toContainText("5 片");
 });
@@ -185,4 +218,24 @@ test("设置 → 球场图: 裁剪 keeps only the courts in the range dragged ou
     Array.from({ length: 13 }, (_, k) => 41 + k),
   );
   expect(saved.aspect).toBeGreaterThan(4);
+});
+
+test("设置 → 球场图: the list looks again by itself while a photo is being read, and says when it couldn't be", async ({
+  page,
+}) => {
+  const posts = await setUp(page, plan);
+  posts.read = { state: "pending", by: "Ke Li", at: SENT, layout: null };
+  await page.reload();
+  const row = page.getByRole("button", { name: /Bintang Fremont/ });
+  await expect(row).toContainText("正在识别…");
+  await row.click();
+  const map = page.getByRole("dialog", { name: "球场图" });
+  await expect(map.locator(".cm-read")).toContainText("正在识别");
+  // The reader finishes without a plan: within a few seconds the open venue says so.
+  posts.read = { state: "none", by: "Ke Li", at: SENT, layout: null };
+  await expect(map.locator(".cm-read")).toContainText("Ke Li 10/20 20:05 拍的照片上没有找到球场图", { timeout: 8000 });
+  await map.getByRole("button", { name: "知道了" }).click();
+  await expect.poll(() => posts.find((p) => p.url.endsWith("/photo/drop"))?.body).toEqual(BINTANG);
+  await expect(map.locator(".cm-read")).toHaveCount(0);
+  await expect(map.locator('input[type="file"]')).toHaveCount(2);
 });

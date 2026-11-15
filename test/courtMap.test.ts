@@ -1,3 +1,4 @@
+import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -9,13 +10,14 @@ import {
   moveStep,
   snapMove,
 } from "../src/shared/courtMap";
-import { purgeCourtMapHistory, rekeyCourtMaps } from "../src/worker/courtMap";
+import { purgeCourtMapHistory, readCourtMapPhotos, rekeyCourtMaps, tendCourtMapPhotos } from "../src/worker/courtMap";
 import worker from "../src/worker/index";
 import { approveMember, appoint, Client, createTestEvent, GOOGLE, ORIGIN, setUpAdmin } from "./helpers";
 
 const anon = new Client();
 const image = btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xe0, 1, 2, 3));
 /** Through the Worker with an AI key and the organizer roles on. GET without a body. */
+const AI = { ...env, AZURE_FOUNDRY_API_KEY: "test-key", SITE_ORIGIN: ORIGIN, ORGANIZERS: "1" };
 const post = async (path: string, body?: unknown, cookie = "") => {
   const res = await worker.fetch(
     new Request(`${ORIGIN}${path}`, {
@@ -23,11 +25,22 @@ const post = async (path: string, body?: unknown, cookie = "") => {
       headers: { Cookie: cookie, Origin: ORIGIN, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
-    { ...env, AZURE_FOUNDRY_API_KEY: "test-key", SITE_ORIGIN: ORIGIN, ORGANIZERS: "1" },
+    AI,
     {} as ExecutionContext,
   );
   return { status: res.status, data: (await res.json()) as any };
 };
+
+/** The reader's run, as its alarm does it; done when no photo is waiting any more. */
+async function reader() {
+  await readCourtMapPhotos(AI);
+  await vi.waitFor(async () => {
+    const left = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM court_map_photos WHERE state = 'pending'",
+    ).first<any>();
+    expect(left.n).toBe(0);
+  });
+}
 
 /** The model answering with `answer`. */
 function model(answer: object, seen: any[] = []) {
@@ -230,25 +243,40 @@ describe("球场图", () => {
 
     // 设置 lists the venues events were held at, none with a plan yet.
     const list = await maps("");
-    expect(list.data).toMatchObject({ photo: true, venues: [{ ...VENUE, map: null, updatedAt: null }] });
+    expect(list.data).toMatchObject({ photo: true, venues: [{ ...VENUE, map: null, updatedAt: null, read: null }] });
 
+    // The photo is taken in at once and read afterwards (Ke Li: 拍了之后可以返回其他页面，过一会儿
+    // 回来看结果): until then the venue says who sent it and when, and takes no second one.
     const seen = model(plan);
-    const read = await maps("/photo", { ...VENUE, image });
-    expect(read.status).toBe(200);
-    expect(read.data.items.filter((i: any) => i.kind === "court")).toHaveLength(2);
+    expect((await maps("/photo", { ...VENUE, image })).data).toEqual({ ok: true });
+    const waiting = (await maps("")).data.venues[0].read;
+    expect(waiting).toMatchObject({ state: "pending", by: "Bob", layout: null });
+    expect(Date.parse(waiting.at)).toBeGreaterThan(Date.now() - 60_000);
+    expect((await maps("/photo", { ...VENUE, image })).data.error.message).toBe(
+      "这家球馆有一张照片正在识别，请等它好了再拍",
+    );
+    await reader();
+    const read = (await maps("")).data.venues[0].read;
+    expect(read).toMatchObject({ state: "ready", by: "Bob", at: waiting.at });
+    expect(read.layout.items.filter((i: any) => i.kind === "court")).toHaveLength(2);
+    expect(seen).toHaveLength(1);
     expect(seen[0].messages[0].content.some((c: any) => c.type === "image")).toBe(true);
-    // Reading saves nothing.
+    // Reading saves nothing, and the photo is gone once it is read.
     expect(await shown()).toBeNull();
+    expect((await env.DB.prepare("SELECT image FROM court_map_photos").first<any>()).image).toBeNull();
 
-    // The page sends back what was checked (court 2 renumbered 3).
+    // The page sends back what was checked (court 2 renumbered 3); the answer is then put away.
     const checked = {
-      ...read.data,
-      items: read.data.items.map((i: any) => (i.label === "2" ? { ...i, label: "3" } : i)),
+      ...read.layout,
+      items: read.layout.items.map((i: any) => (i.label === "2" ? { ...i, label: "3" } : i)),
     };
-    expect((await maps("/save", { ...VENUE, layout: checked })).status).toBe(200);
+    expect((await maps("/save", { ...VENUE, layout: checked, read: true })).status).toBe(200);
     const map = await shown();
     expect(map.items.map((i: any) => i.label)).toEqual(["3", "1", "JR", "BADMINTON COURTS", "FRONT DESK"]);
-    expect((await maps("")).data.venues).toMatchObject([{ ...VENUE, map }]);
+    // The plan says who saved it and when (Ke Li: 每张图我能知道是谁什么日期和时间添加的).
+    const saved = (await maps("")).data.venues;
+    expect(saved).toMatchObject([{ ...VENUE, map, savedBy: "Bob", read: null }]);
+    expect(Date.parse(saved[0].updatedAt)).toBeGreaterThan(Date.now() - 60_000);
     // The Owner's own 设置 does the same.
     expect((await ctx.admin.call(`${ctx.base}/court-maps`)).data.venues).toHaveLength(1);
 
@@ -342,25 +370,36 @@ describe("球场图", () => {
     // Read: 2800 tokens in and 900 out on the model's price.
     model(plan);
     expect((await maps("/photo", { ...VENUE, image })).status).toBe(200);
+    expect(await audit()).toEqual([]);
+    await reader();
     expect(await audit()).toEqual([
       expect.stringMatching(/^拍照识别「Bintang Fremont」的球场图，费用估算 \$\d+\.\d\d，这家球馆本月第 1 张$/),
     ]);
     // Asked with care, whatever 设置 has for 拍照登记.
     const seen = model({ found: false, aspect: 1, items: [] });
-    const none = await maps("/photo", { ...VENUE, image });
-    expect(none.status).toBe(400);
-    expect(none.data.error.message).toBe("照片上没有找到球场图，请对准场馆贴的平面图重拍一张");
+    expect((await maps("/photo", { ...VENUE, image })).status).toBe(200);
+    await reader();
+    expect((await maps("")).data.venues[0].read).toMatchObject({ state: "none", by: "Bob", layout: null });
     expect(seen[0].output_config.effort).toBe("high");
+    // 知道了 puts it away.
+    expect((await maps("/photo/drop", VENUE)).status).toBe(200);
+    expect((await maps("")).data.venues[0].read).toBeNull();
     expect((await audit())[1]).toContain("（没有识别出来）");
     expect((await audit())[1]).toContain("本月第 2 张");
-    const rows = await env.DB.prepare("SELECT ok, cost, member_id FROM court_map_photos ORDER BY id").all<any>();
-    expect(rows.results.map((r) => r.ok)).toEqual([1, 0]);
+    const rows = await env.DB.prepare("SELECT ok, cost, state FROM court_map_photos ORDER BY id").all<any>();
+    expect(rows.results.map((r) => [r.ok, r.state])).toEqual([
+      [1, "done"],
+      [0, "done"],
+    ]);
     expect(rows.results[0].cost).toBeGreaterThan(0);
 
     // The same venue under another spelling counts with it: ten a month, then no more this month.
     const drive = { venue: "Bintang", address: "48900 Milmont Drive, Fremont" };
     model(plan);
-    for (let n = 3; n <= 10; n++) expect((await maps("/photo", { ...drive, image })).status).toBe(200);
+    for (let n = 3; n <= 10; n++) {
+      expect((await maps("/photo", { ...drive, image })).status).toBe(200);
+      await reader();
+    }
     const full = await maps("/photo", { ...VENUE, image });
     expect(full.status).toBe(400);
     expect(full.data.error.message).toBe("这家球馆这个月已经拍了 10 张，请下个月再拍");
@@ -369,10 +408,40 @@ describe("球场图", () => {
     const mine = await maps("/photo", { ...other, image });
     expect(mine.data.error.message).toBe("你这个月已经拍了 10 张，请下个月再拍");
     expect((await post(`${ctx.base}/court-maps/photo`, { ...other, image }, ctx.admin.cookie)).status).toBe(200);
+    await reader();
     expect(await audit()).toHaveLength(11);
     // Next month both counts start again.
     await env.DB.prepare("UPDATE court_map_photos SET month = '2026-01'").run();
     expect((await maps("/photo", { ...VENUE, image })).status).toBe(200);
+
+    // The model didn't answer: said so on the venue, and in 群操作记录. One the reader took and
+    // never finished is given up by the cron after ten minutes.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response("no", { status: 500 }));
+    await reader();
+    expect((await maps("")).data.venues[0].read).toMatchObject({ state: "failed" });
+    expect((await audit()).at(-1)).toContain("（没有识别出来）");
+    expect((await maps("/photo", { ...VENUE, image })).status).toBe(200);
+    await env.DB.prepare("UPDATE court_map_photos SET started_at = ? WHERE state = 'pending'")
+      .bind(new Date(Date.now() - 11 * 60_000).toISOString())
+      .run();
+    await tendCourtMapPhotos(AI);
+    const stuck = await env.DB.prepare("SELECT state, image FROM court_map_photos ORDER BY id DESC").first<any>();
+    expect(stuck).toEqual({ state: "failed", image: null });
+    expect(await audit()).toHaveLength(13);
+  });
+
+  it("has the reader woken off the request, on a PushSender of its own", async () => {
+    const { maps } = await scenario();
+    model(plan);
+    expect((await maps("/photo", { ...VENUE, image })).status).toBe(200);
+    const stub = env.PUSH.get(env.PUSH.idFromName("court-map"));
+    await runInDurableObject(stub, async (sender, state) => {
+      expect(await state.storage.get("maps")).toBe(true);
+      // Its alarm, with the model's key as the deployed Worker has it.
+      (sender as unknown as { env: unknown }).env = AI;
+      await sender.alarm!();
+    });
+    expect((await maps("")).data.venues[0].read).toMatchObject({ state: "ready" });
   });
 
   it("moves plans kept under an address as it used to be told apart to where it is now, with their history", async () => {
