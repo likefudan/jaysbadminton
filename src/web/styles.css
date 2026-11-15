@@ -1447,6 +1447,61 @@ ol.steps li {
 .checklist li.done b {
   color: var(--muted);
 }
+/* 开始使用: one line a step, with a button to its setting while it isn't done. */
+.checklist li {
+  align-items: center;
+}
+.checklist li + li {
+  border-top: 1px solid var(--line);
+}
+.ck-text {
+  flex: 1;
+  min-width: 0;
+}
+.ck-text b {
+  font-weight: 500;
+}
+.ck-text small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+.ck-text .badge {
+  margin-left: 6px;
+}
+.ck-go {
+  flex: none;
+  min-height: 36px;
+  padding: 0 0 0 8px;
+  border: 0;
+  background: none;
+  color: var(--acc-ink);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.guide-head {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 650;
+}
+.checklist + .guide-head {
+  margin-top: 18px;
+}
+.guide-head small {
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 400;
+}
+.guide-head small.ok {
+  color: var(--ok);
+}
+.guide-body ol.steps {
+  font-size: 15px;
+  line-height: 1.55;
+}
 .inline-copy {
   display: flex;
   align-items: center;

@@ -291,7 +291,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
       </section>
       <CourtMapsRow current={top === "courtMaps"} onClick={() => open("courtMaps")} />
       <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
-      <AdminGuide base={props.base} telegram={telegram} />
+      <AdminGuide base={props.base} telegram={telegram} go={open} />
       <button type="button" class="button secondary block" onClick={logout}>
         {t("退出登录")}
       </button>
@@ -555,6 +555,7 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
       <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
       <OrganizerGuide
         admin
+        go={open}
         payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}
         forwarding={done(profile, (d) => !!d.lastVenmoEmailAt)}
         telegram={done(telegram, (d) => (d.botReady ? d.connected : null))}

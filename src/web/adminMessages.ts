@@ -339,6 +339,242 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   还没填: { tw: "還沒填", en: "Not set" },
   "＋ 添加": { tw: "＋ 新增", en: "+ Add" },
   "✓ 都已绑定": { tw: "✓ 都已綁定", en: "✓ All linked" },
+  // 使用指南 / 给管理员的说明 / 给组织者的说明 (2026-11-13: 开始使用 + 怎么做)
+  去设置: { tw: "去設定", en: "Set up" },
+  开始使用: { tw: "開始使用", en: "Getting started" },
+  " · 还差 {n} 步": { tw: " · 還差 {n} 步", en: " · {n} to go" },
+  " · 都做好了 ✓": { tw: " · 都做好了 ✓", en: " · all done ✓" },
+  办一场活动: { tw: "辦一場活動", en: "Run an event" },
+  "「活动」里点「＋ 新建活动」，选日期和场馆，点「创建活动」。": {
+    tw: "「活動」裡點「＋ 新建活動」，選日期和場館，點「建立活動」。",
+    en: 'In Events tap "＋ New event", pick the date and venue, then tap "Create event".',
+  },
+  "点「复制活动链接」，发到微信群，大家点开就能报名。": {
+    tw: "點「複製活動連結」，發到微信群，大家點開就能報名。",
+    en: 'Tap "Copy event link" and post it in the WeChat group; people open it to sign up.',
+  },
+  "订好场地后，在活动页的「预定场地」填上场号。报名的人开始前 10 分钟会收到提醒。": {
+    tw: "訂好場地後，在活動頁的「預定場地」填上場號。報名的人開始前 10 分鐘會收到提醒。",
+    en: 'Once the courts are booked, enter their numbers under "Booked courts" on the event page. Everyone signed up gets a reminder 10 minutes before the start.',
+  },
+  "有人临时要来：点名单右上角的「＋ 添加」。": {
+    tw: "有人臨時要來：點名單右上角的「＋ 新增」。",
+    en: 'Someone joins at the last minute: tap "+ Add" at the top right of the roster.',
+  },
+  "打完球，填场地费和用球数，先点「预览每人金额」，再点「结算费用」，每个人就收到账单。": {
+    tw: "打完球，填場地費和用球數，先點「預覽每人金額」，再點「結算費用」，每個人就收到帳單。",
+    en: 'After playing, enter the court fee and shuttles used, tap "Preview amounts per person", then "Finalize"; everyone gets their bill.',
+  },
+  "大家用 Venmo 付款，系统自动记账。全部付清后活动自动归档。": {
+    tw: "大家用 Venmo 付款，系統自動記帳。全部付清後活動自動歸檔。",
+    en: "People pay by Venmo and payments are matched automatically. When everyone has paid, the event is archived by itself.",
+  },
+  "没结算的话每 30 分钟提醒你一次。超过结算期限（默认 48 小时{where}）活动自动归档，不再收费。": {
+    tw: "沒結算的話每 30 分鐘提醒你一次。超過結算期限（預設 48 小時{where}）活動自動歸檔，不再收費。",
+    en: "Until you finalize, you are reminded every 30 minutes. Past the settlement deadline (48 hours by default{where}) the event is archived and nothing is charged.",
+  },
+  "这场不收钱，到场自付": { tw: "這場不收錢，到場自付", en: "No fees for this event: everyone pays at the door" },
+  "新建活动时关掉「需要收款 + 自动对账」。": {
+    tw: "新建活動時關掉「需要收款 + 自動對帳」。",
+    en: 'When creating the event, turn off "Collect fees + auto-match payments".',
+  },
+  "每个人到球馆自己付钱。活动结束 1 小时后自动结束，不用结算。": {
+    tw: "每個人到球館自己付錢。活動結束 1 小時後自動結束，不用結算。",
+    en: "Everyone pays the venue themselves. The event ends by itself an hour after its end time; there is nothing to finalize.",
+  },
+  "有人付了钱，系统没记上": { tw: "有人付了錢，系統沒記上", en: "Someone paid but it wasn't recorded" },
+  "Venmo 付款：到「收款 › 待确认」找到那一笔，点「关联」，选他的账单。": {
+    tw: "Venmo 付款：到「收款 › 待確認」找到那一筆，點「關聯」，選他的帳單。",
+    en: 'Venmo: find the payment under "Payments › To confirm", tap "Match" and pick their bill.',
+  },
+  "Zelle 或现金：在活动页他的账单上点「标记已付」。": {
+    tw: "Zelle 或現金：在活動頁他的帳單上點「標記已付」。",
+    en: 'Zelle or cash: tap "Mark as paid" on their bill on the event page.',
+  },
+  "最常见的原因是付款备注里没带付款编号，提醒大家照付款页上的编号填。": {
+    tw: "最常見的原因是付款備註裡沒帶付款編號，提醒大家照付款頁上的編號填。",
+    en: "The usual cause is a payment note without the payment code; remind people to copy the code from the payment page.",
+  },
+  用球场排队: { tw: "用球場排隊", en: "Use the court queue" },
+  "新建活动时打开「排队系统」，填每轮多少分钟。同一个场馆下次会记住。": {
+    tw: "新建活動時打開「排隊系統」，填每輪多少分鐘。同一個場館下次會記住。",
+    en: 'When creating the event, turn on "Court queue" and enter the minutes per round. The venue remembers it next time.',
+  },
+  "大家在活动页的「球馆账号」里加自己的账号，在球场上登记在打或排队。": {
+    tw: "大家在活動頁的「球館帳號」裡加自己的帳號，在球場上登記在打或排隊。",
+    en: 'People add their accounts under "Venue accounts" on the event page and mark themselves as playing or queuing on a court.',
+  },
+  "空着的账号太多时页面会提醒，比例在「设置 › 高级设置 › 空闲账号提醒」里改。": {
+    tw: "空著的帳號太多時頁面會提醒，比例在「設定 › 進階設定 › 空閒帳號提醒」裡改。",
+    en: 'The page warns when too many accounts sit idle; change the share under "Settings › Advanced › Idle account alert".',
+  },
+  "空着的账号太多时页面会提醒你。": {
+    tw: "空著的帳號太多時頁面會提醒你。",
+    en: "The page warns you when too many accounts sit idle.",
+  },
+  "成员把钱付到这个 Venmo": { tw: "成員把錢付到這個 Venmo", en: "Members pay to this Venmo" },
+  "提醒和收款异常发到这里，忘了管理链接也靠它找回": {
+    tw: "提醒和收款異常發到這裡，忘了管理連結也靠它找回",
+    en: "Reminders and payment problems arrive here; it also recovers a lost admin link",
+  },
+  成员付款后自动记账: { tw: "成員付款後自動記帳", en: "Payments are recorded automatically" },
+  看步骤: { tw: "看步驟", en: "See steps" },
+  每天把数据备份到你自己的表格: { tw: "每天把資料備份到你自己的表格", en: "A daily backup to your own spreadsheet" },
+  怎么做: { tw: "怎麼做", en: "How to" },
+  "把登录页发到微信群：": { tw: "把登入頁發到微信群：", en: "Post the sign-in page in the WeChat group:" },
+  "新成员点「登录 / 注册」，用 Google 账号申请。": {
+    tw: "新成員點「登入 / 註冊」，用 Google 帳號申請。",
+    en: 'Newcomers tap "Sign in / Register" and apply with their Google account.',
+  },
+  "你在「待审核」里点「通过」，对方用 Google 登录就能报名。": {
+    tw: "你在「待審核」裡點「通過」，對方用 Google 登入就能報名。",
+    en: 'Tap "Approve" under "Pending"; they can then sign in with Google and sign up.',
+  },
+  "不想每个都审：在「设置 › 入群和报名」打开「入群不需要审核」。": {
+    tw: "不想每個都審：在「設定 › 入群和報名」打開「入群不需要審核」。",
+    en: 'To skip approving each one: turn on "Join without approval" under "Settings › Joining & sign-ups".',
+  },
+  "，在「设置 › 收款设置」里改": { tw: "，在「設定 › 收款設定」裡改", en: ', set under "Settings › Payment settings"' },
+  "Venmo 自动记账（邮件转发）": { tw: "Venmo 自動記帳（郵件轉發）", en: "Automatic Venmo matching (email forwarding)" },
+  "系统读 Venmo 发来的收款通知邮件，按备注里的付款编号记账。你的邮箱密码系统拿不到，只是让 Gmail 把 Venmo 的邮件转过来；和羽毛球无关的收款会被忽略，不保存。":
+    {
+      tw: "系統讀 Venmo 發來的收款通知郵件，按備註裡的付款編號記帳。你的信箱密碼系統拿不到，只是讓 Gmail 把 Venmo 的郵件轉過來；和羽毛球無關的收款會被忽略，不儲存。",
+      en: "The site reads Venmo's payment emails and records each by the payment code in its note. It never gets your mailbox password: Gmail only forwards Venmo's emails. Payments that have nothing to do with badminton are ignored and not kept.",
+    },
+  提醒什么时候发: { tw: "提醒什麼時候發", en: "When reminders go out" },
+  "报名截止前几小时提醒：「设置 › 高级设置」。": {
+    tw: "報名截止前幾小時提醒：「設定 › 進階設定」。",
+    en: 'Hours before the sign-up deadline: "Settings › Advanced".',
+  },
+  "每天几点催没付的账单：「设置 › 收款设置」。": {
+    tw: "每天幾點催沒付的帳單：「設定 › 收款設定」。",
+    en: 'Daily time for unpaid-bill reminders: "Settings › Payment settings".',
+  },
+  "请人帮忙管理（组织者、管理员）": {
+    tw: "請人幫忙管理（組織者、管理員）",
+    en: "Get help running things (organizers, admins)",
+  },
+  "「成员」里点开那个人，点「设为组织者」或「设为管理员」。他要先用 Google 登录过。": {
+    tw: "「成員」裡點開那個人，點「設為組織者」或「設為管理員」。他要先用 Google 登入過。",
+    en: 'Open the person under Members and tap "Make organizer" or "Make admin". They must have signed in with Google first.',
+  },
+  "组织者只管自己发起的活动，钱进他自己的 Venmo，你去打他的球也付给他。": {
+    tw: "組織者只管自己發起的活動，錢進他自己的 Venmo，你去打他的球也付給他。",
+    en: "An organizer runs only their own events and is paid to their own Venmo; you pay them too when you play at theirs.",
+  },
+  "管理员和你一样管整个群：审核、成员、所有活动和收款、群设置，也能发起自己的活动。": {
+    tw: "管理員和你一樣管整個群：審核、成員、所有活動和收款、群設定，也能發起自己的活動。",
+    en: "An admin runs the whole group like you: approvals, members, every event and payment, group settings; they can run their own events too.",
+  },
+  "他在自己的「设置」里填收款、设邮件转发、连 Telegram。成员页最上面能看到他做好了没有。": {
+    tw: "他在自己的「設定」裡填收款、設郵件轉發、連 Telegram。成員頁最上面能看到他做好了沒有。",
+    en: "They fill in payment settings, email forwarding and Telegram in their own Settings. The top of the Members page shows whether they have.",
+  },
+  "他的活动的提醒发给他，你只收到三条抄送：发起、结算完成、收齐。": {
+    tw: "他的活動的提醒發給他，你只收到三條副本：發起、結算完成、收齊。",
+    en: "Reminders for their events go to them; you get three copies only: created, finalized, fully paid.",
+  },
+  "撤销时页面会先列出受影响的活动：没结算的转给你，在收款的钱继续付到他账户直到收齐。": {
+    tw: "撤銷時頁面會先列出受影響的活動：沒結算的轉給你，在收款的錢繼續付到他帳戶直到收齊。",
+    en: "Revoking first lists the events affected: ones not yet finalized pass to you; ones being collected keep paying into their account until fully paid.",
+  },
+  "只有你能做：任命和撤销管理员、群主密码和管理链接、清空数据、永久删除活动和收款、删除成员。谁做了什么都记在成员页最下面的「群操作记录」。":
+    {
+      tw: "只有你能做：任命和撤銷管理員、群主密碼和管理連結、清空資料、永久刪除活動和收款、刪除成員。誰做了什麼都記在成員頁最下面的「群操作記錄」。",
+      en: 'Only you can: appoint and revoke admins, change the owner password and admin link, clear data, permanently delete events and payments, delete members. Who did what is in the "Group activity log" at the bottom of the Members page.',
+    },
+  忘了管理链接或密码: { tw: "忘了管理連結或密碼", en: "Lost the admin link or password" },
+  "忘了链接：在 Telegram 里给机器人发「管理页面」，它把链接发给你。": {
+    tw: "忘了連結：在 Telegram 裡給機器人發「管理頁面」，它把連結發給你。",
+    en: 'Lost the link: send "admin" to the bot in Telegram and it sends you the link.',
+  },
+  "没连 Telegram：请网站维护者重置管理链接，然后打开 {code}，用群主密码重新生成。": {
+    tw: "沒連 Telegram：請網站維護者重置管理連結，然後打開 {code}，用群主密碼重新產生。",
+    en: "No Telegram: ask the site maintainer to reset the admin link, then open {code} and create a new one with the owner password.",
+  },
+  "忘了密码：请网站维护者重置群主密码，用新密码登录后，到「设置 › 账号与安全」改成你自己的。所有设备会退出登录。": {
+    tw: "忘了密碼：請網站維護者重置群主密碼，用新密碼登入後，到「設定 › 帳號與安全」改成你自己的。所有裝置會登出。",
+    en: 'Lost the password: ask the site maintainer to reset the owner password, sign in with the new one, then change it under "Settings › Account & security". Every device is signed out.',
+  },
+  "给网站维护者：GitHub › Actions › CI › Run workflow，「Use workflow from」选最新的版本标签（v 开头，测试环境选 main）。重置链接勾选 reset_admin_link；重置密码先改仓库的 ADMIN_PASSWORD（测试环境是 ADMIN_PASSWORD_STAGING）再运行。":
+    {
+      tw: "給網站維護者：GitHub › Actions › CI › Run workflow，「Use workflow from」選最新的版本標籤（v 開頭，測試環境選 main）。重置連結勾選 reset_admin_link；重置密碼先改儲存庫的 ADMIN_PASSWORD（測試環境是 ADMIN_PASSWORD_STAGING）再執行。",
+      en: 'For the site maintainer: GitHub › Actions › CI › Run workflow, with "Use workflow from" set to the latest version tag (starting with v; main for staging). To reset the link, tick reset_admin_link; to reset the password, change the repository\'s ADMIN_PASSWORD first (ADMIN_PASSWORD_STAGING for staging), then run it.',
+    },
+  "换手机、交接给新群主": { tw: "換手機、交接給新群主", en: "New phone, or handing over to a new owner" },
+  "换手机：用管理链接打开，输入群主密码。每台设备记住登录 30 天，所以管理链接要收藏好。": {
+    tw: "換手機：用管理連結打開，輸入群主密碼。每台裝置記住登入 30 天，所以管理連結要收藏好。",
+    en: "New phone: open the admin link and enter the owner password. Each device stays signed in for 30 days, so keep the admin link bookmarked.",
+  },
+  "还在用初始密码的话，到「设置 › 账号与安全 › 修改群主密码」改成你自己的。": {
+    tw: "還在用初始密碼的話，到「設定 › 帳號與安全 › 修改群主密碼」改成你自己的。",
+    en: 'If you still use the initial password, change it under "Settings › Account & security › Change owner password".',
+  },
+  "交接：用「设置 › 账号与安全」里的「清空所有数据」重置网站，新群主在 {code} 用群主密码重新设置。": {
+    tw: "交接：用「設定 › 帳號與安全」裡的「清空所有資料」重置網站，新群主在 {code} 用群主密碼重新設定。",
+    en: 'Handing over: reset the site with "Clear all data" under "Settings › Account & security"; the new owner sets it up again at {code} with the owner password.',
+  },
+  "要收场地费才需要，成员把钱付到这里": {
+    tw: "要收場地費才需要，成員把錢付到這裡",
+    en: "Only needed to collect court fees; members pay here",
+  },
+  "在上面的「我的收款设置」，要收场地费才需要": {
+    tw: "在上面的「我的收款設定」，要收場地費才需要",
+    en: 'In "My payment settings" above; only needed to collect court fees',
+  },
+  "付款自动记账，第一封收款邮件到了就算做好": {
+    tw: "付款自動記帳，第一封收款郵件到了就算做好",
+    en: "Payments are recorded automatically; done once the first payment email arrives",
+  },
+  "照上面「Venmo 邮件转发」的步骤，付款自动记账": {
+    tw: "照上面「Venmo 郵件轉發」的步驟，付款自動記帳",
+    en: 'Follow "Venmo email forwarding" above; payments are then recorded automatically',
+  },
+  你的活动的提醒和新成员申请发给你: {
+    tw: "你的活動的提醒和新成員申請發給你",
+    en: "Reminders for your events and new applications come to you",
+  },
+  "在上面的「我的 Telegram」，没连接时提醒发给群主": {
+    tw: "在上面的「我的 Telegram」，沒連接時提醒發給群主",
+    en: 'In "My Telegram" above; until connected, reminders go to the owner',
+  },
+  管理整个群: { tw: "管理整個群", en: "Running the whole group" },
+  "你和群主一样能审核申请、管理成员、任命组织者、管理和转交所有活动、确认所有收款、改群设置、导出数据。": {
+    tw: "你和群主一樣能審核申請、管理成員、任命組織者、管理和轉交所有活動、確認所有收款、改群設定、匯出資料。",
+    en: "Like the owner, you can approve applications, manage members, appoint organizers, manage and hand over every event, confirm every payment, change group settings and export data.",
+  },
+  "不想每个申请都审：在「设置 › 入群和报名」打开「入群不需要审核」，每天有人数上限。": {
+    tw: "不想每個申請都審：在「設定 › 入群和報名」打開「入群不需要審核」，每天有人數上限。",
+    en: 'To skip approving each application: turn on "Join without approval" under "Settings › Joining & sign-ups"; there is a daily cap.',
+  },
+  "球场排队里你还能批量删除球场、清空账号。": {
+    tw: "球場排隊裡你還能批次刪除球場、清空帳號。",
+    en: "In the court queue you can also delete courts in bulk and clear the accounts.",
+  },
+  "只有群主能做：任命管理员、密码和管理链接、清空数据、永久删除，以及修改群主和管理员的成员记录。": {
+    tw: "只有群主能做：任命管理員、密碼和管理連結、清空資料、永久刪除，以及修改群主和管理員的成員記錄。",
+    en: "Only the owner can: appoint admins, change the password and admin link, clear data, delete permanently, and change the owner's and admins' member records.",
+  },
+  不再当管理员: { tw: "不再當管理員", en: "Step down as admin" },
+  "点下面的「不再当管理员」，弹窗会先列出你的活动会怎么处理。": {
+    tw: "點下面的「不再當管理員」，彈窗會先列出你的活動會怎麼處理。",
+    en: 'Tap "Step down as admin" below; a dialog first lists what happens to your events.',
+  },
+  我能看到什么: { tw: "我能看到什麼", en: "What I can see" },
+  "你管自己发起的活动和进了你账户的收款，看不到别人的活动和收款。": {
+    tw: "你管自己發起的活動和進了你帳戶的收款，看不到別人的活動和收款。",
+    en: "You run the events you created and the payments into your account; you can't see other people's events and payments.",
+  },
+  "「待审核」和「成员」只能看。": { tw: "「待審核」和「成員」只能看。", en: "Pending and Members are read-only." },
+  "群主和管理员能看到并修改你的活动；群主会收到发起、结算完成、收齐三条抄送。": {
+    tw: "群主和管理員能看到並修改你的活動；群主會收到發起、結算完成、收齊三條副本。",
+    en: "The owner and admins can see and change your events; the owner gets three copies: created, finalized, fully paid.",
+  },
+  不再当组织者: { tw: "不再當組織者", en: "Step down as organizer" },
+  "点下面的「不再当组织者」，弹窗会先列出你的活动会怎么处理。": {
+    tw: "點下面的「不再當組織者」，彈窗會先列出你的活動會怎麼處理。",
+    en: 'Tap "Step down as organizer" below; a dialog first lists what happens to your events.',
+  },
   标题和备注: { tw: "標題和備註", en: "Title and notes" },
   选填: { tw: "選填", en: "Optional" },
   代为添加: { tw: "代為新增", en: "Added for them" },
