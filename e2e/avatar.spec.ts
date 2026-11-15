@@ -92,8 +92,9 @@ const board = (list: Rank[]) => ({
   year: 2026,
   month: 11,
   boards: ["attendance", "hours"],
-  ...Object.fromEntries(KEYS.map((k) => [k, k === "attendance" ? list : []])),
-  monthly: Object.fromEntries(KEYS.map((k) => [k, []])),
+  ...Object.fromEntries(KEYS.map((k) => [k, []])),
+  // 月度 is what shows first (Ke Li 2026-11-15).
+  monthly: Object.fromEntries(KEYS.map((k) => [k, k === "attendance" ? list : []])),
 });
 const NAMES = ["Lina", "arturo", "Dawei", "Jayz", "Johnzhao", "josefa", "Tom"];
 

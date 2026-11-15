@@ -31,11 +31,11 @@ export function valueText(key: BoardKey, v: number): string {
   return String(v);
 }
 
-/** 年度 / 月度 beside the title. */
+/** 月度 / 年度 beside the title: 月度 first and shown first (Ke Li 2026-11-15). */
 export function PeriodSwitch(props: { period: Period; set: (p: Period) => void }) {
   return (
     <span class="seg tiny period-seg" role="group">
-      {(["year", "month"] as const).map((p) => (
+      {(["month", "year"] as const).map((p) => (
         <button type="button" key={p} class={props.period === p ? "on" : ""} onClick={() => props.set(p)}>
           {p === "year" ? t("年度") : t("月度")}
         </button>
@@ -118,12 +118,12 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
 
 /**
  * 首页排行榜 (Ke Li 2026-11-10, option A): the public boards as a row of tabs that scrolls
- * sideways, 年度 / 月度 beside the title, one line on what the board counts.
+ * sideways, 月度 / 年度 beside the title, one line on what the board counts.
  */
 export function Leaders(props: { board: Leaderboard }) {
   const keys = props.board.boards;
   const [tab, setTab] = useState<BoardKey>(keys[0]!);
-  const [period, setPeriod] = useState<Period>("year");
+  const [period, setPeriod] = useState<Period>("month");
   const key = keys.includes(tab) ? tab : keys[0]!;
   return (
     <>

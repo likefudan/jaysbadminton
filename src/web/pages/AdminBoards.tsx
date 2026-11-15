@@ -24,7 +24,7 @@ export function BoardsPage(props: { base: string }) {
 
 function Boards(props: { base: string; data: LeaderboardAdmin }) {
   const { board } = props.data;
-  const [period, setPeriod] = useState<Period>("year");
+  const [period, setPeriod] = useState<Period>("month");
   const [open, setOpen] = useState<BoardKey | null>(null);
   const [pub, setPub] = useState<BoardKey[]>(props.data.public);
   const [anon, setAnon] = useState(props.data.anon);
