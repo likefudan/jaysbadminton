@@ -1,11 +1,16 @@
-// 发布管理网站 (badminton.llmat.dev): only Ke Li's Google account gets in. The page (page.ts, app.js)
-// reads /api/state and asks /api/release to start the Release workflow, which backs up, migrates and
-// deploys the chosen sites exactly as when it is run by hand in GitHub.
+// 发布管理网站 (badminton.llmat.dev). Anyone may sign in with Google and apply; Ke Li (the owner,
+// OPS_EMAIL) approves them as viewers or release engineers (users.ts). Viewers see the page; only the
+// owner and release engineers may release, roll back or restore. The page (page.ts, app.js) reads
+// /api/state and asks /api/release to start the Release workflow, which backs up, migrates and deploys
+// the chosen sites exactly as when it is run by hand in GitHub.
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { forget, MainMoved, release, releaseList, restore, state } from "./github";
 import { type Env, pickSites, randomToken, sha256, sign, sites, TAG, unsign } from "./logic";
 import { isLang, LANG_COOKIE, type Lang, langOf, tr } from "./i18n";
 import { APP_CSS, APP_JS, page } from "./page";
+import { canRelease, OpsUsers, type Role, roleOf, type User } from "./users";
+
+export { OpsUsers };
 
 const SESSION = "__Host-ops";
 const OAUTH = "__Host-ops-oauth";
@@ -81,17 +86,34 @@ function readCookie(req: Request, name: string): string | undefined {
   return undefined;
 }
 
-/** The signed-in email when it is still the allowed one. */
-async function who(req: Request, env: Env): Promise<string | null> {
+const owner = (env: Env) => env.OPS_EMAIL!.trim().toLowerCase();
+const book = (env: Env) => env.USERS.get(env.USERS.idFromName("users"));
+// Emails go into the signed cookie as they are, so only plain ones (Google's always are).
+const EMAIL = /^[a-z0-9._%+-]+@[a-z0-9.-]+$/;
+
+interface Me {
+  email: string;
+  role: Role | null;
+  user: User | null;
+}
+
+/** Who is signed in and what they may do now (read afresh every time, so a change is immediate). */
+async function who(req: Request, env: Env): Promise<Me | null> {
   if (!env.OPS_SESSION_KEY || !env.OPS_EMAIL) return null;
   const email = await unsign(env.OPS_SESSION_KEY, readCookie(req, SESSION));
-  return email && email === env.OPS_EMAIL.trim().toLowerCase() ? email : null;
+  if (!email || !EMAIL.test(email)) return null;
+  const user = email === owner(env) ? null : await book(env).get(email);
+  return { email, role: roleOf(email, env.OPS_EMAIL, user), user };
 }
+
+/** How a signed-in person is named in notices and logs. */
+const label = (env: Env, me: Me) => (me.role === "owner" ? env.OWNER_NAME : me.user?.name || me.email);
+const ROLE_NAME: Record<Role, string> = { owner: "管理者", engineer: "发布工程师", viewer: "只读" };
 
 function ready(env: Env, lang: Lang): string | null {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET)
     return tr(lang, "还没有 Google 登录的设置（GOOGLE_CLIENT_ID）");
-  if (!env.OPS_EMAIL) return tr(lang, "还没有设置允许登录的邮箱（GitHub secret OPS_EMAIL）");
+  if (!env.OPS_EMAIL) return tr(lang, "还没有设置管理者的邮箱（GitHub secret OPS_EMAIL）");
   if (!env.OPS_SESSION_KEY) return tr(lang, "还没有登录密钥（下次部署时自动生成）");
   return null;
 }
@@ -145,11 +167,19 @@ async function finishLogin(req: Request, env: Env, ctx: ExecutionContext): Promi
       algorithms: ["RS256"],
     });
     const email = typeof payload.email === "string" ? payload.email.toLowerCase() : "";
-    if (payload.nonce !== nonce || payload.email_verified !== true || email !== env.OPS_EMAIL!.trim().toLowerCase()) {
-      ctx.waitUntil(notifyDev(env, `⚠️ 有人用别的 Google 账号尝试登录发布管理网站（${from(req)}），没有放行`));
-      return redirect("/?error=account", [clear]);
-    }
-    ctx.waitUntil(notifyDev(env, `🔑 发布管理网站有新的登录（${from(req)}）`));
+    if (payload.nonce !== nonce) return redirect("/?error=login", [clear]);
+    if (payload.email_verified !== true || !EMAIL.test(email)) return redirect("/?error=account", [clear]);
+    // Anyone may sign in; only approved accounts see more than the application form. The developers'
+    // group hears of approved sign-ins here and of applications when they are sent.
+    const user = email === owner(env) ? null : await book(env).get(email);
+    const role = roleOf(email, env.OPS_EMAIL, user);
+    if (role)
+      ctx.waitUntil(
+        notifyDev(
+          env,
+          `🔑 ${label(env, { email, role, user })}（${ROLE_NAME[role]}）登录了发布管理网站（${from(req)}）`,
+        ),
+      );
     return redirect("/", [clear, cookie(SESSION, await sign(env.OPS_SESSION_KEY!, email, 7 * DAY), 7 * DAY)]);
   } catch (err) {
     console.error("ops login failed:", err);
@@ -182,18 +212,70 @@ export default {
     if (path === "/auth/callback") return problem ? redirect("/") : finishLogin(req, env, ctx);
     if (path === "/logout" && req.method === "POST") return redirect("/", [cookie(SESSION, "", 0)]);
 
-    const email = await who(req, env);
+    const me = problem ? null : await who(req, env);
     if (path === "/")
-      return respond(page({ email, problem, error: url.searchParams.get("error"), lang }), {
-        type: "text/html; charset=utf-8",
-      });
-    if (!email) return json({ error: tr(lang, "请先登录") }, 401);
+      return respond(
+        page({
+          email: me?.email ?? null,
+          role: me?.role ?? null,
+          user: me?.user ?? null,
+          owner: env.OWNER_NAME,
+          problem,
+          error: url.searchParams.get("error"),
+          lang,
+        }),
+        { type: "text/html; charset=utf-8" },
+      );
+    if (!me) return path === "/apply" ? redirect("/") : json({ error: tr(lang, "请先登录") }, 401);
+    const email = me.email;
+
+    // The application form (server-drawn, no script): a new account, or a waiting one changing its note.
+    if (path === "/apply" && req.method === "POST") {
+      if (me.role) return redirect("/");
+      const form = await req.formData().catch(() => null);
+      const name = form?.get("name");
+      if (typeof name !== "string" || !name.trim()) return redirect("/?error=name");
+      const done = await book(env).apply(email, name, form?.get("note"));
+      if (!done.ok) return redirect(`/?error=${done.reason}`);
+      if (done.isNew) {
+        console.log(`ops: ${email} applied`);
+        const u = done.user;
+        ctx.waitUntil(
+          notifyDev(
+            env,
+            `📝 ${u.name}（${u.email}）申请使用发布管理网站${u.note ? `：${u.note}` : ""}\n请到 ${env.OPS_ORIGIN} 审核`,
+          ),
+        );
+      }
+      return redirect("/");
+    }
+    if (!me.role) return json({ error: tr(lang, "还没有批准") }, 403);
+
+    // The owner's list of accounts and her decisions on them.
+    if (path === "/api/users") {
+      if (me.role !== "owner")
+        return json({ error: tr(lang, "只有 {name} 可以管理用户", { name: env.OWNER_NAME }) }, 403);
+      if (req.method === "GET") return json({ users: await book(env).list() });
+      if (req.method === "POST") {
+        const body = (await req.json().catch(() => null)) as { email?: unknown; action?: unknown } | null;
+        const target = typeof body?.email === "string" ? body.email : "";
+        const action = body?.action;
+        if (!EMAIL.test(target) || target === owner(env)) return json({ error: tr(lang, "找不到这个用户") }, 400);
+        if (action === "remove") await book(env).remove(target);
+        else if (action === "viewer" || action === "engineer" || action === "rejected") {
+          if (!(await book(env).decide(target, action))) return json({ error: tr(lang, "找不到这个用户") }, 404);
+        } else return json({ error: tr(lang, "操作不对") }, 400);
+        console.log(`ops: ${email} set ${target} to ${action}`);
+        return json({ users: await book(env).list() });
+      }
+    }
     if (!env.OPS_GITHUB_TOKEN)
       return json({ error: tr(lang, "还没有设置 GitHub 令牌（GitHub secret OPS_GITHUB_TOKEN）") }, 503);
 
     if (path === "/api/state" && req.method === "GET") {
       try {
-        return json(await state(env));
+        const waiting = me.role === "owner" ? (await book(env).list()).filter((u) => u.status === "pending").length : 0;
+        return json({ ...(await state(env)), me: { email, role: me.role, name: label(env, me) }, waiting });
       } catch (err) {
         console.error("ops state failed:", err);
         return json({ error: tr(lang, "读取失败：{msg}", { msg: (err as Error).message }) }, 502);
@@ -209,6 +291,9 @@ export default {
         return json({ error: tr(lang, "读取失败：{msg}", { msg: (err as Error).message }) }, 502);
       }
     }
+    // Only the owner and release engineers change what the sites run.
+    if ((path === "/api/restore" || path === "/api/release") && !canRelease(me.role))
+      return json({ error: tr(lang, "只有发布工程师可以发布、回滚和恢复") }, 403);
     if (path === "/api/restore" && req.method === "POST") {
       const body = (await req.json().catch(() => null)) as { site?: unknown; tag?: unknown; confirm?: unknown } | null;
       const site = sites(env).find((x) => x.id === body?.site);
@@ -223,7 +308,7 @@ export default {
         ctx.waitUntil(
           notifyDev(
             env,
-            `⏪ 从发布管理网站开始恢复备份：${site.name} 的数据库回到迁移之前，再换到 ${tag}\n${env.OPS_ORIGIN}`,
+            `⏪ ${label(env, me)} 从发布管理网站开始恢复备份：${site.name} 的数据库回到迁移之前，再换到 ${tag}\n${env.OPS_ORIGIN}`,
           ),
         );
         return json({ ok: true });
@@ -254,7 +339,7 @@ export default {
         ctx.waitUntil(
           notifyDev(
             env,
-            `🚀 从发布管理网站开始发布：${tag ? `把 ${tag} ` : "从 main 打新版本并"}发到 ${names}\n${env.OPS_ORIGIN}`,
+            `🚀 ${label(env, me)} 从发布管理网站开始发布：${tag ? `把 ${tag} ` : "从 main 打新版本并"}发到 ${names}\n${env.OPS_ORIGIN}`,
           ),
         );
         return json({ ok: true });

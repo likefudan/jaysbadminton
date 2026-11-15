@@ -18,8 +18,25 @@ import {
   unsign,
 } from "../ops/src/logic";
 import { APP_JS } from "../ops/src/page";
+import { MAX_USERS, roleOf, type Storage, UserBook } from "../ops/src/users";
 
-/** 发布管理网站 badminton.llmat.dev: only Ke Li's account gets in, and it starts the Release workflow. */
+/** 发布管理网站 badminton.llmat.dev: Ke Li owns it, approves others, and it starts the Release workflow. */
+
+/** Durable Object storage as a Map, for UserBook. */
+function memory(): Storage & { map: Map<string, unknown> } {
+  const map = new Map<string, unknown>();
+  return {
+    map,
+    get: async <T>(k: string) => map.get(k) as T | undefined,
+    put: async (k, v) => void map.set(k, structuredClone(v)),
+    delete: async (k) => map.delete(k),
+    list: async <T>({ prefix }: { prefix: string }) =>
+      new Map([...map].filter(([k]) => k.startsWith(prefix))) as Map<string, T>,
+  };
+}
+// The USERS namespace: every stub is the same UserBook, emptied before each test.
+let users = new UserBook(memory());
+const USERS = { idFromName: () => "users", get: () => users } as unknown as Env["USERS"];
 
 const ENV: Env = {
   OPS_ORIGIN: "https://badminton.llmat.dev",
@@ -30,6 +47,8 @@ const ENV: Env = {
   GOOGLE_CLIENT_ID: "client",
   GOOGLE_CLIENT_SECRET: "secret",
   OPS_SESSION_KEY: "session-key",
+  OWNER_NAME: "Ke Li",
+  USERS,
 };
 async function call(path: string, init: RequestInit = {}, env = ENV) {
   const ctx = createExecutionContext();
@@ -39,7 +58,10 @@ async function call(path: string, init: RequestInit = {}, env = ENV) {
 }
 const signedIn = async (email = "owner@example.com") => `__Host-ops=${await sign(ENV.OPS_SESSION_KEY!, email, 3600)}`;
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  users = new UserBook(memory());
+});
 
 describe("release site logic", () => {
   it("lists Jay's site first, then sites.json, with the Release workflow's ids", () => {
@@ -120,9 +142,9 @@ describe("release site", () => {
     expect(await res.text()).toContain("OPS_EMAIL");
   });
 
-  it("does not accept another account's cookie", async () => {
+  it("lets another account in only to apply", async () => {
     const res = await call("/api/state", { headers: { Cookie: await signedIn("someone@example.com") } });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(403);
   });
 
   it("starts the Release workflow on main with the chosen sites and version", async () => {
@@ -377,6 +399,9 @@ describe("简 / 繁 / English", () => {
     const keys = [...APP_JS.matchAll(/\bt\("((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]!);
     keys.push(...["测试", "备份", "迁移", "部署", "检查"].flatMap((s) => [s, `${s}中`, `${s}失败`]));
     keys.push("测试没通过", "等 Jay's 先发", "排队中", "完成", "没有部署", "恢复中", "准备中");
+    // The 用户和权限 panel's statuses and buttons, which go through t() as variables.
+    const panel = APP_JS.slice(APP_JS.indexOf("const STATUS ="), APP_JS.indexOf("function openUsers"));
+    keys.push(...[...panel.matchAll(/"([^"]*[\u4e00-\u9fff][^"]*)"/g)].map((m) => m[1]!));
     expect(keys.length).toBeGreaterThan(60);
     for (const k of keys) expect(MESSAGES[k], k).toBeTruthy();
     for (const [k, m] of Object.entries(MESSAGES)) {
@@ -412,11 +437,172 @@ describe("简 / 繁 / English", () => {
     expect(page).toContain('<html lang="en">');
     expect(page).toContain("<title>Release Service</title>");
     expect(page).toContain("Sign in with Google");
-    expect(page).toContain("This Google account can't manage releases.");
+    expect(page).toContain("This Google account can't be used (its email isn't verified).");
     expect(page).toContain('href="/lang/zh-TW"');
     const zh = await (await call("/")).text();
     expect(zh).toContain("<title>站点发布管理</title>");
     const res2 = await call("/api/state", { headers: { Cookie: "ops-lang=zh-TW" } });
     expect(await res2.json()).toEqual({ error: "請先登入" });
+  });
+});
+
+describe("users: apply, approve, release engineers", () => {
+  const as = async (email: string, path: string, init: RequestInit = {}, env = ENV) =>
+    call(path, { ...init, headers: { Cookie: await signedIn(email), Origin: ENV.OPS_ORIGIN, ...init.headers } }, env);
+  const apply = (email: string, fields: Record<string, string>, env = ENV) =>
+    as(email, "/apply", { method: "POST", body: new URLSearchParams(fields) }, env);
+  const decide = (email: string, action: string, by = "owner@example.com") =>
+    as(by, "/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, action }),
+    });
+  const releaseAs = (email: string) =>
+    as(email, "/api/release", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sites: ["sbbc"], tag: "v2026.11.10" }),
+    });
+  const restoreAs = (email: string) =>
+    as(email, "/api/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ site: "sbbc", tag: "v2026.11.10", confirm: "sbbc" }),
+    });
+
+  it("keeps the list: one application per account, a cap, decisions, removal", async () => {
+    const book = new UserBook(memory());
+    const first = await book.apply("a@x.com", "  Amy\u0007  ", "hi\nthere", new Date("2026-11-15T00:00:00Z"));
+    expect(first).toMatchObject({ ok: true, isNew: true, user: { name: "Amy", note: "hi there", status: "pending" } });
+    // Still waiting: the note may change, the first time stays.
+    const again = await book.apply("a@x.com", "", "new note");
+    expect(again).toMatchObject({ ok: true, isNew: false, user: { name: "Amy", note: "new note" } });
+    expect(again.ok && again.user.appliedAt).toBe("2026-11-15T00:00:00.000Z");
+    expect((await book.apply("b@x.com", "B".repeat(100), "n".repeat(500))).ok && true).toBe(true);
+    expect((await book.get("b@x.com"))?.name).toHaveLength(60);
+    expect((await book.get("b@x.com"))?.note).toHaveLength(200);
+    await book.decide("a@x.com", "engineer");
+    expect(await book.apply("a@x.com", "Amy", "")).toEqual({ ok: false, reason: "decided" });
+    expect((await book.list()).map((u) => u.status)).toEqual(["pending", "engineer"]);
+    expect(await book.decide("nobody@x.com", "viewer")).toBeNull();
+    expect(await book.remove("a@x.com")).toBe(true);
+    expect(await book.get("a@x.com")).toBeNull();
+
+    const full = new UserBook(memory());
+    for (let i = 0; i < MAX_USERS; i++) await full.apply(`u${i}@x.com`, "U", "");
+    expect(await full.apply("late@x.com", "L", "")).toEqual({ ok: false, reason: "full" });
+  });
+
+  it("gives the owner every power and others only what they were approved for", () => {
+    const u = (status: "pending" | "viewer" | "engineer" | "rejected") =>
+      ({ email: "a@x.com", name: "", note: "", status, appliedAt: "", decidedAt: null }) as const;
+    expect(roleOf("owner@example.com", " Owner@example.com ", null)).toBe("owner");
+    // A stored entry never changes the owner, and the owner's email in it gives nothing to others.
+    expect(roleOf("owner@example.com", "owner@example.com", u("rejected"))).toBe("owner");
+    expect(roleOf("a@x.com", "owner@example.com", u("engineer"))).toBe("engineer");
+    expect(roleOf("a@x.com", "owner@example.com", u("viewer"))).toBe("viewer");
+    expect(roleOf("a@x.com", "owner@example.com", u("pending"))).toBeNull();
+    expect(roleOf("a@x.com", "owner@example.com", u("rejected"))).toBeNull();
+    expect(roleOf("a@x.com", "owner@example.com", null)).toBeNull();
+  });
+
+  it("shows a new account the application form and nothing else", async () => {
+    const page = await (await as("new@x.com", "/")).text();
+    expect(page).toContain('action="/apply"');
+    expect(page).not.toContain("/app.js");
+    expect(page).toContain("Ke Li 批准了你才能查看");
+    for (const path of ["/api/state", "/api/releases", "/api/users"])
+      expect((await as("new@x.com", path)).status).toBe(403);
+    expect((await releaseAs("new@x.com")).status).toBe(403);
+  });
+
+  it("takes an application, tells the developers' group once, and shows it waiting", async () => {
+    const sent: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      sent.push(JSON.parse(String(init?.body)).text);
+      return new Response(null, { status: 204 });
+    });
+    const env = { ...ENV, TELEGRAM_DEV_BOT_TOKEN: "dev-bot", TELEGRAM_DEV_CHAT_ID: "-100" };
+    expect((await apply("new@x.com", { name: " " }, env)).headers.get("Location")).toBe("/?error=name");
+    expect(await users.get("new@x.com")).toBeNull();
+    const res = await apply("new@x.com", { name: "Nina", note: "我是 SBBC 的组织者" }, env);
+    expect(res.headers.get("Location")).toBe("/");
+    await apply("new@x.com", { name: "Nina", note: "改一下说明" }, env);
+    expect(sent).toEqual([
+      "📝 Nina（new@x.com）申请使用发布管理网站：我是 SBBC 的组织者\n请到 https://badminton.llmat.dev 审核",
+    ]);
+    const page = await (await as("new@x.com", "/")).text();
+    expect(page).toContain("申请已提交");
+    expect(page).toContain("改一下说明");
+    expect(page).not.toContain('action="/apply"');
+    // From another site: refused like every change.
+    const forged = await call("/apply", {
+      method: "POST",
+      headers: { Cookie: await signedIn("other@x.com"), Origin: "https://evil.example" },
+      body: new URLSearchParams({ name: "X" }),
+    });
+    expect(forged.status).toBe(403);
+    expect(await users.get("other@x.com")).toBeNull();
+  });
+
+  it("lets only the owner see and decide applications", async () => {
+    await users.apply("a@x.com", "Amy", "");
+    await users.apply("b@x.com", "Bob", "");
+    await users.decide("b@x.com", "engineer");
+    expect((await as("b@x.com", "/api/users")).status).toBe(403);
+    expect((await decide("a@x.com", "engineer", "b@x.com")).status).toBe(403);
+    expect((await users.get("a@x.com"))?.status).toBe("pending");
+
+    const list = (await (await as("owner@example.com", "/api/users")).json()) as { users: { email: string }[] };
+    expect(list.users.map((u) => u.email)).toEqual(["a@x.com", "b@x.com"]);
+    expect((await decide("a@x.com", "viewer")).status).toBe(200);
+    expect((await users.get("a@x.com"))?.status).toBe("viewer");
+    expect((await decide("a@x.com", "owner")).status).toBe(400);
+    expect((await decide("owner@example.com", "rejected")).status).toBe(400);
+    expect((await decide("ghost@x.com", "viewer")).status).toBe(404);
+    expect((await decide("a@x.com", "remove")).status).toBe(200);
+    expect(await users.get("a@x.com")).toBeNull();
+  });
+
+  it("lets viewers look but not release, roll back or restore", async () => {
+    await users.apply("v@x.com", "Vic", "");
+    await users.decide("v@x.com", "viewer");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json([]));
+    expect((await as("v@x.com", "/api/releases")).status).toBe(200);
+    expect((await as("v@x.com", "/")).text()).resolves.toContain("/app.js");
+    const refused = await releaseAs("v@x.com");
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: "只有发布工程师可以发布、回滚和恢复" });
+    expect((await restoreAs("v@x.com")).status).toBe(403);
+    // Only GitHub's release list was read: nothing was dispatched.
+    expect(vi.mocked(fetch).mock.calls.every(([u]) => !String(u).includes("dispatches"))).toBe(true);
+  });
+
+  it("lets release engineers release and names them in the notice; taking access away is immediate", async () => {
+    await users.apply("e@x.com", "Eve", "");
+    await users.decide("e@x.com", "engineer");
+    const sent: { url: string; text?: string }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      sent.push({ url: String(input), text: JSON.parse(String(init?.body)).text });
+      return new Response(null, { status: 204 });
+    });
+    const env = { ...ENV, TELEGRAM_DEV_BOT_TOKEN: "dev-bot", TELEGRAM_DEV_CHAT_ID: "-100" };
+    const res = await as(
+      "e@x.com",
+      "/api/release",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sites: ["sbbc"], tag: "v2026.11.10" }),
+      },
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(sent.find((m) => m.url.includes("telegram"))?.text).toContain("🚀 Eve 从发布管理网站开始发布");
+    expect((await restoreAs("e@x.com")).status).toBe(200);
+    await decide("e@x.com", "rejected");
+    expect((await releaseAs("e@x.com")).status).toBe(403);
+    expect((await as("e@x.com", "/api/releases")).status).toBe(403);
+    expect(await (await as("e@x.com", "/")).text()).toContain("这个账号没有权限");
   });
 });

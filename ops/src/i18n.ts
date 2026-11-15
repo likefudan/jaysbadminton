@@ -28,25 +28,89 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "语言：{name}": { tw: "語言：{name}", en: "Language: {name}" },
   退出: { tw: "登出", en: "Sign out" },
   还不能用: { tw: "還不能用", en: "Not ready yet" },
-  "只有管理员的 Google 账号可以登录。": {
-    tw: "只有管理員的 Google 帳號可以登入。",
-    en: "Only the admin's Google account can sign in.",
+  "用 Google 登录。第一次来的人登录后可以申请。": {
+    tw: "用 Google 登入。第一次來的人登入後可以申請。",
+    en: "Sign in with Google. If you're new, you can apply after signing in.",
   },
   "用 Google 登录": { tw: "用 Google 登入", en: "Sign in with Google" },
   "正在读取…": { tw: "正在讀取…", en: "Loading…" },
   "登录没有完成，请再试一次。": { tw: "登入沒有完成，請再試一次。", en: "Sign-in didn't finish. Please try again." },
-  "这个 Google 账号不能管理发布。": {
-    tw: "這個 Google 帳號不能管理發布。",
-    en: "This Google account can't manage releases.",
+  "这个 Google 账号不能用（邮箱还没有验证）。": {
+    tw: "這個 Google 帳號不能用（信箱還沒有驗證）。",
+    en: "This Google account can't be used (its email isn't verified).",
   },
   "还没有 Google 登录的设置（GOOGLE_CLIENT_ID）": {
     tw: "還沒有 Google 登入的設定（GOOGLE_CLIENT_ID）",
     en: "Google sign-in isn't set up yet (GOOGLE_CLIENT_ID)",
   },
-  "还没有设置允许登录的邮箱（GitHub secret OPS_EMAIL）": {
-    tw: "還沒有設定允許登入的信箱（GitHub secret OPS_EMAIL）",
-    en: "No email is allowed to sign in yet (GitHub secret OPS_EMAIL)",
+  "还没有设置管理者的邮箱（GitHub secret OPS_EMAIL）": {
+    tw: "還沒有設定管理者的信箱（GitHub secret OPS_EMAIL）",
+    en: "The owner's email isn't set yet (GitHub secret OPS_EMAIL)",
   },
+
+  // Applying, and the owner's 用户和权限 panel.
+  "请填写你的名字。": { tw: "請填寫你的名字。", en: "Please enter your name." },
+  "申请的人太多了，请稍后再试。": {
+    tw: "申請的人太多了，請稍後再試。",
+    en: "Too many applications. Please try later.",
+  },
+  "这个账号的申请已经处理过了。": {
+    tw: "這個帳號的申請已經處理過了。",
+    en: "This account's application has already been decided.",
+  },
+  "已登录：{email}": { tw: "已登入：{email}", en: "Signed in as {email}" },
+  这个账号没有权限: { tw: "這個帳號沒有權限", en: "This account has no access" },
+  "有需要请直接联系 {owner}。": {
+    tw: "有需要請直接聯絡 {owner}。",
+    en: "If you need access, contact {owner} directly.",
+  },
+  申请已提交: { tw: "申請已送出", en: "Application sent" },
+  "等 {owner} 批准后，刷新这个页面就能看到。": {
+    tw: "等 {owner} 批准後，重新整理這個頁面就能看到。",
+    en: "Once {owner} approves it, reload this page to see the site.",
+  },
+  "你写的说明：{note}": { tw: "你寫的說明：{note}", en: "Your note: {note}" },
+  申请使用: { tw: "申請使用", en: "Apply for access" },
+  "这个网站管理各羽毛球网站的发布。申请后，{owner} 批准了你才能查看；发布、回滚和恢复只有发布工程师可以做。": {
+    tw: "這個網站管理各羽毛球網站的發布。申請後，{owner} 批准了你才能查看；發布、回滾和恢復只有發布工程師可以做。",
+    en: "This site manages releases of the badminton sites. After you apply, you can view it once {owner} approves; only release engineers can release, roll back and restore.",
+  },
+  你的名字: { tw: "你的名字", en: "Your name" },
+  "说明（可不填）": { tw: "說明（可不填）", en: "Note (optional)" },
+  "比如：你是谁，为什么需要": { tw: "比如：你是誰，為什麼需要", en: "E.g. who you are and why you need it" },
+  提交申请: { tw: "送出申請", en: "Apply" },
+  还没有批准: { tw: "還沒有批准", en: "Not approved yet" },
+  "只有 {name} 可以管理用户": { tw: "只有 {name} 可以管理使用者", en: "Only {name} can manage users" },
+  找不到这个用户: { tw: "找不到這個使用者", en: "No such user" },
+  操作不对: { tw: "操作不對", en: "Unknown action" },
+  "只有发布工程师可以发布、回滚和恢复": {
+    tw: "只有發布工程師可以發布、回滾和恢復",
+    en: "Only release engineers can release, roll back and restore",
+  },
+  "你是只读用户：可以查看，发布、回滚和恢复只有发布工程师可以做。": {
+    tw: "你是唯讀使用者：可以查看，發布、回滾和恢復只有發布工程師可以做。",
+    en: "You have view-only access: only release engineers can release, roll back and restore.",
+  },
+  用户和权限: { tw: "使用者和權限", en: "Users and roles" },
+  "{n} 个申请": { tw: "{n} 個申請", en: "{n} waiting" },
+  "只读用户可以看这个页面；发布工程师还可以发布、回滚和恢复。取消权限后对方立刻不能再用。": {
+    tw: "唯讀使用者可以看這個頁面；發布工程師還可以發布、回滾和恢復。取消權限後對方立刻不能再用。",
+    en: "Viewers can see this page; release engineers can also release, roll back and restore. Removing access takes effect at once.",
+  },
+  还没有人申请: { tw: "還沒有人申請", en: "No applications yet" },
+  "申请于 {when}": { tw: "申請於 {when}", en: "applied {when}" },
+  没能保存: { tw: "沒能儲存", en: "Couldn't save" },
+  等批准: { tw: "等批准", en: "Waiting" },
+  发布工程师: { tw: "發布工程師", en: "Release engineer" },
+  只读: { tw: "唯讀", en: "View only" },
+  没有权限: { tw: "沒有權限", en: "No access" },
+  "批准（只读）": { tw: "批准（唯讀）", en: "Approve (view only)" },
+  批准为发布工程师: { tw: "批准為發布工程師", en: "Approve as release engineer" },
+  拒绝: { tw: "拒絕", en: "Reject" },
+  设为发布工程师: { tw: "設為發布工程師", en: "Make release engineer" },
+  取消权限: { tw: "取消權限", en: "Remove access" },
+  改为只读: { tw: "改為唯讀", en: "Change to view only" },
+  "删除（可以重新申请）": { tw: "刪除（可以重新申請）", en: "Delete (may apply again)" },
   "还没有登录密钥（下次部署时自动生成）": {
     tw: "還沒有登入金鑰（下次部署時自動產生）",
     en: "No sign-in key yet (made automatically on the next deploy)",
