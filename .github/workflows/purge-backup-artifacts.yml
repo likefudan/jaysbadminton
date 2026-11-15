@@ -101,3 +101,17 @@ jobs:
           left=$(list | wc -l)
           echo "Database backup artifacts left: $left"
           [ "$left" = 0 ]
+      # Two temporary workflows (2026-10) ran on branches that are deleted; their run logs print real
+      # venue usernames and their run list names the commits. Deletes any run of a workflow whose file
+      # is no longer in the repository under these names.
+      - name: Delete the runs of the removed experiment workflows
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.path | test("/(azure-probe|court-queue-ocr)\\.yml$")) | .id' |
+            while read -r wf; do
+              gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/$wf/runs?per_page=100" \
+                --jq '.workflow_runs[].id' | while read -r run; do
+                echo "Deleting run $run of workflow $wf"
+                gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/runs/$run"
+              done
+            done
