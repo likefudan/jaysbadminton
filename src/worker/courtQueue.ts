@@ -1,3 +1,4 @@
+import { getCourtMap } from "./courtMap";
 import {
   IDLE_ALERT_DEFAULT_PCT,
   QUEUE_ACCOUNTS_VIEWS,
@@ -63,10 +64,17 @@ export async function queueAccountsView(env: Env): Promise<QueueAccountsView> {
 }
 
 /** Everything the card shows: shared accounts (with who added them) and the courts entered. */
-export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: boolean): Promise<QueueInfo> {
-  const [pct, view, accounts, courts] = await Promise.all([
+export async function queueInfo(
+  env: Env,
+  e: EventRow,
+  viewer: string,
+  manage: boolean,
+  mapEdit: boolean,
+): Promise<QueueInfo> {
+  const [pct, view, map, accounts, courts] = await Promise.all([
     idleAlertPct(env),
     queueAccountsView(env),
+    getCourtMap(env, e),
     env.DB.prepare(
       `SELECT a.id, a.username, a.password, a.member_id, m.username AS by_name
        FROM queue_accounts a JOIN members m ON m.id = a.member_id
@@ -119,6 +127,8 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: b
     })),
     idleAlert: pct ? { pct, from: e.start_at, to: e.end_at } : null,
     accountsView: view,
+    map,
+    mapEdit,
   };
 }
 
