@@ -1,6 +1,14 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { addCourt, alignLayout, cleanLayout, courtMapPlace, moveStep, snapMove } from "../src/shared/courtMap";
+import {
+  addCourt,
+  alignLayout,
+  cleanLayout,
+  courtMapPlace,
+  cropLayout,
+  moveStep,
+  snapMove,
+} from "../src/shared/courtMap";
 import { purgeCourtMapHistory, rekeyCourtMaps } from "../src/worker/courtMap";
 import worker from "../src/worker/index";
 import { approveMember, appoint, Client, createTestEvent, GOOGLE, ORIGIN, setUpAdmin } from "./helpers";
@@ -130,6 +138,38 @@ describe("alignment (Ke Li: 不允许随意旋转或者不对齐)", () => {
     expect(snapMove(next, next.items.length - 1, added.x, added.y)).toEqual({ x: added.x, y: added.y });
   });
 
+  it("crops to the courts inside a range, redrawn to fill the plan (Ke Li: 只选取一个范围内的场地)", () => {
+    // Two rows of three, a label between them and a desk at the bottom right.
+    const six = cleanLayout({
+      aspect: 2,
+      items: [
+        ...[0, 1, 2].flatMap((k) => [
+          court(String(k + 1), 0.1 + k * 0.2, 0.1),
+          court(String(k + 4), 0.1 + k * 0.2, 0.6),
+        ]),
+        { kind: "text", label: "COURTS", x: 0.3, y: 0.35, w: 0.2, h: 0.05 },
+        { kind: "area", label: "DESK", x: 0.8, y: 0.85, w: 0.15, h: 0.1 },
+      ],
+    })!;
+    // A rough range over the left two courts of the top row: it only has to hold their middles.
+    const top = cropLayout(six, { x: 0.12, y: 0.08, w: 0.3, h: 0.1 })!;
+    expect(top.items.map((i) => i.label)).toEqual(["1", "2"]);
+    // Whole courts with the same room all round, still the same shape as drawn and on one row.
+    const [a, b] = top.items;
+    expect(a!.x).toBeCloseTo(1 - b!.x - b!.w, 3);
+    expect(a!.y).toBeCloseTo(1 - a!.y - a!.h, 3);
+    expect(a!.y).toBe(b!.y);
+    expect((a!.w * top.aspect) / a!.h).toBeCloseTo((0.1 * 2) / 0.05, 1);
+    // Labels and other boxes inside come along; a range without a court is refused.
+    const left = cropLayout(six, { x: 0, y: 0, w: 0.5, h: 1 })!;
+    expect(left.items.map((i) => i.label).sort()).toEqual(["1", "2", "4", "5", "COURTS"]);
+    expect(cropLayout(six, { x: 0.75, y: 0.8, w: 0.25, h: 0.2 })).toBeNull();
+    // A single court is a plan too, not too long and thin to keep.
+    const one = cropLayout(six, { x: 0.1, y: 0.1, w: 0.1, h: 0.05 })!;
+    expect(one.items).toHaveLength(1);
+    expect(one.aspect).toBeLessThanOrEqual(5);
+  });
+
   it("knows a venue by its address, or by its name when it has none", () => {
     const a = courtMapPlace("Bintang Badminton - Fremont", "48900 Milmont Dr, Fremont, CA 94538");
     expect(courtMapPlace("Bintang", "48900  milmont dr fremont CA 94538 ")).toBe(a);
@@ -193,7 +233,7 @@ describe("球场图", () => {
     expect(list.data).toMatchObject({ photo: true, venues: [{ ...VENUE, map: null, updatedAt: null }] });
 
     const seen = model(plan);
-    const read = await maps("/photo", { image });
+    const read = await maps("/photo", { ...VENUE, image });
     expect(read.status).toBe(200);
     expect(read.data.items.filter((i: any) => i.kind === "court")).toHaveLength(2);
     expect(seen[0].messages[0].content.some((c: any) => c.type === "image")).toBe(true);
@@ -280,16 +320,59 @@ describe("球场图", () => {
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM court_map_history").first<{ n: number }>())!.n).toBe(2);
   });
 
-  it("lets any organizer set it, and says when the photo isn't a court map", async () => {
+  it("lets an organizer draw and change it by hand; 拍照 is for the Owner and admins (Ke Li)", async () => {
     const { maps, shown } = await scenario("organizer");
-    model({ found: false, aspect: 1, items: [] });
-    const res = await maps("/photo", { image });
-    expect(res.status).toBe(400);
-    expect(res.data.error.message).toBe("照片上没有找到球场图，请对准场馆贴的平面图重拍一张");
-    // Drawn by hand, without a photo.
+    expect((await maps("")).data.photo).toBe(false);
+    model(plan);
+    expect((await maps("/photo", { ...VENUE, image })).status).toBe(403);
     const layout = { aspect: 1.4, items: [court("1", 0.1, 0.1)] };
     expect((await maps("/save", { ...VENUE, layout })).status).toBe(200);
     expect((await shown()).items).toHaveLength(1);
+  });
+
+  it("writes every photo read into 群操作记录 with its cost, ten a month a venue and ten each", async () => {
+    const { ctx, maps } = await scenario();
+    // group_audit outlives a test: only what this one adds.
+    const all = async () =>
+      (
+        await env.DB.prepare("SELECT detail FROM group_audit WHERE detail LIKE '拍照识别%' ORDER BY id").all()
+      ).results.map((r) => r.detail);
+    const before = (await all()).length;
+    const audit = async () => (await all()).slice(before);
+    // Read: 2800 tokens in and 900 out on the model's price.
+    model(plan);
+    expect((await maps("/photo", { ...VENUE, image })).status).toBe(200);
+    expect(await audit()).toEqual([
+      expect.stringMatching(/^拍照识别「Bintang Fremont」的球场图，费用估算 \$\d+\.\d\d，这家球馆本月第 1 张$/),
+    ]);
+    // Asked with care, whatever 设置 has for 拍照登记.
+    const seen = model({ found: false, aspect: 1, items: [] });
+    const none = await maps("/photo", { ...VENUE, image });
+    expect(none.status).toBe(400);
+    expect(none.data.error.message).toBe("照片上没有找到球场图，请对准场馆贴的平面图重拍一张");
+    expect(seen[0].output_config.effort).toBe("high");
+    expect((await audit())[1]).toContain("（没有识别出来）");
+    expect((await audit())[1]).toContain("本月第 2 张");
+    const rows = await env.DB.prepare("SELECT ok, cost, member_id FROM court_map_photos ORDER BY id").all<any>();
+    expect(rows.results.map((r) => r.ok)).toEqual([1, 0]);
+    expect(rows.results[0].cost).toBeGreaterThan(0);
+
+    // The same venue under another spelling counts with it: ten a month, then no more this month.
+    const drive = { venue: "Bintang", address: "48900 Milmont Drive, Fremont" };
+    model(plan);
+    for (let n = 3; n <= 10; n++) expect((await maps("/photo", { ...drive, image })).status).toBe(200);
+    const full = await maps("/photo", { ...VENUE, image });
+    expect(full.status).toBe(400);
+    expect(full.data.error.message).toBe("这家球馆这个月已经拍了 10 张，请下个月再拍");
+    // Bob has sent his ten too, so not at another venue either; the Owner still can there.
+    const other = { venue: "Synergy", address: "1 Other St" };
+    const mine = await maps("/photo", { ...other, image });
+    expect(mine.data.error.message).toBe("你这个月已经拍了 10 张，请下个月再拍");
+    expect((await post(`${ctx.base}/court-maps/photo`, { ...other, image }, ctx.admin.cookie)).status).toBe(200);
+    expect(await audit()).toHaveLength(11);
+    // Next month both counts start again.
+    await env.DB.prepare("UPDATE court_map_photos SET month = '2026-01'").run();
+    expect((await maps("/photo", { ...VENUE, image })).status).toBe(200);
   });
 
   it("moves plans kept under an address as it used to be told apart to where it is now, with their history", async () => {

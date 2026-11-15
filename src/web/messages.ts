@@ -846,6 +846,17 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Tap a court to renumber, drag or remove it. Courts snap to rows and columns.",
   },
   "＋ 添加场地": { tw: "＋ 新增場地", en: "＋ Add court" },
+  旋转: { tw: "旋轉", en: "Rotate" },
+  裁剪: { tw: "裁剪", en: "Crop" },
+  确定裁剪: { tw: "確定裁剪", en: "Crop" },
+  "在图上拖出要保留的范围。范围外的场地和文字会去掉，剩下的放大到整张图。": {
+    tw: "在圖上拖出要保留的範圍。範圍外的場地和文字會去掉，剩下的放大到整張圖。",
+    en: "Drag across the map to mark the part to keep. Courts and labels outside it are removed and the rest fills the map.",
+  },
+  "选的范围里没有场地，请重新拖一个范围": {
+    tw: "選的範圍裡沒有場地，請重新拖一個範圍",
+    en: "No courts in that range. Please drag another",
+  },
   "拍一张场馆贴的球场平面图，会自动画出来，可以再改编号和位置。照片不会保存。": {
     tw: "拍一張場館貼的球場平面圖，會自動畫出來，可以再改編號和位置。照片不會保存。",
     en: "Take a photo of the court map posted at the venue. It is drawn for you, and you can fix numbers and positions. The photo itself isn't kept.",
@@ -861,6 +872,14 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "「{venue}」还没有球场图。": { tw: "「{venue}」還沒有球場圖。", en: "“{venue}” has no court map yet." },
   拍照识别还没有开通: { tw: "拍照識別還沒有開通", en: "Photo reading isn't set up yet" },
   "拍照用得太频繁了，请稍后再试": { tw: "拍照用得太頻繁了，請稍後再試", en: "Too many photos. Please try again later" },
+  "这家球馆这个月已经拍了 10 张，请下个月再拍": {
+    tw: "這家球館這個月已經拍了 10 張，請下個月再拍",
+    en: "This venue has had 10 photos this month. Please try again next month",
+  },
+  "你这个月已经拍了 10 张，请下个月再拍": {
+    tw: "你這個月已經拍了 10 張，請下個月再拍",
+    en: "You have sent 10 photos this month. Please try again next month",
+  },
   "照片没有识别出来，请重拍一张": {
     tw: "照片沒有識別出來，請重拍一張",
     en: "The photo couldn't be read. Please take another",

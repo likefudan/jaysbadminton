@@ -8,7 +8,10 @@ import {
   cleanLayout,
   courtMapPlace,
 } from "../shared/courtMap";
-import { aiEnabled, askAi } from "./ai";
+import { toPacific } from "../shared/time";
+import type { Actor } from "./access";
+import { aiEnabled, aiRequestCost, askAi } from "./ai";
+import { actorId, groupAudit } from "./audit";
 import { now } from "./db";
 import type { Env } from "./env";
 import { checkVenue } from "./events";
@@ -36,8 +39,11 @@ export function venueOf(body: Record<string, unknown>): Venue {
   return { location, address };
 }
 
-/** Court map photos an hour, for the whole site: a stuck button can't run up the bill. */
-const PER_HOUR = 20;
+/**
+ * Photos a month (Pacific) for one venue, and from one person (Ke Li 2026-11-15: 避免滥用). A read
+ * takes the model a while at high effort, so each costs far more than a 拍照登记 photo.
+ */
+export const COURT_MAP_PHOTOS_MONTH = 10;
 const MAX_BYTES = 2_000_000;
 
 const SCHEMA = {
@@ -76,8 +82,10 @@ Courts are built in straight rows and columns, all the same size and never at an
 
 Items:
 - kind "court": each badminton court with a number; label is just the number, e.g. "17".
-- kind "area": every other box on the plan, e.g. courts for other sports, a court with letters (e.g. "JR"), the front desk, sign-up stations, restrooms drawn as boxes; label is its text as printed, short ("" if none).
-- kind "text": a free-standing label such as "BADMINTON COURTS" or "ENTRANCE", with the box it takes up.
+- kind "area": every other box on the plan, e.g. courts for other sports ("A", "B"), a court with letters (e.g. "JR"), the front desk, sign-up stations, restrooms drawn as boxes; label is its text as printed, short. Leave out small marks that have no text (fire extinguishers, pillars, doors).
+- kind "text": every free-standing label, e.g. "BADMINTON COURTS", "PICKLEBALL COURTS", "RESTROOMS", "ENTRANCE", with the box its text takes up.
+
+Read every label on the plan and check each court number against its neighbours: numbers run in order along a row.
 
 Give at most ${COURT_MAP_ITEMS_MAX} items. Do not invent courts you cannot see.`;
 
@@ -105,25 +113,61 @@ function checkJpeg(v: unknown) {
   if (bytes[0] !== 0xff || bytes[1] !== 0xd8) throw badRequest("照片格式不对，请重新拍一张");
 }
 
-/** Reads the photo into a layout for the page to show; nothing is saved until 保存. */
-export async function readCourtMapPhoto(env: Env, body: Record<string, unknown>): Promise<CourtMapLayout> {
+/**
+ * Reads the photo into a layout for the page to show; nothing is saved until 保存. Only the Owner
+ * and admins may (Ke Li 2026-11-15), ten a month for a venue and ten a month each. Every photo sent
+ * is written down with what it cost, and goes into 群操作记录.
+ */
+export async function readCourtMapPhoto(
+  env: Env,
+  actor: Pick<Actor, "memberId">,
+  body: Record<string, unknown>,
+): Promise<CourtMapLayout> {
   if (!aiEnabled(env)) throw badRequest("拍照识别还没有开通");
+  const venue = venueOf(body);
   checkJpeg(body.image);
-  // These calls belong to no event; each is one row in ai_usage (two when the fallback answers).
-  const recent = await env.DB.prepare(
-    "SELECT COUNT(DISTINCT request) AS n FROM ai_usage WHERE use = 'photo' AND event_id IS NULL AND created_at > ?",
+  const place = courtMapPlace(venue.location, venue.address);
+  const who = actorId(actor);
+  const ts = now();
+  const month = toPacific(ts).date.slice(0, 7);
+  const used = await env.DB.prepare(
+    `SELECT COALESCE(SUM(place = ?1), 0) AS here, COALESCE(SUM(member_id = ?2), 0) AS mine
+     FROM court_map_photos WHERE month = ?3 AND (place = ?1 OR member_id = ?2)`,
   )
-    .bind(new Date(Date.now() - 3600_000).toISOString())
-    .first<{ n: number }>();
-  if ((recent?.n ?? 0) >= PER_HOUR) throw badRequest("拍照用得太频繁了，请稍后再试");
-  const raw = await askAi(env, "photo", {
-    text: PROMPT,
-    image: body.image as string,
-    schema: SCHEMA,
-    maxTokens: 32000,
-  });
+    .bind(place, who, month)
+    .first<{ here: number; mine: number }>();
+  if ((used?.here ?? 0) >= COURT_MAP_PHOTOS_MONTH) throw badRequest("这家球馆这个月已经拍了 10 张，请下个月再拍");
+  if ((used?.mine ?? 0) >= COURT_MAP_PHOTOS_MONTH) throw badRequest("你这个月已经拍了 10 张，请下个月再拍");
+  // Counted before the model is asked, so photos sent at once can't get past the limit.
+  const request = crypto.randomUUID();
+  await env.DB.prepare(
+    "INSERT INTO court_map_photos (place, venue, member_id, month, request, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(place, venue.location, who, month, request, ts)
+    .run();
+  // The 拍照登记 model, but asked to take care and given time (Ke Li 2026-11-15: read at 低 it left
+  // out labels and boxes): a venue's plan is read once and then kept, a queue screen many times a night.
+  const raw = await askAi(
+    env,
+    "photo",
+    { text: PROMPT, image: body.image as string, schema: SCHEMA, maxTokens: 32000 },
+    { effort: "high", callMs: 120_000, request },
+  );
+  const layout = raw === undefined || (raw as { found?: unknown }).found === false ? null : cleanLayout(raw);
+  const cost = await aiRequestCost(env, request);
+  await env.DB.prepare("UPDATE court_map_photos SET ok = ?, cost = ? WHERE request = ?")
+    .bind(layout ? 1 : 0, cost, request)
+    .run();
+  const price = cost === null ? "费用未知" : `费用估算 $${cost.toFixed(2)}`;
+  const nth = `这家球馆本月第 ${(used?.here ?? 0) + 1} 张`;
+  await groupAudit(
+    env,
+    actor,
+    "settings",
+    null,
+    `拍照识别「${venue.location}」的球场图${layout ? "" : "（没有识别出来）"}，${price}，${nth}`,
+  );
   if (raw === undefined) throw new HttpError(502, "photo_failed", "照片没有识别出来，请重拍一张");
-  const layout = (raw as { found?: unknown }).found === false ? null : cleanLayout(raw);
   if (!layout) throw badRequest("照片上没有找到球场图，请对准场馆贴的平面图重拍一张");
   return layout;
 }

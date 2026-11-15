@@ -261,6 +261,51 @@ export function addCourt(layout: CourtMapLayout): CourtMapLayout {
   return withIt;
 }
 
+/** A range on the plan, in fractions of its border as boxes are. */
+export interface CourtMapRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * 裁剪 (Ke Li 2026-11-15: 只选取一个范围内的场地): the plan with only the boxes and labels whose
+ * middle is inside the range, redrawn so they fill it. The new border is drawn around what is kept
+ * with a little room, not at the range's own edges, so a range dragged roughly cuts no court in
+ * half. Null when the range holds no court.
+ */
+export function cropLayout(layout: CourtMapLayout, r: CourtMapRect): CourtMapLayout | null {
+  const inside = (i: CourtMapItem) => {
+    const cx = i.x + i.w / 2;
+    const cy = i.y + i.h / 2;
+    return cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h;
+  };
+  const kept = layout.items.filter(inside);
+  if (!kept.some((i) => i.kind === "court")) return null;
+  // The same room on every side as drawn: fractions of the height are `aspect` times those of the width.
+  const pad = 0.02;
+  let x0 = Math.min(...kept.map((i) => i.x)) - pad;
+  let y0 = Math.min(...kept.map((i) => i.y)) - pad * layout.aspect;
+  let w = Math.max(...kept.map((i) => i.x + i.w)) + pad - x0;
+  let h = Math.max(...kept.map((i) => i.y + i.h)) + pad * layout.aspect - y0;
+  // One row or one column of courts is still a plan that can be kept (aspect 0.2–5).
+  const LONG = 4.8;
+  if ((layout.aspect * w) / h > LONG) {
+    const grown = (layout.aspect * w) / LONG;
+    y0 -= (grown - h) / 2;
+    h = grown;
+  } else if ((layout.aspect * w) / h < 1 / LONG) {
+    const grown = h / LONG / layout.aspect;
+    x0 -= (grown - w) / 2;
+    w = grown;
+  }
+  return cleanLayout({
+    aspect: (layout.aspect * w) / h,
+    items: kept.map((i) => ({ ...i, x: (i.x - x0) / w, y: (i.y - y0) / h, w: i.w / w, h: i.h / h })),
+  });
+}
+
 /**
  * A layout as it may be kept: from the model's answer or from the page. Boxes are kept inside the
  * plan, labels trimmed, a court whose label isn't a number becomes an area (it can't be on the

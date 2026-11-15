@@ -155,8 +155,21 @@ test("球场图: our courts coloured on the venue's plan, turned sideways on an 
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(map.locator(".cm-sheet")).not.toHaveClass(/turned/);
   await page.screenshot({ path: test.info().outputPath("court-map-landscape.png"), animations: "disabled" });
+  // 旋转 switches between the two ways up, and the choice is kept for next time.
+  await map.getByRole("button", { name: "旋转" }).click();
+  await expect(map.locator(".cm-sheet")).toHaveClass(/turned/);
   await page.keyboard.press("Escape");
   await expect(map).toBeHidden();
+  await trigger.click();
+  await expect(map.locator(".cm-sheet")).toHaveClass(/turned/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await map.getByRole("button", { name: "旋转" }).click();
+  await expect(map.locator(".cm-sheet")).not.toHaveClass(/turned/);
+  await page.screenshot({ path: test.info().outputPath("court-map-upright.png"), animations: "disabled" });
+  await page.reload();
+  await page.getByRole("button", { name: "球场图" }).click();
+  await expect(map.locator(".cm-item.court")).toHaveCount(53);
+  await expect(map.locator(".cm-sheet")).not.toHaveClass(/turned/);
 });
 
 test("球场图 is only for venues with a plan, and only to look at: it is kept in 设置", async ({ page }) => {
