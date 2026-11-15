@@ -21,6 +21,9 @@ export interface Env {
   EMAIL_FROM?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  /** The phone apps' Google client IDs, comma-separated: lets the apps sign in with the phone's
+   *  Google account (googleAuth.ts, POST /api/auth/native/google). Off while missing. */
+  GOOGLE_NATIVE_CLIENT_IDS?: string;
   /** Ke Li's Azure (Microsoft Foundry) key: the models picked in 设置 → AI 模型 (ai.ts); 拍照登记 is
    *  hidden while it is missing. Pushed from the GitHub secret. */
   AZURE_FOUNDRY_API_KEY?: string;

@@ -3,7 +3,7 @@ import { developerMember, endDeveloperSession } from "./developer";
 import { applyToJoin } from "./joining";
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { type JWTPayload, createRemoteJWKSet, jwtVerify } from "jose";
 import type { Env } from "./env";
 import { now } from "./db";
 import { randomToken, sha256, timingSafeEqual } from "./lib/crypto";
@@ -107,6 +107,38 @@ export async function googleMember<E extends { Bindings: Env }>(c: Context<E>): 
     throw new HttpError(403, "pending_approval", "你的入群申请正在等待审核，通过后才能报名活动");
   return m;
 }
+
+/** Signs this browser (or the app's page) in as a Google account for 30 days, replacing who was. */
+async function startSession(c: Ctx, sub: string, email: string, picture: string | null) {
+  const raw = randomToken(),
+    expires = new Date(Date.now() + 30 * 86400_000);
+  const old = getCookie(c, MEMBER_COOKIE);
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM member_sessions WHERE expires_at < ? OR id_hash = ?").bind(
+      now(),
+      old ? await sha256(old) : "",
+    ),
+    c.env.DB.prepare(
+      "INSERT INTO member_sessions (id_hash, google_sub, email, expires_at, picture) VALUES (?, ?, ?, ?, ?)",
+    ).bind(await sha256(raw), sub, email, expires.toISOString(), picture),
+    syncGooglePicture(c.env.DB, sub, picture),
+  ]);
+  setCookie(c, MEMBER_COOKIE, raw, { ...cookieOptions(c), expires });
+}
+
+/**
+ * The phone apps' own Google client IDs (GOOGLE_NATIVE_CLIENT_IDS, comma-separated). Google refuses
+ * its sign-in page inside an app's web view, so the app signs in with the phone's Google account
+ * and hands the page the ID token it got (POST /api/auth/native/google). None while missing.
+ */
+const nativeClientIds = (env: Env) =>
+  (env.GOOGLE_NATIVE_CLIENT_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+export const nativeSignInEnabled = (env: Env) => googleEnabled(env) && nativeClientIds(env).length > 0;
+/** How old an app's ID token may be: it is used the moment it is made. */
+const NATIVE_TOKEN_MAX_AGE_S = 300;
 
 export const googleRoutes = new Hono<{ Bindings: Env }>();
 googleRoutes.use("*", async (c, next) => {
@@ -228,25 +260,37 @@ googleRoutes.get("/google/callback", async (c) => {
       (payload.azp !== undefined && payload.azp !== c.env.GOOGLE_CLIENT_ID)
     )
       throw new Error("invalid claims");
-    const raw = randomToken(),
-      expires = new Date(Date.now() + 30 * 86400_000);
-    const old = getCookie(c, MEMBER_COOKIE);
-    await c.env.DB.batch([
-      c.env.DB.prepare("DELETE FROM member_sessions WHERE expires_at < ? OR id_hash = ?").bind(
-        now(),
-        old ? await sha256(old) : "",
-      ),
-      c.env.DB.prepare(
-        "INSERT INTO member_sessions (id_hash, google_sub, email, expires_at, picture) VALUES (?, ?, ?, ?, ?)",
-      ).bind(await sha256(raw), payload.sub, payload.email, expires.toISOString(), profilePicture(payload.picture)),
-      syncGooglePicture(c.env.DB, payload.sub, profilePicture(payload.picture)),
-    ]);
-    setCookie(c, MEMBER_COOKIE, raw, { ...cookieOptions(c), expires });
+    await startSession(c, payload.sub, payload.email, profilePicture(payload.picture));
     return c.redirect(next);
   } catch {
     // Never log codes, tokens, or provider responses.
     return c.redirect("/login?error=failed");
   }
+});
+googleRoutes.post("/native/google", async (c) => {
+  if (!nativeSignInEnabled(c.env)) throw new HttpError(404, "not_found", "这个网站还不支持 App 登录");
+  const idToken = str((await readJson(c.req.raw)).idToken);
+  const ids = nativeClientIds(c.env);
+  let payload: JWTPayload;
+  try {
+    ({ payload } = await jwtVerify(idToken, keys, {
+      issuer: ["https://accounts.google.com", "accounts.google.com"],
+      // An iPhone's token is made out to the app's own ID; Android's to the website's, on behalf
+      // of the app (azp).
+      audience: [...ids, c.env.GOOGLE_CLIENT_ID!],
+      algorithms: ["RS256"],
+      requiredClaims: ["sub", "exp", "iat", "email"],
+      maxTokenAge: NATIVE_TOKEN_MAX_AGE_S,
+    }));
+  } catch {
+    // Never log tokens.
+    throw new HttpError(401, "login_failed", "登录失败，请重试");
+  }
+  const forApp = [payload.aud].flat().some((a) => ids.includes(a!)) || ids.includes(String(payload.azp ?? ""));
+  if (!forApp || payload.email_verified !== true || typeof payload.email !== "string" || !payload.sub)
+    throw new HttpError(401, "login_failed", "登录失败，请重试");
+  await startSession(c, payload.sub, payload.email, profilePicture(payload.picture));
+  return c.json({ ok: true });
 });
 googleRoutes.post("/register", async (c) => {
   const session = await googleSession(c);
