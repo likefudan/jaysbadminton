@@ -126,5 +126,26 @@ test("a viewer's version list has no release button", async ({ page }) => {
   await expect(page.locator(".panel .foot button")).toHaveCount(0);
   await expect(page.locator(".panel .foot")).toContainText("只读");
   await expect(page.getByText("用户和权限")).toHaveCount(0);
+  // 所有版本: a version a site runs says where (this once threw "list is not a function").
+  await page.route("**/api/releases?page=1", (route) =>
+    route.fulfill({
+      json: {
+        releases: [
+          {
+            tag: "v2026.11.10",
+            date: "2026-11-10T00:00:00Z",
+            url: "https://github.com/o/r/releases/tag/v2026.11.10",
+            notes: [{ text: "A", pr: 1 }],
+          },
+        ],
+        more: false,
+      },
+    }),
+  );
+  await page.goBack();
+  await expect(page.locator(".panel")).toHaveCount(0);
+  await page.getByText("所有版本和发布说明").click();
+  await expect(page.locator(".rel .relon")).toHaveText("在用：Jay's");
+  await expect(page.getByText("没读到")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
