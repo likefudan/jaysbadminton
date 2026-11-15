@@ -538,6 +538,7 @@ const RESET_TABLES = [
   "settlements",
   "registrations",
   "ai_usage",
+  "court_map_history",
   "court_maps",
   "queue_photos",
   "queue_courts",

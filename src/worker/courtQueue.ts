@@ -74,7 +74,7 @@ export async function queueInfo(
   const [pct, view, map, accounts, courts] = await Promise.all([
     idleAlertPct(env),
     queueAccountsView(env),
-    getCourtMap(env, e.location),
+    getCourtMap(env, e),
     env.DB.prepare(
       `SELECT a.id, a.username, a.password, a.member_id, m.username AS by_name
        FROM queue_accounts a JOIN members m ON m.id = a.member_id

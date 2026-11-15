@@ -201,11 +201,17 @@ test("球场图 is only for venues with a plan, unless the viewer can make one",
   await expect(page.getByRole("button", { name: "球场图" })).toHaveCount(0);
 });
 
-test("球场图: whoever runs the event photographs the plan, fixes a number and saves it", async ({ page }) => {
+test("球场图: an organizer photographs the plan, fixes a number, moves a court along the lines and saves", async ({
+  page,
+}) => {
   const posts = await setUp(page, { ...event, queue: { ...queue, mapEdit: true } });
   const read = { aspect: 1.39, items: [...plan.items.slice(0, 3), { ...plan.items[3]!, label: "84" }] };
   await page.route("**/api/m/tok/events/9/queue/map/photo", (route) => route.fulfill({ json: read }));
-  await page.getByRole("button", { name: "球场图" }).click();
+  // The button sits beside 账号管理, not on a row of its own.
+  const trigger = page.getByRole("button", { name: "球场图" });
+  const beside = page.getByRole("button", { name: "账号管理" });
+  expect((await trigger.boundingBox())!.y).toBe((await beside.boundingBox())!.y);
+  await trigger.click();
   const map = page.getByRole("dialog", { name: "球场图" });
   await expect(map.getByText("「Synergy Badminton」还没有球场图。")).toBeVisible();
   // A tiny PNG stands in for the photo.
@@ -218,13 +224,78 @@ test("球场图: whoever runs the event photographs the plan, fixes a number and
     .first()
     .setInputFiles({ name: "map.png", mimeType: "image/png", buffer: png });
   await expect(map.locator(".cm-item.court")).toHaveCount(4);
-  page.once("dialog", (d) => d.accept("47"));
-  await map.getByRole("button", { name: "84", exact: true }).click();
-  await expect(map.getByRole("button", { name: "47", exact: true })).toBeVisible();
-  await map.getByRole("button", { name: "保存为「Synergy Badminton」的球场图" }).click();
+  const box = (label: string) => map.getByRole("button", { name: label, exact: true });
+
+  // A wrong number: picked, retyped. A number used twice isn't saved.
+  await box("84").click();
+  await map.getByLabel("编号").fill("53");
+  await map.getByRole("button", { name: "保存" }).click();
+  await expect(map.getByText("有两片场地都是 53 号，请改掉一个")).toBeVisible();
+  await map.getByLabel("编号").fill("47");
+
+  // Dragged roughly under 52: it lands exactly on 52's column, never in between or at an angle.
+  const from = (await box("47").boundingBox())!;
+  const under = (await box("52").boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(under.x + under.width / 2 + 7, from.y + from.height / 2 + 40, { steps: 5 });
+  await page.mouse.up();
+  expect((await box("47").boundingBox())!.x).toBeCloseTo(under.x, 0);
+  // An arrow moves it one step; a new court takes the first free number.
+  const before = (await box("47").boundingBox())!.y;
+  await map.getByRole("button", { name: "下移" }).click();
+  expect((await box("47").boundingBox())!.y).toBeGreaterThan(before);
+  await map.getByRole("button", { name: "＋ 添加场地" }).click();
+  await expect(map.getByLabel("编号")).toHaveValue("1");
+  await page.screenshot({ path: test.info().outputPath("court-map-edit.png"), animations: "disabled" });
+
+  await map.getByRole("button", { name: "保存" }).click();
   await expect.poll(() => posts.find((p) => p.url.endsWith("/queue/map"))).toBeTruthy();
   const saved = posts.find((p) => p.url.endsWith("/queue/map"))!.body as { layout: typeof plan };
-  expect(saved.layout.items.map((i) => i.label)).toEqual(["53", "52", "51", "47"]);
+  expect(saved.layout.items.map((i) => i.label)).toEqual(["53", "52", "51", "47", "1"]);
+  const [c52, c47] = [saved.layout.items[1]!, saved.layout.items[3]!];
+  expect(c47.x).toBe(c52.x);
+  expect(c47.w).toBe(c52.w);
+});
+
+test("球场图: 修改 opens the kept plan in the editor, 删除 takes it off the venue", async ({ page }) => {
+  const posts = await setUp(page, { ...event, queue: { ...queue, map: plan, mapEdit: true } });
+  await page.getByRole("button", { name: "球场图" }).click();
+  const map = page.getByRole("dialog", { name: "球场图" });
+  await map.getByRole("button", { name: "修改" }).click();
+  await map.getByRole("button", { name: "53", exact: true }).click();
+  await map.getByRole("button", { name: "删除" }).click();
+  await expect(map.locator(".cm-item.court")).toHaveCount(52);
+  await map.getByRole("button", { name: "取消" }).click();
+  await expect(map.locator(".cm-item.court")).toHaveCount(53);
+  page.once("dialog", (d) => d.accept());
+  await map.getByRole("button", { name: "删除" }).click();
+  await expect.poll(() => posts.some((p) => p.url.endsWith("/queue/map/remove"))).toBe(true);
+});
+
+test("球场图: 以前的图 lists what was replaced; 恢复 opens one in the editor to save again", async ({ page }) => {
+  const posts = await setUp(page, { ...event, queue: { ...queue, map: plan, mapEdit: true } });
+  const older = { aspect: 1.39, items: plan.items.slice(0, 6) };
+  await page.route("**/api/m/tok/events/9/queue/map/history", (route) =>
+    route.fulfill({
+      json: {
+        history: [
+          { id: 2, layout: older, savedBy: "Jay", savedAt: "2030-10-20T03:05:00Z", replacedAt: "2030-10-21T03:00:00Z" },
+        ],
+      },
+    }),
+  );
+  await page.getByRole("button", { name: "球场图" }).click();
+  const map = page.getByRole("dialog", { name: "球场图" });
+  await map.getByRole("button", { name: "以前的图" }).click();
+  await expect(map.getByText("Jay 保存 · 6 片场地")).toBeVisible();
+  await expect(map.getByText("10/19 20:05")).toBeVisible();
+  await map.getByRole("button", { name: "恢复" }).click();
+  await expect(map.locator(".cm-item.court")).toHaveCount(6);
+  await map.getByRole("button", { name: "保存" }).click();
+  await expect.poll(() => posts.find((p) => p.url.endsWith("/queue/map"))).toBeTruthy();
+  const saved = posts.find((p) => p.url.endsWith("/queue/map"))!.body as { layout: typeof plan };
+  expect(saved.layout.items).toHaveLength(6);
 });
 
 test("draws our courts, playing then queued, one account per quarter", async ({ page }) => {

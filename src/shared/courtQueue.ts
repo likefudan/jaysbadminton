@@ -66,7 +66,7 @@ export interface QueueInfo {
   accountsView: QueueAccountsView;
   /** 球场图: the venue's floor plan, null until someone sets one. */
   map: CourtMapLayout | null;
-  /** The viewer may set or remove the plan: the Owner, admins and whoever runs the event. */
+  /** The viewer may add, change or remove the plan: the Owner, admins and organizers. */
   mapEdit: boolean;
 }
 

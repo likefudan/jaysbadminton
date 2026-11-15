@@ -1,4 +1,4 @@
-import { readCourtMapPhoto, removeCourtMap, saveCourtMap } from "../courtMap";
+import { courtMapHistory, readCourtMapPhoto, removeCourtMap, saveCourtMap } from "../courtMap";
 import { Hono } from "hono";
 import { settle } from "../../shared/settle";
 import type {
@@ -395,7 +395,7 @@ async function myEvents(
         // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
         queue:
           (onIt || runs) && queueOnCard(row, always)
-            ? await queueInfo(env, row, m.id, managesQueue(env, m), runs || managesQueue(env, m))
+            ? await queueInfo(env, row, m.id, managesQueue(env, m), editsCourtMap(env, m))
             : null,
         courts: onIt || runs ? bookedCourts(row) : [],
         kcal: mine.kcalOf(e.id),
@@ -556,11 +556,13 @@ memberRoutes.post("/:token/events/:id/queue/photo", async (c) => {
   return c.json(await readCourtPhoto(c.env, e, m.id, await readJson(c.req.raw)));
 });
 
-// 球场图: the Owner, admins and whoever runs the event photograph the venue's plan, check it and
-// save it for the venue (Ke Li 2026-11-15). Reading saves nothing.
+// 球场图: the Owner, admins and organizers (Ke Li 2026-11-15) photograph the venue's plan, fix it
+// and save it for the venue; they also change and remove it. Reading a photo saves nothing.
+const editsCourtMap = (env: Env, m: MemberRow) => can(memberRole(env, m), "events.create");
+
 async function courtMapEditor(c: { env: Env; get: (k: "member") => MemberRow }, id: string) {
-  const { e, m, runs } = await queueEventFor(c, id);
-  if (!runs && !managesQueue(c.env, m)) throw badRequest("只有群主、管理员和这个活动的组织者可以设置球场图");
+  const { e, m } = await queueEventFor(c, id);
+  if (!editsCourtMap(c.env, m)) throw badRequest("只有群主、管理员和组织者可以设置球场图");
   return { e, m };
 }
 
@@ -573,6 +575,12 @@ memberRoutes.post("/:token/events/:id/queue/map", async (c) => {
   const { e, m } = await courtMapEditor(c, c.req.param("id"));
   await saveCourtMap(c.env, e, m.id, await readJson(c.req.raw));
   return c.json({ ok: true });
+});
+
+// 以前的图: what a save or 删除 replaced in the last 30 days, to bring back after a slip.
+memberRoutes.post("/:token/events/:id/queue/map/history", async (c) => {
+  const { e } = await courtMapEditor(c, c.req.param("id"));
+  return c.json({ history: await courtMapHistory(c.env, e) });
 });
 
 memberRoutes.post("/:token/events/:id/queue/map/remove", async (c) => {

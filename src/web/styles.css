@@ -4367,22 +4367,13 @@ ul.audit li:first-child {
   font-weight: 600;
   color: var(--text-2);
 }
-.cq-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.cq-section-head .cq-sub {
-  margin: 0;
-}
-.cq-section-head .cq-map-button {
-  margin: 0 0 0 auto;
-  min-height: 36px;
-  padding: 0 10px;
-  font-size: 13px;
+/* Three buttons on a phone: the two beside 登记球场 take only the room their words need. */
+.cq-bar .button {
+  padding-inline: 10px;
   white-space: nowrap;
+}
+.cq-bar .cq-map-button {
+  flex: 0 1 auto;
 }
 .cq-grid {
   display: grid;
@@ -6879,7 +6870,102 @@ label.set-row {
     min-height: 140px;
   }
   /* Setting the plan is done upright; sideways the plan gets all the room. */
-  .panel.cm-panel .cm-actions.row {
+  .panel.cm-panel .cm-manage {
     display: none;
   }
+}
+/* 编辑球场图: a picked box, and the tools under the plan. */
+.cm-plan.editing .cm-item > button {
+  touch-action: none;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.cm-item.picked {
+  z-index: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* As tall as the plan itself, so the tools sit right under it. */
+.cm-stage.editing {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 56vh;
+}
+.cm-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.cm-tools p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+.cm-tools .button {
+  margin: 0;
+  min-height: 40px;
+  padding: 0 12px;
+}
+.cm-number {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.cm-number input {
+  width: 72px;
+  min-height: 40px;
+  margin: 0;
+  text-align: center;
+}
+.cm-arrows {
+  display: flex;
+  gap: 4px;
+}
+.cm-tools .cm-arrow {
+  min-width: 40px;
+  padding: 0;
+  font-size: 17px;
+}
+.cm-tools .cm-add {
+  margin-left: auto;
+}
+.cm-actions.row .button {
+  flex: 1;
+  margin: 0;
+}
+.cm-actions .button {
+  white-space: nowrap;
+}
+.cm-where {
+  margin: 0;
+}
+.cm-old {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cm-old li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.cm-old li > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cm-old .button {
+  margin: 0;
+  min-height: 36px;
 }

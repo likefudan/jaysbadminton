@@ -130,23 +130,20 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
         <button type="button" class="button secondary" onClick={() => setSheet({ kind: "accounts" })}>
           {t("账号管理")}
         </button>
+        {/* On the same row and in the same style as its neighbours, not a row of its own (Ke Li). */}
+        {hasMap && (
+          <button
+            type="button"
+            class="button secondary cq-map-button"
+            aria-haspopup="dialog"
+            onClick={() => setSheet({ kind: "map" })}
+          >
+            {t("球场图")}
+          </button>
+        )}
         <IdleNotice q={q} now={now} />
       </div>
-      {(playing.length > 0 || hasMap) && (
-        <div class="cq-section-head">
-          {playing.length > 0 && <p class="cq-sub">{t("在打 · {n} 片", { n: playing.length })}</p>}
-          {hasMap && (
-            <button
-              type="button"
-              class="button secondary cq-map-button"
-              aria-haspopup="dialog"
-              onClick={() => setSheet({ kind: "map" })}
-            >
-              {t("球场图")}
-            </button>
-          )}
-        </div>
-      )}
+      {playing.length > 0 && <p class="cq-sub">{t("在打 · {n} 片", { n: playing.length })}</p>}
       {playing.length > 0 && (
         <div class="cq-grid">
           {playing.map(({ c, p }) => (
