@@ -28,7 +28,7 @@ const board = (lists: Record<string, Rank[]>, boards = ["calories", "attendance"
 
 /** 首页: the next event as one big card, 排行榜 and 历史活动 as rows that scroll sideways, not the page. */
 test("the home page leads with the next event and scrolls the small cards sideways", async ({ page }) => {
-  const names = ["arthur", "Dafei", "Jayx", "Johnzhang", "joseff", "Lily", "Tom", "Kevin"];
+  const names = ["arturo", "Dawei", "Jayz", "Johnzhao", "josefa", "Lina", "Tom", "Kevin"];
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({ json: { signedIn: true, hasMember: false, pending: true } }),
   );
@@ -42,7 +42,7 @@ test("the home page leads with the next event and scrolls the small cards sidewa
         leaderboard: board(
           {
             attendance: names.map((name, i) => ({ rank: i + 1, name, value: 9 - i })),
-            hours: [{ rank: 1, name: "Lily", value: 12.5 }],
+            hours: [{ rank: 1, name: "Lina", value: 12.5 }],
           },
           ["calories", "attendance", "hours", "streak"],
         ),
@@ -69,7 +69,7 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   await expect(page.locator(".podium .p1 .value")).toHaveText("12.5小时");
   await page.getByRole("tab", { name: "出勤" }).click();
   // A podium for the top three (2nd, 1st, 3rd from the left), rows below it, the rest behind 查看全部.
-  await expect(page.locator(".podium .who")).toHaveText(["Dafei", "arthur", "Jayx"]);
+  await expect(page.locator(".podium .who")).toHaveText(["Dawei", "arturo", "Jayz"]);
   await expect(page.locator(".podium .crown")).toHaveCount(1);
   const rows = page.locator(".board-rows li");
   await expect(rows).toHaveCount(3);
@@ -110,7 +110,7 @@ test("signed in, the home page is 我的活动 with 排行榜 and 分享 on it",
       json: {
         currentEvents: [event({})],
         pastEvents: [event({ id: 11, code: "P1", date: "2026-09-01", status: "settled" })],
-        leaderboard: board({ attendance: [{ rank: 1, name: "Lily", value: 9 }] }),
+        leaderboard: board({ attendance: [{ rank: 1, name: "Lina", value: 9 }] }),
       },
     }),
   );
@@ -123,7 +123,7 @@ test("signed in, the home page is 我的活动 with 排行榜 and 分享 on it",
   await expect(page.locator(".next-card")).toHaveCount(0);
   await expect(page.locator(".board-tabs")).toBeVisible();
   await page.getByRole("tab", { name: "出勤" }).click();
-  await expect(page.locator(".podium .who")).toHaveText(["Lily"]);
+  await expect(page.locator(".podium .who")).toHaveText(["Lina"]);
   await expect(page.locator(".mini-card")).toHaveCount(0);
 
   await expect(page.locator(".share-site")).toBeVisible();
@@ -163,10 +163,10 @@ test("the footer thanks the AI sponsor", async ({ page }) => {
 /** 并列: people with the same count share a rank and its colour; the next rank skips. */
 test("ties on the leaderboard share a rank", async ({ page }) => {
   const attendance = [
-    { rank: 1, name: "Lily", value: 3 },
-    { rank: 2, name: "arthur", value: 2 },
-    { rank: 2, name: "Dafei", value: 2 },
-    { rank: 2, name: "Jayx", value: 2 },
+    { rank: 1, name: "Lina", value: 3 },
+    { rank: 2, name: "arturo", value: 2 },
+    { rank: 2, name: "Dawei", value: 2 },
+    { rank: 2, name: "Jayz", value: 2 },
     { rank: 5, name: "Tom", value: 1 },
   ];
   await page.route("**/api/public/home", (route) =>
@@ -199,7 +199,7 @@ test.describe("with a mouse", () => {
           pastEvents: Array.from({ length: 8 }, (_, i) =>
             event({ id: 10 + i, code: `P${i}`, date: `2026-09-0${i + 1}`, status: "settled" }),
           ),
-          leaderboard: board({ calories: [{ name: "arthur", value: 1522, rank: 1 }] }),
+          leaderboard: board({ calories: [{ name: "arturo", value: 1522, rank: 1 }] }),
         },
       }),
     );

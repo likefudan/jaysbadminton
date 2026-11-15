@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
  * 我的, and 管理 for those who run events. A browser keeps the tabs at the top.
  */
 const SHOTS = process.env.SHOTS;
-const NAMES = ["Lily", "arthur", "Dafei", "Jayx", "Tom", "Kevin"];
+const NAMES = ["Lina", "arturo", "Dawei", "Jayz", "Tom", "Kevin"];
 const KEYS = ["calories", "attendance", "hours", "streak", "friends", "queue", "early", "progress"];
 const list = NAMES.map((name, i) => ({ rank: i + 1, name, value: 30 - i * 3 }));
 const leaderboard = {

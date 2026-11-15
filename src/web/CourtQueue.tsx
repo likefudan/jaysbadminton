@@ -1180,7 +1180,7 @@ function AccountsList(props: { base: string; e: MyEvent; q: QueueInfo; bar: Acco
 }
 
 /**
- * 批量添加: paste a list, "Cassie lion3" or numbered "1. Cassie lion3", one account per line
+ * 批量添加: paste a list, "Alice cat12" or numbered "1. Alice cat12", one account per line
  * ("Court …" lines and, in a numbered list, a group note above are skipped). It is read here exactly as typed, and the preview says what will be added, what is
  * already on the event and which lines couldn't be read, before anything is saved.
  */

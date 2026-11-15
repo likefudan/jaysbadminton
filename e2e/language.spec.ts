@@ -6,7 +6,7 @@ async function member(page: Page) {
     route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }),
   );
   await page.route("**/api/m/tok/me", (route) =>
-    route.fulfill({ json: { id: "M007", username: "Dafei", wechatNickname: "dafei", active: true, isOwner: false } }),
+    route.fulfill({ json: { id: "M007", username: "Dawei", wechatNickname: "dawei", active: true, isOwner: false } }),
   );
   await page.route("**/api/m/tok/events", (route) =>
     route.fulfill({ json: { events: [], history: [], friendCap: 3 } }),
@@ -25,18 +25,18 @@ const pick = async (page: Page, name: string) => {
 test("switching language on a member page, remembered on this device", async ({ page }) => {
   await member(page);
   await page.goto("/m/tok");
-  await expect(page.getByRole("heading", { name: "你好，Dafei" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "你好，Dawei" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
 
   await pick(page, "English");
-  await expect(page.getByRole("heading", { name: "Hi, Dafei" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hi, Dawei" })).toBeVisible();
   await expect(page.getByRole("link", { name: "My events" })).toBeVisible();
   await expect(page.getByText("No sign-ups yet")).toBeVisible();
   await expect(page.getByRole("button", { name: "Language: English" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Hi, Dafei" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hi, Dawei" })).toBeVisible();
 
   await pick(page, "繁體中文");
   await expect(page.getByRole("link", { name: "我的活動" })).toBeVisible();

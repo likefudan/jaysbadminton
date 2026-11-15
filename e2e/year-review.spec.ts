@@ -11,8 +11,8 @@ const review = (year: number) => ({
   queue: 12,
   venue: { name: "Synergy Badminton Academy", count: 21 },
   buddies: [
-    { name: "Lily", count: 18 },
-    { name: "arthur", count: 15 },
+    { name: "Lina", count: 18 },
+    { name: "arturo", count: 15 },
   ],
   milestones: [
     { key: "attendance", value: 24, tier: 2 },
@@ -30,7 +30,7 @@ test("the year card switches years, shows the badges, and shares an image", asyn
     route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }),
   );
   await page.route("**/api/m/tok/me", (route) =>
-    route.fulfill({ json: { id: "M007", username: "Dafei", wechatNickname: "dafei", active: true, isOwner: false } }),
+    route.fulfill({ json: { id: "M007", username: "Dawei", wechatNickname: "dawei", active: true, isOwner: false } }),
   );
   await page.route(/\/api\/m\/tok\/(profile|stats|calories|events)$/, (route) =>
     route.fulfill({ status: 503, json: { error: { message: "x" } } }),
@@ -41,7 +41,7 @@ test("the year card switches years, shows the badges, and shares an image", asyn
   await page.goto("/m/tok/profile");
   // Inside the top card, under their name (option C).
   const card = page.locator(".me-card .year-card");
-  await expect(page.locator(".me-card")).toContainText("Dafei");
+  await expect(page.locator(".me-card")).toContainText("Dawei");
   await expect(card).toContainText("你的 2026");
   await expect(card).toContainText("14,820");
   await expect(card).toContainText("Synergy Badminton Academy");
@@ -72,7 +72,7 @@ test("the year card switches years, shows the badges, and shares an image", asyn
   await page.mouse.click(10, 10);
   await expect(info).toBeHidden();
 
-  await expect(page.locator(".buddy")).toHaveText([/Lily.*18/, /arthur.*15/]);
+  await expect(page.locator(".buddy")).toHaveText([/Lina.*18/, /arturo.*15/]);
 
   await card.getByRole("button", { name: "分享" }).click();
   await expect(page.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png/);

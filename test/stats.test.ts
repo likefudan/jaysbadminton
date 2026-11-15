@@ -111,19 +111,19 @@ describe("leaderboard", () => {
     expect(
       top(
         counts([
-          ["joseff", 2],
-          ["Jayx", 2],
+          ["josefa", 2],
+          ["Jayz", 2],
           ["Tom", 5],
-          ["arthur", 2],
+          ["arturo", 2],
           ["Zed", 1],
           ["Nobody", 0],
         ]),
       ),
     ).toEqual([
       { rank: 1, name: "Tom", value: 5 },
-      { rank: 2, name: "arthur", value: 2 },
-      { rank: 2, name: "Jayx", value: 2 },
-      { rank: 2, name: "joseff", value: 2 },
+      { rank: 2, name: "arturo", value: 2 },
+      { rank: 2, name: "Jayz", value: 2 },
+      { rank: 2, name: "josefa", value: 2 },
       { rank: 5, name: "Zed", value: 1 },
     ]);
   });

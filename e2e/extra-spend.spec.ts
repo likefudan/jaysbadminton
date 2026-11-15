@@ -18,7 +18,7 @@ test("the member notes a drop-in fee in 明细 and it adds to their spending", a
     route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }),
   );
   await page.route("**/api/m/tok/me", (route) =>
-    route.fulfill({ json: { id: "M007", username: "Dafei", wechatNickname: "dafei", active: true, isOwner: false } }),
+    route.fulfill({ json: { id: "M007", username: "Dawei", wechatNickname: "dawei", active: true, isOwner: false } }),
   );
   await page.route("**/api/m/tok/events", (route) =>
     route.fulfill({ json: { events: [], history: [], friendCap: 3 } }),

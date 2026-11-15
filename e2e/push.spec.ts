@@ -10,7 +10,7 @@ async function member(page: Page) {
     route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }),
   );
   await page.route("**/api/m/tok/me", (route) =>
-    route.fulfill({ json: { id: "M007", username: "Dafei", wechatNickname: "dafei", active: true, isOwner: false } }),
+    route.fulfill({ json: { id: "M007", username: "Dawei", wechatNickname: "dawei", active: true, isOwner: false } }),
   );
   await page.route("**/api/m/tok/events", (route) =>
     route.fulfill({ json: { events: [], history: [], friendCap: 3 } }),
@@ -67,7 +67,7 @@ test("我的活动 offers push once; 不用了 keeps it away", async ({ page }) 
   await page.getByRole("button", { name: "不用了" }).click();
   await expect(offer).toBeHidden();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "你好，Dafei" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "你好，Dawei" })).toBeVisible();
   await expect(offer).toBeHidden();
 });
 
