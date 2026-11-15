@@ -239,6 +239,13 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "GET /events/defaults": cap("events.create"),
   "GET /places": cap("events.create"),
   "GET /places/:id": cap("events.create"),
+  // 设置 → 球场图: whoever creates events also keeps the venues' plans (Ke Li 2026-11-15)
+  "GET /court-maps": cap("events.create"),
+  // Reading a photo costs money: the Owner and admins only (Ke Li 2026-11-15)
+  "POST /court-maps/photo": cap("group"),
+  "POST /court-maps/save": cap("events.create"),
+  "POST /court-maps/remove": cap("events.create"),
+  "POST /court-maps/history": cap("events.create"),
 
   // event: one event (every event with `group`)
   "GET /events/:id": event(),

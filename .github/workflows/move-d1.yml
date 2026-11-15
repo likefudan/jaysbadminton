@@ -1,0 +1,99 @@
+name: Move database
+
+# Copies a site's D1 database into a new one in US West (scripts/move-d1.mjs) and switches the site
+# to it. Actions → Move database → Run workflow on main.
+# - staging: then deploys the test site from main. `undo` deletes the copy and deploys again.
+# - production (Jay's site): first release a version that knows the moved database to Jay's site
+#   (the release site); this then redeploys that same version bound to the copy, seconds after the
+#   copy is checked, and checks that nothing was written to the old database in between. The site
+#   stays up. Run it at a quiet hour, away from :00, :15, :30 and :45 (the cron).
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: "staging（测试站）或 production（Jay's 正式站）"
+        type: choice
+        options: [staging, production]
+        default: staging
+      undo:
+        description: "只对测试站。撤销：删掉美西的新库，测试站回到原来的库"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write # start CI on main afterwards: its deploy-staging job switches the test site over
+
+# Not while the site is being deployed: a deploy picks the database by name.
+concurrency: ${{ inputs.site == 'production' && 'deploy-production' || 'deploy-staging' }}
+
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SITE: ${{ inputs.site }}
+    steps:
+      - name: Only from main
+        env:
+          UNDO: ${{ inputs.undo }}
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then echo "::error::Run Move database on main"; exit 1; fi
+          if [ "$UNDO" = true ] && [ "$SITE" != staging ]; then echo "::error::只有测试站可以撤销"; exit 1; fi
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Production: the version the site runs now, built and ready before anything is copied, so the
+      # switch after the copy takes seconds.
+      - name: Build the version Jay's site runs
+        if: inputs.site == 'production'
+        run: |
+          tag=$(curl -fsS https://jaysbadminton.llmat.dev/api/health | jq -r .version)
+          if ! [[ "$tag" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] || ! git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+            echo "::error::Jay's 正式站报告的版本（$tag）不是一个发布过的版本"
+            exit 1
+          fi
+          git worktree add ../release "$tag"
+          if ! grep -q jaysbadminton-wnam ../release/scripts/resolve-d1.mjs; then
+            echo "::error::Jay's 正式站现在的版本 $tag 还不认识搬家后的数据库。先在发布网站把 Jay's 升到最新版本，再运行。"
+            exit 1
+          fi
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          cd ../release
+          npm ci
+          npm run build
+
+      - run: node scripts/move-d1.mjs "$SITE" ${{ inputs.undo && 'undo' || '' }}
+
+      - name: Deploy the test site
+        if: inputs.site == 'staging'
+        run: gh workflow run ci.yml --ref main --repo "$GITHUB_REPOSITORY"
+
+      - name: Switch Jay's site to the copy
+        id: switch
+        if: inputs.site == 'production'
+        working-directory: ../release
+        run: |
+          node scripts/resolve-d1.mjs production
+          npx wrangler deploy --var "APP_VERSION:$TAG"
+      # The deploy failed: the site still uses the old database, and the copy must not stay, or the
+      # next release would switch to it, by then out of date.
+      - name: The switch failed
+        if: failure() && steps.switch.conclusion == 'failure'
+        run: node scripts/move-d1.mjs production abort
+      - name: Smoke test the live site
+        if: inputs.site == 'production'
+        working-directory: ../release
+        run: node scripts/smoke.mjs
+      # Also when the smoke test failed: the site is on the copy by then.
+      - name: Nothing was written to the old database in between
+        if: always() && steps.switch.conclusion == 'success'
+        run: node scripts/move-d1.mjs production finish

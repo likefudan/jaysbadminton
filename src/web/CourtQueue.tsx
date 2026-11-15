@@ -6,13 +6,13 @@ import {
   courtPhase,
   idleAccounts,
   idleTooMany,
-  PHOTO_MAX_SIDE,
   type PhotoCourt,
   type PhotoResult,
   QUEUE_COURT_MAX,
   QUEUE_GROUP_MAX,
   QUEUE_MAX_POSITION,
   QUEUE_SOON_MIN,
+  queueGroupNow,
   type QueueAccount,
   type QueueCourt,
   parseAccountList,
@@ -24,7 +24,9 @@ import { toPacific } from "../shared/time";
 import type { MyEvent } from "../shared/types";
 import { api } from "./api";
 import { CourtCombo } from "./CourtCombo";
+import { CourtMap, showsCourtMap } from "./CourtMap";
 import { useAction } from "./components";
+import { shrinkPhoto } from "./photo";
 import { t } from "./i18n";
 
 /** Over this many accounts, the lists get a search box. */
@@ -42,7 +44,7 @@ function useNow(): number {
   return now;
 }
 
-type Sheet = { kind: "court"; court: QueueCourt | null } | { kind: "accounts" } | null;
+type Sheet = { kind: "court"; court: QueueCourt | null } | { kind: "accounts" } | { kind: "map" } | null;
 
 /**
  * 球场: the courts we hold and queue for, each drawn as a court with our hall usernames on its two
@@ -52,6 +54,7 @@ type Sheet = { kind: "court"; court: QueueCourt | null } | { kind: "accounts" } 
 export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => void }) {
   const q = props.e.queue!;
   const now = useNow();
+  const hasMap = showsCourtMap(q);
   const [sheet, setSheet] = useState<Sheet>(null);
   // 选择 (the Owner and admins): the ticked courts' ids; null when not choosing.
   const [picked, setPicked] = useState<Set<number> | null>(null);
@@ -127,24 +130,33 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
         <button type="button" class="button secondary" onClick={() => setSheet({ kind: "accounts" })}>
           {t("账号管理")}
         </button>
+        {/* On the same row and in the same style as its neighbours, not a row of its own (Ke Li). */}
+        {hasMap && (
+          <button
+            type="button"
+            class="button secondary cq-map-button"
+            aria-haspopup="dialog"
+            onClick={() => setSheet({ kind: "map" })}
+          >
+            {t("球场图")}
+          </button>
+        )}
         <IdleNotice q={q} now={now} />
       </div>
+      {playing.length > 0 && <p class="cq-sub">{t("在打 · {n} 片", { n: playing.length })}</p>}
       {playing.length > 0 && (
-        <>
-          <p class="cq-sub">{t("在打 · {n} 片", { n: playing.length })}</p>
-          <div class="cq-grid">
-            {playing.map(({ c, p }) => (
-              <CourtTile
-                key={c.id}
-                c={c}
-                tone={p.minutes <= QUEUE_SOON_MIN ? "soon" : "play"}
-                line={t("剩 {n} 分", { n: p.minutes })}
-                picked={choosing ? picked.has(c.id) : undefined}
-                onOpen={() => open(c)}
-              />
-            ))}
-          </div>
-        </>
+        <div class="cq-grid">
+          {playing.map(({ c, p }) => (
+            <CourtTile
+              key={c.id}
+              c={c}
+              tone={p.minutes <= QUEUE_SOON_MIN ? "soon" : "play"}
+              line={t("剩 {n} 分", { n: p.minutes })}
+              picked={choosing ? picked.has(c.id) : undefined}
+              onOpen={() => open(c)}
+            />
+          ))}
+        </div>
       )}
       {queued.length > 0 && (
         <>
@@ -155,7 +167,7 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
                 key={c.id}
                 c={c}
                 tone="queue"
-                line={t("第{k}组 ≈{n}分", { k: c.position, n: p.minutes })}
+                line={t("第{k}组 ≈{n}分", { k: queueGroupNow(c.position, p.minutes, q.roundMin), n: p.minutes })}
                 picked={choosing ? picked.has(c.id) : undefined}
                 onOpen={() => open(c)}
               />
@@ -217,6 +229,7 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           onSaved={props.onChange}
         />
       )}
+      {sheet?.kind === "map" && hasMap && <CourtMap e={props.e} q={q} now={now} onClose={close} />}
       {sheet?.kind === "accounts" && (
         <AccountsSheet base={props.base} e={props.e} q={q} onClose={close} onChange={props.onChange} />
       )}
@@ -331,8 +344,9 @@ function CourtSheet(props: {
 }) {
   const c = props.court;
   const phase = c ? courtPhase(c, props.now) : null;
-  // A queued group whose time has come is edited as playing.
-  const startPos = !c ? 0 : phase?.phase === "queued" ? c.position : 0;
+  // A queued group whose time has come is edited as playing; one still waiting, at the group it is
+  // in now (it moves up as rounds ahead of it end).
+  const startPos = !c ? 0 : phase?.phase === "queued" ? queueGroupNow(c.position, phase.minutes, props.q.roundMin) : 0;
   const [court, setCourt] = useState(c ? String(c.court) : "");
   const [position, setPosition] = useState(startPos);
   const [minutes, setMinutes] = useState(phase && phase.phase !== "done" ? String(phase.minutes) : "");
@@ -609,26 +623,6 @@ function CourtSheet(props: {
       )}
     </SheetFrame>
   );
-}
-
-/**
- * The photo shrunk to PHOTO_MAX_SIDE on its long side and saved as JPEG (Ke Li: 照片分辨率请压缩), as
- * base64 for the request; about 300 KB from a phone's 3-5 MB.
- */
-async function shrinkPhoto(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.8));
-  if (!blob) throw new Error("toBlob");
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
 }
 
 /** 拍照登记: take or pick a photo of the hall's screen; what is read fills the form below. */
@@ -1178,7 +1172,7 @@ function AccountsList(props: { base: string; e: MyEvent; q: QueueInfo; bar: Acco
 }
 
 /**
- * 批量添加: paste a list, "Cassie lion3" or numbered "1. Cassie lion3", one account per line
+ * 批量添加: paste a list, "Alice cat12" or numbered "1. Alice cat12", one account per line
  * ("Court …" lines and, in a numbered list, a group note above are skipped). It is read here exactly as typed, and the preview says what will be added, what is
  * already on the event and which lines couldn't be read, before anything is saved.
  */

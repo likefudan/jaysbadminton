@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">羽毛球卡路里测试</string>
+    <string name="rationale">这个测试版只读取你选的那段时间里 Health Connect 的卡路里和运动记录，显示在屏幕上。它不联网，不上传，也不保存任何数据。\n\nThis test build only reads calories and exercise sessions from Health Connect for the time you pick and shows them on screen. It does not use the network, upload or store anything.</string>
+</resources>

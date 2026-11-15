@@ -1,0 +1,117 @@
+name: Purge backup artifacts
+
+# Database backups must not sit on GitHub: anyone who can read the repository's Actions can download
+# its artifacts. Releases keep their encrypted backups in the private R2 bucket (scripts/backup-db.sh).
+#
+# By hand (Actions → Purge backup artifacts → Run workflow, on main): first takes a fresh encrypted
+# backup of every site into R2, then deletes every database backup artifact (db-encrypted-… and
+# db-backup-…). Nothing is deleted unless all the new backups succeeded.
+#
+# Every day: only deletes. A release of a version from before backups moved to R2 (a rollback) still
+# uploads its backup as an artifact; this removes it within a day.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 11 * * *"
+
+permissions:
+  contents: read
+
+concurrency: purge-backup-artifacts
+
+jobs:
+  backup-production:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: deploy-production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/resolve-d1.mjs production
+      - run: scripts/backup-db.sh "jaysbadminton-before-purge-$(date -u +%Y%m%dT%H%M%SZ)"
+        env:
+          BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
+
+  sites:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      ids: ${{ steps.ids.outputs.ids }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: ids
+        run: echo "ids=$(jq -c 'map(.id)' sites.json)" >> "$GITHUB_OUTPUT"
+
+  backup-sites:
+    needs: sites
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        site: ${{ fromJSON(needs.sites.outputs.ids) }}
+    concurrency: deploy-site-${{ matrix.site }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/site-config.mjs ${{ matrix.site }}
+      - run: scripts/backup-db.sh "jaysbadminton-${{ matrix.site }}-before-purge-$(date -u +%Y%m%dT%H%M%SZ)" --config "wrangler.${{ matrix.site }}.json"
+        env:
+          BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
+
+  purge:
+    needs: [backup-production, backup-sites]
+    # By hand: only after every backup succeeded. On the schedule the backup jobs are skipped.
+    if: >-
+      always() && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' ||
+       (needs.backup-production.result == 'success' && needs.backup-sites.result == 'success'))
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write # delete artifacts
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Delete every database backup artifact
+        run: |
+          list() {
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+              --jq '.artifacts[] | select(.name | test("^db-(encrypted|backup)-")) | "\(.id) \(.name)"'
+          }
+          ids=$(list)
+          if [ -z "$ids" ]; then echo "No database backup artifacts"; exit 0; fi
+          echo "$ids" | while read -r id name; do
+            echo "Deleting $name ($id)"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/$id"
+          done
+          left=$(list | wc -l)
+          echo "Database backup artifacts left: $left"
+          [ "$left" = 0 ]
+      # Two temporary workflows (2026-10) ran on branches that are deleted; their run logs print real
+      # venue usernames and their run list names the commits. Deletes any run of a workflow whose file
+      # is no longer in the repository under these names.
+      - name: Delete the runs of the removed experiment workflows
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.path | test("/(azure-probe|court-queue-ocr)\\.yml$")) | .id' |
+            while read -r wf; do
+              gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/$wf/runs?per_page=100" \
+                --jq '.workflow_runs[].id' | while read -r run; do
+                echo "Deleting run $run of workflow $wf"
+                gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/runs/$run"
+              done
+            done

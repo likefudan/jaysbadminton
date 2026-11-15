@@ -38,6 +38,8 @@ test("管理页: back goes up one level, reload stays, tabs replace", async ({ p
   await page.reload();
   await expect(page.locator(".sub-bar").getByRole("button", { name: "高级设置" })).toBeVisible();
   await page.goBack();
+  // For a moment the page being left can still show its bar too; wait until only one is there.
+  await expect(page.getByRole("heading", { name: "高级设置" })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "高级设置" })).toBeVisible();
   await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
   await expect(page).toHaveURL(/\?tab=settings$/);

@@ -6,7 +6,7 @@ test("existing members stay on their page until Google is enabled, then authoriz
     route.fulfill({ json: { enabled, signedIn: false, hasMember: false } }),
   );
   await page.route("**/api/m/existing-token/me", (route) =>
-    route.fulfill({ json: { id: "M007", username: "Dafei", active: true, isOwner: false } }),
+    route.fulfill({ json: { id: "M007", username: "Dawei", active: true, isOwner: false } }),
   );
   await page.route("**/api/m/existing-token/events", (route) =>
     route.fulfill({ json: { events: [], history: [], friendCap: 3 } }),
@@ -36,7 +36,7 @@ test("a signed-in account confirms the original member link before showing its a
     }),
   );
   await page.route("**/api/m/*/me", (route) =>
-    route.fulfill({ json: { id: "M007", username: "Dafei", active: true, isOwner: false } }),
+    route.fulfill({ json: { id: "M007", username: "Dawei", active: true, isOwner: false } }),
   );
   await page.route("**/api/m/*/events", (route) => route.fulfill({ json: { events: [], history: [], friendCap: 3 } }));
   await page.route("**/api/m/*/stats", (route) =>
@@ -52,7 +52,7 @@ test("a signed-in account confirms the original member link before showing its a
   await expect(page.getByRole("heading", { name: "关联原有成员" })).toBeVisible();
   expect(linked).toBe(false);
   await page.getByRole("button", { name: "确认绑定，进入我的活动" }).click();
-  await expect(page.getByRole("heading", { name: "你好，Dafei" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "你好，Dawei" })).toBeVisible();
   await expect(page.locator("main")).not.toContainText("M007"); // members never see their ID
   expect(linked).toBe(true);
   expect(await page.evaluate(() => sessionStorage.getItem("google-link-member"))).toBeNull();

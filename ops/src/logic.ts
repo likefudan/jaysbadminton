@@ -1,6 +1,7 @@
 // The parts of the release site that need no network: sites, version order, which versions a site may
 // move to, the next version's name, and the signed cookies. Tested in test/ops.test.ts.
 import sitesJson from "../../sites.json";
+import type { OpsUsers } from "./index";
 
 export interface Env {
   OPS_ORIGIN: string;
@@ -8,8 +9,12 @@ export interface Env {
   MAIN_SITE_DOMAIN: string;
   /** Fine-grained GitHub token for this repository only: Actions read/write, Contents read. */
   OPS_GITHUB_TOKEN?: string;
-  /** The only Google account allowed in (Ke Li's). */
+  /** The owner's Google account (Ke Li's): every power, and the only one who approves others. */
   OPS_EMAIL?: string;
+  /** The owner's name as applicants see it (「等 Ke Li 批准」). */
+  OWNER_NAME: string;
+  /** Everyone else: applicants, viewers and release engineers (users.ts). */
+  USERS: DurableObjectNamespace<OpsUsers>;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   /** The developers' Telegram group (the same bot and chat as CI's notices): told of every sign-in and

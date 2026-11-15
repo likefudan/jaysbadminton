@@ -111,19 +111,19 @@ describe("leaderboard", () => {
     expect(
       top(
         counts([
-          ["joseff", 2],
-          ["Jayx", 2],
+          ["josefa", 2],
+          ["Jayz", 2],
           ["Tom", 5],
-          ["arthur", 2],
+          ["arturo", 2],
           ["Zed", 1],
           ["Nobody", 0],
         ]),
       ),
     ).toEqual([
       { rank: 1, name: "Tom", value: 5 },
-      { rank: 2, name: "arthur", value: 2 },
-      { rank: 2, name: "Jayx", value: 2 },
-      { rank: 2, name: "joseff", value: 2 },
+      { rank: 2, name: "arturo", value: 2 },
+      { rank: 2, name: "Jayz", value: 2 },
+      { rank: 2, name: "josefa", value: 2 },
       { rank: 5, name: "Zed", value: 1 },
     ]);
   });
@@ -211,6 +211,37 @@ describe("personal stats", () => {
     );
     expect(stats.history.every((h: { attended: boolean }) => h.attended)).toBe(true);
     expect(stats.history.reduce((t: number, h: { cents: number }) => t + h.cents, 0)).toBe(7500);
+  });
+
+  it("keeps 自付费用 to the member's own events and adds it to their spending", async () => {
+    const { alice, bob, events } = await history();
+    const before = (await anon.call(`${alice.base}/stats`)).data;
+    const target = before.history.find((h: { attended: boolean }) => h.attended);
+    expect(target.extraCents).toBe(0);
+
+    expect((await anon.call(`${alice.base}/stats/extra`, { eventId: target.id, cents: 1500 })).status).toBe(200);
+    let after = (await anon.call(`${alice.base}/stats`)).data;
+    expect(after.history.find((h: { id: number }) => h.id === target.id).extraCents).toBe(1500);
+    expect(after.yearSpendCents).toBe(before.yearSpendCents + 1500);
+
+    // Changed, then cleared.
+    await anon.call(`${alice.base}/stats/extra`, { eventId: target.id, cents: 1200 });
+    after = (await anon.call(`${alice.base}/stats`)).data;
+    expect(after.history.find((h: { id: number }) => h.id === target.id).extraCents).toBe(1200);
+    await anon.call(`${alice.base}/stats/extra`, { eventId: target.id, cents: 0 });
+    after = (await anon.call(`${alice.base}/stats`)).data;
+    expect(after.yearSpendCents).toBe(before.yearSpendCents);
+
+    // Nobody else sees it, and nobody can note it on an event that isn't in their own record.
+    await anon.call(`${alice.base}/stats/extra`, { eventId: target.id, cents: 900 });
+    const bobStats = (await anon.call(`${bob.base}/stats`)).data;
+    expect(bobStats.history.every((h: { extraCents: number }) => h.extraCents === 0)).toBe(true);
+    const notMine = events.find((ev: { id: number }) => !before.history.some((h: { id: number }) => h.id === ev.id));
+    if (notMine)
+      expect((await anon.call(`${alice.base}/stats/extra`, { eventId: notMine.id, cents: 500 })).status).toBe(404);
+    expect((await anon.call(`${alice.base}/stats/extra`, { eventId: 999999, cents: 500 })).status).toBe(404);
+    for (const cents of [-1, 1.5, 100_001, "x"])
+      expect((await anon.call(`${alice.base}/stats/extra`, { eventId: target.id, cents })).status).toBe(400);
   });
 });
 

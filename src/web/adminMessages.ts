@@ -40,7 +40,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   前往开发者登录: { tw: "前往開發者登入", en: "Go to developer sign-in" },
   链接无效: { tw: "連結無效", en: "Invalid link" },
   "这个管理链接已失效。": { tw: "這個管理連結已失效。", en: "This admin link no longer works." },
-  活动: { tw: "活動", en: "Events" },
   收款: { tw: "收款", en: "Payments" },
   待审核: { tw: "待審核", en: "Pending" },
   成员: { tw: "成員", en: "Members" },
@@ -492,7 +491,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   负责人和收款人: { tw: "負責人和收款人", en: "Runs it / gets paid" },
   搜索名字或微信名: { tw: "搜尋名字或微信名", en: "Search by name or WeChat name" },
   没有找到成员: { tw: "沒有找到成員", en: "No members found" },
-  管理: { tw: "管理", en: "Manage" },
   "在左边选一个活动，或者新建一个": {
     tw: "在左邊選一個活動，或者新建一個",
     en: "Pick an event on the left, or create one",
@@ -1233,7 +1231,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "成員付款時用的帳號，一般只需要設定一次。",
     en: "The account members pay to; usually set once.",
   },
-  "不用加 @，例如 KeLi8916": { tw: "不用加 @，例如 KeLi8916", en: "Without the @, e.g. KeLi8916" },
+  "不用加 @，例如 JayVenmo": { tw: "不用加 @，例如 JayVenmo", en: "Without the @, e.g. JayVenmo" },
   "手机号或邮箱，显示在付款页作为备选": {
     tw: "手機號或電子郵件，顯示在付款頁作為備選",
     en: "Phone number or email, shown on the payment page as an alternative",
@@ -1479,4 +1477,14 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "結束後活動存進歷史活動，名單不能再改。確定結束嗎？",
     en: "Once ended, the event moves to past events and its list can't be changed. End it now?",
   },
+  "每个球馆一张图，按地址对应。活动卡片上的「球场图」只能看，在这里添加和修改。": {
+    tw: "每個球館一張圖，按地址對應。活動卡片上的「球場圖」只能看，在這裡新增和修改。",
+    en: "One map per venue, matched by address. The Court map button on an event card only shows it; add and change maps here.",
+  },
+  "还没有球馆。新建一次活动后，球馆会出现在这里。": {
+    tw: "還沒有球館。新建一次活動後，球館會出現在這裡。",
+    en: "No venues yet. A venue appears here once an event has been created there.",
+  },
+  "{n} 片 · {day}": { tw: "{n} 片 · {day}", en: "{n} courts · {day}" },
+  未添加: { tw: "未新增", en: "Not added" },
 };

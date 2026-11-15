@@ -3935,6 +3935,116 @@ button.heatmap-cell:not(:disabled) {
 .spend-absent {
   color: var(--danger);
 }
+/* 自付费用: the lighter top of a column, the split line under the figures and the 明细 buttons */
+.spend-bar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.spend-bar-extra {
+  display: block;
+  flex: none;
+  background: var(--acc-line);
+}
+.spend-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: -4px 0 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.spend-key {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 2px;
+  background: var(--acc);
+}
+.spend-key.extra {
+  background: var(--acc-line);
+}
+.spend-detail td.spend-extra-cell {
+  width: 1%;
+  padding: 4px 0 4px 8px;
+  vertical-align: middle;
+  text-align: right;
+}
+.spend-extra-btn {
+  padding: 2px 8px;
+  border: 1px dashed var(--acc-line);
+  border-radius: 8px;
+  background: none;
+  color: var(--acc-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.spend-extra-btn.set {
+  border-style: solid;
+  border-color: transparent;
+  background: var(--acc-soft);
+  font-variant-numeric: tabular-nums;
+}
+.spend-detail tr.spend-extra-edit td {
+  padding: 2px 0 10px;
+  border-top: 0;
+}
+.spend-extra-edit form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.spend-extra-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--muted);
+}
+.spend-extra-input input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.spend-extra-edit .button {
+  width: auto;
+  margin: 0;
+  padding: 0 14px;
+  min-height: 36px;
+}
+.spend-extra-edit .link-button {
+  width: auto;
+  margin: 0;
+  padding: 4px 2px;
+  font-size: 13.5px;
+  text-decoration: none;
+}
+.spend-extra-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.spend-extra-hint.error {
+  color: var(--danger);
+}
 
 /* ---- 我的活动 / 个人信息 and the admin tabs: the first thing under the top bar (no big title) ---- */
 .page-body > .tabs:first-child {
@@ -4311,6 +4421,14 @@ ul.audit li:first-child {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-2);
+}
+/* Three buttons on a phone: the two beside 登记球场 take only the room their words need. */
+.cq-bar .button {
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+.cq-bar .cq-map-button {
+  flex: 0 1 auto;
 }
 .cq-grid {
   display: grid;
@@ -6582,4 +6700,380 @@ label.set-row {
 }
 .ver-lines li + li {
   margin-top: 4px;
+}
+
+/* ---- Bottom tab bar of the app added to the home screen (AppTabs.tsx, Ke Li 2026-11-14, option A) ---- */
+.has-app-tabs {
+  --app-tabs-h: 56px;
+  padding-bottom: calc(var(--app-tabs-h) + 24px + env(safe-area-inset-bottom));
+}
+/* The tabs at the top give way to the ones at the bottom; 排行榜 has a tab of its own. */
+.has-app-tabs .page-tabs,
+.has-app-tabs .board-block,
+.has-app-tabs:not(.tab-me) .legal-links {
+  display: none;
+}
+.has-app-tabs .cq-legend {
+  bottom: calc(var(--app-tabs-h) + env(safe-area-inset-bottom));
+  padding-bottom: 9px;
+}
+.has-app-tabs .developer-tools {
+  bottom: calc(var(--app-tabs-h) + 12px + env(safe-area-inset-bottom));
+}
+.app-tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding: 0 max(8px, env(safe-area-inset-left)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-right));
+  background: var(--surface-raised);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  border-top: 1px solid var(--line);
+}
+.app-tabs a {
+  flex: 1;
+  max-width: 140px;
+  height: var(--app-tabs-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.app-tabs a.on {
+  color: var(--acc);
+}
+.boards-page {
+  margin-top: 4px;
+}
+
+/* 球场图: the venue's floor plan, as large as the panel allows; turned a quarter on an upright phone. */
+.panel.cm-panel .panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (min-width: 640px) {
+  .panel.cm-panel {
+    width: min(1040px, calc(100vw - 32px));
+    height: min(760px, calc(100vh - 64px));
+  }
+}
+.cm-stage {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
+  overflow: hidden;
+}
+.cm-sheet {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.cm-sheet.turned {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+.cm-plan {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 2px solid var(--muted);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.cm-item {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  line-height: 1;
+  white-space: nowrap;
+}
+.cm-item > span,
+.cm-item > button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+/* Drawn like a posted plan (Ke Li 2026-11-15): white courts with a clear edge and dark numbers. */
+.cm-item.court {
+  border: 1.5px solid var(--faint);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cm-item.court.play {
+  border-color: transparent;
+  background: var(--ok-dot);
+  color: #fff;
+}
+.cm-item.court.soon {
+  border-color: transparent;
+  background: var(--warn-dot);
+  color: #fff;
+}
+/* Queued and not playing: grey, as 排队 is on the card (Ke Li 2026-11-15), darker here to show among white courts. */
+.cm-item.court.queue {
+  border-color: var(--muted);
+  background: var(--cq-stripe-b);
+  color: var(--text);
+}
+.cm-item.area {
+  border: 1.5px dashed var(--faint);
+  border-radius: 4px;
+  background: var(--cq-stripe-a);
+  color: var(--text-2);
+  font-weight: 600;
+}
+/* A label is always drawn in full, over the edge of its own box when the box is short. */
+.cm-item.text {
+  color: var(--text-2);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.cm-item.text > span,
+.cm-item.text > button {
+  overflow: visible;
+}
+.cm-item > button {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.cm-key {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.cm-key li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.cm-key i {
+  width: 14px;
+  height: 9px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+}
+.cm-key i.play {
+  border-color: transparent;
+  background: var(--ok-dot);
+}
+.cm-key i.soon {
+  border-color: transparent;
+  background: var(--warn-dot);
+}
+.cm-key i.queue {
+  border-color: var(--muted);
+  background: var(--cq-stripe-b);
+}
+.cm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cm-actions.row {
+  flex-direction: row;
+}
+.cm-actions.row .cq-photo-row {
+  flex: 1;
+}
+.cm-note,
+.cm-empty p {
+  margin: 0;
+}
+.cm-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* A phone held sideways is wide but short: the plan takes the whole screen, not a card. */
+@media (min-width: 640px) and (max-height: 520px) {
+  .panel.cm-panel {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    height: auto;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+  .panel.cm-panel .cm-stage {
+    min-height: 140px;
+  }
+  /* Setting the plan is done upright; sideways the plan gets all the room. */
+  .panel.cm-panel .cm-manage {
+    display: none;
+  }
+}
+/* The address and 旋转 above the plan. */
+.cm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cm-bar > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cm-bar .cm-turn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  min-height: 34px;
+  margin: 0;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/* 裁剪: the range dragged out over the plan; what is outside it goes dim. */
+.cm-crop {
+  position: absolute;
+  inset: 0 0 auto;
+  overflow: hidden;
+  border-radius: 10px;
+  cursor: crosshair;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.cm-crop > i {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+}
+/* 编辑球场图: a picked box, and the tools under the plan. */
+.cm-plan.editing .cm-item > button {
+  touch-action: none;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.cm-item.picked {
+  z-index: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* As tall as the plan itself, so the tools sit right under it. */
+.cm-stage.editing {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 56vh;
+}
+.cm-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.cm-tools p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+.cm-tools .button {
+  margin: 0;
+  min-height: 40px;
+  padding: 0 12px;
+}
+.cm-number {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.cm-number input {
+  width: 72px;
+  min-height: 40px;
+  margin: 0;
+  text-align: center;
+}
+.cm-arrows {
+  display: flex;
+  gap: 4px;
+}
+.cm-tools .cm-arrow {
+  min-width: 40px;
+  padding: 0;
+  font-size: 17px;
+}
+.cm-tools .cm-add {
+  margin-left: auto;
+}
+.cm-actions.row .button {
+  flex: 1;
+  margin: 0;
+}
+.cm-actions .button {
+  white-space: nowrap;
+}
+.cm-where {
+  margin: 0;
+}
+.cm-intro {
+  margin: 0 4px 12px;
+}
+.cm-old {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cm-old li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.cm-old li > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cm-old .button {
+  margin: 0;
+  min-height: 36px;
 }

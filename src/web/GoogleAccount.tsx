@@ -2,6 +2,7 @@ import { useLocation } from "preact-iso";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { api } from "./api";
 import { useApi } from "./hooks";
+import { useAppTabs } from "./AppTabs";
 import { stopPush } from "./Push";
 import { t, tm } from "./i18n";
 
@@ -25,6 +26,7 @@ export function GoogleAccount(props: { onAppearance: () => void }) {
   const { path } = useLocation();
   const administrative = path === "/admin" || path.startsWith("/admin/");
   const [failedPicture, setFailedPicture] = useState<string | null>(null);
+  const tabs = useAppTabs();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -50,7 +52,8 @@ export function GoogleAccount(props: { onAppearance: () => void }) {
   }, [open]);
   if (session.state !== "ok" || !session.data.signedIn || !session.data.email) return null;
   const email = session.data.email;
-  const canManage = !!session.data.role && session.data.role !== "member";
+  // In the home-screen app the 管理 tab at the bottom does the switching (Ke Li 2026-11-14).
+  const canManage = !!session.data.role && session.data.role !== "member" && !tabs?.includes("manage");
   async function logout() {
     setBusy(true);
     setError("");

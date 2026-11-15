@@ -11,11 +11,11 @@ const anon = new Client();
 async function setUp() {
   const ctx = await setUpAdmin();
   const ke = await approveMember(ctx, "Ke");
-  const arthur = await approveMember(ctx, "arthur");
+  const arturo = await approveMember(ctx, "arturo");
   const jay = await approveMember(ctx, "Jay2");
   const e = await createTestEvent(ctx);
   const eb = `${ctx.base}/events/${e.id}`;
-  return { ...ctx, ke, arthur, jay, e, eb };
+  return { ...ctx, ke, arturo, jay, e, eb };
 }
 
 type Ctx = Awaited<ReturnType<typeof setUp>>;
@@ -27,20 +27,20 @@ const roster = async (s: Ctx) => (await s.admin.call(s.eb)).data.roster as { nam
 describe("带群友", () => {
   it("brings a member, who sees themselves signed up by the bringer and can't sign up again", async () => {
     const s = await setUp();
-    expect((await signup(s, s.ke, { friends: ["小王"], guests: [s.arthur.id] })).status).toBe(200);
+    expect((await signup(s, s.ke, { friends: ["小王"], guests: [s.arturo.id] })).status).toBe(200);
 
     const list = await roster(s);
-    expect(list.map((r) => r.name)).toEqual(["Ke", "arthur", "小王"]);
+    expect(list.map((r) => r.name)).toEqual(["Ke", "arturo", "小王"]);
     expect(list[1]!.paidBy).toBe(s.ke.id);
 
     const ke = await myCard(s, s.ke);
-    expect(ke.myGuests).toEqual([{ id: s.arthur.id, name: "arthur" }]);
+    expect(ke.myGuests).toEqual([{ id: s.arturo.id, name: "arturo" }]);
     expect(ke.myFriends).toEqual(["小王"]);
 
-    const arthur = await myCard(s, s.arthur);
-    expect(arthur.selfSignedUp).toBe(true);
-    expect(arthur.broughtBy).toEqual({ name: "Ke", billed: false, paid: false });
-    expect(arthur.roster.find((r: { name: string }) => r.name === "arthur")).toMatchObject({
+    const arturo = await myCard(s, s.arturo);
+    expect(arturo.selfSignedUp).toBe(true);
+    expect(arturo.broughtBy).toEqual({ name: "Ke", billed: false, paid: false });
+    expect(arturo.roster.find((r: { name: string }) => r.name === "arturo")).toMatchObject({
       friendOf: null,
       mine: true,
     });
@@ -49,9 +49,9 @@ describe("带群友", () => {
       await signup(s, s.jay, { friends: [] });
       return myCard(s, s.jay);
     })();
-    expect(jay.roster.find((r: { name: string }) => r.name === "arthur").friendOf).toBe("Ke");
+    expect(jay.roster.find((r: { name: string }) => r.name === "arturo").friendOf).toBe("Ke");
 
-    const self = await signup(s, s.arthur, { friends: [] });
+    const self = await signup(s, s.arturo, { friends: [] });
     expect(self.status).toBe(400);
     expect(self.data.error.message).toContain("Ke 已经带你报名了");
   });
@@ -63,9 +63,9 @@ describe("带群友", () => {
     expect(onList.status).toBe(400);
     expect(onList.data.error.message).toContain("Jay2 已经在名单上了");
 
-    await signup(s, s.jay, { friends: [], guests: [s.arthur.id] });
-    const taken = await signup(s, s.ke, { friends: [], guests: [s.arthur.id] });
-    expect(taken.data.error.message).toContain("arthur 已经被 Jay2 带了");
+    await signup(s, s.jay, { friends: [], guests: [s.arturo.id] });
+    const taken = await signup(s, s.ke, { friends: [], guests: [s.arturo.id] });
+    expect(taken.data.error.message).toContain("arturo 已经被 Jay2 带了");
 
     expect((await signup(s, s.ke, { friends: [], guests: [s.ke.id] })).status).toBe(400);
 
@@ -75,13 +75,13 @@ describe("带群友", () => {
       by: string | null;
     }[];
     expect(choices.find((c) => c.name === "Jay2")).toMatchObject({ state: "on" });
-    expect(choices.find((c) => c.name === "arthur")).toMatchObject({ state: "brought", by: "Jay2" });
+    expect(choices.find((c) => c.name === "arturo")).toMatchObject({ state: "brought", by: "Jay2" });
     expect(choices.some((c) => c.name === "Ke")).toBe(false);
   });
 
   it("can't bring someone who brings group members themselves", async () => {
     const s = await setUp();
-    await signup(s, s.jay, { friends: [], guests: [s.arthur.id] });
+    await signup(s, s.jay, { friends: [], guests: [s.arturo.id] });
     const chain = await signup(s, s.ke, { friends: [], guests: [s.jay.id] });
     expect(chain.status).toBe(400);
     const choices = (await anon.call(`${s.ke.base}/events/${s.e.id}/guests`)).data.members as {
@@ -93,38 +93,38 @@ describe("带群友", () => {
 
   it("counts group members towards the friend cap", async () => {
     const s = await setUp();
-    const over = await signup(s, s.ke, { friends: ["a", "b", "c"], guests: [s.arthur.id] });
+    const over = await signup(s, s.ke, { friends: ["a", "b", "c"], guests: [s.arturo.id] });
     expect(over.status).toBe(400);
-    expect((await signup(s, s.ke, { friends: ["a", "b"], guests: [s.arthur.id] })).status).toBe(200);
+    expect((await signup(s, s.ke, { friends: ["a", "b"], guests: [s.arturo.id] })).status).toBe(200);
   });
 
   it("keeps the group members when an older page saves without them, and drops them when unpicked", async () => {
     const s = await setUp();
-    await signup(s, s.ke, { friends: [], guests: [s.arthur.id] });
+    await signup(s, s.ke, { friends: [], guests: [s.arturo.id] });
     await signup(s, s.ke, { friends: ["小王"] });
-    expect((await roster(s)).map((r) => r.name)).toEqual(["Ke", "arthur", "小王"]);
+    expect((await roster(s)).map((r) => r.name)).toEqual(["Ke", "arturo", "小王"]);
     await signup(s, s.ke, { friends: ["小王"], guests: [] });
     expect((await roster(s)).map((r) => r.name)).toEqual(["Ke", "小王"]);
   });
 
   it("takes the brought member off when the bringer cancels, and 我不去了 takes only themselves", async () => {
     const s = await setUp();
-    await signup(s, s.ke, { friends: [], guests: [s.arthur.id] });
-    await anon.call(`${s.arthur.base}/events/${s.e.id}/cancel`, {});
+    await signup(s, s.ke, { friends: [], guests: [s.arturo.id] });
+    await anon.call(`${s.arturo.base}/events/${s.e.id}/cancel`, {});
     expect((await roster(s)).map((r) => r.name)).toEqual(["Ke"]);
     expect((await myCard(s, s.ke)).myGuests).toEqual([]);
     // Now on their own they may sign up themselves.
-    expect((await signup(s, s.arthur, { friends: [] })).status).toBe(200);
-    await anon.call(`${s.arthur.base}/events/${s.e.id}/cancel`, {});
+    expect((await signup(s, s.arturo, { friends: [] })).status).toBe(200);
+    await anon.call(`${s.arturo.base}/events/${s.e.id}/cancel`, {});
 
-    await signup(s, s.ke, { friends: [], guests: [s.arthur.id] });
+    await signup(s, s.ke, { friends: [], guests: [s.arturo.id] });
     await anon.call(`${s.ke.base}/events/${s.e.id}/cancel`, {});
     expect(await roster(s)).toEqual([]);
   });
 
   it("bills the bringer for the brought member, who owes nothing and is settled once the bringer pays", async () => {
     const s = await setUp();
-    await signup(s, s.ke, { friends: [], guests: [s.arthur.id] });
+    await signup(s, s.ke, { friends: [], guests: [s.arturo.id] });
     await signup(s, s.jay, { friends: [] });
     await expire(s.e.id);
     expect(
@@ -134,32 +134,32 @@ describe("带群友", () => {
     const { payments } = (await s.admin.call(`${s.eb}/settlement`)).data;
     const byName = new Map(payments.map((p: { memberName: string }) => [p.memberName, p]));
     expect(byName.get("Ke")).toMatchObject({ amountDueCents: 6000 });
-    expect(byName.has("arthur")).toBe(false);
+    expect(byName.has("arturo")).toBe(false);
 
     const ke = await myCard(s, s.ke);
     expect(ke.payment.shares.map((x: { name: string; guest?: boolean }) => [x.name, !!x.guest])).toEqual([
       ["Ke", false],
-      ["arthur", true],
+      ["arturo", true],
     ]);
 
-    let arthur = await myCard(s, s.arthur);
-    expect(arthur.payment).toBeNull();
-    expect(arthur.broughtBy).toEqual({ name: "Ke", billed: true, paid: false });
+    let arturo = await myCard(s, s.arturo);
+    expect(arturo.payment).toBeNull();
+    expect(arturo.broughtBy).toEqual({ name: "Ke", billed: true, paid: false });
 
     const p = byName.get("Ke") as { id: number };
     expect((await s.admin.call(`${s.base}/payments/${p.id}/mark-paid`, {})).status).toBe(200);
-    arthur = await myCard(s, s.arthur);
-    expect(arthur.broughtBy).toEqual({ name: "Ke", billed: true, paid: true });
+    arturo = await myCard(s, s.arturo);
+    expect(arturo.broughtBy).toEqual({ name: "Ke", billed: true, paid: true });
   });
 
   it("counts the brought member's attendance for themselves, not as the bringer's friend", async () => {
     const s = await setUp();
-    await signup(s, s.ke, { friends: ["小王"], guests: [s.arthur.id] });
+    await signup(s, s.ke, { friends: ["小王"], guests: [s.arturo.id] });
     await env.DB.prepare("UPDATE events SET status = 'settled', date = ? WHERE id = ?")
       .bind(toPacific(new Date()).date, s.e.id)
       .run();
     const leaderboard = (await s.admin.call(`${s.base}/leaderboard`)).data.board;
-    expect(leaderboard.attendance.map((r: { name: string }) => r.name).sort()).toEqual(["Ke", "arthur"]);
+    expect(leaderboard.attendance.map((r: { name: string }) => r.name).sort()).toEqual(["Ke", "arturo"]);
     expect(leaderboard.friends).toEqual([{ rank: 1, name: "Ke", value: 1, avatar: null }]);
   });
 
@@ -169,16 +169,16 @@ describe("带群友", () => {
       memberId: s.ke.id,
       includeSelf: true,
       friends: [],
-      guests: [s.arthur.id],
+      guests: [s.arturo.id],
     });
     expect(res.status).toBe(200);
     expect(res.data.roster.map((r: { name: string; paidBy: string | null }) => [r.name, r.paidBy])).toEqual([
       ["Ke", null],
-      ["arthur", s.ke.id],
+      ["arturo", s.ke.id],
     ]);
     // Someone brought can't bring anyone in turn.
     const chain = await s.admin.call(`${s.eb}/roster/add`, {
-      memberId: s.arthur.id,
+      memberId: s.arturo.id,
       includeSelf: false,
       friends: [],
       guests: [s.jay.id],
@@ -209,24 +209,24 @@ describe("带群友 pushes", () => {
 
   it("tells the brought member when brought and taken off, and the bringer when they say they can't come", async () => {
     const s = await setUp();
-    await pushOn(s.ke.id, s.arthur.id);
-    await signup(s, s.ke, { friends: [], guests: [s.arthur.id] });
+    await pushOn(s.ke.id, s.arturo.id);
+    await signup(s, s.ke, { friends: [], guests: [s.arturo.id] });
     await signup(s, s.ke, { friends: [], guests: [] });
-    expect(await pushes(s.arthur.id)).toEqual(["Ke 带你报名了", "Ke 取消了带你报名"]);
+    expect(await pushes(s.arturo.id)).toEqual(["Ke 带你报名了", "Ke 取消了带你报名"]);
 
-    await signup(s, s.ke, { friends: [], guests: [s.arthur.id] });
-    await anon.call(`${s.arthur.base}/events/${s.e.id}/cancel`, {});
-    expect(await pushes(s.ke.id)).toEqual(["arthur 不去了"]);
+    await signup(s, s.ke, { friends: [], guests: [s.arturo.id] });
+    await anon.call(`${s.arturo.base}/events/${s.e.id}/cancel`, {});
+    expect(await pushes(s.ke.id)).toEqual(["arturo 不去了"]);
 
-    await signup(s, s.ke, { friends: [], guests: [s.arthur.id] });
+    await signup(s, s.ke, { friends: [], guests: [s.arturo.id] });
     await anon.call(`${s.ke.base}/events/${s.e.id}/cancel`, {});
-    expect((await pushes(s.arthur.id)).at(-1)).toBe("Ke 取消了带你报名");
+    expect((await pushes(s.arturo.id)).at(-1)).toBe("Ke 取消了带你报名");
 
     // Taken off from the admin page: both hear of it.
-    await signup(s, s.ke, { friends: [], guests: [s.arthur.id] });
-    const row = (await s.admin.call(s.eb)).data.roster.find((r: { name: string }) => r.name === "arthur");
+    await signup(s, s.ke, { friends: [], guests: [s.arturo.id] });
+    const row = (await s.admin.call(s.eb)).data.roster.find((r: { name: string }) => r.name === "arturo");
     await s.admin.call(`${s.eb}/roster/${row.id}/remove`, {});
-    expect((await pushes(s.arthur.id)).at(-1)).toBe("Jay 把你移出了名单");
+    expect((await pushes(s.arturo.id)).at(-1)).toBe("Jay 把你移出了名单");
     expect((await pushes(s.ke.id)).at(-1)).toBe("Jay 把你的朋友移出了名单");
   });
 });

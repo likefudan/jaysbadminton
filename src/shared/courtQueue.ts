@@ -1,3 +1,5 @@
+import type { CourtMapLayout } from "./courtMap";
+
 /**
  * 球场排队: events at halls where courts are taken by queuing on the hall's own computer. Players
  * share hall accounts on the event and enter, by hand, the courts we hold or queue for; the pages
@@ -62,6 +64,8 @@ export interface QueueInfo {
   idleAlert: { pct: number; from: string; to: string } | null;
   /** How 登记球场 shows the hall accounts (设置, Ke Li): see QueueAccountsView. */
   accountsView: QueueAccountsView;
+  /** 球场图: the venue's floor plan to look at, null until one is set in 设置. */
+  map: CourtMapLayout | null;
 }
 
 /**
@@ -124,6 +128,14 @@ export function replacedBy(
 export const queueWait = (minutesLeft: number, position: number, roundMin: number): number =>
   minutesLeft + Math.max(0, position - 1) * roundMin;
 
+/**
+ * Which group in the court's queue a waiting entry is in now (Ke Li 2026-11-14): it moves up one
+ * each time a round ends ahead of it, so with `minutesLeft` to wait it is group ⌈wait / round⌉,
+ * never behind where it was entered and never before group 1. 2 minutes left = 第1组.
+ */
+export const queueGroupNow = (entered: number, minutesLeft: number, roundMin: number): number =>
+  Math.max(1, Math.min(entered, Math.ceil(minutesLeft / Math.max(1, roundMin))));
+
 /** 拍照登记: the photo is shrunk on the phone to this many pixels on its long side (Ke Li). */
 export const PHOTO_MAX_SIDE = 1600;
 
@@ -157,10 +169,10 @@ export interface PastedAccount {
 
 /**
  * 批量添加: reads a pasted account list exactly as typed (no case changes). Two layouts:
- * - Numbered, "1. Cassie lion3": used when any line is numbered. Whatever comes before the first
+ * - Numbered, "1. Alice cat12": used when any line is numbered. Whatever comes before the first
  *   numbered line (a group note, a title) is skipped; after it, a line that isn't
  *   "number. username password" is returned in `bad`.
- * - Plain, "Cassie lion3" (Ke Li 2026-11-13): blank lines and lines starting with "Court"
+ * - Plain, "Alice cat12" (Ke Li 2026-11-13): blank lines and lines starting with "Court"
  *   ("Court 11 half 9:26", any case) are skipped; every other line must be "username password".
  * A username repeated in the paste (any case) is kept once.
  */

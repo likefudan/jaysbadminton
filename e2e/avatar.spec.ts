@@ -16,8 +16,8 @@ async function avatars(page: Page) {
 
 const me = (o: object) => ({
   id: "M007",
-  username: "Dafei",
-  wechatNickname: "dafei",
+  username: "Dawei",
+  wechatNickname: "dawei",
   active: true,
   isOwner: false,
   avatar: null,
@@ -95,7 +95,7 @@ const board = (list: Rank[]) => ({
   ...Object.fromEntries(KEYS.map((k) => [k, k === "attendance" ? list : []])),
   monthly: Object.fromEntries(KEYS.map((k) => [k, []])),
 });
-const NAMES = ["Lily", "arthur", "Dafei", "Jayx", "Johnzhang", "joseff", "Tom"];
+const NAMES = ["Lina", "arturo", "Dawei", "Jayz", "Johnzhao", "josefa", "Tom"];
 
 /** 排行榜: a face over each name on the podium and before it in the rows; none for visitors. */
 test("the boards show avatars to members and names alone to visitors", async ({ page }) => {
@@ -131,7 +131,7 @@ test("the boards show avatars to members and names alone to visitors", async ({ 
   const card = page.locator(".card.board");
   await expect(card.locator(".podium .avatar")).toHaveCount(3);
   await expect(card.locator(".podium .p1 .avatar img")).toHaveAttribute("src", "/api/public/avatars/p0");
-  // Jayx has none: the empty face.
+  // Jayz has none: the empty face.
   await expect(card.locator(".board-rows li").first().locator(".avatar svg")).toBeVisible();
   if (SHOTS) {
     await card.scrollIntoViewIfNeeded();
@@ -169,9 +169,9 @@ test("最常一起打球 shows the buddies' avatars", async ({ page }) => {
         queue: 12,
         venue: { name: "Synergy Badminton Academy", count: 21 },
         buddies: [
-          { name: "Lily", count: 18, avatar: "/api/public/avatars/b0" },
-          { name: "arthur", count: 15, avatar: null },
-          { name: "Jayx", count: 11, avatar: "/api/public/avatars/b4" },
+          { name: "Lina", count: 18, avatar: "/api/public/avatars/b0" },
+          { name: "arturo", count: 15, avatar: null },
+          { name: "Jayz", count: 11, avatar: "/api/public/avatars/b4" },
         ],
         milestones: [],
       },

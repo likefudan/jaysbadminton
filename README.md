@@ -60,7 +60,7 @@ The UI is available in Simplified Chinese, Traditional Chinese and English (each
 - **Each event's money goes to whoever created it** (their own Venmo and email forwarding).
 
 ### On the day
-- **Court queue**: players add their gym accounts, record which court each group is on, the queue position and minutes left, and see an estimated wait. Idle accounts get a warning banner.
+- **Court queue**: players add their gym accounts, record which court each group is on, the queue position and minutes left, and see an estimated wait. Idle accounts get a warning banner. **Court map**: in Settings → Court map the Owner, an admin or an organizer photographs the court map posted at a venue once; the AI model draws it, they fix numbers and positions (courts stay aligned in rows and columns) and save it for that venue's street address (Dr and Drive are the same place). The editor can also crop the plan to the courts in a range. Reading a photo is for the Owner and admins, at most 10 a month per venue and per person, each logged with its estimated cost; organizers draw and change plans by hand. On the event card players then see our courts coloured on the venue's floor plan, upright or turned sideways with a Rotate button that remembers their choice.
 - **Photo check-in**: take a photo of the gym's queue screen and an AI model reads our courts (needs the AI key).
 - **Booked courts**: the organizer enters the booked court numbers; members get a push 10 minutes before start.
 
@@ -174,7 +174,7 @@ GitHub Actions secrets (none are needed for local development):
 | `AZURE_FOUNDRY_API_KEY` | Optional AI models (photo check-in, plain-language release notes) |
 | `GOOGLE_MAPS_API_KEY` | Optional address suggestions (Photon is used without it) |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Optional outgoing email |
-| `OPS_EMAIL`, `OPS_GITHUB_TOKEN` | Release admin site: who may sign in, and the token that starts workflows |
+| `OPS_EMAIL`, `OPS_GITHUB_TOKEN` | Release admin site: the owner who approves others (viewers, release engineers), and the token that starts workflows |
 
 CI creates each site's `TOKEN_KEY` on first deploy and never changes it. It encrypts stored links and keys and peppers the Owner password hash, and Cloudflare never shows it again, so keep the backups above.
 
@@ -222,10 +222,13 @@ One Cloudflare Worker per site serves the single-page app and the JSON API, rece
 - **Multi-site**: `sites.json` lists the extra sites; each gets Worker `jaysbadminton-<id>`, a database of the same name, its own icon colour and name. `/api/health` reports the version each site runs.
 
 ### Releases and backups
-- A release tags `main` with the Pacific date (`vYYYY.MM.DD`, `.2`/`.3` for the same day), writes release notes from the merged PRs, then for each chosen site: encrypted D1 backup (kept 90 days as an Actions artifact), migration, deploy, smoke test, Telegram notice.
+- A release tags `main` with the Pacific date (`vYYYY.MM.DD`, `.2`/`.3` for the same day), writes release notes from the merged PRs, then for each chosen site: encrypted D1 backup (kept 90 days in the private R2 bucket `jaysbadminton-backups`, never on GitHub), migration, deploy, smoke test, Telegram notice.
 - `scripts/check-migrations.mjs` refuses to deploy a version older than the site's database.
-- Decrypt a backup on your own computer:
+- Download and decrypt a backup on your own computer:
+  `npx wrangler r2 object get jaysbadminton-backups/FILE.sql.gz.enc --remote --file FILE.sql.gz.enc`
   `BACKUP_KEY='…' openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_KEY -in FILE.sql.gz.enc | gunzip > FILE.sql`
+- Load a decrypted backup into a new, empty D1 database (photos make some rows longer than D1's 100 KB limit per statement; `split-sql.mjs` rewrites those rows in pieces and checks the result holds the same data):
+  `node scripts/split-sql.mjs FILE.sql FILE.import.sql && npx wrangler d1 execute NEW_DATABASE --remote --file FILE.import.sql`
 
 ### Rollback limits
 A rollback replaces the code but does not undo migrations, and old code does not understand data from migrations it doesn't have. So a site can only go back to a version whose `migrations/` folder contains every migration its database has run. Two exceptions:
@@ -246,3 +249,7 @@ Versions `v2026.11.09` and older predate per-site releases and can only be deplo
 | [docs/launch-checklist.md](docs/launch-checklist.md) | Launch checklist |
 | [docs/calories-shortcut.md](docs/calories-shortcut.md) | The iOS Shortcut for calories |
 | [docs/design/](docs/design/) | Design notes for organizers and admins (Chinese) |
+
+## License
+
+[GNU Affero General Public License v3.0](LICENSE). You may use and change this code; if you run a changed version as a website for others, you must make your source code available to them under the same license.

@@ -28,9 +28,21 @@ import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
 import { goDown, goSide, goUp, useOnReturn } from "../adminNav";
 import { MasterDetail } from "../MasterDetail";
 import { SubBar } from "../SubBar";
+import { CourtMapsPage, CourtMapsRow } from "./AdminCourtMaps";
 import { VersionRow, VersionsPage } from "./AdminVersions";
 
-const SUBS = ["looks", "join", "pay", "advanced", "security", "sheets", "appNames", "boards", "versions"] as const;
+const SUBS = [
+  "looks",
+  "join",
+  "pay",
+  "advanced",
+  "security",
+  "sheets",
+  "appNames",
+  "boards",
+  "versions",
+  "courtMaps",
+] as const;
 type Sub = (typeof SUBS)[number];
 /** An admin's 设置 has all but 账号与安全. */
 const ADMIN_SUBS = SUBS.filter((s) => s !== "security");
@@ -58,6 +70,15 @@ function useSubPages(from: string | undefined, has: readonly Sub[], reload: () =
   // The menu row to highlight: the page open, or the one it belongs under.
   const top = sub && (PARENT[sub] ?? sub);
   return [sub, open, top] as const;
+}
+
+/** 设置 → 球场图, for everyone in the 管理页 (they all create events). */
+function CourtMapsSubPage(props: { base: string; back: () => void }) {
+  return (
+    <SubPage title={t("球场图")} back={props.back}>
+      <CourtMapsPage base={props.base} />
+    </SubPage>
+  );
 }
 
 /** 设置 → 版本和更新记录, for everyone in the 管理页. */
@@ -225,6 +246,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
       );
     if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
     if (sub === "versions") return <VersionsSubPage base={props.base} back={home} />;
+    if (sub === "courtMaps") return <CourtMapsSubPage base={props.base} back={home} />;
 
     return null;
   })();
@@ -267,6 +289,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
           onClick={() => open("security")}
         />
       </section>
+      <CourtMapsRow current={top === "courtMaps"} onClick={() => open("courtMaps")} />
       <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
       <AdminGuide base={props.base} telegram={telegram} go={open} />
       <button type="button" class="button secondary block" onClick={logout}>
@@ -414,6 +437,7 @@ const LockIcon = () =>
 export function OrganizerSettings(props: { base: string; sub?: string }) {
   // Their 设置 has no menu, only this one page below it.
   if (props.sub === "versions") return <VersionsSubPage base={props.base} back={() => goUp({ tab: "settings" })} />;
+  if (props.sub === "courtMaps") return <CourtMapsSubPage base={props.base} back={() => goUp({ tab: "settings" })} />;
   return <OrganizerSettingsPage base={props.base} />;
 }
 
@@ -428,6 +452,7 @@ function OrganizerSettingsPage(props: { base: string }) {
       <MyPaymentCard base={props.base} profile={profile} reload={reload} />
       <ForwardingCard profile={p} />
       <TelegramCard base={props.base} organizer status={telegram} reload={reloadTelegram} />
+      <CourtMapsRow onClick={() => goDown({ tab: "settings", sub: "courtMaps" })} />
       <VersionRow base={props.base} onClick={() => goDown({ tab: "settings", sub: "versions" })} />
       <OrganizerGuide
         payment={done(profile, (d) => !!d.venmoUsername && !!d.venmoEmail)}
@@ -489,6 +514,7 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
         </SubPage>
       );
     if (sub === "versions") return <VersionsSubPage base={props.base} back={home} />;
+    if (sub === "courtMaps") return <CourtMapsSubPage base={props.base} back={home} />;
 
     return null;
   })();
@@ -525,6 +551,7 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
           onClick={() => open("advanced")}
         />
       </section>
+      <CourtMapsRow current={top === "courtMaps"} onClick={() => open("courtMaps")} />
       <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
       <OrganizerGuide
         admin
@@ -1377,7 +1404,7 @@ function PaymentForm(props: {
     <Card title={t("收款账户")}>
       <form onSubmit={save}>
         {props.first && <p class="muted small">{t("成员付款时用的账号，一般只需要设置一次。")}</p>}
-        <Field label={t("你的 Venmo 用户名")} value={venmo} onInput={setVenmo} hint={t("不用加 @，例如 KeLi8916")} />
+        <Field label={t("你的 Venmo 用户名")} value={venmo} onInput={setVenmo} hint={t("不用加 @，例如 JayVenmo")} />
         <Field
           label={t("Venmo 通知邮箱")}
           type="email"

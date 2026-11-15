@@ -30,6 +30,7 @@ import { memberRoutes } from "./routes/member";
 import { publicRoutes } from "./routes/public";
 import { googleRoutes } from "./googleAuth";
 import { diagnoseOversizedEmail, purgePaymentDiagnostics } from "./paymentDiagnostics";
+import { purgeCourtMapHistory, rekeyCourtMaps } from "./courtMap";
 import { purgeCourtPhotos } from "./courtPhoto";
 import { purgeEndedQueues } from "./courtQueue";
 import { sendReleaseNotices } from "./releaseNotice";
@@ -201,8 +202,10 @@ export default {
       console.error("payment diagnostic cleanup failed:", err);
     }
     try {
-      await purgeEndedQueues(env); // 球馆账号, courts and photos once the event's queue is over
-      await purgeCourtPhotos(env); // and any photo after 7 days
+      await purgeEndedQueues(env); // 球馆账号, courts and what photos showed once the event's queue is over
+      await purgeCourtPhotos(env); // and what photos showed, after 7 days
+      await purgeCourtMapHistory(env); // 球场图: replaced plans, after 30 days
+      await rekeyCourtMaps(env); // and plans kept under an address as it used to be told apart
     } catch (err) {
       console.error("court queue cleanup failed:", err);
     }

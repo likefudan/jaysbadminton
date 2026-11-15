@@ -1,3 +1,4 @@
+import { getCourtMap } from "./courtMap";
 import {
   IDLE_ALERT_DEFAULT_PCT,
   QUEUE_ACCOUNTS_VIEWS,
@@ -64,9 +65,10 @@ export async function queueAccountsView(env: Env): Promise<QueueAccountsView> {
 
 /** Everything the card shows: shared accounts (with who added them) and the courts entered. */
 export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: boolean): Promise<QueueInfo> {
-  const [pct, view, accounts, courts] = await Promise.all([
+  const [pct, view, map, accounts, courts] = await Promise.all([
     idleAlertPct(env),
     queueAccountsView(env),
+    getCourtMap(env, e),
     env.DB.prepare(
       `SELECT a.id, a.username, a.password, a.member_id, m.username AS by_name
        FROM queue_accounts a JOIN members m ON m.id = a.member_id
@@ -119,6 +121,7 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: b
     })),
     idleAlert: pct ? { pct, from: e.start_at, to: e.end_at } : null,
     accountsView: view,
+    map,
   };
 }
 
@@ -345,7 +348,7 @@ export async function removeCourts(env: Env, e: EventRow, body: Record<string, u
 
 /**
  * Cron: once an event's 球场排队 is over (3 hours after its end, as the card goes; cancelled; or the
- * switch turned off), its 球馆账号 (usernames and passwords), the courts entered and the photos are
+ * switch turned off), its 球馆账号 (usernames and passwords), the courts entered and what photos showed are
  * deleted for good (Ke Li 2026-11-10): none of it is kept past the evening it was for.
  */
 export async function purgeEndedQueues(env: Env, at = new Date()) {

@@ -117,7 +117,7 @@ describe("whose account a Venmo payment went into", () => {
     expect(await deliver({ note: (await s.aliceBills()).Jay.paymentCode, txnId: "W1" })).toBe("review");
     expect(await inbound("W1")).toMatchObject({
       payee_id: s.owner,
-      reason: "付到了 @KeLi8916（Jay）的账户，但这场的收款人是 Alice",
+      reason: "付到了 @JayVenmo（Jay）的账户，但这场的收款人是 Alice",
     });
     // The Owner's event, paid into Alice's account.
     const bob = (await s.ownerBills()).Bob;
