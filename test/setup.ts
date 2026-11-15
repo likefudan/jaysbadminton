@@ -27,6 +27,7 @@ const TABLES = [
   "registrations",
   "ai_usage",
   "court_map_history",
+  "court_map_photos",
   "court_maps",
   "queue_photos",
   "queue_courts",

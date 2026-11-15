@@ -248,11 +248,12 @@ adminEventRoutes.post("/locations/remove", async (c) => {
 // 设置 → 球场图 (Ke Li 2026-11-15: 在设置里管理): each venue's one plan, read from a photo, put right
 // by hand, replaced or removed; what was replaced is kept 30 days. Event cards only show it.
 adminEventRoutes.get("/court-maps", async (c) =>
-  c.json({ venues: await courtMapVenues(c.env), photo: aiEnabled(c.env) }),
+  // 拍照 is for the Owner and admins; organizers draw and change plans by hand.
+  c.json({ venues: await courtMapVenues(c.env), photo: aiEnabled(c.env) && can(c.get("actor").role, "group") }),
 );
 
 adminEventRoutes.post("/court-maps/photo", async (c) =>
-  c.json(await readCourtMapPhoto(c.env, await readJson(c.req.raw))),
+  c.json(await readCourtMapPhoto(c.env, c.get("actor"), await readJson(c.req.raw))),
 );
 
 adminEventRoutes.post("/court-maps/save", async (c) => {

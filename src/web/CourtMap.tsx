@@ -5,8 +5,10 @@ import {
   type CourtMapItem,
   type CourtMapLayout,
   type CourtMapOld,
+  type CourtMapRect,
   type CourtMapVenue,
   courtNumber,
+  cropLayout,
   moveStep,
   snapMove,
 } from "../shared/courtMap";
@@ -43,16 +45,64 @@ interface Editing {
   picked: number | null;
   onPick: (i: number | null) => void;
   onMove: (i: number, x: number, y: number) => void;
+  /** 裁剪: the range being dragged out over the plan (null until one is), when cropping. */
+  crop?: { rect: CourtMapRect | null; onRect: (r: CourtMapRect) => void };
 }
 
 /**
- * The plan, as large as the space allows. On a phone held upright a wide plan is turned a quarter
- * so it fills the screen; turning the phone sideways then reads it (Ke Li: 横屏显示更清晰). When the
- * screen itself is wide (phone sideways, computer), it is drawn as is. While it is being edited it
- * is never turned, so a drag goes where the finger does.
+ * Which way up each person likes the plan (Ke Li 2026-11-15: 记忆每个用户的preference): kept on
+ * their phone once they press 旋转; until then a wide plan turns itself on an upright phone.
  */
-function Plan(props: { layout: CourtMapLayout; tones?: Map<number, Tone>; legend?: boolean; edit?: Editing }) {
+const TURN_KEY = "court-map-turned";
+function savedTurn(): boolean | null {
+  try {
+    const v = localStorage.getItem(TURN_KEY);
+    return v === "1" ? true : v === "0" ? false : null;
+  } catch {
+    return null;
+  }
+}
+function saveTurn(turned: boolean) {
+  try {
+    localStorage.setItem(TURN_KEY, turned ? "1" : "0");
+  } catch {}
+}
+
+const TurnIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+    <path d="M20 4v7h-7" />
+  </svg>
+);
+
+/**
+ * The plan, as large as the space allows, either way up (Ke Li 2026-11-15: 横竖屏都能显示): as
+ * drawn, or turned a quarter. 旋转 above it switches between the two and the choice is remembered.
+ * Before anyone chooses, a wide plan on a phone held upright is turned so it fills the screen, and
+ * on a wide screen (phone sideways, computer) it is drawn as is. While it is being edited it is
+ * never turned, so a drag goes where the finger does.
+ */
+function Plan(props: {
+  layout: CourtMapLayout;
+  tones?: Map<number, Tone>;
+  legend?: boolean;
+  edit?: Editing;
+  /** The venue's address, beside 旋转. */
+  caption?: string;
+}) {
   const stage = useRef<HTMLDivElement>(null);
+  const [turned, setTurned] = useState(savedTurn);
+  const range = useRef<{ x: number; y: number } | null>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const drag = useRef<{ i: number; px: number; py: number; x: number; y: number; moved: boolean } | null>(null);
   useLayoutEffect(() => {
@@ -67,18 +117,23 @@ function Plan(props: { layout: CourtMapLayout; tones?: Map<number, Tone>; legend
   const { aspect, items } = props.layout;
   const edit = props.edit;
   let sheet = null;
+  // Which way it is drawn now, for 旋转 to switch from.
+  let turn = false;
   if (size && size.w > 0 && size.h > 0) {
-    const turn = !edit && aspect > 1.05 && size.h > size.w * 1.05;
+    turn = !edit && (turned ?? (aspect > 1.05 && size.h > size.w * 1.05));
     const room = { w: turn ? size.h : size.w, h: (turn ? size.w : size.h) - (props.legend ? LEGEND_H : 0) };
     const w = Math.max(0, Math.min(room.w, room.h * aspect));
     const h = w / aspect;
-    // Sized to the box; a label that would be too small to read is left off (the box still shows).
+    // Sized to the box. Numbers and labels are always drawn (Ke Li 2026-11-15: labels were left
+    // off); only another box's name too small to read is left off, and its box still shows.
     const font = (it: CourtMapItem) => {
       const size = Math.min(
-        it.h * h * (it.kind === "court" ? 0.62 : 0.5),
+        it.h * h * (it.kind === "court" ? 0.62 : it.kind === "text" ? 0.9 : 0.5),
         (it.w * w * 0.9) / Math.max(2, [...it.label].length * 0.68),
       );
-      return it.kind === "court" ? Math.max(7, size) : size >= 7 ? size : null;
+      if (it.kind === "court") return Math.max(7, size);
+      if (it.kind === "text") return Math.min(13, Math.max(8, size));
+      return size >= 6 ? size : null;
     };
     const down = (i: number, it: CourtMapItem) => (ev: PointerEvent) => {
       (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
@@ -97,6 +152,31 @@ function Plan(props: { layout: CourtMapLayout; tones?: Map<number, Tone>; legend
     };
     const up = () => {
       drag.current = null;
+    };
+    // 裁剪: a drag across the plan is the range to keep, from where it began to where it is now.
+    const crop = edit?.crop;
+    const at = (ev: PointerEvent) => {
+      const box = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+      const frac = (v: number) => Math.min(1, Math.max(0, v));
+      return { x: frac((ev.clientX - box.left) / box.width), y: frac((ev.clientY - box.top) / box.height) };
+    };
+    const rangeDown = (ev: PointerEvent) => {
+      (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+      range.current = at(ev);
+    };
+    const rangeMove = (ev: PointerEvent) => {
+      const from = range.current;
+      if (!from) return;
+      const to = at(ev);
+      crop!.onRect({
+        x: Math.min(from.x, to.x),
+        y: Math.min(from.y, to.y),
+        w: Math.abs(to.x - from.x),
+        h: Math.abs(to.y - from.y),
+      });
+    };
+    const rangeUp = () => {
+      range.current = null;
     };
     sheet = (
       <div
@@ -138,6 +218,27 @@ function Plan(props: { layout: CourtMapLayout; tones?: Map<number, Tone>; legend
             );
           })}
         </ul>
+        {crop && (
+          <div
+            class="cm-crop"
+            style={{ height: `${h}px` }}
+            onPointerDown={rangeDown}
+            onPointerMove={rangeMove}
+            onPointerUp={rangeUp}
+            onPointerCancel={rangeUp}
+          >
+            {crop.rect && (
+              <i
+                style={{
+                  left: `${crop.rect.x * 100}%`,
+                  top: `${crop.rect.y * 100}%`,
+                  width: `${crop.rect.w * 100}%`,
+                  height: `${crop.rect.h * 100}%`,
+                }}
+              />
+            )}
+          </div>
+        )}
         {props.legend && (
           <ul class="cm-key">
             <li>
@@ -161,7 +262,7 @@ function Plan(props: { layout: CourtMapLayout; tones?: Map<number, Tone>; legend
       </div>
     );
   }
-  return (
+  const stageEl = (
     <div
       class={edit ? "cm-stage editing" : "cm-stage"}
       style={edit ? { aspectRatio: String(aspect) } : undefined}
@@ -169,6 +270,26 @@ function Plan(props: { layout: CourtMapLayout; tones?: Map<number, Tone>; legend
     >
       {sheet}
     </div>
+  );
+  if (edit) return stageEl;
+  return (
+    <>
+      <div class="cm-bar">
+        <span class="muted small">{props.caption}</span>
+        <button
+          type="button"
+          class="button secondary cm-turn"
+          onClick={() => {
+            saveTurn(!turn);
+            setTurned(!turn);
+          }}
+        >
+          <TurnIcon />
+          {t("旋转")}
+        </button>
+      </div>
+      {stageEl}
+    </>
   );
 }
 
@@ -214,6 +335,9 @@ function numbersProblem(layout: CourtMapLayout): string | null {
  */
 function Editor(props: { layout: CourtMapLayout; onChange: (l: CourtMapLayout) => void }) {
   const [picked, setPicked] = useState<number | null>(null);
+  // 裁剪: off (undefined), on with no range dragged yet (null), or the range.
+  const [crop, setCrop] = useState<CourtMapRect | null | undefined>(undefined);
+  const [cropProblem, setCropProblem] = useState("");
   const layout = props.layout;
   const it = picked === null ? undefined : layout.items[picked];
   const set = (i: number, part: Partial<CourtMapItem>) =>
@@ -234,6 +358,43 @@ function Editor(props: { layout: CourtMapLayout; onChange: (l: CourtMapLayout) =
     props.onChange(next);
     setPicked(next.items.length - 1);
   }
+  function applyCrop() {
+    if (!crop) return;
+    const next = cropLayout(layout, crop);
+    if (!next) return setCropProblem(t("选的范围里没有场地，请重新拖一个范围"));
+    props.onChange(next);
+    setCrop(undefined);
+  }
+  if (crop !== undefined)
+    return (
+      <>
+        <Plan
+          layout={layout}
+          edit={{
+            picked: null,
+            onPick: () => {},
+            onMove: () => {},
+            crop: {
+              rect: crop,
+              onRect: (r) => {
+                setCrop(r);
+                setCropProblem("");
+              },
+            },
+          }}
+        />
+        <div class="cm-tools">
+          <p class="muted small">{t("在图上拖出要保留的范围。范围外的场地和文字会去掉，剩下的放大到整张图。")}</p>
+          {cropProblem && <p class="error">{cropProblem}</p>}
+          <button type="button" class="button" disabled={!crop || crop.w < 0.02 || crop.h < 0.02} onClick={applyCrop}>
+            {t("确定裁剪")}
+          </button>
+          <button type="button" class="button secondary" onClick={() => setCrop(undefined)}>
+            {t("返回")}
+          </button>
+        </div>
+      </>
+    );
   const arrow = (label: string, glyph: string, dx: number, dy: number) => (
     <button type="button" class="button secondary cm-arrow" aria-label={label} onClick={() => nudge(dx, dy)}>
       {glyph}
@@ -273,7 +434,18 @@ function Editor(props: { layout: CourtMapLayout; onChange: (l: CourtMapLayout) =
         ) : (
           <p class="muted small">{t("点一片场地改编号、拖动或删除。场地会自动对齐到行和列。")}</p>
         )}
-        <button type="button" class="button secondary cm-add" onClick={add}>
+        <button
+          type="button"
+          class="button secondary cm-add"
+          onClick={() => {
+            setPicked(null);
+            setCropProblem("");
+            setCrop(null);
+          }}
+        >
+          {t("裁剪")}
+        </button>
+        <button type="button" class="button secondary" onClick={add}>
           {t("＋ 添加场地")}
         </button>
       </div>
@@ -295,8 +467,7 @@ export function CourtMap(props: { e: MyEvent; q: QueueInfo; now: number; onClose
   const map = props.q.map;
   return (
     <Panel title={t("球场图")} label={t("球场图")} class="cm-panel" onClose={props.onClose}>
-      {props.e.address && <p class="muted small cm-where">{props.e.address}</p>}
-      {map && <Plan layout={map} tones={courtTones(props.q.courts, props.now)} legend />}
+      {map && <Plan layout={map} tones={courtTones(props.q.courts, props.now)} legend caption={props.e.address} />}
     </Panel>
   );
 }
@@ -337,7 +508,7 @@ export function CourtMapManager(props: {
         throw new Error(t("这张照片打不开，请重新拍一张"));
       }
       setOld(null);
-      setDraft(await api<CourtMapLayout>(`${path}/photo`, { image }));
+      setDraft(await api<CourtMapLayout>(`${path}/photo`, { ...where, image }));
       setProblem("");
     });
   }
@@ -430,7 +601,7 @@ export function CourtMapManager(props: {
   } else if (map) {
     body = (
       <>
-        <Plan layout={map} />
+        <Plan layout={map} caption={address} />
         <div class="cm-actions cm-manage">
           {props.photo && <PhotoInputs busy={busy} onPick={read} again />}
           <div class="cm-actions row">
@@ -465,7 +636,7 @@ export function CourtMapManager(props: {
 
   return (
     <Panel title={draft ? t("编辑球场图") : venue} label={t("球场图")} class="cm-panel" onClose={props.onClose}>
-      {address && !draft && <p class="muted small cm-where">{address}</p>}
+      {address && !draft && !map && <p class="muted small cm-where">{address}</p>}
       {body}
       {error && <p class="error">{error}</p>}
     </Panel>

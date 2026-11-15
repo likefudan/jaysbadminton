@@ -117,7 +117,7 @@ function claudeReader(name: string, client: Anthropic, model: string, effort: Ai
   };
 }
 
-function responsesReader(apiKey: string, model: string, effort: AiEffort): Reader {
+function responsesReader(apiKey: string, model: string, effort: AiEffort, callMs: number): Reader {
   return {
     name: `azure ${model}`,
     choice: { model, effort },
@@ -125,7 +125,7 @@ function responsesReader(apiKey: string, model: string, effort: AiEffort): Reade
       const res = await fetch(`${AZURE_HOST}/openai/v1/responses`, {
         method: "POST",
         headers: { "api-key": apiKey, "content-type": "application/json" },
-        signal: AbortSignal.timeout(CALL_MS),
+        signal: AbortSignal.timeout(callMs),
         body: JSON.stringify({
           model,
           max_output_tokens: req.maxTokens,
@@ -168,14 +168,29 @@ const CALL_MS = 45_000;
 /** The model the pick falls back to: quick and never down when the others are. */
 const FALLBACK: AiChoice = { model: "claude-sonnet-5-5", effort: "low" };
 
+/** How a call may differ from the use's pick in 设置. */
+export interface AiOptions {
+  /** The event the call is for, in ai_usage. */
+  eventId?: number;
+  /** The call's id in ai_usage, when the caller wants to find its rows (aiRequestCost). */
+  request?: string;
+  /** Asked with this effort whatever 设置 says (the model stays the pick): 球场图 is read once and with care. */
+  effort?: AiEffort;
+  /** How long each reader may take, when more than the usual 45 seconds. */
+  callMs?: number;
+}
+
 /** Who to ask, in order: the pick, then Sonnet (both on Azure). */
-async function readers(env: Env, use: AiUse): Promise<Reader[]> {
+async function readers(env: Env, use: AiUse, opts: AiOptions): Promise<Reader[]> {
   const apiKey = env.AZURE_FOUNDRY_API_KEY;
   if (!apiKey) return [];
   // No retry inside a call: the fallback is the retry.
-  const claude = new Anthropic({ apiKey, baseURL: `${AZURE_HOST}/anthropic`, timeout: CALL_MS, maxRetries: 0 });
+  const callMs = opts.callMs ?? CALL_MS;
+  const claude = new Anthropic({ apiKey, baseURL: `${AZURE_HOST}/anthropic`, timeout: callMs, maxRetries: 0 });
   const reader = ({ model, effort }: AiChoice) =>
-    isClaude(model) ? claudeReader(`azure ${model}`, claude, model, effort) : responsesReader(apiKey, model, effort);
+    isClaude(model)
+      ? claudeReader(`azure ${model}`, claude, model, opts.effort ?? effort)
+      : responsesReader(apiKey, model, opts.effort ?? effort, callMs);
   const pick = (await aiChoices(env))[use];
   return pick.model === FALLBACK.model ? [reader(pick)] : [reader(pick), reader(FALLBACK)];
 }
@@ -186,9 +201,9 @@ export const aiEnabled = (env: Env) => !!env.AZURE_FOUNDRY_API_KEY;
  * The first answer any reader gives, parsed; undefined when none could (each failure logged).
  * Every call is written to ai_usage with its tokens (拍照登记用量), under `eventId` when given.
  */
-export async function askAi(env: Env, use: AiUse, req: AiRequest, opts: { eventId?: number } = {}): Promise<unknown> {
-  const request = crypto.randomUUID();
-  const list = await readers(env, use);
+export async function askAi(env: Env, use: AiUse, req: AiRequest, opts: AiOptions = {}): Promise<unknown> {
+  const request = opts.request ?? crypto.randomUUID();
+  const list = await readers(env, use, opts);
   for (const [i, r] of list.entries()) {
     let tokens: Tokens = { input: 0, output: 0 };
     const spent = (t: Tokens) => {
@@ -210,6 +225,20 @@ export async function askAi(env: Env, use: AiUse, req: AiRequest, opts: { eventI
     }
   }
   return undefined;
+}
+
+/** What one askAi call is estimated to have cost in US$, the fallback's part too; null when a model has no price. */
+export async function aiRequestCost(env: Env, request: string): Promise<number | null> {
+  const { results } = await env.DB.prepare("SELECT model, input_tokens, output_tokens FROM ai_usage WHERE request = ?")
+    .bind(request)
+    .all<{ model: string; input_tokens: number; output_tokens: number }>();
+  let total = 0;
+  for (const r of results) {
+    const cost = aiCost(r.model, r.input_tokens, r.output_tokens);
+    if (cost === null) return null;
+    total += cost;
+  }
+  return total;
 }
 
 /** One call into ai_usage; a failure to write it is logged and never fails the call itself. */

@@ -153,3 +153,36 @@ test("设置 → 球场图: 以前的图 lists what was replaced; 恢复 opens o
   await expect.poll(() => posts.find((p) => p.url.endsWith("/save"))).toBeTruthy();
   expect(posts.find((p) => p.url.endsWith("/save"))!.body.layout.items).toHaveLength(6);
 });
+
+test("设置 → 球场图: 裁剪 keeps only the courts in the range dragged out", async ({ page }) => {
+  const posts = await setUp(page, plan);
+  await page.getByRole("button", { name: /Bintang Fremont/ }).click();
+  const map = page.getByRole("dialog", { name: "球场图" });
+  await map.getByRole("button", { name: "修改" }).click();
+  await map.getByRole("button", { name: "裁剪" }).click();
+  await expect(map.getByRole("button", { name: "确定裁剪" })).toBeDisabled();
+  // Over the top two rows (53–48 and 47–41), ending above the BADMINTON COURTS label.
+  const box = (await map.locator(".cm-crop").boundingBox())!;
+  const drag = async (x0: number, y0: number, x1: number, y1: number) => {
+    await page.mouse.move(box.x + box.width * x0, box.y + box.height * y0);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1, { steps: 5 });
+    await page.mouse.up();
+  };
+  // A range with only the label in the aisle says so and changes nothing.
+  await drag(0.3, 0.25, 0.7, 0.31);
+  await map.getByRole("button", { name: "确定裁剪" }).click();
+  await expect(map.getByText("选的范围里没有场地，请重新拖一个范围")).toBeVisible();
+  await drag(0.02, 0.01, 0.98, 0.2);
+  await page.screenshot({ path: test.info().outputPath("court-map-crop.png"), animations: "disabled" });
+  await map.getByRole("button", { name: "确定裁剪" }).click();
+  await expect(map.locator(".cm-item")).toHaveCount(13);
+  await page.screenshot({ path: test.info().outputPath("court-map-cropped.png"), animations: "disabled" });
+  await map.getByRole("button", { name: "保存" }).click();
+  await expect.poll(() => posts.find((p) => p.url.endsWith("/save"))).toBeTruthy();
+  const saved = posts.find((p) => p.url.endsWith("/save"))!.body.layout;
+  expect(saved.items.map((i: { label: string }) => Number(i.label)).sort((a: number, b: number) => a - b)).toEqual(
+    Array.from({ length: 13 }, (_, k) => 41 + k),
+  );
+  expect(saved.aspect).toBeGreaterThan(4);
+});
