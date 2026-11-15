@@ -4433,7 +4433,7 @@ ul.audit li:first-child {
   --court-fill: #f3cb64;
   --court-edge: #9e6f19;
 }
-.cq-map-panel .booked {
+.cq-map-panel .queued {
   --court-fill: #c4c8ce;
   --court-edge: #737b86;
 }

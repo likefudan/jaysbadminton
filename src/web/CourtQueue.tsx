@@ -25,7 +25,7 @@ import { toPacific } from "../shared/time";
 import type { MyEvent } from "../shared/types";
 import { api } from "./api";
 import { CourtCombo } from "./CourtCombo";
-import { CourtMap, COURT_MAP_TITLE, hasCourtMap } from "./CourtMap";
+import { CourtMap, hasCourtMap } from "./CourtMap";
 import { useAction } from "./components";
 import { t } from "./i18n";
 
@@ -142,7 +142,7 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
               aria-haspopup="dialog"
               onClick={() => setSheet({ kind: "map" })}
             >
-              {COURT_MAP_TITLE}
+              {t("球场图")}
             </button>
           )}
         </div>

@@ -3,8 +3,6 @@ import type { MyEvent } from "../shared/types";
 import { Panel } from "./Panel";
 import { t } from "./i18n";
 
-export const COURT_MAP_TITLE = "Court Map";
-
 export function hasCourtMap(event: Pick<MyEvent, "address" | "location">) {
   const venue = `${event.location} ${event.address}`;
   return /\b48900\s+milmont\b/i.test(venue) || (/\bbintang\b/i.test(venue) && /\bfremont\b/i.test(venue));
@@ -22,7 +20,7 @@ const ROWS = [
   [5, null, null, 4, 3, 2, 1],
 ];
 
-type Tone = "play" | "soon" | "booked" | "unregistered";
+type Tone = "play" | "soon" | "queued" | "unregistered";
 
 export function CourtMap(props: { courts: QueueCourt[]; now: number; onClose: () => void }) {
   const tones = new Map<number, Tone>();
@@ -31,18 +29,19 @@ export function CourtMap(props: { courts: QueueCourt[]; now: number; onClose: ()
     if (phase.phase === "playing") {
       tones.set(court.court, phase.minutes <= QUEUE_SOON_MIN ? "soon" : "play");
     } else if (phase.phase === "queued" && !tones.has(court.court)) {
-      tones.set(court.court, "booked");
+      tones.set(court.court, "queued");
     }
   }
   const labels: Record<Tone, string> = {
     play: t("在打"),
     soon: t("{n} 分钟内", { n: QUEUE_SOON_MIN }),
-    booked: t("已订未开始"),
+    queued: t("排队中"),
     unregistered: t("未登记"),
   };
 
+  const title = t("球场图");
   return (
-    <Panel title={COURT_MAP_TITLE} label={COURT_MAP_TITLE} compact class="cq-map-panel" onClose={props.onClose}>
+    <Panel title={title} label={title} compact class="cq-map-panel" onClose={props.onClose}>
       <ul class="cq-map-grid">
         {ROWS.flatMap((row, y) =>
           row.flatMap((n, x) => {

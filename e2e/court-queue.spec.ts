@@ -140,14 +140,14 @@ test("opens the Fremont court map on a phone and shows the current state by posi
       courts: [...queue.courts, court(9, 7, 1, 4, 49, names("Next"))],
     },
   });
-  const trigger = page.getByRole("button", { name: "Court Map" });
+  const trigger = page.getByRole("button", { name: "球场图" });
   await trigger.click();
-  const map = page.getByRole("dialog", { name: "Court Map" });
+  const map = page.getByRole("dialog", { name: "球场图" });
   await expect(map).toBeVisible();
   await expect(map.locator(".cq-map-court")).toHaveCount(53);
   await expect(map.getByTitle("1 号场：在打", { exact: true })).toHaveClass(/play/);
   await expect(map.getByTitle("7 号场：5 分钟内", { exact: true })).toHaveClass(/soon/);
-  await expect(map.getByTitle("6 号场：已订未开始", { exact: true })).toHaveClass(/booked/);
+  await expect(map.getByTitle("6 号场：排队中", { exact: true })).toHaveClass(/queued/);
   await expect(map.getByTitle("9 号场：未登记", { exact: true })).toHaveClass(/unregistered/);
   const bounds = async (n: number) => (await map.getByTitle(new RegExp(`^${n} 号场：`)).boundingBox())!;
   const left = await bounds(47);
