@@ -1,6 +1,6 @@
 import { Fragment, h, render, type ComponentChildren, type ComponentType } from "preact";
 import { useEffect, useState } from "preact/hooks";
-import { LocationProvider, Route, Router } from "preact-iso";
+import { LocationProvider, Route, Router, useLocation } from "preact-iso";
 import { EventPage } from "./pages/EventPage";
 import { Home } from "./pages/Home";
 import { Member, MemberProfilePage } from "./pages/Member";
@@ -8,7 +8,7 @@ import { Account, AccountBoards, AccountProfile } from "./pages/Account";
 import { NotFound } from "./pages/NotFound";
 import { PullToRefresh } from "./PullToRefresh";
 import { startOffline } from "./offline";
-import { startTransitions } from "./transitions";
+import { setRouter, startTransitions } from "./transitions";
 import { addMessages, chosenLang, listeners, useActiveLang } from "./i18n";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
@@ -89,9 +89,16 @@ function Localized(props: { children: ComponentChildren }) {
   return <Fragment key={lang}>{props.children}</Fragment>;
 }
 
+/** Hands the router's own way to go to a page to transitions.ts. */
+function RouterHandle() {
+  setRouter(useLocation().route);
+  return null;
+}
+
 function App() {
   return (
     <LocationProvider>
+      <RouterHandle />
       <Localized>
         <PullToRefresh />
         <Router>
