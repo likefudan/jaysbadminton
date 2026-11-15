@@ -34,6 +34,7 @@ import { HeartIcon, LikeRow } from "../Likes";
 import { CalorieRow, CaloriesPage, FlameIcon, FlameOutline, caloriesShown, kcalText } from "../Calories";
 import { Panel } from "../Panel";
 import { AppBadge } from "../badge";
+import { buzz } from "../native";
 import { InstallPrompt } from "../Install";
 import { PushPrompt } from "../Push";
 import { GoogleLink } from "./Account";
@@ -428,6 +429,7 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
 
   async function save() {
     if (await run(() => api(`${props.base}/events/${e.id}/signup`, { ...fromSlots(friends), ...stay }))) {
+      buzz();
       setEditing(false);
       props.onChange();
     }

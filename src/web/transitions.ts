@@ -2,45 +2,49 @@ type Transitioning = Document & { startViewTransition?: (update: () => Promise<v
 
 /**
  * Going from page to page as in an app (Ke Li 2026-11-15): an event's page slides in from the
- * right, other pages cross-fade. A tap on a link to another page of the site is held back, and
- * made again inside the browser's view transition, where the router (preact-iso) takes it as
- * usual. Browsers without view transitions, and people who asked for less motion, go as before.
- * Going back is left to the browser: the iPhone's swipe back brings its own animation.
+ * right, other pages cross-fade. A tap on a link to another page of the site, once everything on
+ * the page has had its say (a drag that ends on a card is not a tap), is kept from the router
+ * (preact-iso) and handed to it inside the browser's view transition instead. Browsers without
+ * view transitions, and people who asked for less motion, go as before. Going back is left to
+ * the browser: the iPhone's swipe back brings its own animation.
  */
+let route: ((url: string) => void) | null = null;
+/** The router's own way to go to a page, from inside it (main.tsx). */
+export function setRouter(go: (url: string) => void) {
+  route = go;
+}
+
 export function startTransitions() {
   const doc = document as Transitioning;
   if (!doc.startViewTransition) return;
-  let again = false;
-  addEventListener(
-    "click",
-    (e) => {
-      if (again || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
-      if (!a || a.target || a.hasAttribute("download") || a.origin !== location.origin) return;
-      if (a.pathname === location.pathname || a.pathname.startsWith("/api/")) return;
-      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      const root = document.documentElement;
-      root.dataset.nav = a.pathname.startsWith("/e/") ? "in" : "fade";
-      const done = () => delete root.dataset.nav;
-      try {
-        doc
-          .startViewTransition?.(() => {
-            again = true;
-            try {
-              a.click();
-            } finally {
-              again = false;
-            }
-            // The router draws the new page in a moment (no frames are drawn while the browser waits here).
-            return new Promise<void>((drawn) => setTimeout(() => setTimeout(drawn, 0), 0));
-          })
-          .finished.then(done, done);
-      } catch {
-        done();
-      }
-    },
-    true,
-  );
+  // Before the router's own listener on the window: this one is added first.
+  addEventListener("click", (e) => {
+    if (!route || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.composedPath().find((el) => (el as Element).nodeName === "A" && (el as HTMLAnchorElement).href) as
+      | HTMLAnchorElement
+      | undefined;
+    if (!a || a.origin !== location.origin || a.hasAttribute("download") || !/^(_?self)?$/i.test(a.target)) return;
+    if ((a.getAttribute("href") ?? "").startsWith("#")) return;
+    if (a.pathname === location.pathname || a.pathname.startsWith("/api/")) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const go = route;
+    const url = a.href.replace(location.origin, "");
+    const root = document.documentElement;
+    root.dataset.nav = a.pathname.startsWith("/e/") ? "in" : "fade";
+    const done = () => delete root.dataset.nav;
+    try {
+      doc
+        .startViewTransition?.(() => {
+          go(url);
+          // The router draws the new page in a moment (no frames are drawn while the browser waits here).
+          return new Promise<void>((drawn) => setTimeout(() => setTimeout(drawn, 0), 0));
+        })
+        .finished.then(done, done);
+    } catch {
+      done();
+      go(url);
+    }
+  });
 }

@@ -1,3 +1,4 @@
+import { appleAppSiteAssociation, assetLinks } from "../shared/apps";
 import { developerRoutes } from "./developer";
 import { Hono } from "hono";
 import type { Env } from "./env";
@@ -136,6 +137,16 @@ app.get("/export/:key/all.json", async (c) => {
   if (!(await checkExportKey(c.env, c.req.param("key"))))
     return c.json({ error: { code: "invalid_key", message: "同步密钥无效" } }, 403);
   return c.json(await exportAll(c.env));
+});
+
+// Which phone apps may open this site's links (src/shared/apps.ts); nothing while there is none.
+app.get("/.well-known/assetlinks.json", (c) => {
+  const links = assetLinks(isStaging(c.env));
+  return links ? c.json(links) : c.text("Not found", 404);
+});
+app.get("/.well-known/apple-app-site-association", (c) => {
+  const association = appleAppSiteAssociation();
+  return association ? c.json(association) : c.text("Not found", 404);
 });
 
 // Search engines may index the real site, never the test site.
