@@ -249,3 +249,7 @@ Versions `v2026.11.09` and older predate per-site releases and can only be deplo
 | [docs/launch-checklist.md](docs/launch-checklist.md) | Launch checklist |
 | [docs/calories-shortcut.md](docs/calories-shortcut.md) | The iOS Shortcut for calories |
 | [docs/design/](docs/design/) | Design notes for organizers and admins (Chinese) |
+
+## License
+
+[GNU Affero General Public License v3.0](LICENSE). You may use and change this code; if you run a changed version as a website for others, you must make your source code available to them under the same license.
