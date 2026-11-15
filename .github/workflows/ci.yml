@@ -8,8 +8,8 @@ name: CI
 #   production sites named in `sites` (all of them by default). This is also how a site catches up
 #   to an older release or rolls back: run it on that tag with that site. A site whose database has
 #   run migrations the tag does not have is refused (scripts/check-migrations.mjs). `tested` skips
-#   the tests when this commit already passed them on main (the Release workflow checks that), so a
-#   rollback is not held up, or blocked, by re-running an old release's tests.
+#   the tests when this commit already passed them on main (the Release workflow checks that, and sets
+#   it for every release), so a release is not held up, or a rollback blocked, by re-running tests.
 on:
   pull_request:
   push:
@@ -40,9 +40,48 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Unit tests (in two halves) and the browser tests run side by side; deploys wait for all of them.
+  # Merge to main: when the merged code is exactly what its pull request's CI already tested (same
+  # file tree, newest PR run green), the tests are not run a second time; only the deploys run. Each
+  # job is billed in whole minutes, so this is most of what a merge used to cost. A PR that was behind
+  # main gives a different tree and runs everything. Run workflow by hand on main always tests.
+  tested-on-pr:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # the PR's CI runs
+      pull-requests: read # which PR this commit came from
+    outputs:
+      tested: ${{ steps.same.outputs.tested }}
+    steps:
+      - name: Same code already passed CI on its pull request
+        id: same
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tested=false
+          head=$(gh api "repos/$GH_REPO/commits/$GITHUB_SHA/pulls" \
+            --jq '[.[] | select(.merged_at != null and .base.ref == "main")][0].head.sha // ""') || head=""
+          if [ -n "$head" ]; then
+            here=$(gh api "repos/$GH_REPO/commits/$GITHUB_SHA" --jq .commit.tree.sha) || here=""
+            there=$(gh api "repos/$GH_REPO/commits/$head" --jq .commit.tree.sha) || there=""
+            # The newest finished CI run of the PR's last commit must be green.
+            state=$(gh run list --workflow ci.yml --commit "$head" --event pull_request --json conclusion \
+              --jq '[.[] | select(.conclusion != "")][0].conclusion // ""') || state=""
+            echo "PR head ${head:0:7}: tree ${there:0:7}, this commit's tree ${here:0:7}, PR CI: ${state:-none}"
+            if [ -n "$here" ] && [ "$here" = "$there" ] && [ "$state" = success ]; then tested=true; fi
+          fi
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+          echo "Tests already passed on the PR with the same code: $tested" >> "$GITHUB_STEP_SUMMARY"
+
+  # Lint, typecheck and every unit test in one job, and every browser test in one other: GitHub bills
+  # each job rounded up to a whole minute, so five short parallel jobs cost more than two longer ones.
   check:
-    if: ${{ !(inputs.tested && startsWith(github.ref, 'refs/tags/v')) }}
+    needs: [tested-on-pr]
+    if: >-
+      !cancelled() && needs.tested-on-pr.outputs.tested != 'true' &&
+      !(inputs.tested && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -61,37 +100,14 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       # The runner has 2 CPUs, so Vitest would default to one worker and run the files one by one.
-      # Half the test files here, the other half in unit-2 at the same time.
-      - run: npm test -- --maxWorkers=2 --shard=1/2
+      - run: npm test -- --maxWorkers=2
 
-  unit-2:
-    if: ${{ !(inputs.tested && startsWith(github.ref, 'refs/tags/v')) }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      # node_modules as npm ci left it for this exact lockfile; npm ci runs only when there is none.
-      - uses: actions/cache@v6
-        id: deps
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
-      - if: steps.deps.outputs.cache-hit != 'true'
-        run: npm ci
-      - run: npm test -- --maxWorkers=2 --shard=2/2
-
-  # The browser tests in three parts at the same time: e2e runs flows.spec.ts (the one on a real
-  # database, in order), e2e-2 and e2e-3 half each of all the others (Playwright splits them by file).
+  # The browser tests: flows.spec.ts (on a real database) and the specs that mock the API.
   e2e:
-    name: ${{ matrix.shard == 1 && 'e2e' || format('e2e-{0}', matrix.shard) }}
-    if: ${{ !(inputs.tested && startsWith(github.ref, 'refs/tags/v')) }}
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
+    needs: [tested-on-pr]
+    if: >-
+      !cancelled() && needs.tested-on-pr.outputs.tested != 'true' &&
+      !(inputs.tested && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -122,22 +138,23 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
       - name: Browser tests (main flows on a local Worker)
-        run: npx playwright test ${{ matrix.shard == 1 && 'flows' || (matrix.shard == 2 && '--shard=1/2' || '--shard=2/2') }}
+        run: npx playwright test
         env:
           WRANGLER_SEND_METRICS: "false"
-          E2E_SKIP_FLOWS: ${{ matrix.shard != 1 && '1' || '' }}
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-${{ matrix.shard }}
+          name: playwright-report
           path: |
             playwright-report/
             test-results/
           retention-days: 7
 
   deploy-staging:
-    needs: [check, unit-2, e2e]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [tested-on-pr, check, e2e]
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' &&
+      (needs.tested-on-pr.outputs.tested == 'true' || (needs.check.result == 'success' && needs.e2e.result == 'success'))
     runs-on: ubuntu-latest
     concurrency: deploy-staging
     env:
@@ -186,8 +203,10 @@ jobs:
   # not part of a release, so it follows main. Its failure does not turn CI on main red (a release needs
   # that green, and the tool must not hold releases up); the developers' Telegram group hears of it.
   deploy-ops:
-    needs: [check, unit-2, e2e]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [tested-on-pr, check, e2e]
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' &&
+      (needs.tested-on-pr.outputs.tested == 'true' || (needs.check.result == 'success' && needs.e2e.result == 'success'))
     runs-on: ubuntu-latest
     continue-on-error: true
     concurrency: deploy-ops
@@ -263,11 +282,11 @@ jobs:
           echo "Sites: $(grep -h '^chosen=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)" >> "$GITHUB_STEP_SUMMARY"
 
   deploy-production:
-    needs: [check, unit-2, e2e, plan]
+    needs: [check, e2e, plan]
     if: >-
       !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.main == 'true' &&
       (inputs.tested ||
-       (needs.check.result == 'success' && needs.unit-2.result == 'success' && needs.e2e.result == 'success'))
+       (needs.check.result == 'success' && needs.e2e.result == 'success'))
     runs-on: ubuntu-latest
     concurrency: deploy-production
     env:
@@ -328,11 +347,11 @@ jobs:
   # migrated and deployed on its own, so one site failing leaves the others deployed.
   # Off until the shared GitHub secrets SITES_KEY and SITES_ADMIN_PASSWORD exist (release-plan.mjs).
   deploy-sites:
-    needs: [check, unit-2, e2e, plan, deploy-production]
+    needs: [check, e2e, plan, deploy-production]
     if: >-
       !cancelled() && needs.plan.outputs.sites != '[]' && needs.plan.result == 'success' &&
       (inputs.tested ||
-       (needs.check.result == 'success' && needs.unit-2.result == 'success' && needs.e2e.result == 'success')) &&
+       (needs.check.result == 'success' && needs.e2e.result == 'success')) &&
       (needs.deploy-production.result == 'success' ||
        (needs.deploy-production.result == 'skipped' && needs.plan.outputs.main != 'true'))
     runs-on: ubuntu-latest

@@ -9,7 +9,7 @@ name: Release
 # Jay's site, the others are the ids in sites.json). The sites left out stay on their release.
 # 版本: empty makes a new release from main; an existing tag, e.g. v2026.11.12, makes no release and
 # only deploys that one to the chosen sites (bring a site up to it, or roll a site back to it).
-# Its tests are not run again when that commit passed them on main. Releases from before per-site
+# Its tests are not run again when that commit passed them on main (a new version's commit always has). Releases from before per-site
 # releases (v2026.11.09 and older) are refused: their own CI has no migration check and uploads the
 # database backup unencrypted (README「回滚」says how to go back to one by hand). Migrations a site's
 # database ran that the tag lacks block the deploy, unless they are listed in
@@ -147,7 +147,9 @@ jobs:
         env:
           TAG: ${{ steps.existing.outputs.tag || steps.version.outputs.tag }}
           SITES: ${{ inputs.sites || 'all' }}
-          TESTED: ${{ steps.existing.outputs.tested || 'false' }}
+          # A new version is the main commit whose CI was just checked green above, so its tests are not
+          # run again on the tag either; an existing version only when its commit passed CI on main.
+          TESTED: ${{ inputs.tag == '' && 'true' || steps.existing.outputs.tested || 'false' }}
         run: |
           if [ "$TESTED" = true ]; then
             gh workflow run ci.yml --ref "$TAG" -f sites="$SITES" -f tested=true
