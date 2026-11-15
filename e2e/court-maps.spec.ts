@@ -9,7 +9,8 @@ const BINTANG = { venue: "Bintang Fremont", address: "48900 Milmont Dr, Fremont,
 const SYNERGY = { venue: "Synergy Badminton", address: "" };
 const API = "**/api/admin/test-token";
 
-async function setUp(page: Page, bintangMap: object | null) {
+/** `recent` false: Bintang is no longer on 最近的场馆, so it is listed only while it has a plan. */
+async function setUp(page: Page, bintangMap: object | null, recent = true) {
   const posts: { url: string; body: any }[] = [];
   let map = bintangMap;
   await page.route("**/api/auth/session", (r) => r.fulfill({ json: { signedIn: false } }));
@@ -24,7 +25,7 @@ async function setUp(page: Page, bintangMap: object | null) {
       json: {
         photo: true,
         venues: [
-          { ...BINTANG, map, updatedAt: map ? "2030-10-21T03:00:00Z" : null },
+          ...(map || recent ? [{ ...BINTANG, map, updatedAt: map ? "2030-10-21T03:00:00Z" : null }] : []),
           { ...SYNERGY, map: null, updatedAt: null },
         ],
       },
@@ -106,7 +107,7 @@ test("设置 → 球场图: photographs a venue's plan, fixes a number, moves a 
 });
 
 test("设置 → 球场图: 修改 opens the kept plan in the editor, 删除 takes it off the venue", async ({ page }) => {
-  const posts = await setUp(page, plan);
+  const posts = await setUp(page, plan, false);
   const row = page.getByRole("button", { name: /Bintang Fremont/ });
   await expect(row).toContainText("53 片 · 2030年10月20日");
   await row.click();
@@ -122,6 +123,9 @@ test("设置 → 球场图: 修改 opens the kept plan in the editor, 删除 tak
   await map.getByRole("button", { name: "删除" }).click();
   await expect.poll(() => posts.find((p) => p.url.endsWith("/remove"))?.body).toEqual(BINTANG);
   await expect(map.getByText("「Bintang Fremont」还没有球场图。")).toBeVisible();
+  // Off the list now, but still open, so 以前的图 can bring the plan back.
+  await expect(page.getByRole("button", { name: /Bintang Fremont/ })).toHaveCount(0);
+  await expect(map.getByRole("button", { name: "以前的图" })).toBeVisible();
 });
 
 test("设置 → 球场图: 以前的图 lists what was replaced; 恢复 opens one in the editor to save again", async ({

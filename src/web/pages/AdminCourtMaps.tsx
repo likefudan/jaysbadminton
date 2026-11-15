@@ -47,12 +47,14 @@ export function CourtMapsRow(props: { current?: boolean; onClick: () => void }) 
 
 export function CourtMapsPage(props: { base: string }) {
   const [list, reload] = useApi<Listing>(`${props.base}/court-maps`);
-  // The venue open, by place, so it shows the fresh plan after a save.
-  const [open, setOpen] = useState<string | null>(null);
+  // The venue open. The list has its fresh plan after a save; a venue no longer on 最近的场馆 leaves
+  // the list when its plan is deleted, and stays open as it was so 以前的图 can bring the plan back.
+  const [open, setOpen] = useState<CourtMapVenue | null>(null);
   return (
     <Load result={list}>
       {(d) => {
-        const venue = d.venues.find((v) => placeOf(v) === open);
+        const venue =
+          open && (d.venues.find((v) => placeOf(v) === placeOf(open)) ?? { ...open, map: null, updatedAt: null });
         return (
           <>
             <p class="muted small cm-intro">
@@ -75,7 +77,7 @@ export function CourtMapsPage(props: { base: string }) {
                           })
                         : t("未添加")
                     }
-                    onClick={() => setOpen(placeOf(v))}
+                    onClick={() => setOpen(v)}
                   />
                 ))}
               </section>
