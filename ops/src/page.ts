@@ -174,7 +174,7 @@ const t = (key, vars) => {
   return s.replace(/\\{(\\w+)\\}/g, (all, k) => (vars && k in vars ? String(vars[k]) : all));
 };
 const EN = LANG === "en";
-const list = (names) => names.join(EN ? ", " : "、");
+const joinNames = (names) => names.join(EN ? ", " : "、");
 // Site names end in 羽毛球, which English shows as Badminton.
 const full = (name) => EN ? name.replace(/\\s*羽毛球$/, " Badminton") : name;
 // The 文A menu closes when tapping elsewhere.
@@ -236,7 +236,7 @@ async function load() {
 }
 
 async function send(sites, tag) {
-  const names = sites.length === data.sites.length ? t("全部 {n} 个站点", { n: sites.length }) : list(sites.map((id) => full(siteName(id))));
+  const names = sites.length === data.sites.length ? t("全部 {n} 个站点", { n: sites.length }) : joinNames(sites.map((id) => full(siteName(id))));
   const what = tag ? t("把 {tag} 发布到：{names}？", { tag, names }) : t("从 main 打新版本 {tag} 并发布到：{names}？", { tag: data.next, names });
   if (!confirm(what + "\\n\\n" + t("每个站点发布前都会先备份数据库，约 3–5 分钟完成。"))) return false;
   const res = await fetch("/api/release", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sites, tag, main: tag ? undefined : data.main }) });
@@ -357,8 +357,8 @@ function deploysCard() {
     const one = (j) => short(siteName(j.id));
     const mixed = d.sites.some((j) => j.conclusion !== "success");
     const names = !d.sites.length ? (d.running ? t("准备中") : t("没有部署"))
-      : mixed ? list(d.sites.map((j) => one(j) + (j.conclusion === "success" ? " ✓" : j.status !== "completed" ? " ⏳" : " ✗")))
-      : d.sites.length === data.sites.length ? t("全部") : list(d.sites.map(one));
+      : mixed ? joinNames(d.sites.map((j) => one(j) + (j.conclusion === "success" ? " ✓" : j.status !== "completed" ? " ⏳" : " ✗")))
+      : d.sites.length === data.sites.length ? t("全部") : joinNames(d.sites.map(one));
     return h("div", { class: "deploy" }, h("a", { href: d.url, target: "_blank", rel: "noopener" },
       h("div", { class: "row" }, h("span", {}, mark + " ", h("span", { class: "tag" }, d.tag), " → " + names), h("span", { class: "muted nowrap" }, when(d.at)))));
   }));
@@ -486,7 +486,7 @@ function openReleases() {
       h("div", { class: "row" },
         h("span", {}, h("a", { href: r.url, target: "_blank", rel: "noopener", class: "tag" }, r.tag), r.tag === data.latest ? h("span", { class: "pill", style: "margin-left:8px" }, t("最新")) : null),
         h("span", { class: "muted nowrap" }, when(r.date))),
-      on.length ? h("div", { class: "muted relon" }, t("在用：{names}", { names: list(on) })) : null,
+      on.length ? h("div", { class: "muted relon" }, t("在用：{names}", { names: joinNames(on) })) : null,
       notesOf(r));
   };
   const next = async () => {
