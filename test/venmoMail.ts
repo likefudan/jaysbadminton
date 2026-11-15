@@ -72,7 +72,7 @@ export async function venmoEmail(
     amount: "56.00",
     note: "Badminton",
     txnId: `TXN${Math.random().toString(36).slice(2, 12).toUpperCase()}`,
-    sentTo: "KeLi8916",
+    sentTo: "JayBadminton",
     from: "Venmo <venmo@venmo.com>",
     to: "owner@example.com",
     ...fields,

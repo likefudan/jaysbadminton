@@ -56,7 +56,7 @@ export async function memberEvents(page: Page) {
             roster: [
               { name: "Ke", friendOf: null, mine: true, absent: false },
               { name: "Ke的朋友1", friendOf: "Ke", mine: true, absent: false },
-              { name: "arthur", friendOf: null, mine: false, absent: false },
+              { name: "arturo", friendOf: null, mine: false, absent: false },
             ],
           }),
           ev(3, "2030-10-20", "已截止", { status: "closed" }),

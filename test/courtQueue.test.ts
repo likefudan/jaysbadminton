@@ -444,7 +444,7 @@ describe("球场排队", () => {
 
   it("清空账号 is for the Owner and admins: every account on this event goes, courts stay", async () => {
     const { ctx, e, alice, bob, q, card } = await scenario();
-    for (const username of ["Mark", "Lily"]) await anon.call(`${alice.base}${q}/accounts`, { username, password: "1" });
+    for (const username of ["Mark", "Lina"]) await anon.call(`${alice.base}${q}/accounts`, { username, password: "1" });
     await anon.call(`${alice.base}${q}/courts`, { court: 1, position: 0, minutes: 20, accounts: ["Mark"] });
     const other = await createTestEvent(ctx, { queueRoundMin: 45 });
     const oq = `${alice.base}/events/${other.id}`;
@@ -619,7 +619,7 @@ describe("拍照登记", () => {
 
   it("reads our courts off the photo for the form, and keeps the photo", async () => {
     const { alice, bob, e, q } = await scenario();
-    for (const username of ["Peggy", "Jayx", "Wenxi", "Orianne"])
+    for (const username of ["Peggy", "Jayz", "Wenxi", "Orianne"])
       await anon.call(`${alice.base}${q}/accounts`, { username, password: "1" });
     const seen = model({
       ours: [
@@ -630,7 +630,7 @@ describe("拍照登记", () => {
           queue_position: null,
           accounts: [
             { name: "peggy", uncertain: false },
-            { name: "Jayx", uncertain: false },
+            { name: "Jayz", uncertain: false },
             { name: "Stranger", uncertain: false },
           ],
         },
@@ -661,7 +661,7 @@ describe("拍照登记", () => {
           minutesLeft: 7,
           accounts: [
             { username: "Peggy", uncertain: false },
-            { username: "Jayx", uncertain: false },
+            { username: "Jayz", uncertain: false },
           ],
         },
         { court: 12, position: 1, minutesLeft: 12, accounts: [{ username: "Wenxi", uncertain: true }] },
@@ -672,7 +672,7 @@ describe("拍照登记", () => {
     expect(seen[0].model).toBe("claude-fable-5-1");
     expect(seen[0].output_config.effort).toBe("low");
     expect(seen[0].messages[0].content[0].source).toMatchObject({ media_type: "image/jpeg", data: image });
-    expect(seen[0].messages[0].content[1].text).toContain("Peggy, Jayx, Wenxi, Orianne");
+    expect(seen[0].messages[0].content[1].text).toContain("Peggy, Jayz, Wenxi, Orianne");
     // Nothing is saved as a court; what was read is kept, the photo itself is not stored anywhere.
     const kept = await env.DB.prepare("SELECT * FROM queue_photos WHERE event_id = ?")
       .bind(e.id)

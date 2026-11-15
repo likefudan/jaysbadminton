@@ -279,7 +279,7 @@ Transaction ID
 77B44894RT023271X
 
 Sent to
-@KeLi8916
+@JayBadminton
 ```
 
 **解析规则**
@@ -291,7 +291,7 @@ Sent to
 | 备注 | 金额之后、「Money credited to your Venmo account.」之前的文字 | Milktea9/27 |
 | 付款日期 | 「Date」下一行 | Sep 28, 2026 |
 | 交易编号 | 「Transaction ID」下一行；作为去重依据，同一编号只处理一次 | 77B44894RT023271X |
-| 收款账号 | 「Sent to」下一行；必须等于设置中的 Owner Venmo 用户名（有组织者时，或者某位组织者的），否则忽略 | @KeLi8916 |
+| 收款账号 | 「Sent to」下一行；必须等于设置中的 Owner Venmo 用户名（有组织者时，或者某位组织者的），否则忽略 | @JayBadminton |
 | 收件邮箱 | 邮件的收件人（To）；必须等于同一个人设置中的「Venmo 通知邮箱」（Venmo 账户登记的邮箱，填 Venmo 用户名时必填），否则忽略 | （Owner 的邮箱） |
 
 - 付款编号在备注中按「名字 - 活动编号（jbm + 8 位日期 + 可选字母）- m + 成员编号」查找，不区分大小写，允许多余空格；名字必须是群里某个人的（当前用户名的拼音，或者账单上印的名字，改名后旧账单仍能对上）；备注里可以有其他文字。

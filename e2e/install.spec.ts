@@ -9,7 +9,7 @@ async function member(page: Page) {
     route.fulfill({ json: { enabled: false, signedIn: false, hasMember: false } }),
   );
   await page.route("**/api/m/tok/me", (route) =>
-    route.fulfill({ json: { id: "M007", username: "Dafei", wechatNickname: "dafei", active: true, isOwner: false } }),
+    route.fulfill({ json: { id: "M007", username: "Dawei", wechatNickname: "dawei", active: true, isOwner: false } }),
   );
   await page.route("**/api/m/tok/events", (route) =>
     route.fulfill({ json: { events: [], history: [], friendCap: 3 } }),
@@ -41,7 +41,7 @@ const pushOffer = (page: Page) => page.getByText("开启推送，新活动开始
 test("Chrome: one tap installs, then push is offered", async ({ page }) => {
   await member(page);
   await page.goto("/m/tok");
-  await expect(page.getByRole("heading", { name: "你好，Dafei" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "你好，Dawei" })).toBeVisible();
   // Nothing to offer until the browser says it can install.
   await expect(offer(page)).toBeHidden();
   await expect(pushOffer(page)).toBeVisible();
@@ -98,7 +98,7 @@ test.describe("iPhone", () => {
     await member(page);
     await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { get: () => true }));
     await page.goto("/m/tok");
-    await expect(page.getByRole("heading", { name: "你好，Dafei" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "你好，Dawei" })).toBeVisible();
     await expect(offer(page)).toBeHidden();
     await page.goto("/m/tok/profile");
     await page.getByRole("button", { name: "设置" }).click();

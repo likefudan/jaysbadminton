@@ -165,10 +165,10 @@ export interface PastedAccount {
 
 /**
  * 批量添加: reads a pasted account list exactly as typed (no case changes). Two layouts:
- * - Numbered, "1. Cassie lion3": used when any line is numbered. Whatever comes before the first
+ * - Numbered, "1. Alice cat12": used when any line is numbered. Whatever comes before the first
  *   numbered line (a group note, a title) is skipped; after it, a line that isn't
  *   "number. username password" is returned in `bad`.
- * - Plain, "Cassie lion3" (Ke Li 2026-11-13): blank lines and lines starting with "Court"
+ * - Plain, "Alice cat12" (Ke Li 2026-11-13): blank lines and lines starting with "Court"
  *   ("Court 11 half 9:26", any case) are skipped; every other line must be "username password".
  * A username repeated in the paste (any case) is kept once.
  */

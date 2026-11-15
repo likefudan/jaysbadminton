@@ -58,7 +58,7 @@ test("the search box narrows a long member list as you type", async ({ page }) =
   const active = Array.from({ length: 12 }, (_, i) => ({
     ...base,
     id: `M${String(i + 1).padStart(3, "0")}`,
-    username: i === 5 ? "Lily" : `Player${i}`,
+    username: i === 5 ? "Lina" : `Player${i}`,
     wechatAccount: i === 7 ? "lil_wx" : `wx${i}`,
     googleEmail: "x@example.com",
     isOwner: i === 0,

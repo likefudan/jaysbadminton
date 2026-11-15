@@ -46,7 +46,7 @@ describe("receipt parsing", () => {
       note: "Milktea9/27",
       date: "Sep 28, 2026",
       txnId: "77B44894RT023271X",
-      sentTo: "KeLi8916",
+      sentTo: "JayBadminton",
     });
   });
 
@@ -498,25 +498,25 @@ describe("收款设置", () => {
       (
         await s.admin.call(`${s.base}/settings/payment`, {
           password: "wrong",
-          venmoUsername: "KeLi8916",
+          venmoUsername: "JayBadminton",
           venmoEmail: "me@example.com",
         })
       ).status,
     ).toBe(401);
-    expect((await save({ venmoUsername: "KeLi8916" })).status).toBe(400);
-    expect((await save({ venmoUsername: "KeLi8916", venmoEmail: "not-an-email" })).status).toBe(400);
+    expect((await save({ venmoUsername: "JayBadminton" })).status).toBe(400);
+    expect((await save({ venmoUsername: "JayBadminton", venmoEmail: "not-an-email" })).status).toBe(400);
     expect(
-      (await save({ venmoUsername: "KeLi8916", venmoEmail: " Me@Example.com ", zelleAccount: "z@example.com" })).status,
+      (await save({ venmoUsername: "JayBadminton", venmoEmail: " Me@Example.com ", zelleAccount: "z@example.com" })).status,
     ).toBe(200);
     expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({
-      venmoUsername: "KeLi8916",
+      venmoUsername: "JayBadminton",
       venmoEmail: "me@example.com",
       zelleAccount: "z@example.com",
     });
     // The ordinary settings form can no longer change where money goes.
     await s.admin.call(`${s.base}/settings`, { venmoUsername: "evil", zelleAccount: "evil" });
     expect((await s.admin.call(`${s.base}/settings`)).data).toMatchObject({
-      venmoUsername: "KeLi8916",
+      venmoUsername: "JayBadminton",
       zelleAccount: "z@example.com",
     });
   });

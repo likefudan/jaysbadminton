@@ -15,7 +15,7 @@ import {
 
 const fees = { courtTotal: "100", shuttleCount: 4, shuttlePrice: "3" };
 const json = async (res: Response) => (await res.json()) as any;
-const ownerPayment = { password: "initial-password", venmoUsername: "KeLi8916", venmoEmail: "owner@example.com" };
+const ownerPayment = { password: "initial-password", venmoUsername: "JayBadminton", venmoEmail: "owner@example.com" };
 
 /**
  * The organizer Alice runs an event with her own Venmo; she brings Ann, the Owner Jay and Bob play.
@@ -146,7 +146,7 @@ describe("an organizer's event is paid to the organizer", () => {
     const owed = (await new Client().call(`${s.bob.base}/events`)).data.events.find(
       (x: { id: number }) => x.id === theirs.id,
     );
-    expect(owed.payment).toMatchObject({ payeeName: "Jay", venmoUsername: "KeLi8916" });
+    expect(owed.payment).toMatchObject({ payeeName: "Jay", venmoUsername: "JayBadminton" });
   });
 
   it("keeps money with the payee in the database while the flag is off", async () => {
@@ -192,7 +192,7 @@ describe("an event with no payee recorded (written by older code after a rollbac
     );
     expect(offered).toEqual(["Bob"]);
     const bill = (await new Client().call(`${bob.base}/events`)).data.events[0].payment;
-    expect(bill).toMatchObject({ payeeName: "Jay", venmoUsername: "KeLi8916" });
+    expect(bill).toMatchObject({ payeeName: "Jay", venmoUsername: "JayBadminton" });
   });
 });
 
@@ -276,7 +276,7 @@ describe("我的收款设置", () => {
     // The Owner's own stay behind the password.
     const owner = await s.admin.call(`${s.base}/payment-profile`, { venmoUsername: "x1", venmoEmail: "x@y.z" });
     expect(owner.status).toBe(400);
-    expect((await s.admin.call(`${s.base}/payment-profile`)).data).toMatchObject({ venmoUsername: "KeLi8916" });
+    expect((await s.admin.call(`${s.base}/payment-profile`)).data).toMatchObject({ venmoUsername: "JayBadminton" });
   });
 
   it("shows a notification email saved on its own", async () => {
@@ -297,7 +297,7 @@ describe("我的收款设置", () => {
     // Another organizer's, in any case, or the Owner's.
     expect(await taken({ venmoUsername: "alice-v", venmoEmail: "c@venmo.test" })).toMatch(/已经是群主或其他组织者/);
     expect(await taken({ venmoUsername: "carol-v", venmoEmail: "ALICE@venmo.test" })).toMatch(/已经是群主或其他组织者/);
-    expect(await taken({ venmoUsername: "keli8916", venmoEmail: "c@venmo.test" })).toMatch(/已经是群主或其他组织者/);
+    expect(await taken({ venmoUsername: "jaybadminton", venmoEmail: "c@venmo.test" })).toMatch(/已经是群主或其他组织者/);
     expect(await taken({ venmoUsername: "carol-v", venmoEmail: "owner@example.com" })).toMatch(
       /已经是群主或其他组织者/,
     );

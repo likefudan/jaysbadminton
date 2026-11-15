@@ -1231,7 +1231,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "成員付款時用的帳號，一般只需要設定一次。",
     en: "The account members pay to; usually set once.",
   },
-  "不用加 @，例如 KeLi8916": { tw: "不用加 @，例如 KeLi8916", en: "Without the @, e.g. KeLi8916" },
+  "不用加 @，例如 JayBadminton": { tw: "不用加 @，例如 JayBadminton", en: "Without the @, e.g. JayBadminton" },
   "手机号或邮箱，显示在付款页作为备选": {
     tw: "手機號或電子郵件，顯示在付款頁作為備選",
     en: "Phone number or email, shown on the payment page as an alternative",

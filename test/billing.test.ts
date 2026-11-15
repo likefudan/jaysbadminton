@@ -134,7 +134,7 @@ describe("settlement", () => {
     expect(mine.payment).toMatchObject({
       amountCents: 5600,
       status: "unpaid",
-      venmoUsername: "KeLi8916",
+      venmoUsername: "JayBadminton",
       zelleAccount: "jay@example.com",
     });
     expect(mine.payment.shares.map((x: { name: string; shuttleCents: number }) => [x.name, x.shuttleCents])).toEqual([
