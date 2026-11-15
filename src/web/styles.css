@@ -6773,10 +6773,11 @@ label.set-row {
   background: var(--warn-dot);
   color: #fff;
 }
+/* Queued and not playing: grey, as 排队 is on the card (Ke Li 2026-11-15), darker here to show among white courts. */
 .cm-item.court.queue {
-  border: 1.5px dashed var(--ok);
-  background: var(--surface);
-  color: var(--ok);
+  border-color: var(--muted);
+  background: var(--cq-stripe-b);
+  color: var(--text);
 }
 .cm-item.area {
   border: 1.5px dashed var(--faint);
@@ -6839,7 +6840,8 @@ label.set-row {
   background: var(--warn-dot);
 }
 .cm-key i.queue {
-  border: 1.5px dashed var(--ok);
+  border-color: var(--muted);
+  background: var(--cq-stripe-b);
 }
 .cm-actions {
   display: flex;
