@@ -1,5 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { ApiError, api } from "./api";
+import { standalone } from "./Install";
+import { lastAnswer } from "./offline";
 
 export type Loaded<T> =
   | { state: "loading" }
@@ -39,6 +41,8 @@ if (typeof document !== "undefined") {
   });
   // Back/forward restored from the browser's page cache.
   addEventListener("pageshow", (e) => e.persisted && refreshAll());
+  // The network is back: what was shown from before it went (sw.js) gives way to what is true now.
+  addEventListener("online", refreshAll);
 }
 
 export function useApi<T>(path: string): [Loaded<T>, () => void] {
@@ -56,6 +60,12 @@ export function useApi<T>(path: string): [Loaded<T>, () => void] {
     let alive = true;
     const quiet = tick.quiet;
     if (quiet) settle(1);
+    // The app on the home screen shows the last answer at once (as apps do), then the fresh one.
+    else if (standalone())
+      void lastAnswer<T>(path).then(
+        (data) =>
+          data !== undefined && alive && setResult((r) => (r.state === "loading" ? { state: "ok", data, path } : r)),
+      );
     api<T>(path)
       .then(
         (data) =>

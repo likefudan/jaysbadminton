@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { api } from "./api";
 import { useApi } from "./hooks";
 import { useAppTabs } from "./AppTabs";
+import { forgetOfflineData } from "./offline";
 import { stopPush } from "./Push";
 import { t, tm } from "./i18n";
 
@@ -14,6 +15,7 @@ export async function signOutGoogle(): Promise<void> {
     await api("/api/auth/logout", {});
   } finally {
     sessionStorage.removeItem("google-link-member");
+    await forgetOfflineData();
   }
   window.location.assign("/login");
 }

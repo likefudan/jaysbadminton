@@ -3,6 +3,7 @@ import { DeveloperLogin } from "../DeveloperTools";
 import { useState } from "preact/hooks";
 import { checkMessage, checkNickname, checkUsername } from "../../shared/rules";
 import { api } from "../api";
+import { forgetOfflineData } from "../offline";
 import { ApplicationFields } from "../ApplicationFields";
 import { Card, Field, Load, Page, useAction } from "../components";
 import { useApi } from "../hooks";
@@ -30,6 +31,7 @@ export function Logout() {
   async function logout() {
     if (await run(() => api("/api/auth/logout", {}))) {
       sessionStorage.removeItem("google-link-member");
+      await forgetOfflineData();
       window.location.assign("/login");
     }
   }

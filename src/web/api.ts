@@ -1,4 +1,5 @@
 import { tk } from "./i18n";
+import { keepBoot, noteAnswer } from "./offline";
 
 export class ApiError extends Error {
   constructor(
@@ -19,9 +20,11 @@ const loading = new Map<string, Promise<unknown>>();
 const primed = new Map<string, unknown>();
 try {
   const boot = typeof document === "undefined" ? null : document.getElementById("boot");
-  if (boot?.textContent)
-    for (const [path, data] of Object.entries(JSON.parse(boot.textContent) as Record<string, unknown>))
-      primed.set(path, data);
+  if (boot?.textContent) {
+    const answers = JSON.parse(boot.textContent) as Record<string, unknown>;
+    for (const [path, data] of Object.entries(answers)) primed.set(path, data);
+    keepBoot(answers);
+  }
   setTimeout(() => primed.clear(), 5000);
   // A page brought back whole from the browser's page cache had its clock stopped: ask afresh.
   addEventListener("pageshow", (e) => e.persisted && primed.clear());
@@ -56,6 +59,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
   } catch {
     throw new ApiError("network", tk("网络连接失败，请检查网络后重试"));
   }
+  if (body === undefined) noteAnswer(res);
   const data = (await res.json().catch(() => null)) as { error?: { code: string; message: string } } | null;
   if (!res.ok || data?.error) {
     throw new ApiError(

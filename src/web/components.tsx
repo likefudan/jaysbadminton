@@ -8,6 +8,8 @@ import { GoogleAccount } from "./GoogleAccount";
 import { AppTabs, tabOf, useAppTabs } from "./AppTabs";
 import { useLocation } from "preact-iso";
 import { isAdminPath, t, tm, tx } from "./i18n";
+import { fmtInstant } from "./lang";
+import { useStaleAt } from "./offline";
 import { LangSwitch } from "./LangSwitch";
 import { useMemberSession } from "./hooks";
 import { inWeChat, WeChatBanner, WeChatSheet } from "./WeChat";
@@ -28,13 +30,21 @@ export function Page(props: {
   const { path } = useLocation();
   const admin = isAdminPath(path);
   const tabs = useAppTabs();
+  const staleAt = useStaleAt();
   useEffect(() => {
     document.title = props.title === site ? site : `${props.title} · ${site}`;
   }, [props.title, site]);
   return (
     // In the app added to the home screen the tabs sit at the bottom; the footer's links are under 我的 only.
-    <div class={tabs ? `page has-app-tabs${tabOf(path) === "me" ? " tab-me" : ""}` : "page"}>
+    <div
+      class={`page${tabs ? ` has-app-tabs${tabOf(path) === "me" ? " tab-me" : ""}` : ""}${staleAt === null ? "" : " is-offline"}`}
+    >
       {staging && <div class="env-banner">{t("测试环境 · 数据和正式网站分开，请不要转发这里的链接")}</div>}
+      {staleAt !== null && (
+        <div class="offline-banner" role="status">
+          {t("没有网络，显示的是 {time} 的内容", { time: keptTime(staleAt) })}
+        </div>
+      )}
       <header class="topbar">
         <a href="/" class="brand">
           <span class={staging ? "logo logo-staging" : icon ? `logo logo-${icon}` : "logo"}>
@@ -90,6 +100,14 @@ export function Page(props: {
       {tabs && <AppTabs tabs={tabs} />}
     </div>
   );
+}
+
+/** "10:32" for today, "11月14日 周六 10:32" for an earlier day. */
+function keptTime(at: number): string {
+  const d = new Date(at);
+  return d.toDateString() === new Date().toDateString()
+    ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+    : fmtInstant(d.toISOString());
 }
 
 /** The app icon's Golden Gate towers, main cable, deck and shuttlecock, simplified, in the current accent colour. */
