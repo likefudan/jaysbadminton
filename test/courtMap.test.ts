@@ -104,7 +104,10 @@ describe("球场图", () => {
     expect((await queue(alice.base)).map).toBeNull();
 
     // The page sends back what was checked (court 2 renumbered 3).
-    const checked = { ...read.data, items: read.data.items.map((i: any) => (i.label === "2" ? { ...i, label: "3" } : i)) };
+    const checked = {
+      ...read.data,
+      items: read.data.items.map((i: any) => (i.label === "2" ? { ...i, label: "3" } : i)),
+    };
     expect((await post(`${bob.base}${q}/map`, { layout: checked })).status).toBe(200);
     const map = (await queue(alice.base)).map;
     expect(map.items.map((i: any) => i.label)).toEqual(["3", "1", "JR", "BADMINTON COURTS", "FRONT DESK"]);
