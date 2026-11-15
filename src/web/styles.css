@@ -7100,3 +7100,47 @@ label.set-row {
 .is-offline main .button:not(.secondary) {
   opacity: 0.45;
 }
+
+/* ---- As in an app: no double-tap zoom, no menu on holding a button or a tab ---- */
+a,
+button,
+label {
+  touch-action: manipulation;
+}
+button,
+.button,
+.tabs a,
+.app-tabs a {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---- Page to page (transitions.ts): an event's page slides in, the rest cross-fade; the bars stay ---- */
+.topbar {
+  view-transition-name: topbar;
+}
+.app-tabs {
+  view-transition-name: app-tabs;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.16s;
+}
+html[data-nav="in"]::view-transition-old(root) {
+  animation: 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both nav-out;
+}
+html[data-nav="in"]::view-transition-new(root) {
+  animation: 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both nav-in;
+}
+@keyframes nav-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes nav-out {
+  to {
+    transform: translateX(-25%);
+    opacity: 0;
+  }
+}

@@ -8,6 +8,7 @@ import { Account, AccountBoards, AccountProfile } from "./pages/Account";
 import { NotFound } from "./pages/NotFound";
 import { PullToRefresh } from "./PullToRefresh";
 import { startOffline } from "./offline";
+import { startTransitions } from "./transitions";
 import { addMessages, chosenLang, listeners, useActiveLang } from "./i18n";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
@@ -116,4 +117,5 @@ function App() {
 }
 
 startOffline();
+startTransitions();
 render(<App />, document.getElementById("app")!);

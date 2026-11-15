@@ -147,6 +147,12 @@ app.get("/robots.txt", (c) =>
   ),
 );
 
+const SHORTCUT_NAMES: Record<string, string[]> = {
+  "zh-CN": ["我的活动", "排行榜"],
+  "zh-TW": ["我的活動", "排行榜"],
+  en: ["My events", "Leaderboard"],
+};
+
 // The home-screen app is named after this site, as every site deployed from this code has its own name.
 app.get("/manifest.webmanifest", async (c) => {
   const res = await c.env.ASSETS.fetch(new Request(new URL("/manifest.webmanifest", c.req.url)));
@@ -159,6 +165,13 @@ app.get("/manifest.webmanifest", async (c) => {
   const lang = c.req.query("lang");
   manifest.short_name = appNameFor(names, isSiteLang(lang) ? lang : "zh-CN", title);
   if (isSiteLang(lang)) manifest.lang = lang;
+  // Long-pressing the icon (Android): the same two places, named in that language.
+  const shortcuts = SHORTCUT_NAMES[isSiteLang(lang) ? lang : "zh-CN"];
+  if (Array.isArray(manifest.shortcuts) && shortcuts)
+    manifest.shortcuts = (manifest.shortcuts as { url: string }[]).map((s, i) => ({
+      ...s,
+      name: shortcuts[i] ?? s.url,
+    }));
   return c.body(JSON.stringify(manifest), 200, { "Content-Type": "application/manifest+json" });
 });
 

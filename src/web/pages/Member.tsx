@@ -33,6 +33,7 @@ import { YearReviewTop } from "../YearReview";
 import { HeartIcon, LikeRow } from "../Likes";
 import { CalorieRow, CaloriesPage, FlameIcon, FlameOutline, caloriesShown, kcalText } from "../Calories";
 import { Panel } from "../Panel";
+import { AppBadge } from "../badge";
 import { InstallPrompt } from "../Install";
 import { PushPrompt } from "../Push";
 import { GoogleLink } from "./Account";
@@ -318,6 +319,7 @@ function MyEvents(props: { base: string; board?: ComponentChildren }) {
         ].sort((a, b) => byTime(b, a));
         return (
           <>
+            <AppBadge count={r.events.filter((e) => e.payment && e.payment.status !== "paid").length} />
             <SectionTitle>{t("报名中")}</SectionTitle>
             {open.length === 0 && (
               <Empty>
