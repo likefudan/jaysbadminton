@@ -24,6 +24,9 @@ export interface Env {
   /** Ke Li's Azure (Microsoft Foundry) key: the models picked in 设置 → AI 模型 (ai.ts); 拍照登记 is
    *  hidden while it is missing. Pushed from the GitHub secret. */
   AZURE_FOUNDRY_API_KEY?: string;
+  /** A Firebase service account (the JSON key file as one string): pushes to the phone apps go
+   *  through it (fcm.ts). Apps can't turn push on while it is missing; browsers don't need it. */
+  FCM_SERVICE_ACCOUNT?: string;
   /** Public site address, for links in messages sent by the cron job (which has no request). */
   SITE_ORIGIN: string;
   /** The release this Worker runs (v2026.11.10 on production sites, main-<sha> on the test site), set by

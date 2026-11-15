@@ -39,7 +39,17 @@ import type { Env } from "../env";
 import { badRequest, HttpError, invalidLink, readJson, str } from "../http";
 import { type MemberRow, memberByToken, renameMember } from "../members";
 import { developerMember } from "../developer";
-import { pushBrought, pushGuestLeft, pushWelcome, sendSoon, subscribe, unsubscribe, vapidKeys } from "../push";
+import { fcmConfigured } from "../fcm";
+import {
+  endpointOf,
+  pushBrought,
+  pushGuestLeft,
+  pushWelcome,
+  sendSoon,
+  subscribe,
+  unsubscribe,
+  vapidKeys,
+} from "../push";
 import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
 import { avatarMode, avatarUrl, setAvatarMode, uploadAvatar } from "../avatars";
@@ -593,7 +603,10 @@ memberRoutes.post("/:token/calories/board", async (c) => {
 });
 
 // 推送通知: the browser asks for the site's public key, then hands over its subscription.
-memberRoutes.get("/:token/push", async (c) => c.json({ publicKey: (await vapidKeys(c.env)).publicKey }));
+// (A phone app hands over `{ fcmToken }` instead, where `app` says the site can push to apps.)
+memberRoutes.get("/:token/push", async (c) =>
+  c.json({ publicKey: (await vapidKeys(c.env)).publicKey, app: fcmConfigured(c.env) }),
+);
 
 memberRoutes.post("/:token/push/subscribe", async (c) => {
   const body = await readJson(c.req.raw);
@@ -609,6 +622,6 @@ memberRoutes.post("/:token/push/subscribe", async (c) => {
 });
 
 memberRoutes.post("/:token/push/unsubscribe", async (c) => {
-  const removed = await unsubscribe(c.env, c.get("member").id, str((await readJson(c.req.raw)).endpoint));
+  const removed = await unsubscribe(c.env, c.get("member").id, endpointOf(await readJson(c.req.raw)));
   return c.json({ ok: true, removed });
 });
