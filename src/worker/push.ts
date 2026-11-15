@@ -5,6 +5,7 @@ import { formatDateZh, toPacific } from "../shared/time";
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import { type EventRow, bookedCourts } from "./events";
+import { FCM_PREFIX, fcmConfigured, fcmSend, isFcmToken } from "./fcm";
 import { badRequest } from "./http";
 import { fromBase64Url as fromB64url, toBase64Url as b64url } from "./lib/crypto";
 import { eventManager, eventPayee } from "./organizers";
@@ -148,8 +149,40 @@ export async function encryptPayload(payload: string, p256dh: string, auth: stri
 
 // ---- Subscriptions ----
 
-/** Checks what a browser's PushSubscription.toJSON() sent and stores it for this member. */
+function saveSubscription(env: Env, memberId: string, endpoint: string, p256dh: string, auth: string) {
+  return [
+    // The same browser moving to another member (a shared computer) is taken over by the new one.
+    env.DB.prepare(
+      `INSERT INTO push_subscriptions (endpoint, member_id, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (endpoint) DO UPDATE SET member_id = excluded.member_id, p256dh = excluded.p256dh,
+         auth = excluded.auth, created_at = excluded.created_at`,
+    ).bind(endpoint, memberId, p256dh, auth, now()),
+    // Browsers that were reset or reinstalled leave old ones behind; keep only the newest few.
+    env.DB.prepare(
+      `DELETE FROM push_subscriptions WHERE member_id = ?1 AND endpoint NOT IN
+         (SELECT endpoint FROM push_subscriptions WHERE member_id = ?1 ORDER BY created_at DESC LIMIT ?2)`,
+    ).bind(memberId, MAX_PER_MEMBER),
+  ];
+}
+
+/** What a member's row is stored under: a browser's endpoint, or `fcm:<token>` for a phone app. */
+export function endpointOf(body: Record<string, unknown>): string {
+  if (isFcmToken(body.fcmToken)) return FCM_PREFIX + body.fcmToken;
+  return typeof body.endpoint === "string" ? body.endpoint : "";
+}
+
+/**
+ * Checks what a browser's PushSubscription.toJSON() sent, or a phone app's `{ fcmToken }` (fcm.ts),
+ * and stores it for this member.
+ */
 export async function subscribe(env: Env, memberId: string, body: Record<string, unknown>): Promise<string> {
+  if (body.fcmToken !== undefined) {
+    if (!fcmConfigured(env)) throw badRequest("这个网站还不支持 App 推送");
+    if (!isFcmToken(body.fcmToken)) throw badRequest("App 的推送信息不对，请重试");
+    const endpoint = endpointOf(body);
+    await env.DB.batch(saveSubscription(env, memberId, endpoint, "", ""));
+    return endpoint;
+  }
   const endpoint = typeof body.endpoint === "string" ? body.endpoint : "";
   const keys = (body.keys ?? {}) as Record<string, unknown>;
   const p256dh = typeof keys.p256dh === "string" ? keys.p256dh : "";
@@ -167,19 +200,7 @@ export async function subscribe(env: Env, memberId: string, body: Record<string,
     ok = fromB64url(p256dh).length === 65 && fromB64url(auth).length === 16;
   } catch {}
   if (!ok) throw badRequest("这个浏览器的推送信息不对，请重试");
-  await env.DB.batch([
-    // The same browser moving to another member (a shared computer) is taken over by the new one.
-    env.DB.prepare(
-      `INSERT INTO push_subscriptions (endpoint, member_id, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (endpoint) DO UPDATE SET member_id = excluded.member_id, p256dh = excluded.p256dh,
-         auth = excluded.auth, created_at = excluded.created_at`,
-    ).bind(endpoint, memberId, p256dh, auth, now()),
-    // Browsers that were reset or reinstalled leave old ones behind; keep only the newest few.
-    env.DB.prepare(
-      `DELETE FROM push_subscriptions WHERE member_id = ?1 AND endpoint NOT IN
-         (SELECT endpoint FROM push_subscriptions WHERE member_id = ?1 ORDER BY created_at DESC LIMIT ?2)`,
-    ).bind(memberId, MAX_PER_MEMBER),
-  ]);
+  await env.DB.batch(saveSubscription(env, memberId, endpoint, p256dh, auth));
   return endpoint;
 }
 
@@ -279,11 +300,15 @@ export async function pushWelcome(env: Env, memberId: string, endpoint: string, 
 type Outcome = "sent" | "gone" | "drop" | "retry" | "later";
 
 async function deliver(
+  env: Env,
   authFor: (endpoint: string) => Promise<string>,
   sub: { endpoint: string; p256dh: string; auth: string },
   payload: string,
 ): Promise<Outcome> {
   try {
+    // A phone app: through Firebase (fcm.ts), which needs no encryption of ours.
+    if (sub.endpoint.startsWith(FCM_PREFIX))
+      return await fcmSend(env, sub.endpoint.slice(FCM_PREFIX.length), payload, EXPIRE_MS / 1000);
     const res = await fetch(sub.endpoint, {
       method: "POST",
       headers: {
@@ -362,7 +387,7 @@ async function sendBatch(env: Env, keys: VapidKeys, endpoint?: string): Promise<
       // nothing to send.
       outcome:
         r.endpoint && !r.stale
-          ? await deliver(authFor, { ...r, endpoint: r.endpoint }, r.payload)
+          ? await deliver(env, authFor, { ...r, endpoint: r.endpoint }, r.payload)
           : ("drop" as Outcome),
     })),
   );
