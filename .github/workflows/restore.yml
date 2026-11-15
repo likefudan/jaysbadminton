@@ -4,7 +4,7 @@ name: Restore
 # database back to one minute before the first migration it ran that the chosen version does not have
 # (Cloudflare D1 Time Travel, last 30 days), then deploys that version to the site with Release.
 # Everything the site saved after that moment (sign-ups, payments, settings) is lost; the database as
-# it is now is backed up first (encrypted Actions artifact, 90 days), so it can still be recovered.
+# it is now is backed up first (encrypted, in the private R2 bucket, 90 days), so it can still be recovered.
 # Not needed for migrations in scripts/rollback-safe-migrations.json: Release goes back past those.
 on:
   workflow_dispatch:
@@ -70,12 +70,9 @@ jobs:
           BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
         run: |
           if [ "$SITE" = jays ]; then config=(); else config=(--config "wrangler.$SITE.json"); fi
-          scripts/backup-db.sh "before-restore-$SITE-$(date -u +%Y%m%dT%H%M%SZ)" "${config[@]}"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: db-encrypted-before-restore-${{ inputs.site }}-${{ github.run_id }}
-          path: backup/
-          retention-days: 90
+          stem="before-restore-$SITE-$(date -u +%Y%m%dT%H%M%SZ)"
+          echo "BACKUP_STEM=$stem" >> "$GITHUB_ENV"
+          scripts/backup-db.sh "$stem" "${config[@]}"
       - name: Restore to before the migration
         id: restore
         run: node scripts/restore-db.mjs
@@ -85,5 +82,5 @@ jobs:
           {
             echo "### Restored $SITE to ${{ steps.restore.outputs.at }} and started Release of $TAG"
             echo
-            echo "- The database before the restore: this run's artifact db-encrypted-before-restore-$SITE-$GITHUB_RUN_ID"
+            echo "- The database before the restore: R2 bucket jaysbadminton-backups, $BACKUP_STEM.sql.gz.enc"
           } >> "$GITHUB_STEP_SUMMARY"
