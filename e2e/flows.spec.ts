@@ -588,10 +588,14 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await tabs.getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "修改群主密码" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "不再当组织者" })).toBeVisible();
-  // 给组织者的说明: nothing set up yet, so the checklist is open with nothing ticked.
+  // 给组织者的说明: 开始使用 counts what is left, nothing ticked yet; 怎么做 is a list of closed questions.
   const guide = page.locator(".card", { has: page.getByRole("heading", { name: "给组织者的说明" }) });
-  await expect(guide.locator("details").first()).toHaveAttribute("open", "");
+  await expect(guide).toContainText("开始使用 · 还差 2 步");
   await expect(guide.locator(".checklist li.done")).toHaveCount(0);
+  await expect(guide.locator(".ck-go")).toHaveCount(0); // his settings are the cards above, on this page
+  await expect(guide.getByText("打完球，填场地费和用球数")).toBeHidden();
+  await guide.locator("summary", { hasText: "办一场活动" }).click();
+  await expect(guide.getByText("打完球，填场地费和用球数")).toBeVisible();
   await field(page, "你的 Venmo 用户名").fill("ming-venmo");
   await field(page, "Venmo 通知邮箱").fill("ming@venmo.test");
   await page.getByRole("button", { name: "保存收款设置" }).click();
@@ -599,6 +603,7 @@ test("an organizer signs in with Google and runs their own event", async ({ page
     "@ming-venmo",
   );
   await expect(guide.locator(".checklist li.done")).toHaveCount(1);
+  await expect(guide).toContainText("开始使用 · 还差 1 步");
 
   await tabs.getByRole("button", { name: "活动" }).click();
   await page.locator(".event-link", { hasText: "Ming Gym" }).click();
@@ -653,6 +658,15 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   // export in 高级设置; none of the Owner's own things anywhere.
   await tabs.getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "给管理员的说明" })).toBeVisible();
+  // A step that isn't done has a button straight to its setting.
+  const adminGuide = page.locator(".card", { has: page.getByRole("heading", { name: "给管理员的说明" }) });
+  await expect(adminGuide.locator(".checklist li.done")).toHaveCount(1); // his Venmo, filled in as organizer
+  await adminGuide
+    .locator("li", { hasText: "设置 Venmo 邮件转发" })
+    .getByRole("button", { name: /看步骤/ })
+    .click();
+  await expect(page.getByRole("heading", { name: "我的收款设置" })).toBeVisible();
+  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("button", { name: "不再当管理员" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^账号与安全/ })).toHaveCount(0);
   const ownerOnly = ["修改群主密码", "管理链接", "危险操作", "用 Google 登录管理页", "收款账户"];
