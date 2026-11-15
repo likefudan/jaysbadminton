@@ -27,8 +27,11 @@ export function Panel(props: {
   /** A button on the right of the top bar. */
   action?: ComponentChildren;
   class?: string;
+  /** Leave a backdrop around the panel even on phones. Used for read-only content. */
+  compact?: boolean;
   children: ComponentChildren;
 }) {
+  const back = useRef<HTMLButtonElement>(null);
   const close = useRef(props.onClose);
   close.current = props.onClose;
 
@@ -37,8 +40,17 @@ export function Panel(props: {
     const me = {};
     stack.push(me);
     document.documentElement.classList.add("panel-open");
-    // Esc closes only the panel on top.
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && stack[stack.length - 1] === me && close.current();
+    const previous = document.activeElement;
+    if (props.compact) back.current?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (stack[stack.length - 1] !== me) return;
+      if (e.key === "Escape") close.current();
+      // The close button is the only control in a compact panel.
+      if (props.compact && e.key === "Tab") {
+        e.preventDefault();
+        back.current?.focus();
+      }
+    };
     addEventListener("keydown", onKey);
     // An entry of our own, so the browser's back closes the panel instead of leaving the page.
     const mark = `panel-${Date.now()}-${Math.random()}`;
@@ -53,6 +65,7 @@ export function Panel(props: {
     return () => {
       stack.splice(stack.indexOf(me), 1);
       if (!stack.length) document.documentElement.classList.remove("panel-open");
+      if (props.compact && previous instanceof HTMLElement) previous.focus({ preventScroll: true });
       removeEventListener("keydown", onKey);
       removeEventListener("popstate", onPop);
       // Closed with 返回 or Esc: take our entry off again. Not if a link inside moved on.
@@ -65,9 +78,14 @@ export function Panel(props: {
     // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside (wide screens) is a mouse shortcut; Esc and 返回 close it too
     // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
     <div class="panel-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class={props.class ? `panel ${props.class}` : "panel"} role="dialog" aria-label={props.label}>
+      <div
+        class={`panel${props.compact ? " panel-compact" : ""}${props.class ? ` ${props.class}` : ""}`}
+        role="dialog"
+        aria-modal={props.compact || undefined}
+        aria-label={props.label}
+      >
         <div class="panel-bar">
-          <button type="button" class="panel-back" onClick={props.onClose}>
+          <button ref={back} type="button" class="panel-back" onClick={props.onClose}>
             <svg viewBox="0 0 12 20" width="11" height="18" aria-hidden="true">
               <path
                 d="M10 2L2 10l8 8"

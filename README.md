@@ -60,7 +60,7 @@ The UI is available in Simplified Chinese, Traditional Chinese and English (each
 - **Each event's money goes to whoever created it** (their own Venmo and email forwarding).
 
 ### On the day
-- **Court queue**: players add their gym accounts, record which court each group is on, the queue position and minutes left, and see an estimated wait. Idle accounts get a warning banner.
+- **Court queue**: players add their gym accounts, record which court each group is on, the queue position and minutes left, and see an estimated wait. Idle accounts get a warning banner. For events at Bintang Fremont (48900 Milmont Dr), **Court Map** shows the physical layout of all 53 courts and the current status of the group’s registrations.
 - **Photo check-in**: take a photo of the gym's queue screen and an AI model reads our courts (needs the AI key).
 - **Booked courts**: the organizer enters the booked court numbers; members get a push 10 minutes before start.
 
