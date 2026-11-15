@@ -25,6 +25,7 @@ import { toPacific } from "../shared/time";
 import type { MyEvent } from "../shared/types";
 import { api } from "./api";
 import { CourtCombo } from "./CourtCombo";
+import { CourtMap, COURT_MAP_TITLE, hasCourtMap } from "./CourtMap";
 import { useAction } from "./components";
 import { t } from "./i18n";
 
@@ -43,7 +44,7 @@ function useNow(): number {
   return now;
 }
 
-type Sheet = { kind: "court"; court: QueueCourt | null } | { kind: "accounts" } | null;
+type Sheet = { kind: "court"; court: QueueCourt | null } | { kind: "accounts" } | { kind: "map" } | null;
 
 /**
  * 球场: the courts we hold and queue for, each drawn as a court with our hall usernames on its two
@@ -53,6 +54,7 @@ type Sheet = { kind: "court"; court: QueueCourt | null } | { kind: "accounts" } 
 export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => void }) {
   const q = props.e.queue!;
   const now = useNow();
+  const hasMap = hasCourtMap(props.e);
   const [sheet, setSheet] = useState<Sheet>(null);
   // 选择 (the Owner and admins): the ticked courts' ids; null when not choosing.
   const [picked, setPicked] = useState<Set<number> | null>(null);
@@ -130,22 +132,34 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
         </button>
         <IdleNotice q={q} now={now} />
       </div>
+      {(playing.length > 0 || hasMap) && (
+        <div class="cq-section-head">
+          {playing.length > 0 && <p class="cq-sub">{t("在打 · {n} 片", { n: playing.length })}</p>}
+          {hasMap && (
+            <button
+              type="button"
+              class="button secondary cq-map-button"
+              aria-haspopup="dialog"
+              onClick={() => setSheet({ kind: "map" })}
+            >
+              {COURT_MAP_TITLE}
+            </button>
+          )}
+        </div>
+      )}
       {playing.length > 0 && (
-        <>
-          <p class="cq-sub">{t("在打 · {n} 片", { n: playing.length })}</p>
-          <div class="cq-grid">
-            {playing.map(({ c, p }) => (
-              <CourtTile
-                key={c.id}
-                c={c}
-                tone={p.minutes <= QUEUE_SOON_MIN ? "soon" : "play"}
-                line={t("剩 {n} 分", { n: p.minutes })}
-                picked={choosing ? picked.has(c.id) : undefined}
-                onOpen={() => open(c)}
-              />
-            ))}
-          </div>
-        </>
+        <div class="cq-grid">
+          {playing.map(({ c, p }) => (
+            <CourtTile
+              key={c.id}
+              c={c}
+              tone={p.minutes <= QUEUE_SOON_MIN ? "soon" : "play"}
+              line={t("剩 {n} 分", { n: p.minutes })}
+              picked={choosing ? picked.has(c.id) : undefined}
+              onOpen={() => open(c)}
+            />
+          ))}
+        </div>
       )}
       {queued.length > 0 && (
         <>
@@ -218,6 +232,7 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
           onSaved={props.onChange}
         />
       )}
+      {sheet?.kind === "map" && hasMap && <CourtMap courts={q.courts} now={now} onClose={close} />}
       {sheet?.kind === "accounts" && (
         <AccountsSheet base={props.base} e={props.e} q={q} onClose={close} onChange={props.onChange} />
       )}

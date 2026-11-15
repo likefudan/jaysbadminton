@@ -3142,6 +3142,26 @@ html.panel-open body {
     padding-bottom: 22px;
   }
 }
+.panel.panel-compact {
+  position: relative;
+  inset: auto;
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100vh - 48px);
+  border: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-raised);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.24);
+  animation: rise 0.22s ease;
+}
+@supports (height: 100dvh) {
+  .panel.panel-compact {
+    max-height: calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+.panel-compact .panel-bar {
+  padding-top: 0;
+}
 @keyframes slide-in {
   from {
     transform: translateX(40%);
@@ -4366,6 +4386,92 @@ ul.audit li:first-child {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-2);
+}
+.cq-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.cq-section-head .cq-sub {
+  margin: 0;
+}
+.cq-section-head .cq-map-button {
+  margin: 0 0 0 auto;
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.cq-map-panel .panel-body {
+  padding: 14px 12px 16px;
+}
+.cq-map-grid,
+.cq-map-key {
+  margin: 0;
+  list-style: none;
+}
+.cq-map-grid {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  row-gap: 5px;
+  padding: 7px 3px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.cq-map-court,
+.cq-map-key i {
+  background: var(--court-fill, #fff);
+  border: 1px solid var(--court-edge, #82868b);
+}
+.cq-map-panel .play {
+  --court-fill: #78cba9;
+  --court-edge: #2f805f;
+}
+.cq-map-panel .soon {
+  --court-fill: #f3cb64;
+  --court-edge: #9e6f19;
+}
+.cq-map-panel .booked {
+  --court-fill: #c4c8ce;
+  --court-edge: #737b86;
+}
+.cq-map-court {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(100% - 8px);
+  min-height: 24px;
+  aspect-ratio: 2.35;
+  margin-inline: 4px;
+  border-radius: 4px;
+  color: #20262d;
+  font-size: clamp(12px, 3.6vw, 16px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cq-map-court.across-aisle {
+  margin-top: 11px;
+}
+.cq-map-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 12px;
+  padding: 0;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.cq-map-key li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cq-map-key i {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
 }
 .cq-grid {
   display: grid;

@@ -130,6 +130,41 @@ async function setUp(page: Page, ev = event) {
   return posts;
 }
 
+test("opens the Fremont court map on a phone and shows the current state by position", async ({ page }) => {
+  await setUp(page, {
+    ...event,
+    location: "Bintang Fremont",
+    address: "48900 Milmont Dr, Fremont, CA 94538",
+    queue: {
+      ...queue,
+      courts: [...queue.courts, court(9, 7, 1, 4, 49, names("Next"))],
+    },
+  });
+  const trigger = page.getByRole("button", { name: "Court Map" });
+  await trigger.click();
+  const map = page.getByRole("dialog", { name: "Court Map" });
+  await expect(map).toBeVisible();
+  await expect(map.locator(".cq-map-court")).toHaveCount(53);
+  await expect(map.getByTitle("1 号场：在打", { exact: true })).toHaveClass(/play/);
+  await expect(map.getByTitle("7 号场：5 分钟内", { exact: true })).toHaveClass(/soon/);
+  await expect(map.getByTitle("6 号场：已订未开始", { exact: true })).toHaveClass(/booked/);
+  await expect(map.getByTitle("9 号场：未登记", { exact: true })).toHaveClass(/unregistered/);
+  const bounds = async (n: number) => (await map.getByTitle(new RegExp(`^${n} 号场：`)).boundingBox())!;
+  const left = await bounds(47);
+  expect((await bounds(53)).x).toBeGreaterThan(left.x);
+  expect((await bounds(46)).x).toBeGreaterThan(left.x + left.width);
+  expect((await bounds(5)).x).toBe((await bounds(12)).x);
+  expect((await bounds(4)).x).toBe((await bounds(9)).x);
+  expect((await bounds(33)).y - (await bounds(40)).y).toBeGreaterThan((await bounds(40)).y - (await bounds(47)).y);
+  await page.screenshot({ path: test.info().outputPath("court-map.png"), animations: "disabled" });
+  await page.touchscreen.tap(4, 4);
+  await expect(map).toBeHidden();
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(map).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
 test("draws our courts, playing then queued, one account per quarter", async ({ page }) => {
   await setUp(page);
   const cq = page.locator(".cq");
