@@ -1111,6 +1111,10 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   活动: { tw: "活動", en: "Events" },
   我的: { tw: "我的", en: "Me" },
   管理: { tw: "管理", en: "Manage" },
+  "没有网络，显示的是 {time} 的内容": {
+    tw: "沒有網路，顯示的是 {time} 的內容",
+    en: "No connection. Showing what was loaded at {time}",
+  },
   主导航: { tw: "主導覽", en: "Main navigation" },
   地址: { tw: "地址", en: "Address" },
   "搜索中…": { tw: "搜尋中…", en: "Searching…" },

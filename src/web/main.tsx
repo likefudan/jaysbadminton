@@ -7,6 +7,7 @@ import { Member, MemberProfilePage } from "./pages/Member";
 import { Account, AccountBoards, AccountProfile } from "./pages/Account";
 import { NotFound } from "./pages/NotFound";
 import { PullToRefresh } from "./PullToRefresh";
+import { startOffline } from "./offline";
 import { addMessages, chosenLang, listeners, useActiveLang } from "./i18n";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
@@ -114,4 +115,5 @@ function App() {
   );
 }
 
+startOffline();
 render(<App />, document.getElementById("app")!);
