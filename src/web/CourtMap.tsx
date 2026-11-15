@@ -122,6 +122,7 @@ function Plan(props: { layout: CourtMapLayout; tones?: Map<number, Tone>; legend
                     type="button"
                     aria-pressed={edit.picked === i}
                     aria-label={it.label || t("没有名字的方块")}
+                    onClick={() => edit.onPick(i)}
                     onPointerDown={down(i, it)}
                     onPointerMove={move}
                     onPointerUp={up}
@@ -250,7 +251,12 @@ function Editor(props: { layout: CourtMapLayout; onChange: (l: CourtMapLayout) =
                 inputMode={it.kind === "court" ? "numeric" : "text"}
                 maxLength={it.kind === "court" ? 2 : 24}
                 value={it.label}
-                onInput={(ev) => set(picked, { label: (ev.target as HTMLInputElement).value.trim() })}
+                onInput={(ev) => {
+                  const input = ev.target as HTMLInputElement;
+                  // A court's number is digits only; other text is trimmed when saved, not while typed.
+                  if (it.kind === "court") input.value = input.value.replace(/\D/g, "");
+                  set(picked, { label: input.value });
+                }}
               />
             </label>
             <div class="cm-arrows">

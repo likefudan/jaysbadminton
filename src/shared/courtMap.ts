@@ -2,9 +2,10 @@ import { QUEUE_COURT_MAX } from "./courtQueue";
 
 /**
  * 球场图 (Ke Li 2026-11-15): the floor plan of a venue, so players see where our courts are. Every
- * venue is laid out differently, so nothing is drawn in code: the Owner or an admin photographs the
- * venue's posted court map once, the AI model reads it into this layout, they check it and save it
- * for that venue. Events at the venue (same name) then show it from the 球场排队 card.
+ * venue is laid out differently, so nothing is drawn in code: the Owner, an admin or an organizer
+ * photographs the venue's posted court map, the AI model reads it into this layout, they put it
+ * right by hand and save it for that venue (its address, courtMapPlace). Events there then show it
+ * from the 球场排队 card.
  *
  * Positions are fractions of the plan's outer border (0..1), so the drawing scales to any screen.
  */
@@ -44,6 +45,8 @@ export interface CourtMapOld {
 /** A posted plan has a few dozen courts and labels; this only stops a runaway answer. */
 export const COURT_MAP_ITEMS_MAX = 200;
 export const COURT_MAP_LABEL_MAX = 24;
+/** A box thinner than this can't be seen or tapped, and would leave the editor no step to move by. */
+const SIZE_MIN = 0.005;
 
 const KINDS = ["court", "area", "text"] as const;
 const frac = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : null);
@@ -137,7 +140,7 @@ function axis(layout: CourtMapLayout, index: number, at: (i: CourtMapItem) => nu
     .slice(1)
     .map((m, k) => m - marks[k]!)
     .filter((g) => g > own * 0.5);
-  return { marks, step: (gaps.length ? median(gaps) : own) / 2 };
+  return { marks, step: Math.max(SIZE_MIN, gaps.length ? median(gaps) : own) / 2 };
 }
 
 /** How far one press of an arrow moves a box: half a pitch each way. */
@@ -212,7 +215,7 @@ export function cleanLayout(raw: unknown): CourtMapLayout | null {
     if (!kind || x === null || y === null || w === null || h === null) continue;
     const cw = Math.min(w, 1 - x);
     const ch = Math.min(h, 1 - y);
-    if (cw <= 0 || ch <= 0) continue;
+    if (cw < SIZE_MIN || ch < SIZE_MIN) continue;
     if (kind === "court") {
       const n = courtNumber(label);
       if (n === null) kind = "area";
