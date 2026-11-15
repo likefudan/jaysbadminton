@@ -10,7 +10,7 @@
   "assets": {
     "directory": "./dist/web",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/e/*", "/robots.txt", "/manifest.webmanifest", "/api/*", "/export/*"]
+    "run_worker_first": ["/", "/e/*", "/robots.txt", "/manifest.webmanifest", "/.well-known/*", "/api/*", "/export/*"]
   },
   "d1_databases": [
     {
@@ -62,7 +62,15 @@
       "assets": {
         "directory": "./dist/web",
         "binding": "ASSETS",
-        "run_worker_first": ["/", "/e/*", "/robots.txt", "/manifest.webmanifest", "/api/*", "/export/*"]
+        "run_worker_first": [
+          "/",
+          "/e/*",
+          "/robots.txt",
+          "/manifest.webmanifest",
+          "/.well-known/*",
+          "/api/*",
+          "/export/*"
+        ]
       },
       "d1_databases": [
         {

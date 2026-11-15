@@ -1,3 +1,4 @@
+import { appShell } from "./native";
 import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
 import { Card, SettingRow } from "./components";
@@ -18,8 +19,11 @@ interface InstallPromptEvent extends Event {
 const ua = () => navigator.userAgent;
 export const isIos = () =>
   /iPhone|iPad|iPod/.test(ua()) || (ua().includes("Macintosh") && navigator.maxTouchPoints > 1);
+/** Opened as an app: from the home screen, or inside the iPhone or Android app (native.ts). */
 export const standalone = () =>
-  window.matchMedia?.("(display-mode: standalone)").matches || !!(navigator as { standalone?: boolean }).standalone;
+  window.matchMedia?.("(display-mode: standalone)").matches ||
+  !!(navigator as { standalone?: boolean }).standalone ||
+  appShell() !== null;
 const isWechat = () => /MicroMessenger/i.test(ua());
 
 const INSTALLED = "app-installed";
