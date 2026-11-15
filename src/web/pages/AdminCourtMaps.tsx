@@ -1,8 +1,10 @@
 import { useEffect, useState } from "preact/hooks";
-import { type CourtMapVenue, courtMapPlace } from "../../shared/courtMap";
+import { type CourtMapPastVenue, type CourtMapVenue, courtMapPlace } from "../../shared/courtMap";
 import { toPacific } from "../../shared/time";
-import { Load, SettingRow } from "../components";
+import { AddressInput } from "../AddressInput";
+import { Field, Load, SettingRow } from "../components";
 import { CourtMapManager } from "../CourtMap";
+import { Panel } from "../Panel";
 import { useApi } from "../hooks";
 import { fmtDay, t } from "../i18n";
 
@@ -31,6 +33,7 @@ const MapIcon = () => (
 
 interface Listing {
   venues: CourtMapVenue[];
+  past: CourtMapPastVenue[];
   photo: boolean;
 }
 
@@ -50,6 +53,8 @@ export function CourtMapsPage(props: { base: string }) {
   // The venue open. The list has its fresh plan after a save; a venue no longer on 最近的场馆 leaves
   // the list when its plan is deleted, and stays open as it was so 以前的图 can bring the plan back.
   const [open, setOpen] = useState<CourtMapVenue | null>(null);
+  // 添加球馆 (Ke Li 2026-11-15): a venue not on the list is typed in, name and address.
+  const [adding, setAdding] = useState(false);
   // A photo is being read in the background (Ke Li: 过一会儿回来看结果): look again every few
   // seconds while this page is open, so the answer shows without a reload.
   const waiting = list.state === "ok" && list.data.venues.some((v) => v.read?.state === "pending");
@@ -76,7 +81,7 @@ export function CourtMapsPage(props: { base: string }) {
               {t("每个球馆一张图，按地址对应。活动卡片上的「球场图」只能看，在这里添加和修改。")}
             </p>
             {d.venues.length === 0 ? (
-              <p class="muted">{t("还没有球馆。新建一次活动后，球馆会出现在这里。")}</p>
+              <p class="muted">{t("还没有球馆。点「添加球馆」，填上名称和地址。")}</p>
             ) : (
               <section class="card set-list">
                 {d.venues.map((v) => (
@@ -103,6 +108,26 @@ export function CourtMapsPage(props: { base: string }) {
                 ))}
               </section>
             )}
+            <button type="button" class="button secondary block cm-add-venue" onClick={() => setAdding(true)}>
+              {t("＋ 添加球馆")}
+            </button>
+            {adding && (
+              <AddVenue
+                base={props.base}
+                past={d.past}
+                onClose={() => setAdding(false)}
+                onDone={(v) => {
+                  // The venue opens once this panel has taken its history entry back: opened at
+                  // once, that step back would close the venue's panel instead.
+                  addEventListener(
+                    "popstate",
+                    () => setOpen({ ...v, map: null, updatedAt: null, savedBy: null, read: null }),
+                    { once: true },
+                  );
+                  setAdding(false);
+                }}
+              />
+            )}
             {venue && (
               <CourtMapManager
                 base={props.base}
@@ -116,5 +141,59 @@ export function CourtMapsPage(props: { base: string }) {
         );
       }}
     </Load>
+  );
+}
+
+/**
+ * 添加球馆 (Ke Li 2026-11-15: 1和2都做): a venue of an earlier event picked from the list, or its
+ * name and address typed in (the address with suggestions, as in 新建活动).
+ * Nothing is kept yet: it opens the venue to add its plan, and the venue is on the list once it
+ * has one. An address already on the list opens that venue.
+ */
+function AddVenue(props: {
+  base: string;
+  past: CourtMapPastVenue[];
+  onClose: () => void;
+  onDone: (v: { venue: string; address: string }) => void;
+}) {
+  const [venue, setVenue] = useState("");
+  const [address, setAddress] = useState("");
+  const name = venue.trim();
+  return (
+    <Panel title={t("添加球馆")} label={t("添加球馆")} onClose={props.onClose}>
+      {props.past.length > 0 && (
+        <>
+          <h3 class="cm-add-title">{t("历史活动的球馆")}</h3>
+          <section class="card set-list">
+            {props.past.map((v) => (
+              <SettingRow
+                key={courtMapPlace(v.venue, v.address)}
+                label={v.venue}
+                sub={v.address || undefined}
+                value={t("最近活动 {day}", { day: fmtDay(v.date) })}
+                onClick={() => props.onDone({ venue: v.venue, address: v.address })}
+              />
+            ))}
+          </section>
+          <h3 class="cm-add-title">{t("或者自己填写")}</h3>
+        </>
+      )}
+      <Field label={t("场馆")} value={venue} onInput={setVenue} />
+      <AddressInput
+        base={props.base}
+        value={address}
+        onInput={setAddress}
+        onPlace={(found) => !venue.trim() && setVenue(found)}
+      />
+      <p class="muted small">{t("球场图按地址对应活动，地址请和活动里填的一样。")}</p>
+      <button
+        type="button"
+        class="button block"
+        disabled={!name || [...name].length > 60 || [...address.trim()].length > 200}
+        onClick={() => props.onDone({ venue: name, address: address.trim() })}
+      >
+        {t("下一步")}
+      </button>
+    </Panel>
   );
 }

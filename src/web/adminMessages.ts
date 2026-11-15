@@ -1717,9 +1717,19 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "每個球館一張圖，按地址對應。活動卡片上的「球場圖」只能看，在這裡新增和修改。",
     en: "One map per venue, matched by address. The Court map button on an event card only shows it; add and change maps here.",
   },
-  "还没有球馆。新建一次活动后，球馆会出现在这里。": {
-    tw: "還沒有球館。新建一次活動後，球館會出現在這裡。",
-    en: "No venues yet. A venue appears here once an event has been created there.",
+  "还没有球馆。点「添加球馆」，填上名称和地址。": {
+    tw: "還沒有球館。點「新增球館」，填上名稱和地址。",
+    en: "No venues yet. Tap “Add venue” and enter its name and address.",
+  },
+  "＋ 添加球馆": { tw: "＋ 新增球館", en: "+ Add venue" },
+  添加球馆: { tw: "新增球館", en: "Add venue" },
+  下一步: { tw: "下一步", en: "Next" },
+  历史活动的球馆: { tw: "歷史活動的球館", en: "Venues of past events" },
+  或者自己填写: { tw: "或者自己填寫", en: "Or enter one" },
+  "最近活动 {day}": { tw: "最近活動 {day}", en: "Last event {day}" },
+  "球场图按地址对应活动，地址请和活动里填的一样。": {
+    tw: "球場圖按地址對應活動，地址請和活動裡填的一樣。",
+    en: "A court map goes with events by address, so enter it as the events have it.",
   },
   "{n} 片 · {day}": { tw: "{n} 片 · {day}", en: "{n} courts · {day}" },
   未添加: { tw: "未新增", en: "Not added" },
