@@ -36,6 +36,8 @@ export function heatOf(cheers: number): { level: number; part: number; next: num
 export const LOTTERY_INTRO_MS = 5_000;
 export const LOTTERY_ANIM_MS = 9_000;
 export const LOTTERY_GAP_MS = 15_000;
+/** While waiting for the draw, the faces on the wall change places this often. */
+export const LOTTERY_SHUFFLE_MS = 12_000;
 /** Who has the page open: seen this recently. The page checks in more often than this. */
 export const LOTTERY_ONLINE_MS = 30_000;
 
@@ -133,7 +135,16 @@ export interface LotteryView {
   /** How many draws there are. */
   draws: number;
   /** The member looking; null on the 管理页. rank: their place among all members let in. */
-  me: { id: string; rank: number | null; inPool: boolean; cheers: number } | null;
+  me: {
+    id: string;
+    rank: number | null;
+    inPool: boolean;
+    cheers: number;
+    /** They took themselves off the list (the 抽奖 card). */
+    optedOut: boolean;
+    /** They can still leave or come back: not locked, not drawn. */
+    canOpt: boolean;
+  } | null;
   watching: number;
   cheers: number;
   /** The Owner locked it: nobody can change or cancel it until they unlock it. */
@@ -148,6 +159,8 @@ export interface LotteryAdmin {
   preview: LotteryEntry[];
   /** With one: those among the first N taken off by hand, who don't take part. */
   excluded: LotteryEntry[];
+  /** Those of `excluded` who left by themselves: only they can come back. */
+  selfOut: string[];
   members: number;
   /** Members with push on, who get the notices. */
   pushMembers: number;

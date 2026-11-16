@@ -163,6 +163,37 @@ describe("抽奖", () => {
     expect(again.view.entries).toHaveLength(4);
   });
 
+  it("lets a member sit it out from the card and come back, until it is locked", async () => {
+    const { ctx, people } = await group(["Amy", "Bob", "Cat", "Dan"]);
+    const [amy, bob] = people as [(typeof people)[0], (typeof people)[0]];
+    const { results } = await env.DB.prepare("SELECT id FROM members ORDER BY id").all<{ id: string }>();
+    const [, amyId, bobId] = results.map((r) => r.id);
+    await ctx.admin.call(`${ctx.base}/lottery`, form());
+    const first = (await anon.call(`${amy.base}/lottery`)).data.lottery;
+    expect(first.me).toMatchObject({ inPool: true, optedOut: false, canOpt: true });
+    // Out: the number is kept, nobody takes the place.
+    const out = (await anon.call(`${amy.base}/lottery/opt`, { out: true })).data.lottery;
+    expect(out.me).toMatchObject({ rank: 2, inPool: false, optedOut: true, canOpt: true });
+    expect(out.entries.map((e: { rank: number }) => e.rank)).toEqual([1, 3, 4]);
+    // Not so many that the prizes outnumber who is left.
+    expect((await anon.call(`${bob.base}/lottery/opt`, { out: true })).status).toBe(400);
+    // An admin can't put them back; whoever an admin took off can't come back alone.
+    const admin = (await ctx.admin.call(`${ctx.base}/lottery`)).data;
+    expect(admin.selfOut).toEqual([amyId]);
+    await ctx.admin.call(`${ctx.base}/lottery/${first.id}/exclude`, { exclude: [] });
+    expect((await anon.call(`${amy.base}/lottery`)).data.lottery.me.inPool).toBe(false);
+    // Back in, at the same number.
+    const back = (await anon.call(`${amy.base}/lottery/opt`, { out: false })).data.lottery;
+    expect(back.me).toMatchObject({ rank: 2, inPool: true, optedOut: false });
+    await ctx.admin.call(`${ctx.base}/lottery/${first.id}/exclude`, { exclude: [bobId] });
+    const bobs = (await anon.call(`${bob.base}/lottery/opt`, { out: false })).data.lottery;
+    expect(bobs.me).toMatchObject({ inPool: false, optedOut: false, canOpt: false });
+    // Locked: nothing changes.
+    await ctx.admin.call(`${ctx.base}/lottery/${first.id}/lock`, {});
+    expect((await anon.call(`${amy.base}/lottery/opt`, { out: true })).status).toBe(400);
+    expect((await anon.call(`${amy.base}/lottery`)).data.lottery.me).toMatchObject({ inPool: true, canOpt: false });
+  });
+
   it("takes members off the list by hand: they keep their number, nobody takes their place", async () => {
     const { ctx, people } = await group(["Amy", "Bob", "Cat", "Dan"]);
     const [amy, bob, cat] = people as [(typeof people)[0], (typeof people)[0], (typeof people)[0]];

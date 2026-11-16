@@ -25,6 +25,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "{name} 参加": { tw: "{name} 參加", en: "{name} takes part" },
   不参加: { tw: "不參加", en: "Out" },
+  自己选择不参加: { tw: "自己選擇不參加", en: "Chose to sit out" },
   "（{x} 人不参加）": { tw: "（{x} 人不參加）", en: " ({x} not taking part)" },
   "名单有误，请刷新": { tw: "名單有誤，請重新整理", en: "The list is out of date, please refresh" },
   "按入群通过的先后算，群主和管理员也算，已停用的成员保留名次。": {
