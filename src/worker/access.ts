@@ -253,6 +253,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "GET /lottery/history": cap("group"),
   "POST /lottery": cap("group"),
   "POST /lottery/rehearse": cap("group"),
+  "POST /lottery/rehearse/announce": cap("group"),
   "POST /lottery/:id/edit": cap("group"),
   "POST /lottery/:id/exclude": cap("group"),
   "POST /lottery/:id/cancel": cap("group"),

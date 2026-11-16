@@ -296,15 +296,19 @@ async function admin(page: Page, current: () => object | null, canLock = true, e
     const url = new URL(r.request().url()).pathname;
     const body = r.request().postDataJSON();
     posts.push({ url, body });
+    if (url.endsWith("/rehearse/announce")) return r.fulfill({ json: { myDevices: 2, telegram: true } });
+    // The one published is rehearsed with nothing in the form: one draw then, so it is soon over.
+    const short = !body?.prizes;
     if (url.endsWith("/rehearse"))
       return r.fulfill({
         json: {
           view: view({
+            ...(short ? { draws: 1 } : {}),
             rehearsal: true,
             status: "drawn",
             drawnAt: new Date().toISOString(),
             host: "Jay",
-            winners,
+            winners: short ? winners.slice(0, 1) : winners,
             me: null,
             seed: "b".repeat(64),
           }),
@@ -315,7 +319,6 @@ async function admin(page: Page, current: () => object | null, canLock = true, e
             noAvatar: 12,
             pushMembers: 64,
             myDevices: 2,
-            telegram: true,
           },
         },
       });
@@ -366,7 +369,9 @@ test("设置 → 抽奖: set one up, rehearse it (only for whoever pressed), the
   await expect.poll(order).not.toEqual(before);
   await expect(panel).toContainText("12 人没有头像");
   await expect(panel).toContainText("（2 人不参加）");
-  await expect(panel).toContainText("预演推送已发到你的 2 台设备");
+  // The 预演's own notices wait for the last draw, as on the night.
+  await expect(panel).toContainText("开奖放完后，预演推送会发到你的 2 台设备和 Telegram");
+  expect(posts.some((p) => p.url.endsWith("/announce"))).toBe(false);
   expect(posts[0]).toMatchObject({
     url: "/api/admin/test-token/lottery/rehearse",
     body: {
@@ -412,4 +417,19 @@ test("设置 → 抽奖: published and not locked, someone can still be taken of
   await expect(list.getByRole("checkbox", { name: "Amy1 参加" })).not.toBeChecked();
   await list.getByRole("checkbox", { name: "Amy1 参加" }).click();
   await expect.poll(() => posts.find((p) => p.url.endsWith("/exclude"))?.body).toEqual({ exclude: [] });
+});
+
+test("设置 → 抽奖: a 预演's push and Telegram message go out only when its last draw has landed", async ({ page }) => {
+  test.setTimeout(60_000);
+  const posts = await admin(page, () => view({ me: null }), true);
+  await page.goto("/admin/test-token?tab=settings&sub=lottery");
+  await page.getByRole("button", { name: "预演一遍（只有你看得到）" }).first().click();
+  const panel = page.getByRole("dialog", { name: "预演" });
+  await expect(panel).toContainText("开奖放完后，预演推送会发到你的 2 台设备和 Telegram");
+  // Still playing: nothing sent.
+  await expect(panel).toContainText("第 1 / 1 次", { timeout: 10_000 });
+  expect(posts.some((p) => p.url.endsWith("/announce"))).toBe(false);
+  await expect(panel).toContainText("预演推送已发到你的 2 台设备，看看收到没有", { timeout: 20_000 });
+  await expect(panel).toContainText("预演结果已发到你的 Telegram");
+  expect(posts.find((p) => p.url.endsWith("/announce"))?.body).toEqual({ seed: "b".repeat(64) });
 });

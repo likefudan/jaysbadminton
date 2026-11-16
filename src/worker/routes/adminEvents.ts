@@ -18,6 +18,7 @@ import {
   editLottery,
   hideLottery,
   lockLottery,
+  announceRehearsal,
   lotteryHistory,
   rehearseLottery,
 } from "../lottery";
@@ -322,6 +323,12 @@ adminEventRoutes.post("/lottery", async (c) => {
 adminEventRoutes.post("/lottery/rehearse", async (c) => {
   const r = await rehearseLottery(c.env, c.get("actor"), await readJson(c.req.raw));
   await groupAudit(c.env, c.get("actor"), "settings", null, `预演抽奖「${r.view.title}」`);
+  return c.json(r);
+});
+
+// The 预演's own push and Telegram message, asked for by the page once its last draw has landed.
+adminEventRoutes.post("/lottery/rehearse/announce", async (c) => {
+  const r = await announceRehearsal(c.env, c.get("actor"), await readJson(c.req.raw));
   sendSoon(c);
   return c.json(r);
 });
