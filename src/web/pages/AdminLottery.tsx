@@ -7,6 +7,7 @@ import {
   type LotteryRehearsal,
   type LotteryView,
   checkLottery,
+  drawEnd,
 } from "../../shared/lottery";
 import { toPacific } from "../../shared/time";
 import { api } from "../api";
@@ -91,7 +92,7 @@ const toBody = (f: FormValue) => ({
 export function LotteryPage(props: { base: string }) {
   const [size, setSize] = useState(100);
   const [res, reload] = useApi<LotteryAdmin>(`${props.base}/lottery?size=${size}`);
-  const [rehearsal, setRehearsal] = useState<LotteryRehearsal | null>(null);
+  const [rehearsal, setRehearsal] = useState<Rehearsed | null>(null);
   return (
     <Load result={res}>
       {(d) => (
@@ -101,7 +102,7 @@ export function LotteryPage(props: { base: string }) {
           ) : (
             <Setup base={props.base} d={d} onSize={setSize} reload={reload} onRehearse={setRehearsal} />
           )}
-          {rehearsal && <Rehearsal r={rehearsal} onClose={() => setRehearsal(null)} />}
+          {rehearsal && <Rehearsal base={props.base} {...rehearsal} onClose={() => setRehearsal(null)} />}
           <History base={props.base} current={d.current?.id ?? 0} />
         </>
       )}
@@ -268,7 +269,7 @@ function Setup(props: {
   d: LotteryAdmin;
   onSize: (n: number) => void;
   reload: () => void;
-  onRehearse: (r: LotteryRehearsal) => void;
+  onRehearse: (r: Rehearsed) => void;
 }) {
   const [f, setF] = useState<FormValue>(blank);
   const [list, setList] = useState(false);
@@ -289,8 +290,9 @@ function Setup(props: {
     return { ...b, exclude: off };
   };
   const rehearse = async () => {
-    const r = await act.run(() => api<LotteryRehearsal>(`${props.base}/lottery/rehearse`, check()));
-    if (r) props.onRehearse(r);
+    const body = check();
+    const r = await act.run(() => api<LotteryRehearsal>(`${props.base}/lottery/rehearse`, body));
+    if (r) props.onRehearse({ r, body });
   };
   const publish = async () => {
     if (!confirm(t("公布后名单就锁定了，大家会收到推送。确定公布吗？"))) return;
@@ -396,7 +398,7 @@ function Current(props: {
   d: LotteryAdmin;
   view: LotteryView;
   reload: () => void;
-  onRehearse: (r: LotteryRehearsal) => void;
+  onRehearse: (r: Rehearsed) => void;
 }) {
   const v = props.view;
   const [editing, setEditing] = useState<FormValue | null>(null);
@@ -412,7 +414,7 @@ function Current(props: {
   };
   const rehearse = async () => {
     const r = await act.run(() => api<LotteryRehearsal>(`${props.base}/lottery/rehearse`, {}));
-    if (r) props.onRehearse(r);
+    if (r) props.onRehearse({ r, body: {} });
   };
   const open = v.status === "open";
   return (
@@ -547,10 +549,32 @@ function Watch(props: { base: string; first: LotteryView; onClose: () => void })
   );
 }
 
+/** A 预演 and the form it was asked with (sent again for its notices). */
+type Rehearsed = { r: LotteryRehearsal; body: Record<string, unknown> };
+
 /** 预演: the draw as everyone will see it, then what the checks found. */
-function Rehearsal(props: { r: LotteryRehearsal; onClose: () => void }) {
+function Rehearsal(props: Rehearsed & { base: string; onClose: () => void }) {
   const { view, checks: c } = props.r;
   const clock = useClock(view);
+  // The notices go out when the last draw has landed, as on the night (Ke Li 2026-11-16: 应该等所有
+  // 奖项开完了再推送): the page asks for them then. Closed before that, nothing is sent.
+  const [sent, setSent] = useState<{ myDevices: number; telegram: boolean } | "failed" | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const wait = Math.max(0, drawEnd(Date.parse(view.drawnAt ?? view.now), view.draws) - Date.parse(view.now));
+    const id = setTimeout(() => {
+      api<{ myDevices: number; telegram: boolean }>(`${props.base}/lottery/rehearse/announce`, {
+        ...props.body,
+        seed: view.seed,
+      })
+        .then((r) => alive && setSent(r))
+        .catch(() => alive && setSent("failed"));
+    }, wait + 500);
+    return () => {
+      alive = false;
+      clearTimeout(id);
+    };
+  }, [view]);
   const ok = (good: boolean) => (good ? "✓" : "⚠️");
   return (
     <Panel title={t("预演")} label={t("预演")} onClose={props.onClose}>
@@ -568,18 +592,31 @@ function Rehearsal(props: { r: LotteryRehearsal; onClose: () => void }) {
             {ok(c.noAvatar === 0)}{" "}
             {c.noAvatar === 0 ? t("每个人都有头像") : t("{n} 人没有头像，墙上显示名字的第一个字", { n: c.noAvatar })}
           </li>
-          <li>
-            {ok(c.myDevices > 0)}{" "}
-            {c.myDevices > 0
-              ? t("预演推送已发到你的 {n} 台设备，看看收到没有", { n: c.myDevices })
-              : t("你还没开推送，收不到预演推送")}
-          </li>
-          <li>
-            {ok(c.telegram)}{" "}
-            {c.telegram
-              ? t("预演结果已发到你的 Telegram，里面有可复制到微信的文字")
-              : t("Telegram 没发出去（没绑定或机器人没设置）")}
-          </li>
+          {sent === null ? (
+            <li>
+              ⏳{" "}
+              {c.myDevices > 0
+                ? t("开奖放完后，预演推送会发到你的 {n} 台设备和 Telegram", { n: c.myDevices })
+                : t("开奖放完后，预演结果会发到你的 Telegram（你还没开推送）")}
+            </li>
+          ) : sent === "failed" ? (
+            <li>⚠️ {t("预演通知没发出去，请再预演一次")}</li>
+          ) : (
+            <>
+              <li>
+                {ok(sent.myDevices > 0)}{" "}
+                {sent.myDevices > 0
+                  ? t("预演推送已发到你的 {n} 台设备，看看收到没有", { n: sent.myDevices })
+                  : t("你还没开推送，收不到预演推送")}
+              </li>
+              <li>
+                {ok(sent.telegram)}{" "}
+                {sent.telegram
+                  ? t("预演结果已发到你的 Telegram，里面有可复制到微信的文字")
+                  : t("Telegram 没发出去（没绑定或机器人没设置）")}
+              </li>
+            </>
+          )}
           <li>
             {ok(c.pushMembers > 0)} {t("开了推送的成员：{n} 人", { n: c.pushMembers })}
           </li>

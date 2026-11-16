@@ -178,9 +178,8 @@ export interface LotteryRehearsal {
     poolSize: number;
     noAvatar: number;
     pushMembers: number;
-    /** The 预演 push went to this many of the presser's own devices. */
+    /** The presser's own devices with push on: where the 预演 push goes once the draw has played. */
     myDevices: number;
-    telegram: boolean;
   };
 }
 

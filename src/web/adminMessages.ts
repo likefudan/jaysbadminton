@@ -25,6 +25,22 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "{name} 参加": { tw: "{name} 參加", en: "{name} takes part" },
   不参加: { tw: "不參加", en: "Out" },
+  "开奖放完后，预演推送会发到你的 {n} 台设备和 Telegram": {
+    tw: "開獎放完後，預演推播會發到你的 {n} 台裝置和 Telegram",
+    en: "When the draw has played, the rehearsal push goes to your {n} device(s) and Telegram",
+  },
+  "开奖放完后，预演结果会发到你的 Telegram（你还没开推送）": {
+    tw: "開獎放完後，預演結果會發到你的 Telegram（你還沒開推播）",
+    en: "When the draw has played, the rehearsal result goes to your Telegram (push is off for you)",
+  },
+  "预演通知没发出去，请再预演一次": {
+    tw: "預演通知沒發出去，請再預演一次",
+    en: "The rehearsal notices weren't sent. Please rehearse again",
+  },
+  "预演已经过期，请再预演一次": {
+    tw: "預演已經過期，請再預演一次",
+    en: "This rehearsal has expired. Please rehearse again",
+  },
   自己选择不参加: { tw: "自己選擇不參加", en: "Chose to sit out" },
   "（{x} 人不参加）": { tw: "（{x} 人不參加）", en: " ({x} not taking part)" },
   "名单有误，请刷新": { tw: "名單有誤，請重新整理", en: "The list is out of date, please refresh" },

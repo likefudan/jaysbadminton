@@ -155,6 +155,11 @@ describe("抽奖", () => {
     expect((await anon.call(`${people[0]!.base}/lottery`)).data.lottery).toBeNull();
     const pushes = await env.DB.prepare("SELECT COUNT(*) AS n FROM push_outbox").first<{ n: number }>();
     expect(pushes?.n).toBe(0);
+    // Its own notices are asked for when the draw has played, with its seed: the same winners again.
+    expect((await ctx.admin.call(`${ctx.base}/lottery/rehearse/announce`, form({ seed: "nope" }))).status).toBe(400);
+    const told = await ctx.admin.call(`${ctx.base}/lottery/rehearse/announce`, form({ seed: r.view.seed }));
+    expect(told.status).toBe(200);
+    expect(told.data).toMatchObject({ myDevices: 0 });
     // Published: the 预演 uses the locked list, and its seed is not the real one.
     await ctx.admin.call(`${ctx.base}/lottery`, form());
     const again = (await ctx.admin.call(`${ctx.base}/lottery/rehearse`, {})).data;

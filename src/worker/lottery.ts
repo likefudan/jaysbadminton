@@ -339,6 +339,13 @@ function readInput(body: Record<string, unknown>, rehearsal = false): LotteryInp
   return { ...input, drawAt, exclude: readExclude(body) };
 }
 
+async function pushDeviceCount(env: Env, memberId: string): Promise<number> {
+  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM push_subscriptions WHERE member_id = ?")
+    .bind(memberId)
+    .first<{ n: number }>();
+  return r?.n ?? 0;
+}
+
 async function pushMemberCount(env: Env): Promise<number> {
   const r = await env.DB.prepare(
     `SELECT COUNT(DISTINCT s.member_id) AS n FROM push_subscriptions s JOIN members m ON m.id = s.member_id
@@ -778,11 +785,7 @@ export async function lotteryCron(env: Env): Promise<void> {
  * would lock), with a seed of its own so it says nothing about the real result. Saved nowhere; the
  * notices go to whoever pressed it, marked 预演, so they can see what the group will get.
  */
-export async function rehearseLottery(
-  env: Env,
-  actor: Actor,
-  body: Record<string, unknown>,
-): Promise<LotteryRehearsal> {
+async function rehearsalDraw(env: Env, actor: Actor, body: Record<string, unknown>, seed: string) {
   const shown = await shownLottery(env);
   const l = shown?.status === "open" ? shown : null;
   const at = Date.now();
@@ -794,7 +797,6 @@ export async function rehearseLottery(
   const entries = l ? await lockedEntries(env, l, at) : first.filter((e) => !off.has(e.id));
   const excluded = l ? (await excludedEntries(env, l)).length : first.length - entries.length;
   if (entries.length < prizeSlots(input.prizes).length) throw badRequest("奖品比参加的人还多");
-  const seed = newSeed();
   const winners = await winnersFor(
     seed,
     entries.map((e) => e.rank),
@@ -826,24 +828,20 @@ export async function rehearseLottery(
     name: byRank.get(w.rank)?.name ?? "",
     memberId: byRank.get(w.rank)?.id ?? "",
   }));
-  const [pushMembers, devices] = await Promise.all([
+  return { input, entries, excluded, winners, named, fake, host };
+}
+
+export async function rehearseLottery(
+  env: Env,
+  actor: Actor,
+  body: Record<string, unknown>,
+): Promise<LotteryRehearsal> {
+  const seed = newSeed();
+  const { input, entries, excluded, winners, fake, host } = await rehearsalDraw(env, actor, body, seed);
+  const [pushMembers, myDevices] = await Promise.all([
     pushMemberCount(env),
-    actor.memberId
-      ? queuePush(
-          env,
-          {
-            title: `【预演】🎉 ${input.title}`,
-            body: `只发给你，不算数。中奖：${named.map((w) => `${w.prize} ${w.name}`).join("、")}`,
-            url: "/admin/google?tab=settings&sub=lottery",
-            tag: "lottery-rehearsal",
-          },
-          [actor.memberId],
-        )
-      : 0,
+    actor.memberId ? pushDeviceCount(env, actor.memberId) : 0,
   ]);
-  const telegram = actor.memberId
-    ? await sendToMember(env, actor.memberId, resultsMessage(fake, named, wechatResults(fake, named, host), true))
-    : false;
   return {
     view: {
       id: 0,
@@ -873,8 +871,39 @@ export async function rehearseLottery(
       poolSize: input.poolSize,
       noAvatar: entries.filter((e) => !e.avatar).length,
       pushMembers,
-      myDevices: devices,
-      telegram,
+      myDevices,
     },
   };
+}
+
+/**
+ * The 预演's notices, once its last draw has landed on the presser's screen (Ke Li 2026-11-16: 应该等
+ * 所有奖项开完了再推送), as on the night: the page asks for them then, with the 预演's own seed, and
+ * the same winners are worked out again. Only to whoever pressed it.
+ */
+export async function announceRehearsal(
+  env: Env,
+  actor: Actor,
+  body: Record<string, unknown>,
+): Promise<{ myDevices: number; telegram: boolean }> {
+  const seed = str(body.seed);
+  if (!/^[0-9a-f]{64}$/.test(seed)) throw badRequest("预演已经过期，请再预演一次");
+  if (!actor.memberId) return { myDevices: 0, telegram: false };
+  const { input, named, fake, host } = await rehearsalDraw(env, actor, body, seed);
+  const myDevices = await queuePush(
+    env,
+    {
+      title: `【预演】🎉 ${input.title}`,
+      body: `只发给你，不算数。中奖：${named.map((w) => `${w.prize} ${w.name}`).join("、")}`,
+      url: "/admin/google?tab=settings&sub=lottery",
+      tag: "lottery-rehearsal",
+    },
+    [actor.memberId],
+  );
+  const telegram = await sendToMember(
+    env,
+    actor.memberId,
+    resultsMessage(fake, named, wechatResults(fake, named, host), true),
+  );
+  return { myDevices, telegram };
 }
