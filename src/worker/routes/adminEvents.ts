@@ -18,6 +18,7 @@ import {
   editLottery,
   hideLottery,
   lockLottery,
+  lotteryHistory,
   rehearseLottery,
 } from "../lottery";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
@@ -308,6 +309,8 @@ adminEventRoutes.post("/court-maps/remove", async (c) => {
 adminEventRoutes.get("/lottery", async (c) =>
   c.json(await adminLottery(c.env, Number(c.req.query("size") ?? 100), can(c.get("actor").role, "owner"))),
 );
+
+adminEventRoutes.get("/lottery/history", async (c) => c.json({ history: await lotteryHistory(c.env) }));
 
 adminEventRoutes.post("/lottery", async (c) => {
   const l = await createLottery(c.env, c.get("actor"), await readJson(c.req.raw));

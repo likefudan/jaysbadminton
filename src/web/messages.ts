@@ -6,17 +6,11 @@
 
 export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   // 抽奖
-  "开奖结果出来了，看看谁是幸运儿": { tw: "開獎結果出來了，看看誰是幸運兒", en: "The results are in. See who won" },
-  "正在直播开奖，快来围观": { tw: "正在直播開獎，快來圍觀", en: "The draw is live. Come and watch" },
   "{time} 开奖": { tw: "{time} 開獎", en: "Draw at {time}" },
   "你的抽奖号 {n}": { tw: "你的抽獎號 {n}", en: "Your number: {n}" },
   "预演 · 只有你看得到，不算数": {
     tw: "預演 · 只有你看得到，不算數",
     en: "Rehearsal · only you can see this, it doesn't count",
-  },
-  "灰色的头像是还没打开这一页的人，只是好玩，不影响中奖。": {
-    tw: "灰色的頭像是還沒打開這一頁的人，只是好玩，不影響中獎。",
-    en: "Grey faces haven't opened this page yet. Just for fun: it doesn't change anyone's chances.",
   },
   开奖结果: { tw: "開獎結果", en: "Results" },
   "请中奖的球友联系 {name} 领奖": {
@@ -40,39 +34,17 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "开奖啦！": { tw: "開獎啦！", en: "Here we go!" },
   "你是第 {n} 位入群的球友": { tw: "你是第 {n} 位入群的球友", en: "You were member number {n} to join" },
-  "抽奖号 {n} · 已在奖池里": { tw: "抽獎號 {n} · 已在獎池裡", en: "Number {n} · you're in the draw" },
   这次你不参加抽奖: { tw: "這次你不參加抽獎", en: "You're not in this draw" },
-  "这次抽奖是前 {n} 名入群的球友": {
-    tw: "這次抽獎是前 {n} 名入群的球友",
-    en: "This draw is for the first {n} members to join",
-  },
-  你还不在这次的名单里: { tw: "你還不在這次的名單裡", en: "You're not on this list" },
+  开奖结果出来了: { tw: "開獎結果出來了", en: "Results are in" },
+  正在直播开奖: { tw: "正在直播開獎", en: "Drawing live now" },
+  抽奖: { tw: "抽獎", en: "Lucky draw" },
+  热度: { tw: "熱度", en: "Heat" },
+  气氛组: { tw: "氣氛組", en: "Top cheerers" },
   "📣 打气": { tw: "📣 打氣", en: "📣 Cheer" },
-  "你打了 {n} 次气，只是热闹，不影响中奖": {
-    tw: "你打了 {n} 次氣，只是熱鬧，不影響中獎",
-    en: "You cheered {n} times. Just for fun: it doesn't change the odds",
-  },
-  奖品: { tw: "獎品", en: "Prizes" },
-  "按上面的顺序一个一个抽，最后的压轴。": {
-    tw: "按上面的順序一個一個抽，最後的壓軸。",
-    en: "Drawn one at a time in this order, the big one last.",
-  },
   中奖名单: { tw: "中獎名單", en: "Winners" },
   即将揭晓: { tw: "即將揭曉", en: "Coming up" },
-  公平公开: { tw: "公平公開", en: "Fair and open" },
-  "名单按入群通过的先后排好，公布时就锁定了。开奖用的随机数先封存，只公布它的指纹；开奖后公开随机数，谁都能自己算一遍，没人能事先挑人。":
-    {
-      tw: "名單按入群通過的先後排好，公布時就鎖定了。開獎用的隨機數先封存，只公布它的指紋；開獎後公開隨機數，誰都能自己算一遍，沒人能事先挑人。",
-      en: "The list is in the order people were let into the group and was locked when the draw was announced. The random number for the draw was sealed with only its fingerprint shown; after the draw it is published, so anyone can work the result out again. Nobody could pick the winners.",
-    },
   指纹: { tw: "指紋", en: "Fingerprint" },
   随机数: { tw: "隨機數", en: "Random number" },
-  在我的手机上核对一遍: { tw: "在我的手機上核對一遍", en: "Check it on my phone" },
-  "✓ 指纹对得上，算出来的中奖名单也一样": {
-    tw: "✓ 指紋對得上，算出來的中獎名單也一樣",
-    en: "✓ The fingerprint matches and the winners come out the same",
-  },
-  "✗ 对不上，请告诉群主": { tw: "✗ 對不上，請告訴群主", en: "✗ It doesn't match. Please tell the group owner" },
   "查看完整名单（{n} 人）": { tw: "查看完整名單（{n} 人）", en: "See the whole list ({n})" },
   抽奖名单: { tw: "抽獎名單", en: "Draw list" },
   现在不能打气: { tw: "現在不能打氣", en: "You can't cheer right now" },
