@@ -54,7 +54,7 @@ import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
 import { avatarMode, avatarUrl, setAvatarMode, uploadAvatar } from "../avatars";
 import { siteGreeting } from "../site";
-import { announceResults, cheer, memberLottery } from "../lottery";
+import { announceResults, cheer, memberLottery, optLottery } from "../lottery";
 import { eventLikes, likeCounts, likeOpen, likeSettings, likeSummary, setLike } from "../likes";
 import {
   calorieReadDays,
@@ -145,6 +145,11 @@ memberRoutes.get("/:token/lottery", async (c) => {
 memberRoutes.post("/:token/lottery/cheer", async (c) =>
   c.json(await cheer(c.env, c.get("member").id, (await readJson(c.req.raw)).n)),
 );
+
+memberRoutes.post("/:token/lottery/opt", async (c) => {
+  await optLottery(c.env, c.get("member").id, (await readJson(c.req.raw)).out === true);
+  return c.json({ lottery: await memberLottery(c.env, c.get("member").id) });
+});
 
 memberRoutes.get("/:token/stats", async (c) => c.json(await myStats(c.env, c.get("member").id)));
 // 自付费用: what they paid themselves for one event in 我的花费 (cents, 0 clears). Theirs alone.

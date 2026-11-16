@@ -550,6 +550,7 @@ const RESET_TABLES = [
   "lottery_winners",
   "lottery_entries",
   "lottery_excluded",
+  "lottery_optouts",
   "lotteries",
   "calorie_uploads",
   "calories",

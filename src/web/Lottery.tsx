@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import {
   LOTTERY_ANIM_MS,
   LOTTERY_CHEERS_MAX,
+  LOTTERY_SHUFFLE_MS,
   type LotteryEntry,
   type LotteryView,
   type LotteryWinner,
@@ -70,11 +71,23 @@ export function LotteryCard(props: { base: string }) {
     // So a reload doesn't open it again.
     if (location.search.includes("lottery=1")) history.replaceState(history.state, "", location.pathname);
   };
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const opt = (out: boolean) => {
+    if (out && !confirm(t("不参加这次抽奖？开奖前可以随时回来。"))) return;
+    setBusy(true);
+    setError(null);
+    api<Res>(`${props.base}/lottery/opt`, { out })
+      .then((r) => setRes(r.lottery))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setBusy(false));
+  };
   if (!res) return null;
   const l = res;
   const drawn = l.status === "drawn";
   const line = drawn ? (l.seed ? t("开奖结果出来了") : t("正在直播开奖")) : t("抽奖");
   const pill = l.me?.inPool ? t("你的抽奖号 {n}", { n: num3(l.me.rank ?? 0) }) : t("抽奖");
+  const me = l.me;
   const when = toPacific(l.drawAt);
   return (
     <>
@@ -96,6 +109,18 @@ export function LotteryCard(props: { base: string }) {
           </span>
           <span class="next-cta">{t("查看")}</span>
         </button>
+        {/* 不参加 / 重新参加 (Ke Li 2026-11-16: 从抽奖活动卡片上 opt out), until it is locked or drawn. */}
+        {me && (me.optedOut || me.canOpt) && (
+          <p class="lot-opt">
+            {me.optedOut && <span>{t("你已选择不参加")}</span>}
+            {me.canOpt && (
+              <button type="button" class="text-button" disabled={busy} onClick={() => opt(!me.optedOut)}>
+                {me.optedOut ? t("重新参加") : t("不参加这次抽奖")}
+              </button>
+            )}
+            {error && <span class="error">{error}</span>}
+          </p>
+        )}
       </section>
       {open && (
         <Panel title={l.title} label={l.title} onClose={close}>
@@ -314,6 +339,18 @@ function flightsFor(v: LotteryView, w: LotteryWinner, start: number) {
   return out;
 }
 
+/**
+ * Which arrangement of the wall is up: a new one every LOTTERY_SHUFFLE_MS before the draw, one for
+ * each draw from then on (changing after a winner has had their moment, before the next shuttle).
+ */
+function wallRound(v: LotteryView, now: number): string {
+  if (!v.drawnAt) return v.rehearsal ? "r" : `w${Math.floor(now / LOTTERY_SHUFFLE_MS)}`;
+  const drawnAt = Date.parse(v.drawnAt);
+  let k = 1;
+  while (k < v.draws && now >= drawLand(drawnAt, k) + 5000) k++;
+  return `d${k}`;
+}
+
 function Wall(props: {
   v: LotteryView;
   now: number;
@@ -328,14 +365,38 @@ function Wall(props: {
   const cheering = useCheering(v, props.me, props.pulse);
   // Not in number order (Ke Li 2026-11-16: 打乱更好看): each face gets a place from the fingerprint and
   // its own number, the same on every phone, and it keeps it when someone else is taken off the list.
+  // The places change every now and then (Ke Li 2026-11-16: 站在角落的会感觉不会落到自己头上): every
+  // LOTTERY_SHUFFLE_MS while waiting, and once before each draw, never while a shuttle is in the air.
+  const round = wallRound(v, now);
   const wall = useMemo(
     () =>
       v.entries
-        .map((e) => ({ e, key: rng(`${v.seedHash}:wall:${e.rank}`)() }))
+        .map((e) => ({ e, key: rng(`${v.seedHash}:wall:${round}:${e.rank}`)() }))
         .sort((a, b) => a.key - b.key || a.e.rank - b.e.rank)
         .map((x) => x.e),
-    [v.entries, v.seedHash],
+    [v.entries, v.seedHash, round],
   );
+  const faces = useRef(new Map<number, HTMLElement>());
+  const spots = useRef(new Map<number, { x: number; y: number }>());
+  // Each face glides from where it stood to its new place.
+  useLayoutEffect(() => {
+    const before = spots.current;
+    const after = new Map<number, { x: number; y: number }>();
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    for (const [rank, el] of faces.current) {
+      const now = { x: el.offsetLeft, y: el.offsetTop };
+      after.set(rank, now);
+      const was = before.get(rank);
+      if (still || !was || (was.x === now.x && was.y === now.y) || !el.animate) continue;
+      el.animate([{ translate: `${was.x - now.x}px ${was.y - now.y}px` }, { translate: "0 0" }], {
+        duration: 800,
+        delay: (rank * 37) % 150,
+        easing: "cubic-bezier(0.3, 1.2, 0.5, 1)",
+        fill: "backwards",
+      });
+    }
+    spots.current = after;
+  }, [wall]);
   const n = wall.length;
   const cols = Math.max(5, Math.min(10, Math.ceil(Math.sqrt(n))));
   const rows = Math.ceil(n / cols);
@@ -397,7 +458,15 @@ function Wall(props: {
             .filter(Boolean)
             .join(" ");
           return (
-            <span key={e.rank} class={cls} title={`${num3(e.rank)} ${e.name}`}>
+            <span
+              key={e.rank}
+              ref={(el) => {
+                if (el) faces.current.set(e.rank, el);
+                else faces.current.delete(e.rank);
+              }}
+              class={cls}
+              title={`${num3(e.rank)} ${e.name}`}
+            >
               {e.avatar ? (
                 <Avatar src={e.avatar} size={28} />
               ) : (

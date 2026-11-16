@@ -342,6 +342,8 @@ function Setup(props: {
 function ListPanel(props: {
   entries: LotteryView["entries"];
   off: string[];
+  /** Those who left by themselves: only they can come back. */
+  self?: string[];
   onChange?: (off: string[]) => void;
   busy?: boolean;
   error?: string | null;
@@ -363,13 +365,14 @@ function ListPanel(props: {
         <ol class="lot-list">
           {props.entries.map((e) => {
             const out = off.includes(e.id);
+            const self = !!props.self?.includes(e.id);
             return (
               <li key={e.rank} class={out ? "out" : ""}>
                 {onChange && (
                   <input
                     type="checkbox"
                     checked={!out}
-                    disabled={props.busy}
+                    disabled={props.busy || self}
                     aria-label={t("{name} 参加", { name: e.name })}
                     onChange={() => onChange(out ? off.filter((id) => id !== e.id) : [...off, e.id])}
                   />
@@ -377,7 +380,7 @@ function ListPanel(props: {
                 <span class="lot-no">{num3(e.rank)}</span>
                 <Avatar src={e.avatar} size={24} />
                 <span>{e.name}</span>
-                {out && <span class="lot-out">{t("不参加")}</span>}
+                {out && <span class="lot-out">{self ? t("自己选择不参加") : t("不参加")}</span>}
               </li>
             );
           })}
@@ -509,6 +512,7 @@ function Current(props: {
         <ListPanel
           entries={[...v.entries, ...props.d.excluded].sort((a, b) => a.rank - b.rank)}
           off={props.d.excluded.map((e) => e.id)}
+          self={props.d.selfOut}
           onChange={open && !v.locked ? (off) => void post("exclude", { exclude: off }) : undefined}
           busy={act.busy}
           error={act.error}
