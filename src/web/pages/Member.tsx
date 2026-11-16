@@ -38,6 +38,7 @@ import { buzz } from "../native";
 import { InstallPrompt } from "../Install";
 import { PushPrompt } from "../Push";
 import { GoogleLink } from "./Account";
+import { LotteryCard } from "../Lottery";
 import { t, tk, tx } from "../i18n";
 
 /** On your own page a settled event shows where your bill stands, not the group's. */
@@ -70,6 +71,8 @@ export function Member(props: { token?: string }) {
             {m.active && !installShown && (
               <PushPrompt base={base} home={props.token ? `/m/${props.token}` : "/me"} memberId={m.id} />
             )}
+            {/* 抽奖 (Ke Li 2026-11-16): while one is under way, on top. */}
+            <LotteryCard base={base} />
             <MyEvents
               base={base}
               board={

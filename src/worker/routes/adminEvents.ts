@@ -10,6 +10,15 @@ import {
   venueOf,
 } from "../courtMap";
 import { Hono } from "hono";
+import {
+  adminLottery,
+  cancelLottery,
+  createLottery,
+  editLottery,
+  hideLottery,
+  lockLottery,
+  rehearseLottery,
+} from "../lottery";
 import { dollars, parseDollars, settle, type SettleInput } from "../../shared/settle";
 import {
   type AdminEventSummary,
@@ -291,6 +300,50 @@ adminEventRoutes.post("/court-maps/remove", async (c) => {
   const venue = venueOf(await readJson(c.req.raw));
   await removeCourtMap(c.env, venue);
   await groupAudit(c.env, c.get("actor"), "settings", null, `删除「${venue.location}」的球场图`);
+  return c.json({ ok: true });
+});
+
+// 设置 → 抽奖 (Ke Li 2026-11-16): the Owner and admins set one up, 预演 it, publish it and press 开奖.
+adminEventRoutes.get("/lottery", async (c) =>
+  c.json(await adminLottery(c.env, Number(c.req.query("size") ?? 100), can(c.get("actor").role, "owner"))),
+);
+
+adminEventRoutes.post("/lottery", async (c) => {
+  const l = await createLottery(c.env, c.get("actor"), await readJson(c.req.raw));
+  await groupAudit(c.env, c.get("actor"), "settings", null, `公布抽奖「${l.title}」（前 ${l.pool_size} 名）`);
+  sendSoon(c);
+  return c.json({ ok: true });
+});
+
+adminEventRoutes.post("/lottery/rehearse", async (c) => {
+  const r = await rehearseLottery(c.env, c.get("actor"), await readJson(c.req.raw));
+  await groupAudit(c.env, c.get("actor"), "settings", null, `预演抽奖「${r.view.title}」`);
+  sendSoon(c);
+  return c.json(r);
+});
+
+adminEventRoutes.post("/lottery/:id/edit", async (c) => {
+  await editLottery(c.env, num(c.req.param("id")), await readJson(c.req.raw));
+  await groupAudit(c.env, c.get("actor"), "settings", null, "修改抽奖");
+  return c.json({ ok: true });
+});
+
+adminEventRoutes.post("/lottery/:id/cancel", async (c) => {
+  const l = await cancelLottery(c.env, num(c.req.param("id")));
+  await groupAudit(c.env, c.get("actor"), "settings", null, `取消抽奖「${l.title}」`);
+  return c.json({ ok: true });
+});
+
+for (const locked of [true, false])
+  adminEventRoutes.post(`/lottery/:id/${locked ? "lock" : "unlock"}`, async (c) => {
+    const l = await lockLottery(c.env, num(c.req.param("id")), locked);
+    await groupAudit(c.env, c.get("actor"), "settings", null, `${locked ? "锁定" : "解锁"}抽奖「${l.title}」`);
+    return c.json({ ok: true });
+  });
+
+adminEventRoutes.post("/lottery/:id/hide", async (c) => {
+  const l = await hideLottery(c.env, num(c.req.param("id")));
+  await groupAudit(c.env, c.get("actor"), "settings", null, `从我的活动收起抽奖「${l.title}」`);
   return c.json({ ok: true });
 });
 

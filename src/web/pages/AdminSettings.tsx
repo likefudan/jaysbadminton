@@ -30,6 +30,7 @@ import { MasterDetail } from "../MasterDetail";
 import { SubBar } from "../SubBar";
 import { CourtMapsPage, CourtMapsRow } from "./AdminCourtMaps";
 import { VersionRow, VersionsPage } from "./AdminVersions";
+import { LotteryPage, LotteryRow } from "./AdminLottery";
 
 const SUBS = [
   "looks",
@@ -42,6 +43,7 @@ const SUBS = [
   "boards",
   "versions",
   "courtMaps",
+  "lottery",
 ] as const;
 type Sub = (typeof SUBS)[number];
 /** An admin's 设置 has all but 账号与安全. */
@@ -77,6 +79,15 @@ function CourtMapsSubPage(props: { base: string; back: () => void }) {
   return (
     <SubPage title={t("球场图")} back={props.back}>
       <CourtMapsPage base={props.base} />
+    </SubPage>
+  );
+}
+
+/** 设置 → 抽奖, for the Owner and admins. */
+function LotterySubPage(props: { base: string; back: () => void }) {
+  return (
+    <SubPage title={t("抽奖")} back={props.back}>
+      <LotteryPage base={props.base} />
     </SubPage>
   );
 }
@@ -247,6 +258,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
     if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
     if (sub === "versions") return <VersionsSubPage base={props.base} back={home} />;
     if (sub === "courtMaps") return <CourtMapsSubPage base={props.base} back={home} />;
+    if (sub === "lottery") return <LotterySubPage base={props.base} back={home} />;
 
     return null;
   })();
@@ -290,6 +302,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
         />
       </section>
       <CourtMapsRow current={top === "courtMaps"} onClick={() => open("courtMaps")} />
+      <LotteryRow current={top === "lottery"} onClick={() => open("lottery")} />
       <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
       <AdminGuide base={props.base} telegram={telegram} go={open} />
       <button type="button" class="button secondary block" onClick={logout}>
@@ -515,6 +528,7 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
       );
     if (sub === "versions") return <VersionsSubPage base={props.base} back={home} />;
     if (sub === "courtMaps") return <CourtMapsSubPage base={props.base} back={home} />;
+    if (sub === "lottery") return <LotterySubPage base={props.base} back={home} />;
 
     return null;
   })();
@@ -552,6 +566,7 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
         />
       </section>
       <CourtMapsRow current={top === "courtMaps"} onClick={() => open("courtMaps")} />
+      <LotteryRow current={top === "lottery"} onClick={() => open("lottery")} />
       <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
       <OrganizerGuide
         admin
