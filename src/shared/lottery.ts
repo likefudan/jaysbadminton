@@ -19,6 +19,15 @@ export const LOTTERY_PRIZE_NAME_MAX = 30;
 export const LOTTERY_TITLE_MAX = 30;
 /** 打气: taps one member can add (the button is for fun, not a contest). */
 export const LOTTERY_CHEERS_MAX = 99;
+/** 热度: the levels the group's 打气 total climbs through. */
+export const LOTTERY_HEAT = [20, 50, 100, 200, 400, 800, 1500, 3000, 6000, 10000];
+/** The level reached (from 0) and how far along the way to the next (0–1). */
+export function heatOf(cheers: number): { level: number; part: number; next: number | null } {
+  const level = LOTTERY_HEAT.filter((n) => cheers >= n).length;
+  const from = level === 0 ? 0 : LOTTERY_HEAT[level - 1]!;
+  const next = LOTTERY_HEAT[level] ?? null;
+  return { level, part: next === null ? 1 : (cheers - from) / (next - from), next };
+}
 
 /**
  * The live draw's clock, the same on every phone: draw k (from 1) starts its shuttle at
@@ -89,6 +98,8 @@ export interface LotteryEntry {
   avatar: string | null;
   /** Has the page open now (or did within LOTTERY_ONLINE_MS). Only for the look of the wall. */
   online: boolean;
+  /** 打气: how many times they have tapped, so the wall can show who is cheering. */
+  cheers: number;
 }
 
 export interface LotteryWinner {
@@ -158,4 +169,24 @@ export interface LotteryRehearsal {
     myDevices: number;
     telegram: boolean;
   };
+}
+
+/** One past 抽奖, kept for the Owner and admins (Ke Li 2026-11-16: 保留历次抽奖的记录). */
+export interface LotteryRecord {
+  id: number;
+  title: string;
+  status: "drawn" | "cancelled";
+  poolSize: number;
+  prizes: LotteryPrize[];
+  drawAt: string;
+  createdAt: string;
+  /** Who set it up. */
+  host: string | null;
+  seed: string;
+  seedHash: string;
+  /** Who took part, by number. */
+  entries: { rank: number; name: string }[];
+  /** Among the first poolSize, taken off by hand. */
+  excluded: { rank: number; name: string }[];
+  winners: (LotteryWinner & { name: string })[];
 }

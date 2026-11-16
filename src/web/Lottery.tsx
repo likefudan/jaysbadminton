@@ -8,13 +8,15 @@ import {
   drawEnd,
   drawLand,
   drawStart,
-  drawWinners,
-  sha256Hex,
+  heatOf,
 } from "../shared/lottery";
 import { api } from "./api";
 import { Avatar } from "./Avatar";
+import { StatusPill, monthDay } from "./events";
 import { Panel } from "./Panel";
-import { fmtInstant, t } from "./i18n";
+import { fmtInstant, t, weekdayOf } from "./i18n";
+import { clock } from "./Stay";
+import { toPacific } from "../shared/time";
 
 /**
  * 抽奖 (Ke Li 2026-11-16, option C 百人头像墙): the faces of everyone on the list on one wall; at
@@ -71,26 +73,30 @@ export function LotteryCard(props: { base: string }) {
   if (!res) return null;
   const l = res;
   const drawn = l.status === "drawn";
-  const line = drawn
-    ? l.seed
-      ? t("开奖结果出来了，看看谁是幸运儿")
-      : t("正在直播开奖，快来围观")
-    : t("{time} 开奖", { time: fmtInstant(l.drawAt) });
+  const line = drawn ? (l.seed ? t("开奖结果出来了") : t("正在直播开奖")) : t("抽奖");
+  const pill = l.me?.inPool ? t("你的抽奖号 {n}", { n: num3(l.me.rank ?? 0) }) : t("抽奖");
+  const when = toPacific(l.drawAt);
   return (
     <>
-      <button type="button" class="lot-card" onClick={() => setOpen(true)}>
-        <span class="lot-card-icon" aria-hidden="true">
-          {drawn && l.seed ? "🏆" : "🎉"}
-        </span>
-        <span class="lot-card-text">
-          <strong>{l.title}</strong>
-          <span>{line}</span>
-          {l.me?.inPool && <span>{t("你的抽奖号 {n}", { n: num3(l.me.rank ?? 0) })}</span>}
-        </span>
-        <span class="lot-card-go" aria-hidden="true">
-          ›
-        </span>
-      </button>
+      {/* Like an event's card (Ke Li 2026-11-16: 看起来像一次活动，用风格类似的活动卡片). */}
+      <section class="card ev-card tone-hero lot-ev">
+        <button type="button" class="ev-head lot-ev-head" onClick={() => setOpen(true)}>
+          <span class="hero-top">
+            <StatusPill cls={l.me?.inPool ? "mine" : "open"} label={pill} />
+            <span>{line}</span>
+          </span>
+          <span class="hero-date">
+            {monthDay(when.date)}
+            <small>
+              {weekdayOf(when.date)} {clock(when.time)}
+            </small>
+          </span>
+          <span class="hero-what">
+            <span aria-hidden="true">{drawn && l.seed ? "🏆" : "🎉"}</span> {l.title}
+          </span>
+          <span class="next-cta">{t("查看")}</span>
+        </button>
+      </section>
       {open && (
         <Panel title={l.title} label={l.title} onClose={close}>
           <LotteryLive base={props.base} first={l} />
@@ -114,13 +120,13 @@ function LotteryLive(props: { base: string; first: LotteryView }) {
       api<Res>(`${props.base}/lottery`)
         .then((r) => alive && r.lottery && setView(r.lottery))
         .catch(() => undefined);
-    // Each second: ask every 10 s before the draw (who is watching, 打气); every second around the
+    // Each second: ask every 4 s before the draw (who is watching, who is 打气); every second around the
     // end of the countdown, so the draw starts on time (it starts by itself, the first asking
     // records it); every 2 s while it plays, so each winner arrives before its shuttle sets off.
     const id = setInterval(() => {
       n++;
       const left = drawAt - clock();
-      const every = view.status === "drawn" ? 2 : left < 15_000 ? 1 : 10;
+      const every = view.status === "drawn" ? 2 : left < 15_000 ? 1 : 4;
       if (n % every === 0) void load();
     }, 1000);
     return () => {
@@ -131,7 +137,7 @@ function LotteryLive(props: { base: string; first: LotteryView }) {
   return <LotteryShow view={view} clock={clock} base={props.base} />;
 }
 
-/** The page itself: header, the wall, one's own number, the winners and 核对. */
+/** The page itself: the banner with one's own number, the wall, 打气, the winners. */
 export function LotteryShow(props: { view: LotteryView; clock: () => number; base?: string }) {
   const v = props.view;
   const now = props.clock();
@@ -148,18 +154,40 @@ export function LotteryShow(props: { view: LotteryView; clock: () => number; bas
       : v.winners.find((w) => now >= drawStart(drawnAt, w.drawNo) && now < drawLand(drawnAt, w.drawNo));
   const latest = landed[landed.length - 1];
   const byRank = useMemo(() => new Map(v.entries.map((e) => [e.rank, e])), [v.entries]);
+  const cheer = useCheer(v, props.base);
   return (
     <div class="lot">
       {v.rehearsal && <p class="lot-rehearsal">{t("预演 · 只有你看得到，不算数")}</p>}
       <Header v={v} now={now} live={live} finished={finished} flying={flying} latest={latest} byRank={byRank} />
-      <Wall v={v} now={now} landed={landed} flying={flying} dim={!finished && !v.rehearsal} me={v.me?.id ?? null} />
-      {!finished && !v.rehearsal && (
-        <p class="muted small lot-note">{t("灰色的头像是还没打开这一页的人，只是好玩，不影响中奖。")}</p>
-      )}
-      {v.me && <Mine v={v} base={props.base} finished={finished} />}
-      {drawnAt === null ? <Prizes v={v} /> : <Winners v={v} landed={landed} byRank={byRank} finished={finished} />}
-      <Fair v={v} finished={finished} />
+      <Wall
+        v={v}
+        now={now}
+        landed={landed}
+        flying={flying}
+        dim={!finished && !v.rehearsal}
+        me={v.me?.id ?? null}
+        pulse={cheer.taps}
+      />
+      {drawnAt === null && !v.rehearsal && <Cheer v={v} cheer={cheer} />}
+      {drawnAt !== null && <Winners v={v} landed={landed} byRank={byRank} finished={finished} />}
     </div>
+  );
+}
+
+/** One's own place, on the banner: the number in the draw, or why not this time. */
+function Ticket(props: { v: LotteryView }) {
+  const me = props.v.me;
+  if (!me) return null;
+  if (me.inPool)
+    return (
+      <p class="lot-ticket">
+        <span aria-hidden="true">🎟</span> {t("你的抽奖号 {n}", { n: num3(me.rank ?? 0) })}
+      </p>
+    );
+  return (
+    <p class="lot-ticket out">
+      {me.rank && me.rank > props.v.poolSize ? t("你是第 {n} 位入群的球友", { n: me.rank }) : t("这次你不参加抽奖")}
+    </p>
   );
 }
 
@@ -181,6 +209,7 @@ function Header(props: {
         </div>
         <h2>{t("开奖结果")}</h2>
         <p>{v.host ? t("请中奖的球友联系 {name} 领奖", { name: v.host }) : null}</p>
+        <Ticket v={v} />
       </section>
     );
   if (props.live) {
@@ -215,7 +244,7 @@ function Header(props: {
   return (
     <section class="lot-hero">
       <div class="lot-hero-icon" aria-hidden="true">
-        🎉🏸
+        🎉
       </div>
       <h2>{v.title}</h2>
       <p>{t("前 {n} 名入群的球友，抽 {k} 位幸运儿", { n: v.poolSize, k: v.draws })}</p>
@@ -232,6 +261,14 @@ function Header(props: {
         <p class="lot-soon">{t("开奖啦！")}</p>
       )}
       <p>{t("{time} 开奖", { time: fmtInstant(v.drawAt) })}</p>
+      <ul class="lot-chips">
+        {v.prizes.map((p) => (
+          <li key={p.name}>
+            <span aria-hidden="true">🏸</span> {p.name} <b>×{p.count}</b>
+          </li>
+        ))}
+      </ul>
+      <Ticket v={v} />
     </section>
   );
 }
@@ -248,23 +285,40 @@ function rng(seed: string) {
   };
 }
 
-const HOPS = 16;
+/** Rallies before the last stroke. */
+const RALLIES = 8;
+/** The last stroke, a 杀球, sets off this long before the draw lands. */
+const SMASH_MS = 380;
+
+type Stroke = "serve" | "drive" | "drop" | "smash";
 
 /**
- * Where the shuttle is during draw `w`: the faces it hops to, slower and slower, reaching the winner
- * a little before it lands, so it is there when the face lights up.
+ * Draw `w` as a rally (Ke Li 2026-11-16: 球拍在抽球，杀球，吊球让球运动): a serve from the bottom
+ * of the wall, then the shuttle is driven and dropped from face to face, slower and slower, and the
+ * last stroke smashes it onto the winner, where its head lands as the face lights up. The same on
+ * every phone: the faces and strokes come from the fingerprint.
  */
-function hopsFor(v: LotteryView, w: LotteryWinner, start: number) {
+function strokesFor(v: LotteryView, w: LotteryWinner, start: number) {
   const r = rng(`${v.seedHash}:${w.drawNo}`);
-  const span = LOTTERY_ANIM_MS * 0.85;
-  const out: { at: number; rank: number }[] = [];
-  for (let i = 0; i < HOPS; i++) {
-    const e = v.entries[Math.floor(r() * v.entries.length)];
-    out.push({ at: start + span * (i / HOPS) ** 1.7, rank: e ? e.rank : w.rank });
+  const span = LOTTERY_ANIM_MS - SMASH_MS;
+  const out: { at: number; rank: number; kind: Stroke }[] = [];
+  for (let i = 0; i < RALLIES; i++) {
+    // Never the winner before the end, never the same face twice running.
+    let rank = w.rank;
+    for (let tries = 0; tries < 8 && (rank === w.rank || rank === out[i - 1]?.rank); tries++)
+      rank = v.entries[Math.floor(r() * v.entries.length)]?.rank ?? w.rank;
+    out.push({ at: start + span * (i / RALLIES) ** 1.4, rank, kind: i === 0 ? "serve" : r() < 0.5 ? "drive" : "drop" });
   }
-  out.push({ at: start + span, rank: w.rank });
+  out.push({ at: start + span, rank: w.rank, kind: "smash" });
   return out;
 }
+
+const STROKE_NAME: Record<Stroke, () => string> = {
+  serve: () => t("发球"),
+  drive: () => t("抽球"),
+  drop: () => t("吊球"),
+  smash: () => t("杀球！"),
+};
 
 function Wall(props: {
   v: LotteryView;
@@ -273,27 +327,49 @@ function Wall(props: {
   flying?: LotteryWinner;
   dim: boolean;
   me: string | null;
+  /** One's own 打气 taps so far on this page: each makes one's own face jump at once. */
+  pulse: number;
 }) {
   const { v, now } = props;
+  const cheering = useCheering(v, props.me, props.pulse);
   const n = v.entries.length;
   const cols = Math.max(5, Math.min(10, Math.ceil(Math.sqrt(n))));
   const rows = Math.ceil(n / cols);
   const won = new Map(props.landed.map((w) => [w.rank, w]));
-  // The shuttle: where it is now and how long its hop there takes.
-  let at: { rank: number; ms: number } | null = null;
+  const cell = (rank: number) => {
+    const i = v.entries.findIndex((e) => e.rank === rank);
+    return i < 0 ? null : { col: i % cols, row: Math.floor(i / cols) };
+  };
+  const place = (c: { col: number; row: number }) => ({
+    left: `${(c.col + 0.5) * (100 / cols)}%`,
+    top: `${(c.row + 0.5) * (100 / rows)}%`,
+  });
+  // The stroke being played: whose racket hits, where the shuttle flies to, how, and for how long.
+  let at: { no: string; rank: number; kind: Stroke; ms: number; from: { col: number; row: number } } | null = null;
   if (props.flying && v.drawnAt) {
-    const hops = hopsFor(v, props.flying, drawStart(Date.parse(v.drawnAt), props.flying.drawNo));
+    const strokes = strokesFor(v, props.flying, drawStart(Date.parse(v.drawnAt), props.flying.drawNo));
     let i = 0;
-    while (i + 1 < hops.length && hops[i + 1]!.at <= now) i++;
-    at = { rank: hops[i]!.rank, ms: Math.max(80, (hops[i + 1]?.at ?? hops[i]!.at) - hops[i]!.at) };
+    while (i + 1 < strokes.length && strokes[i + 1]!.at <= now) i++;
+    const s = strokes[i]!;
+    const gap = Math.max(120, (strokes[i + 1]?.at ?? s.at + SMASH_MS) - s.at);
+    at = {
+      no: `${props.flying.drawNo}-${i}`,
+      rank: s.rank,
+      kind: s.kind,
+      ms: s.kind === "smash" ? SMASH_MS - 80 : s.kind === "drop" ? Math.min(gap * 0.85, 900) : Math.min(gap * 0.6, 450),
+      // The serve comes from under the wall.
+      from: (i > 0 && cell(strokes[i - 1]!.rank)) || { col: (cols - 1) / 2, row: rows - 0.2 },
+    };
   }
   const latest = props.landed[props.landed.length - 1];
   const just = !props.flying && latest && v.drawnAt && now - drawLand(Date.parse(v.drawnAt), latest.drawNo) < 5000;
   const target = at?.rank ?? (just ? latest.rank : null);
-  const index = target === null ? -1 : v.entries.findIndex((e) => e.rank === target);
+  const to = target === null ? null : cell(target);
+  // The head (cork) leads: the shuttle points the way it flies; landed, it stands head down.
+  const angle = at && to ? (Math.atan2(to.row - at.from.row, to.col - at.from.col) * 180) / Math.PI - 90 : 0;
   return (
     <section class="card lot-wall-card">
-      <div class="lot-wall" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      <div class={n <= 5 ? "lot-wall few" : "lot-wall"} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {v.entries.map((e) => {
           const w = won.get(e.rank);
           const cls = [
@@ -302,6 +378,7 @@ function Wall(props: {
             e.rank === target ? (at ? "hover" : "hit") : "",
             props.dim && !e.online && !w ? "away" : "",
             e.id === props.me ? "me" : "",
+            cheering.has(e.id) ? "cheer" : "",
           ]
             .filter(Boolean)
             .join(" ");
@@ -314,31 +391,39 @@ function Wall(props: {
               )}
               <small>{e.rank}</small>
               {w && <i class="lot-prize">{w.prize}</i>}
+              {cheering.has(e.id) && (
+                <i class="lot-horn" key={cheering.get(e.id)} aria-hidden="true">
+                  📣
+                </i>
+              )}
             </span>
           );
         })}
-        {index >= 0 && (
-          <span
-            class={just ? "lot-shuttle landed" : "lot-shuttle"}
-            aria-hidden="true"
-            style={{
-              left: `${((index % cols) + 0.5) * (100 / cols)}%`,
-              top: `${(Math.floor(index / cols) + 0.5) * (100 / rows)}%`,
-              transitionDuration: `${at ? Math.min(at.ms, 700) : 300}ms`,
-            }}
-          >
-            <Shuttle />
+        {at && (
+          <span class={`lot-racket k-${at.kind}`} key={`r${at.no}`} aria-hidden="true" style={place(at.from)}>
+            <Racket />
+            <b>{STROKE_NAME[at.kind]()}</b>
           </span>
         )}
-        {just && index >= 0 && (
+        {to && (
           <span
-            class="lot-burst"
+            class={just ? "lot-shuttle landed" : `lot-shuttle k-${at?.kind}`}
             aria-hidden="true"
-            style={{
-              left: `${((index % cols) + 0.5) * (100 / cols)}%`,
-              top: `${(Math.floor(index / cols) + 0.5) * (100 / rows)}%`,
-            }}
+            style={{ ...place(to), transitionDuration: `${at ? Math.round(at.ms) : 200}ms` }}
           >
+            <span
+              class="lot-arc"
+              key={`a${at?.no ?? "landed"}`}
+              style={{ animationDuration: `${Math.round(at?.ms ?? 0)}ms` }}
+            >
+              <span class="lot-rot" style={{ transform: `rotate(${angle.toFixed(1)}deg)` }}>
+                <Shuttle />
+              </span>
+            </span>
+          </span>
+        )}
+        {just && to && (
+          <span class="lot-burst" aria-hidden="true" style={place(to)}>
             {Array.from({ length: 14 }, (_, i) => (
               <i key={i} style={{ "--a": `${i * 26}deg`, "--d": `${(i % 3) * 60}ms` }} />
             ))}
@@ -349,33 +434,63 @@ function Wall(props: {
   );
 }
 
+/** Head (cork) down, at the bottom middle: that point is where the shuttle is. */
 const Shuttle = () => (
-  <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
-    <path d="M16 2 L9 18 L23 18 Z" fill="#fff" stroke="#9a948b" stroke-width="1.2" />
-    <path d="M12.5 10 L19.5 10 M11 14 L21 14 M16 2 L16 18" stroke="#c9c3ba" stroke-width="1" />
-    <ellipse cx="16" cy="19.5" rx="7.5" ry="2.2" fill="#e0483e" />
-    <path d="M10 20 Q16 31 22 20 Z" fill="#f4efe8" stroke="#9a948b" stroke-width="1.2" />
+  <svg viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
+    <path d="M24 34 L8 5 Q24 -1 40 5 Z" fill="#fff" stroke="#8d877e" stroke-width="1.6" stroke-linejoin="round" />
+    <path
+      d="M24 34 L16 4 M24 34 L24 2.5 M24 34 L32 4 M12.5 13 Q24 9 35.5 13 M17 22 Q24 19.5 31 22"
+      fill="none"
+      stroke="#bdb6ab"
+      stroke-width="1.2"
+    />
+    <rect x="16.5" y="30" width="15" height="5" rx="1.5" fill="#e0483e" />
+    <path
+      d="M17 35 H31 V38 A7 8 0 0 1 17 38 Z"
+      fill="#fbf6ee"
+      stroke="#8d877e"
+      stroke-width="1.6"
+      stroke-linejoin="round"
+    />
+  </svg>
+);
+
+/** Handle down: it swings about the end of the handle. */
+const Racket = () => (
+  <svg viewBox="0 0 40 72" width="40" height="72" aria-hidden="true">
+    <ellipse cx="20" cy="19" rx="15" ry="17.5" fill="rgba(255,255,255,0.55)" stroke="#45294a" stroke-width="3" />
+    <path
+      d="M9 12 H31 M6 19 H34 M9 26 H31 M13 4 V34 M20 2 V36 M27 4 V34"
+      stroke="#45294a"
+      stroke-width="0.8"
+      opacity="0.6"
+    />
+    <path d="M20 36.5 V56" stroke="#45294a" stroke-width="3" stroke-linecap="round" />
+    <rect x="17" y="54" width="6" height="17" rx="2.5" fill="#c9952b" />
   </svg>
 );
 
 /** 打气: taps add up on this phone and go out a second later, a few at a time. */
-function Mine(props: { v: LotteryView; base?: string; finished: boolean }) {
-  const me = props.v.me!;
+function useCheer(v: LotteryView, base?: string) {
   const [extra, setExtra] = useState(0);
+  const [taps, setTaps] = useState(0);
   const [totals, setTotals] = useState<{ cheers: number; mine: number } | null>(null);
   const pending = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mine = Math.min((totals?.mine ?? me.cheers) + extra, LOTTERY_CHEERS_MAX);
-  const all = (totals?.cheers ?? props.v.cheers) + extra;
+  // What the page was told last wins once it is newer than what 打气 answered.
+  const mine = Math.min(Math.max(totals?.mine ?? 0, v.me?.cheers ?? 0) + extra, LOTTERY_CHEERS_MAX);
+  const all = Math.max(totals?.cheers ?? 0, v.cheers) + extra;
+  const can = !!base && !!v.me && v.status === "open" && mine < LOTTERY_CHEERS_MAX;
   const tap = () => {
-    if (mine >= LOTTERY_CHEERS_MAX || !props.base) return;
+    if (!can) return;
     pending.current++;
     setExtra((x) => x + 1);
+    setTaps((x) => x + 1);
     timer.current ??= setTimeout(() => {
       const n = pending.current;
       pending.current = 0;
       timer.current = null;
-      api<{ cheers: number; mine: number }>(`${props.base}/lottery/cheer`, { n })
+      api<{ cheers: number; mine: number }>(`${base}/lottery/cheer`, { n })
         .then((r) => {
           setTotals(r);
           setExtra((x) => Math.max(0, x - n));
@@ -383,59 +498,96 @@ function Mine(props: { v: LotteryView; base?: string; finished: boolean }) {
         .catch(() => setExtra((x) => Math.max(0, x - n)));
     }, 1000);
   };
-  const open = props.v.status === "open";
-  return (
-    <section class="card lot-mine">
-      {me.inPool ? (
-        <div class="lot-mine-row">
-          <span class="lot-ball">{num3(me.rank ?? 0)}</span>
-          <span>
-            <strong>{t("你是第 {n} 位入群的球友", { n: me.rank ?? 0 })}</strong>
-            <span class="muted small">{t("抽奖号 {n} · 已在奖池里", { n: num3(me.rank ?? 0) })}</span>
-          </span>
-        </div>
-      ) : (
-        <div class="lot-mine-row">
-          <span class="lot-ball later">{me.rank ?? "–"}</span>
-          <span>
-            <strong>{me.rank ? t("你是第 {n} 位入群的球友", { n: me.rank }) : t("你还不在这次的名单里")}</strong>
-            <span class="muted small">
-              {me.rank && me.rank <= props.v.poolSize
-                ? t("这次你不参加抽奖")
-                : t("这次抽奖是前 {n} 名入群的球友", { n: props.v.poolSize })}
-            </span>
-          </span>
-        </div>
-      )}
-      {open && (
-        <button
-          type="button"
-          class="button secondary block lot-cheer"
-          onClick={tap}
-          disabled={mine >= LOTTERY_CHEERS_MAX}
-        >
-          {t("📣 打气")} <b>{all}</b>
-        </button>
-      )}
-      {open && mine > 0 && <p class="muted small">{t("你打了 {n} 次气，只是热闹，不影响中奖", { n: mine })}</p>}
-    </section>
-  );
+  return { mine, all, can, tap, taps };
 }
 
-function Prizes(props: { v: LotteryView }) {
+const CHEER_MS = 1400;
+
+/**
+ * Who is 打气 right now (Ke Li 2026-11-16: 做成有互动性的): the faces whose count went up since the
+ * page last asked, and one's own at each tap. Each jumps and sends up a 📣 for a moment. The value
+ * is a key that changes with each jump, so the animation starts again.
+ */
+function useCheering(v: LotteryView, me: string | null, pulse: number): Map<string, number> {
+  const [on, setOn] = useState<Map<string, number>>(new Map());
+  const before = useRef<Map<string, number> | null>(null);
+  const jump = (ids: string[]) => {
+    if (ids.length === 0) return;
+    const key = Date.now();
+    setOn((m) => new Map([...m, ...ids.map((id) => [id, key] as const)]));
+    setTimeout(() => setOn((m) => new Map([...m].filter(([, k]) => k !== key))), CHEER_MS);
+  };
+  useEffect(() => {
+    const was = before.current;
+    before.current = new Map(v.entries.map((e) => [e.id, e.cheers]));
+    if (was) jump(v.entries.filter((e) => e.id !== me && e.cheers > (was.get(e.id) ?? 0)).map((e) => e.id));
+  }, [v.entries]);
+  useEffect(() => {
+    if (pulse > 0 && me) jump([me]);
+  }, [pulse]);
+  return on;
+}
+
+/** 打气: the group's 热度 climbing level by level, the three who cheer most, and the button. */
+function Cheer(props: { v: LotteryView; cheer: ReturnType<typeof useCheer> }) {
+  const { v, cheer } = props;
+  const heat = heatOf(cheer.all);
+  const top = [...v.entries]
+    .filter((e) => e.cheers > 0)
+    .sort((a, b) => b.cheers - a.cheers || a.rank - b.rank)
+    .slice(0, 3);
+  // The 📣 that fly up from the button, one a tap.
+  const [flying, setFlying] = useState<number[]>([]);
+  const tap = () => {
+    if (!cheer.can) return;
+    cheer.tap();
+    const id = Date.now() + Math.random();
+    setFlying((f) => [...f, id]);
+    setTimeout(() => setFlying((f) => f.filter((x) => x !== id)), 900);
+  };
   return (
-    <section class="card">
-      <h2>{t("奖品")}</h2>
-      <ul class="lot-prizes">
-        {props.v.prizes.map((p) => (
-          <li key={p.name}>
-            <span aria-hidden="true">🏸</span>
-            <strong>{p.name}</strong>
-            <span class="muted">×{p.count}</span>
-          </li>
-        ))}
-      </ul>
-      <p class="muted small">{t("按上面的顺序一个一个抽，最后的压轴。")}</p>
+    <section class="card lot-cheer-card">
+      <div class="lot-heat-row">
+        <strong>
+          <span aria-hidden="true">🔥</span> {t("热度")} Lv.{heat.level}
+        </strong>
+        <span class="lot-heat-n">
+          <b>{cheer.all}</b>
+          {heat.next !== null && ` / ${heat.next}`}
+        </span>
+      </div>
+      <div
+        class="lot-heat"
+        role="progressbar"
+        aria-valuenow={Math.round(heat.part * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <span style={{ width: `${Math.round(heat.part * 100)}%` }} />
+      </div>
+      {top.length > 0 && (
+        <div class="lot-top">
+          <span class="lot-top-label">{t("气氛组")}</span>
+          {top.map((e) => (
+            <span key={e.id} class="lot-top-one">
+              <Avatar src={e.avatar} size={26} />
+              {e.name}
+              <b>{e.cheers}</b>
+            </span>
+          ))}
+        </div>
+      )}
+      {v.me && (
+        <button type="button" class="lot-cheer" onClick={tap} disabled={!cheer.can}>
+          {t("📣 打气")}
+          {cheer.mine > 0 && <b>×{cheer.mine}</b>}
+          {flying.map((id) => (
+            <i key={id} aria-hidden="true" style={{ "--x": `${(id % 7) * 12 - 36}px` }}>
+              📣
+            </i>
+          ))}
+        </button>
+      )}
     </section>
   );
 }
@@ -464,66 +616,6 @@ function Winners(props: {
           );
         })}
       </ol>
-    </section>
-  );
-}
-
-/** 公平公开: the fingerprint before, the seed after, and a check anyone can run on their own phone. */
-function Fair(props: { v: LotteryView; finished: boolean }) {
-  const v = props.v;
-  const [check, setCheck] = useState<"ok" | "bad" | null>(null);
-  const [list, setList] = useState(false);
-  async function verify() {
-    if (!v.seed) return;
-    const hashOk = (await sha256Hex(v.seed)) === v.seedHash;
-    const again = await drawWinners(
-      v.seed,
-      v.entries.map((e) => e.rank),
-      v.draws,
-    );
-    setCheck(hashOk && again.join() === v.winners.map((w) => w.rank).join() ? "ok" : "bad");
-  }
-  return (
-    <section class="card">
-      <h2>{t("公平公开")}</h2>
-      <p class="muted small">
-        {t(
-          "名单按入群通过的先后排好，公布时就锁定了。开奖用的随机数先封存，只公布它的指纹；开奖后公开随机数，谁都能自己算一遍，没人能事先挑人。",
-        )}
-      </p>
-      <p class="lot-code">
-        {t("指纹")} {v.seedHash.slice(0, 16)}…
-      </p>
-      {v.seed && (
-        <p class="lot-code">
-          {t("随机数")} {v.seed.slice(0, 16)}…
-        </p>
-      )}
-      {props.finished && v.seed && (
-        <button type="button" class="button secondary block" onClick={verify}>
-          {t("在我的手机上核对一遍")}
-        </button>
-      )}
-      {check === "ok" && <p class="lot-ok">{t("✓ 指纹对得上，算出来的中奖名单也一样")}</p>}
-      {check === "bad" && <p class="error">{t("✗ 对不上，请告诉群主")}</p>}
-      <button type="button" class="link-button" onClick={() => setList(true)}>
-        {t("查看完整名单（{n} 人）", { n: v.entries.length })}
-      </button>
-      {list && (
-        <Panel title={t("抽奖名单")} label={t("抽奖名单")} onClose={() => setList(false)}>
-          <section class="card">
-            <ol class="lot-list">
-              {v.entries.map((e) => (
-                <li key={e.rank}>
-                  <span class="lot-no">{num3(e.rank)}</span>
-                  <Avatar src={e.avatar} size={24} />
-                  <span>{e.name}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-        </Panel>
-      )}
     </section>
   );
 }

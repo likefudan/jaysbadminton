@@ -25,6 +25,8 @@ const entries = Array.from({ length: 100 }, (_, i) => ({
   // A few without a photo: the wall shows their first letter.
   avatar: i % 9 === 4 ? null : face(i),
   online: i % 5 !== 2,
+  // A few have been cheering.
+  cheers: i === 7 ? 40 : i === 20 ? 25 : i === 36 ? 3 : i % 11 === 0 ? 2 : 0,
 }));
 const prizes = [
   { name: "亚3", count: 3 },
@@ -53,7 +55,7 @@ const view = (over: Record<string, unknown> = {}) => ({
   entries,
   winners: [],
   draws: 5,
-  me: { id: "M037", rank: 37, inPool: true, cheers: 0 },
+  me: { id: "M037", rank: 37, inPool: true, cheers: 3 },
   watching: 81,
   cheers: 213,
   locked: false,
@@ -72,7 +74,7 @@ async function member(page: Page, lottery: () => object | null) {
   await page.route("**/api/m/tok/lottery/cheer", (r) => {
     cheers.push(r.request().postDataJSON().n);
     return r.fulfill({
-      json: { cheers: 213 + cheers.reduce((a, b) => a + b, 0), mine: cheers.reduce((a, b) => a + b, 0) },
+      json: { cheers: 213 + cheers.reduce((a, b) => a + b, 0), mine: 3 + cheers.reduce((a, b) => a + b, 0) },
     });
   });
   return cheers;
@@ -83,10 +85,17 @@ test("a member sees the 抽奖 on 我的活动, their number, and cheers", async
   await page.goto("/m/tok");
   const card = page.getByRole("button", { name: /百人庆祝抽奖/ });
   await expect(card).toContainText("你的抽奖号 037");
+  await shot(page, "lottery-0-card");
   await card.click();
   const panel = page.getByRole("dialog", { name: "百人庆祝抽奖" });
   await expect(panel).toContainText("前 100 名入群的球友，抽 5 位幸运儿");
-  await expect(panel).toContainText("你是第 37 位入群的球友");
+  await expect(panel).toContainText("你的抽奖号 037");
+  await expect(panel).toContainText("亚3 ×3");
+  // 热度 and who cheers most; no 公平公开, no lines of small print.
+  await expect(panel).toContainText("热度 Lv.4");
+  await expect(panel.locator(".lot-top")).toContainText("Ivy8");
+  await expect(panel).not.toContainText("公平公开");
+  await expect(panel).not.toContainText("不影响中奖");
   await expect(panel.locator(".lot-face")).toHaveCount(100);
   await expect(panel.locator(".lot-face.me")).toHaveCount(1);
   await shot(page, "lottery-1-lobby");
@@ -94,9 +103,12 @@ test("a member sees the 抽奖 on 我的活动, their number, and cheers", async
   await cheer.click();
   await cheer.click();
   await cheer.click();
-  await expect(cheer).toContainText("216");
+  // Their own face jumps on the wall at once; the count is theirs.
+  await expect(panel.locator(".lot-face.me.cheer")).toHaveCount(1);
+  await expect(cheer).toContainText("×6");
+  await expect(panel.locator(".lot-heat-n")).toContainText("216");
+  await shot(page, "lottery-1b-cheer");
   await expect.poll(() => cheers).toEqual([3]);
-  await panel.locator(".lot-wall").scrollIntoViewIfNeeded();
 });
 
 test("everyone watches the shuttle land on each winner, then can check the result", async ({ page }) => {
@@ -117,7 +129,9 @@ test("everyone watches the shuttle land on each winner, then can check the resul
   await expect(panel).toContainText("直播开奖中 · 81 人在看");
   await expect(panel).toContainText("第 4 / 5 次 · 黑航空");
   await expect(panel.locator(".lot-face.won")).toHaveCount(3);
-  await expect(panel.locator(".lot-shuttle")).toBeVisible();
+  await expect(panel.locator(".lot-shuttle svg")).toBeVisible();
+  // Somebody's racket is hitting it.
+  await expect(panel.locator(".lot-racket")).toHaveCount(1);
   await shot(page, "lottery-2-live");
   // It lands on Ned64.
   await expect(panel).toContainText("落在了 064 号", { timeout: 10_000 });
@@ -128,7 +142,33 @@ test("everyone watches the shuttle land on each winner, then can check the resul
   }
 });
 
-test("after the draw: the winners and a check anyone can run", async ({ page }) => {
+// For review only: a video of one whole draw (the rally, the smash, the landing), in test-results.
+const VIDEO = !!process.env.LOTTERY_VIDEO;
+test.use({ video: VIDEO ? { mode: "on", size: { width: 390, height: 844 } } : "off" });
+test.describe("for review", () => {
+  test("a video of one draw", async ({ page }) => {
+    test.skip(!VIDEO, "only with LOTTERY_VIDEO=1");
+    test.setTimeout(60_000);
+    const drawnAt = Date.now() + 3_000 - 5_000;
+    await member(page, () => {
+      const now = Date.now();
+      return view({
+        status: "drawn",
+        drawnAt: new Date(drawnAt).toISOString(),
+        host: "Jay",
+        now: new Date(now).toISOString(),
+        winners: winners.filter((w) => drawnAt + 5_000 + (w.drawNo - 1) * 15_000 <= now),
+      });
+    });
+    await page.goto("/m/tok?lottery=1");
+    const panel = page.getByRole("dialog", { name: "百人庆祝抽奖" });
+    await expect(panel.locator(".lot-face")).toHaveCount(100);
+    await expect(panel).toContainText("落在了 082 号", { timeout: 20_000 });
+    await page.waitForTimeout(3_000);
+  });
+});
+
+test("after the draw: the winners, and one's own place", async ({ page }) => {
   // A real seed, and the winners it gives for 1–100 (shared/lottery.ts drawWinners).
   const seed = "a".repeat(64);
   const hash = await sha256Hex(seed);
@@ -153,10 +193,8 @@ test("after the draw: the winners and a check anyone can run", async ({ page }) 
   await expect(panel).toContainText("开奖结果");
   await expect(panel).toContainText("请中奖的球友联系 Jay 领奖");
   await expect(panel).toContainText("你是第 113 位入群的球友");
-  await expect(panel).toContainText("这次抽奖是前 100 名入群的球友");
   await expect(panel).not.toContainText("下一站");
-  await panel.getByRole("button", { name: "在我的手机上核对一遍" }).click();
-  await expect(panel).toContainText("✓ 指纹对得上");
+  await expect(panel.locator(".lot-winners li")).toHaveCount(5);
   await shot(page, "lottery-4-result");
 });
 
@@ -176,7 +214,31 @@ async function admin(page: Page, current: () => object | null, canLock = true, e
       json: { current: current(), preview: current() ? [] : entries, excluded, members: 128, pushMembers: 64, canLock },
     }),
   );
+  await page.route(`${API}/lottery/history?*`, (r) =>
+    r.fulfill({
+      json: {
+        history: [
+          {
+            id: 7,
+            title: "中秋抽奖",
+            status: "drawn",
+            poolSize: 100,
+            prizes,
+            drawAt: "2026-09-25T03:00:00.000Z",
+            createdAt: "2026-09-20T03:00:00.000Z",
+            host: "Jay",
+            seed: "c".repeat(64),
+            seedHash: "d".repeat(64),
+            entries: entries.slice(1).map((e) => ({ rank: e.rank, name: e.name })),
+            excluded: [{ rank: 1, name: "Amy1" }],
+            winners: winners.map((w) => ({ ...w, name: entries[w.rank - 1]!.name })),
+          },
+        ],
+      },
+    }),
+  );
   await page.route(`${API}/lottery/**`, (r) => {
+    if (r.request().method() === "GET") return r.fallback();
     const url = new URL(r.request().url()).pathname;
     const body = r.request().postDataJSON();
     posts.push({ url, body });
@@ -222,6 +284,15 @@ test("设置 → 抽奖: set one up, rehearse it (only for whoever pressed), the
   await page.getByLabel("奖品名称").nth(1).fill("黑航空");
   await page.getByLabel("数量").nth(1).fill("2");
   await expect(page.getByLabel("下一站")).toHaveCount(0);
+  // 历次抽奖: who took part, the prizes, the winners and the random number.
+  await page.getByRole("button", { name: /中秋抽奖/ }).click();
+  const record = page.getByRole("dialog", { name: "中秋抽奖" });
+  await expect(record).toContainText("参加的 99 人");
+  await expect(record).toContainText("不参加的 1 人");
+  await expect(record).toContainText("c".repeat(64));
+  await expect(record.locator(".lot-winners li")).toHaveCount(5);
+  await shot(page, "lottery-9-record");
+  await record.getByRole("button", { name: /返回/ }).click();
   // Two of the first 100 won't take part.
   await page.getByRole("button", { name: "查看名单，选不参加的人" }).click();
   const list = page.getByRole("dialog", { name: "抽奖名单" });

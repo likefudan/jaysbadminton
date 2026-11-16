@@ -3,6 +3,7 @@ import {
   LOTTERY_PRIZE_ROWS,
   type LotteryAdmin,
   type LotteryPrize,
+  type LotteryRecord,
   type LotteryRehearsal,
   type LotteryView,
   checkLottery,
@@ -101,9 +102,92 @@ export function LotteryPage(props: { base: string }) {
             <Setup base={props.base} d={d} onSize={setSize} reload={reload} onRehearse={setRehearsal} />
           )}
           {rehearsal && <Rehearsal r={rehearsal} onClose={() => setRehearsal(null)} />}
+          <History base={props.base} current={d.current?.id ?? 0} />
         </>
       )}
     </Load>
+  );
+}
+
+/**
+ * 历次抽奖 (Ke Li 2026-11-16: 保留历次抽奖的记录): every one that is over, with who took part, the
+ * prizes, the winners and the random number that decided them.
+ */
+function History(props: { base: string; current: number }) {
+  // Asked again when the one under way changes (drawn, cancelled, taken off).
+  const [res] = useApi<{ history: LotteryRecord[] }>(`${props.base}/lottery/history?at=${props.current}`);
+  const [open, setOpen] = useState<LotteryRecord | null>(null);
+  if (res.state !== "ok" || res.data.history.length === 0) return null;
+  return (
+    <>
+      <Card title={t("历次抽奖")}>
+        <ul class="lot-history">
+          {res.data.history.map((r) => (
+            <li key={r.id}>
+              <button type="button" onClick={() => setOpen(r)}>
+                <span>
+                  <strong>{r.title}</strong>
+                  <span class="muted small">{fmtInstant(r.drawAt)}</span>
+                </span>
+                <span class={r.status === "drawn" ? "lot-status done" : "lot-status"}>
+                  {r.status === "drawn" ? t("中奖 {n} 人", { n: r.winners.length }) : t("已取消")}
+                </span>
+                <span class="lot-card-go" aria-hidden="true">
+                  ›
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Card>
+      {open && <RecordPanel r={open} onClose={() => setOpen(null)} />}
+    </>
+  );
+}
+
+function RecordPanel(props: { r: LotteryRecord; onClose: () => void }) {
+  const r = props.r;
+  const people = (list: LotteryRecord["entries"]) => (
+    <ol class="lot-list">
+      {list.map((e) => (
+        <li key={e.rank}>
+          <span class="lot-no">{num3(e.rank)}</span>
+          <span>{e.name}</span>
+        </li>
+      ))}
+    </ol>
+  );
+  return (
+    <Panel title={r.title} label={r.title} onClose={props.onClose}>
+      <Card title={r.status === "drawn" ? t("中奖名单") : t("已取消")}>
+        <p>
+          {fmtInstant(r.drawAt)}
+          {r.host && ` · ${r.host}`}
+        </p>
+        <p class="muted small">{r.prizes.map((p) => `${p.name} ×${p.count}`).join(t("、"))}</p>
+        {r.winners.length > 0 && (
+          <ol class="lot-winners">
+            {r.winners.map((w) => (
+              <li key={w.drawNo}>
+                <span class="lot-no">{num3(w.rank)}</span>
+                <span class="lot-name">{w.name}</span>
+                <span class="lot-tag">{w.prize}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Card>
+      <Card title={t("随机数")}>
+        <p class="lot-code">{r.seed}</p>
+        <p class="lot-code">
+          {t("指纹")} {r.seedHash}
+        </p>
+      </Card>
+      <Card title={t("参加的 {n} 人", { n: r.entries.length })}>{people(r.entries)}</Card>
+      {r.excluded.length > 0 && (
+        <Card title={t("不参加的 {n} 人", { n: r.excluded.length })}>{people(r.excluded)}</Card>
+      )}
+    </Panel>
   );
 }
 

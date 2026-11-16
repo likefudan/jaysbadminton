@@ -103,8 +103,23 @@ describe("抽奖", () => {
     const won = await env.DB.prepare("SELECT COUNT(*) AS n FROM push_outbox WHERE payload LIKE '%恭喜%'").first();
     expect(won?.n).toBe(0); // nobody here has push on; the query ran without error
 
+    // The wall shows who cheered.
+    expect(done.entries.find((e: { rank: number }) => e.rank === 2).cheers).toBe(99);
+
     expect((await ctx.admin.call(`${ctx.base}/lottery/${id}/hide`, {})).status).toBe(200);
     expect((await anon.call(`${amy.base}/lottery`)).data.lottery).toBeNull();
+    // Off members' pages, it stays in the record: who took part, the prizes, the winners, the seed.
+    const { history } = (await ctx.admin.call(`${ctx.base}/lottery/history`)).data;
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ id, status: "drawn", seed: done.seed, seedHash: done.seedHash });
+    // 打气 and who was watching are not kept once it is over.
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM lottery_watchers").first<{ n: number }>())?.n).toBe(0);
+    expect(history[0].entries.map((e: { name: string }) => e.name)).toEqual(["Jay", "Amy", "Bob", "Cat"]);
+    expect(history[0].winners.map((w: { rank: number }) => w.rank)).toEqual(
+      done.winners.map((w: { rank: number }) => w.rank),
+    );
+    expect(history[0].winners.every((w: { name: string }) => w.name)).toBe(true);
+    expect((await anon.call(`${ctx.base}/lottery/history`)).status).toBe(401);
   });
 
   it("lets the Owner lock it: nobody can change or cancel it until unlocked; it still draws on time", async () => {

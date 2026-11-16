@@ -250,6 +250,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
 
   // 设置 → 抽奖: the Owner and admins (Ke Li 2026-11-16)
   "GET /lottery": cap("group"),
+  "GET /lottery/history": cap("group"),
   "POST /lottery": cap("group"),
   "POST /lottery/rehearse": cap("group"),
   "POST /lottery/:id/edit": cap("group"),
