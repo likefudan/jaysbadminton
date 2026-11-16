@@ -343,9 +343,15 @@ function flightsFor(v: LotteryView, w: LotteryWinner, start: number) {
  * Which arrangement of the wall is up: a new one every LOTTERY_SHUFFLE_MS before the draw, one for
  * each draw from then on (changing after a winner has had their moment, before the next shuttle).
  */
+const WALL_INTRO_STEP_MS = 1500;
+
 function wallRound(v: LotteryView, now: number): string {
   if (!v.drawnAt) return v.rehearsal ? "r" : `w${Math.floor(now / LOTTERY_SHUFFLE_MS)}`;
   const drawnAt = Date.parse(v.drawnAt);
+  // The few seconds before the first shuttle: two more shuffles, so it is seen also in a 预演 or with
+  // one prize (Ke Li 2026-11-16: 预演的时候头像位置没有换), settled before the shuttle comes.
+  const intro = Math.floor((now - drawnAt) / WALL_INTRO_STEP_MS);
+  if (intro < 2) return `i${Math.max(0, intro)}`;
   let k = 1;
   while (k < v.draws && now >= drawLand(drawnAt, k) + 5000) k++;
   return `d${k}`;

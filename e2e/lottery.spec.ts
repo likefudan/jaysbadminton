@@ -360,6 +360,10 @@ test("设置 → 抽奖: set one up, rehearse it (only for whoever pressed), the
   await page.getByRole("button", { name: "预演一遍（只有你看得到）" }).first().click();
   const panel = page.getByRole("dialog", { name: "预演" });
   await expect(panel).toContainText("预演 · 只有你看得到，不算数");
+  // The faces change places before the first shuttle, in a 预演 too.
+  const order = () => panel.locator(".lot-face small").allTextContents();
+  const before = await order();
+  await expect.poll(order).not.toEqual(before);
   await expect(panel).toContainText("12 人没有头像");
   await expect(panel).toContainText("（2 人不参加）");
   await expect(panel).toContainText("预演推送已发到你的 2 台设备");
