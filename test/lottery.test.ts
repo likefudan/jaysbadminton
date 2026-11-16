@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { drawEnd, drawStart, drawWinners, sha256Hex } from "../src/shared/lottery";
+import { toPacific } from "../src/shared/time";
 import { announceResults, remindLottery } from "../src/worker/lottery";
 import { Client, approveMember, futureDate, setUpAdmin } from "./helpers";
 
@@ -29,7 +30,6 @@ const form = (over: Record<string, unknown> = {}) => ({
   ],
   drawDate: futureDate(3),
   drawTime: "20:00",
-  nextGoal: 10,
   ...over,
 });
 
@@ -66,7 +66,6 @@ describe("抽奖", () => {
     const eves = (await anon.call(`${eve!.base}/lottery`)).data.lottery;
     expect(eves.me).toMatchObject({ rank: 6, inPool: false });
     expect(eves.watching).toBe(1); // Amy is watching; Eve isn't on the list.
-    expect(eves.members).toBe(6);
 
     // 打气, capped.
     expect((await anon.call(`${amy.base}/lottery/cheer`, { n: 5 })).data).toEqual({ cheers: 5, mine: 5 });
@@ -147,6 +146,56 @@ describe("抽奖", () => {
     const real = await env.DB.prepare("SELECT seed FROM lotteries").first<{ seed: string }>();
     expect(again.view.seed).not.toBe(real?.seed);
     expect(again.view.entries).toHaveLength(4);
+  });
+
+  it("takes members off the list by hand: they keep their number, nobody takes their place", async () => {
+    const { ctx, people } = await group(["Amy", "Bob", "Cat", "Dan"]);
+    const [amy, bob, cat] = people as [(typeof people)[0], (typeof people)[0], (typeof people)[0]];
+    const ids = async () => {
+      const { results } = await env.DB.prepare("SELECT id FROM members ORDER BY id").all<{ id: string }>();
+      return results.map((r) => r.id);
+    };
+    const [, amyId, bobId, catId] = await ids();
+    // 预演 before publishing leaves them out too.
+    const r = (await ctx.admin.call(`${ctx.base}/lottery/rehearse`, form({ exclude: [bobId] }))).data;
+    expect(r.view.entries.map((e: { rank: number }) => e.rank)).toEqual([1, 2, 4]);
+    expect(r.checks).toMatchObject({ entries: 3, excluded: 1, poolSize: 4 });
+    // Not so many that the prizes outnumber who is left.
+    expect((await ctx.admin.call(`${ctx.base}/lottery`, form({ exclude: [amyId, bobId] }))).status).toBe(400);
+    expect((await ctx.admin.call(`${ctx.base}/lottery`, form({ exclude: [bobId] }))).status).toBe(200);
+    const mine = (await anon.call(`${amy.base}/lottery`)).data.lottery;
+    expect(mine.entries.map((e: { rank: number }) => e.rank)).toEqual([1, 2, 4]);
+    expect((await anon.call(`${bob.base}/lottery`)).data.lottery.me).toMatchObject({ rank: 3, inPool: false });
+    const admin = (await ctx.admin.call(`${ctx.base}/lottery`)).data;
+    expect(admin.excluded.map((e: { rank: number }) => e.rank)).toEqual([3]);
+
+    // Published, until locked: Bob back on, Cat off.
+    const id = mine.id;
+    expect((await ctx.admin.call(`${ctx.base}/lottery/${id}/exclude`, { exclude: [catId] })).status).toBe(200);
+    const after = (await anon.call(`${cat.base}/lottery`)).data.lottery;
+    expect(after.entries.map((e: { rank: number }) => e.rank)).toEqual([1, 2, 3]);
+    expect(after.me).toMatchObject({ rank: 4, inPool: false });
+    expect((await ctx.admin.call(`${ctx.base}/lottery`)).data.excluded.map((e: { id: string }) => e.id)).toEqual([
+      catId,
+    ]);
+    await ctx.admin.call(`${ctx.base}/lottery/${id}/lock`, {});
+    expect((await ctx.admin.call(`${ctx.base}/lottery/${id}/exclude`, { exclude: [] })).status).toBe(409);
+
+    // The draw is only among those taking part.
+    await env.DB.prepare("UPDATE lotteries SET draw_at = ?, drawn_at = NULL")
+      .bind(new Date(Date.now() - 1000).toISOString())
+      .run();
+    await ctx.admin.call(`${ctx.base}/lottery`);
+    const { results } = await env.DB.prepare("SELECT rank FROM lottery_winners").all<{ rank: number }>();
+    expect(results.every((w) => w.rank !== 4)).toBe(true);
+  });
+
+  it("takes any draw time still to come", async () => {
+    const { ctx } = await group(["Amy", "Bob", "Cat"]);
+    const p = toPacific(new Date(Date.now() + 90_000).toISOString());
+    expect((await ctx.admin.call(`${ctx.base}/lottery`, form({ drawDate: p.date, drawTime: p.time }))).status).toBe(
+      200,
+    );
   });
 
   it("reminds half an hour before, once", async () => {

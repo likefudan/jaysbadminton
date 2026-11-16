@@ -13,6 +13,7 @@ import { Hono } from "hono";
 import {
   adminLottery,
   cancelLottery,
+  excludeLottery,
   createLottery,
   editLottery,
   hideLottery,
@@ -303,7 +304,7 @@ adminEventRoutes.post("/court-maps/remove", async (c) => {
   return c.json({ ok: true });
 });
 
-// 设置 → 抽奖 (Ke Li 2026-11-16): the Owner and admins set one up, 预演 it, publish it and press 开奖.
+// 设置 → 抽奖 (Ke Li 2026-11-16): the Owner and admins set one up, 预演 it and publish it; it draws itself.
 adminEventRoutes.get("/lottery", async (c) =>
   c.json(await adminLottery(c.env, Number(c.req.query("size") ?? 100), can(c.get("actor").role, "owner"))),
 );
@@ -325,6 +326,12 @@ adminEventRoutes.post("/lottery/rehearse", async (c) => {
 adminEventRoutes.post("/lottery/:id/edit", async (c) => {
   await editLottery(c.env, num(c.req.param("id")), await readJson(c.req.raw));
   await groupAudit(c.env, c.get("actor"), "settings", null, "修改抽奖");
+  return c.json({ ok: true });
+});
+
+adminEventRoutes.post("/lottery/:id/exclude", async (c) => {
+  const l = await excludeLottery(c.env, num(c.req.param("id")), await readJson(c.req.raw));
+  await groupAudit(c.env, c.get("actor"), "settings", null, `修改抽奖「${l.title}」不参加的人`);
   return c.json({ ok: true });
 });
 

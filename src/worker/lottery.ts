@@ -1,5 +1,6 @@
 import {
   LOTTERY_CHEERS_MAX,
+  LOTTERY_POOL_MAX,
   LOTTERY_ONLINE_MS,
   type LotteryAdmin,
   type LotteryEntry,
@@ -36,7 +37,9 @@ import { sendToMember, sendToOwnerAndAdmins } from "./telegram";
  *
  * Who takes part: everyone let in, in the order they were let in (approved_at, then member number),
  * the Owner and admins too, and members since stopped too (they keep their place); not someone
- * still waiting for approval or removed. Publishing locks the first N.
+ * still waiting for approval or removed. Publishing locks the first N. The Owner and admins can take
+ * some of them off by hand (Ke Li 2026-11-16: 允许 opt out 一些人，手动选择), until it is locked or
+ * drawn: they keep their number but don't take part, and nobody comes in in their place.
  */
 
 const ELIGIBLE = "status != 'pending' AND deleted_at IS NULL AND approved_at IS NOT NULL";
@@ -124,6 +127,17 @@ async function previewEntries(env: Env, size: number): Promise<LotteryEntry[]> {
   return results.map((p) => toEntry(p, 0));
 }
 
+/** Those taken off the list by hand. */
+async function excludedEntries(env: Env, l: LotteryRow): Promise<LotteryEntry[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT x.rank, m.id, m.username, m.avatar, m.google_picture, NULL AS seen_at
+     FROM lottery_excluded x JOIN members m ON m.id = x.member_id WHERE x.lottery_id = ? ORDER BY x.rank`,
+  )
+    .bind(l.id)
+    .all<PersonRow>();
+  return results.map((p) => toEntry(p, 0));
+}
+
 async function winnerRows(env: Env, l: LotteryRow): Promise<LotteryWinner[]> {
   const { results } = await env.DB.prepare(
     "SELECT draw_no AS drawNo, rank, prize FROM lottery_winners WHERE lottery_id = ? ORDER BY draw_no",
@@ -138,10 +152,9 @@ const memberCount = async (env: Env) =>
 
 /** The page as everyone sees it at `at`: draws whose shuttle has not set off yet stay hidden, the seed until the last lands. */
 async function view(env: Env, l: LotteryRow, memberId: string | null, at: number): Promise<LotteryView> {
-  const [entries, winners, members, ranks, totals, mine, host] = await Promise.all([
+  const [entries, winners, ranks, totals, mine, host] = await Promise.all([
     lockedEntries(env, l, at),
     winnerRows(env, l),
-    memberCount(env),
     memberId ? ranksOf(env) : new Map<string, number>(),
     env.DB.prepare("SELECT COALESCE(SUM(cheers), 0) AS cheers FROM lottery_watchers WHERE lottery_id = ?")
       .bind(l.id)
@@ -163,7 +176,6 @@ async function view(env: Env, l: LotteryRow, memberId: string | null, at: number
     poolSize: l.pool_size,
     prizes: prizesOf(l),
     drawAt: l.draw_at,
-    nextGoal: l.next_goal,
     status: l.status === "drawn" ? "drawn" : "open",
     seedHash: l.seed_hash,
     seed: done ? l.seed : null,
@@ -176,7 +188,6 @@ async function view(env: Env, l: LotteryRow, memberId: string | null, at: number
     me: memberId
       ? { id: memberId, rank: inPool?.rank ?? ranks.get(memberId) ?? null, inPool: !!inPool, cheers: mine?.cheers ?? 0 }
       : null,
-    members,
     watching: entries.filter((e) => e.online).length,
     cheers: totals?.cheers ?? 0,
     locked: l.locked === 1,
@@ -227,7 +238,15 @@ interface LotteryInput {
   poolSize: number;
   prizes: LotteryPrize[];
   drawAt: string;
-  nextGoal: number | null;
+  /** Member ids taken off the list by hand. */
+  exclude: string[];
+}
+
+/** The member ids to take off the list, from the form. */
+function readExclude(body: Record<string, unknown>): string[] {
+  const ids = Array.isArray(body.exclude) ? body.exclude : [];
+  if (ids.length > LOTTERY_POOL_MAX || ids.some((x) => typeof x !== "string")) throw badRequest("名单有误，请刷新");
+  return [...new Set(ids as string[])];
 }
 
 /** The form's fields, checked. */
@@ -241,14 +260,11 @@ function readInput(body: Record<string, unknown>, rehearsal = false): LotteryInp
   const date = str(body.drawDate);
   const time = str(body.drawTime);
   if (!isDate(date) || !isTime(time)) throw badRequest("请填写开奖时间");
-  const goal =
-    body.nextGoal === null || body.nextGoal === "" || body.nextGoal === undefined ? null : Number(body.nextGoal);
-  if (goal !== null && (!Number.isInteger(goal) || goal <= input.poolSize || goal > 100_000))
-    throw badRequest("下一站的人数要比这次参加的人多");
   const drawAt = pacificToUtc(date, time);
-  // It starts by itself at that time: a time already past would draw at once.
-  if (!rehearsal && Date.parse(drawAt) < Date.now() + 60_000) throw badRequest("开奖时间要在现在之后");
-  return { ...input, drawAt, nextGoal: goal };
+  // It starts by itself at that time: a time already past would draw at once. Any minute still to
+  // come will do (Ke Li 2026-11-16: 3:02 is after 3:01).
+  if (!rehearsal && Date.parse(drawAt) <= Date.now()) throw badRequest("开奖时间要在现在之后");
+  return { ...input, drawAt, exclude: readExclude(body) };
 }
 
 async function pushMemberCount(env: Env): Promise<number> {
@@ -264,13 +280,14 @@ export async function adminLottery(env: Env, size: number, canLock: boolean): Pr
   const l = await shownLottery(env);
   const at = Date.now();
   const n = Number.isInteger(size) && size >= 1 && size <= 1000 ? size : 100;
-  const [current, preview, members, pushMembers] = await Promise.all([
+  const [current, preview, excluded, members, pushMembers] = await Promise.all([
     l ? view(env, l, null, at) : null,
     l ? [] : previewEntries(env, n),
+    l ? excludedEntries(env, l) : [],
     memberCount(env),
     pushMemberCount(env),
   ]);
-  return { current, preview, members, pushMembers, canLock };
+  return { current, preview, excluded, members, pushMembers, canLock };
 }
 
 const lockedError = () => new HttpError(409, "lottery_locked", "群主已锁定这个抽奖，解锁后才能修改");
@@ -324,7 +341,7 @@ export async function createLottery(env: Env, actor: Actor, body: Record<string,
   const at = now();
   const row = await env.DB.prepare(
     `INSERT INTO lotteries (title, pool_size, prizes, draw_at, next_goal, status, seed, seed_hash, created_by, created_at)
-     SELECT ?, ?, ?, ?, ?, 'open', ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM lotteries WHERE status = 'open')
+     SELECT ?, ?, ?, ?, NULL, 'open', ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM lotteries WHERE status = 'open')
      RETURNING *`,
   )
     .bind(
@@ -332,7 +349,6 @@ export async function createLottery(env: Env, actor: Actor, body: Record<string,
       input.poolSize,
       JSON.stringify(input.prizes),
       input.drawAt,
-      input.nextGoal,
       seed,
       await sha256Hex(seed),
       actor.memberId,
@@ -340,12 +356,17 @@ export async function createLottery(env: Env, actor: Actor, body: Record<string,
     )
     .first<LotteryRow>();
   if (!row) throw badRequest("已经有一个抽奖在进行，先开奖或取消它");
+  const firstN = `SELECT id, ROW_NUMBER() OVER (ORDER BY ${ORDER}) AS rank FROM members WHERE ${ELIGIBLE}`;
+  const out = JSON.stringify(input.exclude);
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO lottery_entries (lottery_id, rank, member_id)
-       SELECT ?1, rank, id FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY ${ORDER}) AS rank FROM members WHERE ${ELIGIBLE})
-       WHERE rank <= ?2`,
-    ).bind(row.id, input.poolSize),
+       SELECT ?1, rank, id FROM (${firstN}) WHERE rank <= ?2 AND id NOT IN (SELECT value FROM json_each(?3))`,
+    ).bind(row.id, input.poolSize, out),
+    env.DB.prepare(
+      `INSERT INTO lottery_excluded (lottery_id, rank, member_id)
+       SELECT ?1, rank, id FROM (${firstN}) WHERE rank <= ?2 AND id IN (SELECT value FROM json_each(?3))`,
+    ).bind(row.id, input.poolSize, out),
     // An earlier one's results come off 我的活动.
     env.DB.prepare("UPDATE lotteries SET hidden_at = ? WHERE status = 'drawn' AND hidden_at IS NULL").bind(at),
   ]);
@@ -355,6 +376,7 @@ export async function createLottery(env: Env, actor: Actor, body: Record<string,
   if ((entries?.n ?? 0) < prizeSlots(input.prizes).length) {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM lottery_entries WHERE lottery_id = ?").bind(row.id),
+      env.DB.prepare("DELETE FROM lottery_excluded WHERE lottery_id = ?").bind(row.id),
       env.DB.prepare("DELETE FROM lotteries WHERE id = ?").bind(row.id),
     ]);
     throw badRequest("奖品比参加的人还多");
@@ -368,7 +390,7 @@ export async function createLottery(env: Env, actor: Actor, body: Record<string,
   return row;
 }
 
-/** 修改: name, prizes, time and the next goal, until 开奖. The list stays as it was locked. */
+/** 修改: name, prizes and time, until 开奖. The list stays as it was locked. */
 export async function editLottery(env: Env, id: number, body: Record<string, unknown>): Promise<void> {
   const l = await lotteryById(env, id);
   if (l.status !== "open") throw statusError();
@@ -379,13 +401,51 @@ export async function editLottery(env: Env, id: number, body: Record<string, unk
     .first<{ n: number }>();
   if (prizeSlots(input.prizes).length > (entries?.n ?? 0)) throw badRequest("奖品比参加的人还多");
   const res = await env.DB.prepare(
-    `UPDATE lotteries SET title = ?1, prizes = ?2, draw_at = ?3, next_goal = ?4,
+    `UPDATE lotteries SET title = ?1, prizes = ?2, draw_at = ?3,
        reminded = CASE WHEN draw_at = ?3 THEN reminded ELSE 0 END
-     WHERE id = ?5 AND status = 'open' AND locked = 0`,
+     WHERE id = ?4 AND status = 'open' AND locked = 0`,
   )
-    .bind(input.title, JSON.stringify(input.prizes), input.drawAt, input.nextGoal, id)
+    .bind(input.title, JSON.stringify(input.prizes), input.drawAt, id)
     .run();
   if (!res.meta.changes) throw statusError();
+}
+
+/**
+ * Who of the first N doesn't take part (Ke Li 2026-11-16: 手动选择): `exclude` is the whole set
+ * after the change. Until it is locked or drawn. They keep their number; nobody takes their place.
+ */
+export async function excludeLottery(env: Env, id: number, body: Record<string, unknown>): Promise<LotteryRow> {
+  const l = await lotteryById(env, id);
+  if (l.status !== "open") throw statusError();
+  if (l.locked) throw lockedError();
+  const out = JSON.stringify(readExclude(body));
+  const left = await env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM (SELECT member_id FROM lottery_entries WHERE lottery_id = ?1
+       UNION ALL SELECT member_id FROM lottery_excluded WHERE lottery_id = ?1)
+     WHERE member_id NOT IN (SELECT value FROM json_each(?2))`,
+  )
+    .bind(id, out)
+    .first<{ n: number }>();
+  if ((left?.n ?? 0) < prizeSlots(prizesOf(l)).length) throw badRequest("奖品比参加的人还多");
+  await env.DB.batch([
+    // Back on: whoever is no longer in the set.
+    env.DB.prepare(
+      `INSERT INTO lottery_entries (lottery_id, rank, member_id) SELECT lottery_id, rank, member_id
+       FROM lottery_excluded WHERE lottery_id = ?1 AND member_id NOT IN (SELECT value FROM json_each(?2))`,
+    ).bind(id, out),
+    env.DB.prepare(
+      "DELETE FROM lottery_excluded WHERE lottery_id = ?1 AND member_id NOT IN (SELECT value FROM json_each(?2))",
+    ).bind(id, out),
+    // Off: whoever is in it.
+    env.DB.prepare(
+      `INSERT INTO lottery_excluded (lottery_id, rank, member_id) SELECT lottery_id, rank, member_id
+       FROM lottery_entries WHERE lottery_id = ?1 AND member_id IN (SELECT value FROM json_each(?2))`,
+    ).bind(id, out),
+    env.DB.prepare(
+      "DELETE FROM lottery_entries WHERE lottery_id = ?1 AND member_id IN (SELECT value FROM json_each(?2))",
+    ).bind(id, out),
+  ]);
+  return l;
 }
 
 /** The winners the seed gives for this list and these prizes. */
@@ -478,7 +538,6 @@ function wechatResults(l: LotteryRow, winners: Named[], host: string, seed: stri
     `🎉 ${l.title} 开奖结果`,
     ...winners.map((w) => `${w.prize}：${w.name}（${num3(w.rank)} 号）`),
     `恭喜！请联系 ${host} 领奖 🏸`,
-    l.next_goal ? `没抽到的朋友，我们满 ${l.next_goal} 人的时候见 👋` : "",
     `开奖前公布的指纹 ${l.seed_hash.slice(0, 8)}…，开奖数 ${seed.slice(0, 8)}…，可以在 ${origin}/me?lottery=1 核对`,
   ]
     .filter(Boolean)
@@ -591,9 +650,12 @@ export async function rehearseLottery(
   const l = shown?.status === "open" ? shown : null;
   const at = Date.now();
   const input = l
-    ? { title: l.title, poolSize: l.pool_size, prizes: prizesOf(l), drawAt: l.draw_at, nextGoal: l.next_goal }
+    ? { title: l.title, poolSize: l.pool_size, prizes: prizesOf(l), drawAt: l.draw_at, exclude: [] }
     : readInput(body, true);
-  const entries = l ? await lockedEntries(env, l, at) : await previewEntries(env, input.poolSize);
+  const off = new Set(input.exclude);
+  const first = l ? [] : await previewEntries(env, input.poolSize);
+  const entries = l ? await lockedEntries(env, l, at) : first.filter((e) => !off.has(e.id));
+  const excluded = l ? (await excludedEntries(env, l)).length : first.length - entries.length;
   if (entries.length < prizeSlots(input.prizes).length) throw badRequest("奖品比参加的人还多");
   const seed = newSeed();
   const winners = await winnersFor(
@@ -607,7 +669,7 @@ export async function rehearseLottery(
     pool_size: input.poolSize,
     prizes: JSON.stringify(input.prizes),
     draw_at: input.drawAt,
-    next_goal: input.nextGoal,
+    next_goal: null,
     status: "drawn",
     seed,
     seed_hash: await sha256Hex(seed),
@@ -627,8 +689,7 @@ export async function rehearseLottery(
     name: byRank.get(w.rank)?.name ?? "",
     memberId: byRank.get(w.rank)?.id ?? "",
   }));
-  const [members, pushMembers, devices] = await Promise.all([
-    memberCount(env),
+  const [pushMembers, devices] = await Promise.all([
     pushMemberCount(env),
     actor.memberId
       ? queuePush(
@@ -657,7 +718,6 @@ export async function rehearseLottery(
       poolSize: input.poolSize,
       prizes: input.prizes,
       drawAt: input.drawAt,
-      nextGoal: input.nextGoal,
       status: "drawn",
       seedHash: fake.seed_hash,
       seed,
@@ -669,7 +729,6 @@ export async function rehearseLottery(
       winners,
       draws: winners.length,
       me: null,
-      members,
       watching: entries.length,
       cheers: 0,
       locked: false,
@@ -677,6 +736,7 @@ export async function rehearseLottery(
     },
     checks: {
       entries: entries.length,
+      excluded,
       poolSize: input.poolSize,
       noAvatar: entries.filter((e) => !e.avatar).length,
       pushMembers,

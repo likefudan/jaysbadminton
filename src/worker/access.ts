@@ -253,6 +253,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "POST /lottery": cap("group"),
   "POST /lottery/rehearse": cap("group"),
   "POST /lottery/:id/edit": cap("group"),
+  "POST /lottery/:id/exclude": cap("group"),
   "POST /lottery/:id/cancel": cap("group"),
   "POST /lottery/:id/hide": cap("group"),
   // 锁定 / 解锁: the Owner only (Ke Li 2026-11-16)

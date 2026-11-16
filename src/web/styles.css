@@ -7516,6 +7516,21 @@ html[data-nav="in"]::view-transition-new(root) {
 .lot-winners li.wait {
   color: var(--faint);
 }
+.lot-list input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--acc);
+}
+.lot-list li.out > :not(input):not(.lot-out) {
+  opacity: 0.45;
+}
+.lot-out {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
 .lot-no {
   width: 34px;
   color: var(--muted);
@@ -7543,25 +7558,6 @@ html[data-nav="in"]::view-transition-new(root) {
 .lot-winners li.wait .lot-tag {
   background: var(--surface-2);
   color: var(--faint);
-}
-.lot-goal {
-  margin: 4px 0;
-  color: var(--muted);
-}
-.lot-goal b {
-  color: var(--text);
-  font-size: 20px;
-}
-.lot-bar {
-  height: 10px;
-  overflow: hidden;
-  border-radius: 5px;
-  background: var(--surface-2);
-}
-.lot-bar span {
-  display: block;
-  height: 100%;
-  background: var(--acc);
 }
 .lot-code {
   margin: 6px 0;

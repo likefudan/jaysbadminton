@@ -13,6 +13,14 @@ const SWITCH = "offline-on"; // keep in step with sw.js
 export function startOffline() {
   if (!("serviceWorker" in navigator) || (navigator.webdriver && !(window as { offlineTest?: boolean }).offlineTest))
     return;
+  // sw.js showed the page it had kept (the network was slow), and the site has a newer one since:
+  // open again on it, at once, before anything is typed (Ke Li 2026-11-16: 抽奖菜单有时候不显示).
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    const old = (e.data as { newPage?: string } | null)?.newPage;
+    const mine = document.querySelector('script[type="module"][src]')?.getAttribute("src");
+    if (old && old === mine && performance.now() < 60_000) location.reload();
+  });
+  navigator.serviceWorker.startMessages();
   addEventListener("load", async () => {
     try {
       // sw.js keeps nothing until told to, here and (when it starts up later) by this mark.
