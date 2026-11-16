@@ -326,12 +326,22 @@ function Wall(props: {
 }) {
   const { v, now } = props;
   const cheering = useCheering(v, props.me, props.pulse);
-  const n = v.entries.length;
+  // Not in number order (Ke Li 2026-11-16: 打乱更好看): each face gets a place from the fingerprint and
+  // its own number, the same on every phone, and it keeps it when someone else is taken off the list.
+  const wall = useMemo(
+    () =>
+      v.entries
+        .map((e) => ({ e, key: rng(`${v.seedHash}:wall:${e.rank}`)() }))
+        .sort((a, b) => a.key - b.key || a.e.rank - b.e.rank)
+        .map((x) => x.e),
+    [v.entries, v.seedHash],
+  );
+  const n = wall.length;
   const cols = Math.max(5, Math.min(10, Math.ceil(Math.sqrt(n))));
   const rows = Math.ceil(n / cols);
   const won = new Map(props.landed.map((w) => [w.rank, w]));
   const cell = (rank: number) => {
-    const i = v.entries.findIndex((e) => e.rank === rank);
+    const i = wall.findIndex((e) => e.rank === rank);
     return i < 0 ? null : { col: i % cols, row: Math.floor(i / cols) };
   };
   const place = (c: { col: number; row: number }) => ({
@@ -373,7 +383,7 @@ function Wall(props: {
   return (
     <section class="card lot-wall-card">
       <div class={n <= 5 ? "lot-wall few" : "lot-wall"} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-        {v.entries.map((e) => {
+        {wall.map((e) => {
           const w = won.get(e.rank);
           const cls = [
             "lot-face",
