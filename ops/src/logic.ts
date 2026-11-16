@@ -187,7 +187,9 @@ function stepOf(name: string, before: number): number {
   return before;
 }
 
-const TESTS = ["check", "unit-2", "e2e", "e2e-2", "e2e-3"];
+/** The test jobs: the gates `check` and `e2e`, their parts (`lint`, `unit (1/4)`, `e2e (2/5)`), and the
+ * jobs of older releases (`unit-2`, `e2e-2`, `e2e-3`). The gates appear only once their parts are done. */
+const isTest = (name: string) => /^(check|lint|unit-2|e2e|e2e-[23])$|^(unit|e2e) \(\d+\/\d+\)$/.test(name);
 const jobOf = (id: string) => (id === MAIN_SITE ? "deploy-production" : `deploy-sites (${id})`);
 
 /**
@@ -195,7 +197,7 @@ const jobOf = (id: string) => (id === MAIN_SITE ? "deploy-production" : `deploy-
  * the site's own job (Jay's goes first; the others wait for it when it is chosen too).
  */
 export function progressOf(jobs: Job[], chosen: string[]): Record<string, SiteProgress> {
-  const tests = jobs.filter((j) => TESTS.includes(j.name));
+  const tests = jobs.filter((j) => isTest(j.name));
   const testsFailed = tests.some((j) => j.conclusion === "failure" || j.conclusion === "cancelled");
   const testsDone = tests.every((j) => j.status === "completed" && j.conclusion !== "failure");
   const out: Record<string, SiteProgress> = {};
