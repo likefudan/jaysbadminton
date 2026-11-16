@@ -285,40 +285,34 @@ function rng(seed: string) {
   };
 }
 
-/** Rallies before the last stroke. */
-const RALLIES = 8;
-/** The last stroke, a 杀球, sets off this long before the draw lands. */
-const SMASH_MS = 380;
-
-type Stroke = "serve" | "drive" | "drop" | "smash";
+/** How many rackets hit the shuttle before it lands (Ke Li 2026-11-16: 可以打十拍). */
+const HITS = 10;
 
 /**
- * Draw `w` as a rally (Ke Li 2026-11-16: 球拍在抽球，杀球，吊球让球运动): a serve from the bottom
- * of the wall, then the shuttle is driven and dropped from face to face, slower and slower, and the
- * last stroke smashes it onto the winner, where its head lands as the face lights up. The same on
- * every phone: the faces and strokes come from the fingerprint.
+ * Draw `w` as a rally (Ke Li 2026-11-16): the shuttle comes down on someone's head, their face grows,
+ * a racket comes out and whacks it away to the next head, ten times; where the tenth sends it, it
+ * lands, head first, as that face lights up: the winner. The same on every phone: the faces come
+ * from the fingerprint. Flight i sets off at `at` and ends when the next begins (the last at the
+ * landing).
  */
-function strokesFor(v: LotteryView, w: LotteryWinner, start: number) {
+function flightsFor(v: LotteryView, w: LotteryWinner, start: number) {
   const r = rng(`${v.seedHash}:${w.drawNo}`);
-  const span = LOTTERY_ANIM_MS - SMASH_MS;
-  const out: { at: number; rank: number; kind: Stroke }[] = [];
-  for (let i = 0; i < RALLIES; i++) {
-    // Never the winner before the end, never the same face twice running.
+  const out: { at: number; rank: number; high: boolean }[] = [];
+  for (let i = 0; i <= HITS; i++) {
+    // The winner only at the end, never the same face twice running.
     let rank = w.rank;
-    for (let tries = 0; tries < 8 && (rank === w.rank || rank === out[i - 1]?.rank); tries++)
-      rank = v.entries[Math.floor(r() * v.entries.length)]?.rank ?? w.rank;
-    out.push({ at: start + span * (i / RALLIES) ** 1.4, rank, kind: i === 0 ? "serve" : r() < 0.5 ? "drive" : "drop" });
+    if (i < HITS)
+      for (let tries = 0; tries < 8 && (rank === w.rank || rank === out[i - 1]?.rank); tries++)
+        rank = v.entries[Math.floor(r() * v.entries.length)]?.rank ?? w.rank;
+    // A little slower each time; a high one or a flat one.
+    out.push({
+      at: start + LOTTERY_ANIM_MS * (i / (HITS + 1)) ** 1.15,
+      rank,
+      high: i === 0 || i === HITS || r() < 0.5,
+    });
   }
-  out.push({ at: start + span, rank: w.rank, kind: "smash" });
   return out;
 }
-
-const STROKE_NAME: Record<Stroke, () => string> = {
-  serve: () => t("发球"),
-  drive: () => t("抽球"),
-  drop: () => t("吊球"),
-  smash: () => t("杀球！"),
-};
 
 function Wall(props: {
   v: LotteryView;
@@ -344,21 +338,30 @@ function Wall(props: {
     left: `${(c.col + 0.5) * (100 / cols)}%`,
     top: `${(c.row + 0.5) * (100 / rows)}%`,
   });
-  // The stroke being played: whose racket hits, where the shuttle flies to, how, and for how long.
-  let at: { no: string; rank: number; kind: Stroke; ms: number; from: { col: number; row: number } } | null = null;
+  // The flight under way: where the shuttle is going, for how long, and who just hit it there.
+  let at: {
+    no: string;
+    rank: number;
+    high: boolean;
+    ms: number;
+    hitter: number | null;
+    from: { col: number; row: number };
+  } | null = null;
   if (props.flying && v.drawnAt) {
-    const strokes = strokesFor(v, props.flying, drawStart(Date.parse(v.drawnAt), props.flying.drawNo));
+    const start = drawStart(Date.parse(v.drawnAt), props.flying.drawNo);
+    const flights = flightsFor(v, props.flying, start);
     let i = 0;
-    while (i + 1 < strokes.length && strokes[i + 1]!.at <= now) i++;
-    const s = strokes[i]!;
-    const gap = Math.max(120, (strokes[i + 1]?.at ?? s.at + SMASH_MS) - s.at);
+    while (i + 1 < flights.length && flights[i + 1]!.at <= now) i++;
+    const f = flights[i]!;
+    const hitter = i > 0 ? flights[i - 1]!.rank : null;
     at = {
       no: `${props.flying.drawNo}-${i}`,
-      rank: s.rank,
-      kind: s.kind,
-      ms: s.kind === "smash" ? SMASH_MS - 80 : s.kind === "drop" ? Math.min(gap * 0.85, 900) : Math.min(gap * 0.6, 450),
-      // The serve comes from under the wall.
-      from: (i > 0 && cell(strokes[i - 1]!.rank)) || { col: (cols - 1) / 2, row: rows - 0.2 },
+      rank: f.rank,
+      high: f.high,
+      ms: Math.max(200, (flights[i + 1]?.at ?? start + LOTTERY_ANIM_MS) - f.at),
+      hitter,
+      // The first comes down from above the wall.
+      from: (hitter !== null && cell(hitter)) || { col: (cols - 1) / 2, row: -1.5 },
     };
   }
   const latest = props.landed[props.landed.length - 1];
@@ -376,6 +379,7 @@ function Wall(props: {
             "lot-face",
             w ? "won" : "",
             e.rank === target ? (at ? "hover" : "hit") : "",
+            e.rank === at?.hitter ? "whack" : "",
             props.dim && !e.online && !w ? "away" : "",
             e.id === props.me ? "me" : "",
             cheering.has(e.id) ? "cheer" : "",
@@ -399,15 +403,14 @@ function Wall(props: {
             </span>
           );
         })}
-        {at && (
-          <span class={`lot-racket k-${at.kind}`} key={`r${at.no}`} aria-hidden="true" style={place(at.from)}>
+        {at && at.hitter !== null && (
+          <span class="lot-racket" key={`r${at.no}`} aria-hidden="true" style={place(at.from)}>
             <Racket />
-            <b>{STROKE_NAME[at.kind]()}</b>
           </span>
         )}
         {to && (
           <span
-            class={just ? "lot-shuttle landed" : `lot-shuttle k-${at?.kind}`}
+            class={just ? "lot-shuttle landed" : at?.high ? "lot-shuttle high" : "lot-shuttle"}
             aria-hidden="true"
             style={{ ...place(to), transitionDuration: `${at ? Math.round(at.ms) : 200}ms` }}
           >
