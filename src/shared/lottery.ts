@@ -106,8 +106,6 @@ export interface LotteryView {
   prizes: LotteryPrize[];
   /** The time announced. */
   drawAt: string;
-  /** 下一站: the member count of the next one (满 200 见), or null. */
-  nextGoal: number | null;
   status: "open" | "drawn";
   seedHash: string;
   /** Shown once every draw has landed. */
@@ -125,8 +123,6 @@ export interface LotteryView {
   draws: number;
   /** The member looking; null on the 管理页. rank: their place among all members let in. */
   me: { id: string; rank: number | null; inPool: boolean; cheers: number } | null;
-  /** Members let in so far (for 下一站). */
-  members: number;
   watching: number;
   cheers: number;
   /** The Owner locked it: nobody can change or cancel it until they unlock it. */
@@ -137,8 +133,10 @@ export interface LotteryView {
 export interface LotteryAdmin {
   /** The 抽奖 published or drawn (not yet taken off), as members see it. */
   current: LotteryView | null;
-  /** Without one: the list publishing would lock now. */
+  /** Without one: the list publishing would lock now (the first N, before any are taken off). */
   preview: LotteryEntry[];
+  /** With one: those among the first N taken off by hand, who don't take part. */
+  excluded: LotteryEntry[];
   members: number;
   /** Members with push on, who get the notices. */
   pushMembers: number;
@@ -149,7 +147,10 @@ export interface LotteryAdmin {
 export interface LotteryRehearsal {
   view: LotteryView;
   checks: {
+    /** Taking part. */
     entries: number;
+    /** Among the first poolSize, taken off by hand. */
+    excluded: number;
     poolSize: number;
     noAvatar: number;
     pushMembers: number;

@@ -131,7 +131,7 @@ function LotteryLive(props: { base: string; first: LotteryView }) {
   return <LotteryShow view={view} clock={clock} base={props.base} />;
 }
 
-/** The page itself: header, the wall, one's own number, the winners, 下一站 and 核对. */
+/** The page itself: header, the wall, one's own number, the winners and 核对. */
 export function LotteryShow(props: { view: LotteryView; clock: () => number; base?: string }) {
   const v = props.view;
   const now = props.clock();
@@ -158,7 +158,6 @@ export function LotteryShow(props: { view: LotteryView; clock: () => number; bas
       )}
       {v.me && <Mine v={v} base={props.base} finished={finished} />}
       {drawnAt === null ? <Prizes v={v} /> : <Winners v={v} landed={landed} byRank={byRank} finished={finished} />}
-      {finished && v.nextGoal && <NextGoal v={v} />}
       <Fair v={v} finished={finished} />
     </div>
   );
@@ -219,7 +218,7 @@ function Header(props: {
         🎉🏸
       </div>
       <h2>{v.title}</h2>
-      <p>{t("前 {n} 名入群的球友，抽 {k} 位幸运儿", { n: v.entries.length, k: v.draws })}</p>
+      <p>{t("前 {n} 名入群的球友，抽 {k} 位幸运儿", { n: v.poolSize, k: v.draws })}</p>
       {left > 0 ? (
         <div class="lot-count" role="timer">
           {parts.map((p, i) => (
@@ -401,12 +400,9 @@ function Mine(props: { v: LotteryView; base?: string; finished: boolean }) {
           <span>
             <strong>{me.rank ? t("你是第 {n} 位入群的球友", { n: me.rank }) : t("你还不在这次的名单里")}</strong>
             <span class="muted small">
-              {props.v.nextGoal
-                ? t("这次是前 {n} 名，我们满 {goal} 人的时候见 👋", {
-                    n: props.v.entries.length,
-                    goal: props.v.nextGoal,
-                  })
-                : t("这次是前 {n} 名，下次见 👋", { n: props.v.entries.length })}
+              {me.rank && me.rank <= props.v.poolSize
+                ? t("这次你不参加抽奖")
+                : t("这次抽奖是前 {n} 名入群的球友", { n: props.v.poolSize })}
             </span>
           </span>
         </div>
@@ -468,26 +464,6 @@ function Winners(props: {
           );
         })}
       </ol>
-    </section>
-  );
-}
-
-function NextGoal(props: { v: LotteryView }) {
-  const v = props.v;
-  const goal = v.nextGoal!;
-  const pct = Math.min(100, Math.round((v.members / goal) * 100));
-  return (
-    <section class="card">
-      <h2>{t("没抽到？下一站 {goal} 人", { goal })}</h2>
-      <p class="lot-goal">
-        <b>{v.members}</b> / {t("{goal} 位球友", { goal })}
-      </p>
-      <div class="lot-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <span style={{ width: `${pct}%` }} />
-      </div>
-      <p class="muted small">
-        {t("第 {n} 名和之后的朋友，我们满 {goal} 人的时候见 👋", { n: v.entries.length + 1, goal })}
-      </p>
     </section>
   );
 }

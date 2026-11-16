@@ -55,6 +55,24 @@ async function keepShell(res) {
   await cache.put(SHELL_KEY, new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } }));
 }
 
+const scriptOf = (html) => /<script[^>]*type="module"[^>]*\bsrc="([^"]+)"/.exec(html)?.[1] ?? null;
+
+/**
+ * The page came slowly, so the one kept was shown: right after a release that is the old version,
+ * without what is new (Ke Li 2026-11-16: 设置里的抽奖菜单有时候不显示). Once the real one is in,
+ * keep it, and if its code is not the code shown, tell the page, which opens again on the new.
+ */
+async function newerPage(copy, kept) {
+  const res = await copy;
+  if (!kept) return keepShell(res);
+  const old = await (await caches.open(SHELL)).match(SHELL_KEY);
+  const before = old ? scriptOf(await old.text()) : null;
+  const now = scriptOf(await res.clone().text());
+  await keepShell(res);
+  if (!before || !now || before === now) return;
+  for (const client of await self.clients.matchAll({ type: "window" })) client.postMessage({ newPage: before });
+}
+
 async function keepStatic(req, res) {
   if (!res.ok) return;
   const cache = await caches.open(STATIC);
@@ -93,8 +111,20 @@ self.addEventListener("fetch", (event) => {
         await switched;
         const fetched = fetch(req);
         if (!on) return fetched;
-        event.waitUntil(fetched.then((res) => keepShell(res.clone())).catch(() => {}));
-        return inTime(fetched, PAGE_WAIT_MS, async () => (await caches.open(SHELL)).match(SHELL_KEY));
+        const copy = fetched.then((res) => res.clone());
+        let kept = false;
+        const shown = inTime(fetched, PAGE_WAIT_MS, async () => {
+          const page = await (await caches.open(SHELL)).match(SHELL_KEY);
+          kept = !!page;
+          return page;
+        });
+        event.waitUntil(
+          shown
+            .catch(() => {})
+            .then(() => newerPage(copy, kept))
+            .catch(() => {}),
+        );
+        return shown;
       })(),
     );
   } else if (!on) {

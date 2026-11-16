@@ -55,7 +55,6 @@ interface FormValue {
   prizes: { name: string; count: string }[];
   drawDate: string;
   drawTime: string;
-  nextGoal: string;
 }
 
 /** Tomorrow in Pacific time: the draw starts by itself, so the form starts on a time ahead. */
@@ -67,7 +66,6 @@ const blank = (): FormValue => ({
   prizes: [{ name: "", count: "1" }],
   drawDate: tomorrow(),
   drawTime: "20:00",
-  nextGoal: "200",
 });
 
 const fromView = (v: LotteryView): FormValue => {
@@ -78,7 +76,6 @@ const fromView = (v: LotteryView): FormValue => {
     prizes: v.prizes.map((x) => ({ name: x.name, count: String(x.count) })),
     drawDate: p.date,
     drawTime: p.time,
-    nextGoal: v.nextGoal ? String(v.nextGoal) : "",
   };
 };
 
@@ -88,7 +85,6 @@ const toBody = (f: FormValue) => ({
   prizes: f.prizes.map((p) => ({ name: p.name.trim(), count: Number(p.count) })) as LotteryPrize[],
   drawDate: f.drawDate,
   drawTime: f.drawTime,
-  nextGoal: f.nextGoal.trim() ? Number(f.nextGoal) : null,
 });
 
 export function LotteryPage(props: { base: string }) {
@@ -178,13 +174,6 @@ function LotteryForm(props: {
         <Field label={t("开奖日期")} type="date" value={f.drawDate} onInput={(v) => set({ drawDate: v })} />
         <Field label={t("开奖时间")} type="time" value={f.drawTime} onInput={(v) => set({ drawTime: v })} />
       </div>
-      <Field
-        label={t("下一站：满多少人再抽（可不填）")}
-        type="number"
-        value={f.nextGoal}
-        onInput={(v) => set({ nextGoal: v })}
-        hint={t("没进名单的球友会看到「我们满 200 人的时候见」。")}
-      />
     </>
   );
 }
@@ -199,6 +188,8 @@ function Setup(props: {
 }) {
   const [f, setF] = useState<FormValue>(blank);
   const [list, setList] = useState(false);
+  // Those among the first N who won't take part (Ke Li 2026-11-16: 手动选择).
+  const [off, setOff] = useState<string[]>([]);
   const act = useAction();
   const n = Number(f.poolSize);
   // The preview follows the size typed, a moment after typing stops.
@@ -211,7 +202,7 @@ function Setup(props: {
     const b = toBody(f);
     const err = checkLottery(b);
     if (err) throw new Error(tm(err));
-    return b;
+    return { ...b, exclude: off };
   };
   const rehearse = async () => {
     const r = await act.run(() => api<LotteryRehearsal>(`${props.base}/lottery/rehearse`, check()));
@@ -221,7 +212,9 @@ function Setup(props: {
     if (!confirm(t("公布后名单就锁定了，大家会收到推送。确定公布吗？"))) return;
     if (await act.run(() => api(`${props.base}/lottery`, check()))) props.reload();
   };
-  const preview = props.d.preview;
+  const all = props.d.preview;
+  const preview = all.filter((e) => !off.includes(e.id));
+  const out = all.length - preview.length;
   return (
     <>
       <Card title={t("新的抽奖")}>
@@ -229,8 +222,9 @@ function Setup(props: {
       </Card>
       <Card title={t("名单（公布时锁定）")}>
         <p>
-          {t("现在的前 {n} 名：{k} 人", { n: Number.isInteger(n) ? n : 0, k: preview.length })}
-          {preview.length < n && <span class="muted"> {t("（群里一共只有 {k} 人）", { k: props.d.members })}</span>}
+          {t("现在的前 {n} 名：{k} 人", { n: Number.isInteger(n) ? n : 0, k: all.length })}
+          {all.length < n && <span class="muted"> {t("（群里一共只有 {k} 人）", { k: props.d.members })}</span>}
+          {out > 0 && <span>{t("，去掉 {x} 人，{k} 人参加", { x: out, k: preview.length })}</span>}
         </p>
         <div class="lot-faces">
           {preview.slice(0, 12).map((e) => (
@@ -239,7 +233,7 @@ function Setup(props: {
           {preview.length > 12 && <span class="muted small">+{preview.length - 12}</span>}
         </div>
         <button type="button" class="link-button" onClick={() => setList(true)}>
-          {t("查看完整名单（{n} 人）", { n: preview.length })}
+          {t("查看名单，选不参加的人")}
         </button>
         <p class="muted small">
           {t("开了推送的成员：{n} 人。公布、开奖前半小时和开奖时会推送给他们。", { n: props.d.pushMembers })}
@@ -252,23 +246,57 @@ function Setup(props: {
       <button type="button" class="button block" disabled={act.busy} onClick={publish}>
         {t("公布抽奖")}
       </button>
-      {list && <ListPanel entries={preview} onClose={() => setList(false)} />}
+      {list && <ListPanel entries={all} off={off} onChange={setOff} onClose={() => setList(false)} />}
     </>
   );
 }
 
-function ListPanel(props: { entries: LotteryView["entries"]; onClose: () => void }) {
+/**
+ * The list, and who of it won't take part: ticked off by hand while it can still change (before
+ * publishing, or published and not locked); afterwards only to look at.
+ */
+function ListPanel(props: {
+  entries: LotteryView["entries"];
+  off: string[];
+  onChange?: (off: string[]) => void;
+  busy?: boolean;
+  error?: string | null;
+  onClose: () => void;
+}) {
+  const { off, onChange } = props;
+  const taking = props.entries.length - props.entries.filter((e) => off.includes(e.id)).length;
   return (
     <Panel title={t("抽奖名单")} label={t("抽奖名单")} onClose={props.onClose}>
       <section class="card">
+        <p>
+          {t("{k} 人参加", { k: taking })}
+          {taking < props.entries.length && (
+            <span class="muted"> {t("· {x} 人不参加", { x: props.entries.length - taking })}</span>
+          )}
+        </p>
+        {onChange && <p class="muted small">{t("去掉勾的人不参加抽奖，号码不变，也不会有别人补上。")}</p>}
+        {props.error && <p class="error">{props.error}</p>}
         <ol class="lot-list">
-          {props.entries.map((e) => (
-            <li key={e.rank}>
-              <span class="lot-no">{num3(e.rank)}</span>
-              <Avatar src={e.avatar} size={24} />
-              <span>{e.name}</span>
-            </li>
-          ))}
+          {props.entries.map((e) => {
+            const out = off.includes(e.id);
+            return (
+              <li key={e.rank} class={out ? "out" : ""}>
+                {onChange && (
+                  <input
+                    type="checkbox"
+                    checked={!out}
+                    disabled={props.busy}
+                    aria-label={t("{name} 参加", { name: e.name })}
+                    onChange={() => onChange(out ? off.filter((id) => id !== e.id) : [...off, e.id])}
+                  />
+                )}
+                <span class="lot-no">{num3(e.rank)}</span>
+                <Avatar src={e.avatar} size={24} />
+                <span>{e.name}</span>
+                {out && <span class="lot-out">{t("不参加")}</span>}
+              </li>
+            );
+          })}
         </ol>
       </section>
     </Panel>
@@ -314,13 +342,14 @@ function Current(props: {
         </p>
         <p class="muted small">
           {t("名单 {n} 人 · 奖品 {k} 份 · {w} 人在看", { n: v.entries.length, k: v.draws, w: v.watching })}
+          {props.d.excluded.length > 0 && t(" · {x} 人不参加", { x: props.d.excluded.length })}
         </p>
         <p class="muted small">{v.prizes.map((p) => `${p.name} ×${p.count}`).join(t("、"))}</p>
         <p class="lot-code">
           {t("指纹")} {v.seedHash.slice(0, 16)}…
         </p>
         <button type="button" class="link-button" onClick={() => setList(true)}>
-          {t("查看完整名单（{n} 人）", { n: v.entries.length })}
+          {open && !v.locked ? t("查看名单，选不参加的人") : t("查看完整名单（{n} 人）", { n: v.entries.length })}
         </button>
       </Card>
       {act.error && <p class="error">{act.error}</p>}
@@ -392,7 +421,16 @@ function Current(props: {
         </Panel>
       )}
       {watch && <Watch base={props.base} first={v} onClose={() => setWatch(false)} />}
-      {list && <ListPanel entries={v.entries} onClose={() => setList(false)} />}
+      {list && (
+        <ListPanel
+          entries={[...v.entries, ...props.d.excluded].sort((a, b) => a.rank - b.rank)}
+          off={props.d.excluded.map((e) => e.id)}
+          onChange={open && !v.locked ? (off) => void post("exclude", { exclude: off }) : undefined}
+          busy={act.busy}
+          error={act.error}
+          onClose={() => setList(false)}
+        />
+      )}
     </>
   );
 }
@@ -432,10 +470,11 @@ function Rehearsal(props: { r: LotteryRehearsal; onClose: () => void }) {
       <Card title={t("检查结果")}>
         <ul class="lot-checks">
           <li>
-            {ok(c.entries === c.poolSize)}{" "}
-            {c.entries === c.poolSize
+            {ok(c.entries + c.excluded === c.poolSize)}{" "}
+            {c.entries + c.excluded === c.poolSize
               ? t("名单 {n} 人，人数够", { n: c.entries })
-              : t("名单只有 {n} 人，不到 {size} 人", { n: c.entries, size: c.poolSize })}
+              : t("名单只有 {n} 人，不到 {size} 人", { n: c.entries + c.excluded, size: c.poolSize })}
+            {c.excluded > 0 && t("（{x} 人不参加）", { x: c.excluded })}
           </li>
           <li>
             {ok(c.noAvatar === 0)}{" "}

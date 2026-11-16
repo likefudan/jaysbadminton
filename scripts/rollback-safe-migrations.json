@@ -2,5 +2,6 @@
   "_": "Migrations an older release can run on top of: they only add tables or settings the older code never reads, and they can run again (IF NOT EXISTS, guarded updates). Going back to a release without them sets them aside (scripts/set-aside-migrations.mjs) instead of needing a database restore; going forward runs them again. Never list one that adds a column (SQLite has no ADD COLUMN IF NOT EXISTS) or changes existing data.",
   "0047_likes.sql": "点赞表和排行榜里的「点赞」，旧版本不读它们",
   "0048_extra_spend.sql": "自付费用表，旧版本不读它",
-  "0053_lotteries.sql": "抽奖的四张表，旧版本不读它们"
+  "0053_lotteries.sql": "抽奖的四张表，旧版本不读它们",
+  "0054_lottery_excluded.sql": "抽奖里手动去掉的人，旧版本不读它"
 }

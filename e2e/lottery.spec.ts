@@ -44,7 +44,6 @@ const view = (over: Record<string, unknown> = {}) => ({
   poolSize: 100,
   prizes,
   drawAt: new Date(Date.now() + (30 * 3600 + 42 * 60) * 1000).toISOString(),
-  nextGoal: 200,
   status: "open",
   seedHash: "9f3a61c20be47d18a07e9f3a61c20be47d18a07e9f3a61c20be47d18a07e9f3a",
   seed: null,
@@ -55,7 +54,6 @@ const view = (over: Record<string, unknown> = {}) => ({
   winners: [],
   draws: 5,
   me: { id: "M037", rank: 37, inPool: true, cheers: 0 },
-  members: 128,
   watching: 81,
   cheers: 213,
   locked: false,
@@ -130,7 +128,7 @@ test("everyone watches the shuttle land on each winner, then can check the resul
   }
 });
 
-test("after the draw: the winners, 下一站 200 and a check anyone can run", async ({ page }) => {
+test("after the draw: the winners and a check anyone can run", async ({ page }) => {
   // A real seed, and the winners it gives for 1–100 (shared/lottery.ts drawWinners).
   const seed = "a".repeat(64);
   const hash = await sha256Hex(seed);
@@ -155,7 +153,8 @@ test("after the draw: the winners, 下一站 200 and a check anyone can run", as
   await expect(panel).toContainText("开奖结果");
   await expect(panel).toContainText("请中奖的球友联系 Jay 领奖");
   await expect(panel).toContainText("你是第 113 位入群的球友");
-  await expect(panel).toContainText("没抽到？下一站 200 人");
+  await expect(panel).toContainText("这次抽奖是前 100 名入群的球友");
+  await expect(panel).not.toContainText("下一站");
   await panel.getByRole("button", { name: "在我的手机上核对一遍" }).click();
   await expect(panel).toContainText("✓ 指纹对得上");
   await shot(page, "lottery-4-result");
@@ -163,7 +162,7 @@ test("after the draw: the winners, 下一站 200 and a check anyone can run", as
 
 const API = "**/api/admin/test-token";
 
-async function admin(page: Page, current: () => object | null, canLock = true) {
+async function admin(page: Page, current: () => object | null, canLock = true, excluded: object[] = []) {
   const posts: { url: string; body: any }[] = [];
   await page.route("**/api/auth/session", (r) => r.fulfill({ json: { signedIn: false } }));
   await page.route(`${API}/members`, (r) =>
@@ -174,7 +173,7 @@ async function admin(page: Page, current: () => object | null, canLock = true) {
   await page.route(`${API}/settings`, (r) => r.fulfill({ json: {} }));
   await page.route(`${API}/lottery?*`, (r) =>
     r.fulfill({
-      json: { current: current(), preview: current() ? [] : entries, members: 128, pushMembers: 64, canLock },
+      json: { current: current(), preview: current() ? [] : entries, excluded, members: 128, pushMembers: 64, canLock },
     }),
   );
   await page.route(`${API}/lottery/**`, (r) => {
@@ -193,7 +192,15 @@ async function admin(page: Page, current: () => object | null, canLock = true) {
             me: null,
             seed: "b".repeat(64),
           }),
-          checks: { entries: 100, poolSize: 100, noAvatar: 12, pushMembers: 64, myDevices: 2, telegram: true },
+          checks: {
+            entries: 98,
+            excluded: 2,
+            poolSize: 100,
+            noAvatar: 12,
+            pushMembers: 64,
+            myDevices: 2,
+            telegram: true,
+          },
         },
       });
     return r.fulfill({ json: { ok: true } });
@@ -214,11 +221,22 @@ test("设置 → 抽奖: set one up, rehearse it (only for whoever pressed), the
   await page.getByRole("button", { name: "＋ 再加一种奖品" }).click();
   await page.getByLabel("奖品名称").nth(1).fill("黑航空");
   await page.getByLabel("数量").nth(1).fill("2");
+  await expect(page.getByLabel("下一站")).toHaveCount(0);
+  // Two of the first 100 won't take part.
+  await page.getByRole("button", { name: "查看名单，选不参加的人" }).click();
+  const list = page.getByRole("dialog", { name: "抽奖名单" });
+  await list.getByRole("checkbox", { name: "Ben2 参加" }).uncheck();
+  await list.getByRole("checkbox", { name: "Dan4 参加" }).uncheck();
+  await expect(list).toContainText("98 人参加");
+  await shot(page, "lottery-8-exclude");
+  await list.getByRole("button", { name: /返回/ }).click();
+  await expect(page.getByText("，去掉 2 人，98 人参加")).toBeVisible();
   await shot(page, "lottery-5-setup", true);
   await page.getByRole("button", { name: "预演一遍（只有你看得到）" }).first().click();
   const panel = page.getByRole("dialog", { name: "预演" });
   await expect(panel).toContainText("预演 · 只有你看得到，不算数");
   await expect(panel).toContainText("12 人没有头像");
+  await expect(panel).toContainText("（2 人不参加）");
   await expect(panel).toContainText("预演推送已发到你的 2 台设备");
   expect(posts[0]).toMatchObject({
     url: "/api/admin/test-token/lottery/rehearse",
@@ -228,7 +246,7 @@ test("设置 → 抽奖: set one up, rehearse it (only for whoever pressed), the
         { name: "亚3", count: 3 },
         { name: "黑航空", count: 2 },
       ],
-      nextGoal: 200,
+      exclude: ["M002", "M004"],
     },
   });
   await expect(panel).toContainText("第 1 / 5 次", { timeout: 10_000 });
@@ -254,4 +272,15 @@ test("设置 → 抽奖: the Owner locks it; locked, it can't be changed or canc
   await page.getByRole("button", { name: "解锁" }).click();
   await expect(page.getByRole("button", { name: "修改时间和奖品" })).toBeEnabled();
   expect(posts.map((p) => p.url)).toContain("/api/admin/test-token/lottery/1/unlock");
+});
+
+test("设置 → 抽奖: published and not locked, someone can still be taken off or put back", async ({ page }) => {
+  const posts = await admin(page, () => view({ me: null, entries: entries.slice(1) }), true, [entries[0]]);
+  await page.goto("/admin/test-token?tab=settings&sub=lottery");
+  await expect(page.getByText("· 1 人不参加")).toBeVisible();
+  await page.getByRole("button", { name: "查看名单，选不参加的人" }).click();
+  const list = page.getByRole("dialog", { name: "抽奖名单" });
+  await expect(list.getByRole("checkbox", { name: "Amy1 参加" })).not.toBeChecked();
+  await list.getByRole("checkbox", { name: "Amy1 参加" }).click();
+  await expect.poll(() => posts.find((p) => p.url.endsWith("/exclude"))?.body).toEqual({ exclude: [] });
 });

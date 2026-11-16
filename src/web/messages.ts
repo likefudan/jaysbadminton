@@ -41,15 +41,12 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "开奖啦！": { tw: "開獎啦！", en: "Here we go!" },
   "你是第 {n} 位入群的球友": { tw: "你是第 {n} 位入群的球友", en: "You were member number {n} to join" },
   "抽奖号 {n} · 已在奖池里": { tw: "抽獎號 {n} · 已在獎池裡", en: "Number {n} · you're in the draw" },
+  这次你不参加抽奖: { tw: "這次你不參加抽獎", en: "You're not in this draw" },
+  "这次抽奖是前 {n} 名入群的球友": {
+    tw: "這次抽獎是前 {n} 名入群的球友",
+    en: "This draw is for the first {n} members to join",
+  },
   你还不在这次的名单里: { tw: "你還不在這次的名單裡", en: "You're not on this list" },
-  "这次是前 {n} 名，我们满 {goal} 人的时候见 👋": {
-    tw: "這次是前 {n} 名，我們滿 {goal} 人的時候見 👋",
-    en: "This one is for the first {n}. See you at {goal} members 👋",
-  },
-  "这次是前 {n} 名，下次见 👋": {
-    tw: "這次是前 {n} 名，下次見 👋",
-    en: "This one is for the first {n}. See you next time 👋",
-  },
   "📣 打气": { tw: "📣 打氣", en: "📣 Cheer" },
   "你打了 {n} 次气，只是热闹，不影响中奖": {
     tw: "你打了 {n} 次氣，只是熱鬧，不影響中獎",
@@ -62,12 +59,6 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   中奖名单: { tw: "中獎名單", en: "Winners" },
   即将揭晓: { tw: "即將揭曉", en: "Coming up" },
-  "没抽到？下一站 {goal} 人": { tw: "沒抽到？下一站 {goal} 人", en: "Not this time? Next stop: {goal} members" },
-  "{goal} 位球友": { tw: "{goal} 位球友", en: "{goal} members" },
-  "第 {n} 名和之后的朋友，我们满 {goal} 人的时候见 👋": {
-    tw: "第 {n} 名和之後的朋友，我們滿 {goal} 人的時候見 👋",
-    en: "Member {n} and after: see you when we reach {goal} 👋",
-  },
   公平公开: { tw: "公平公開", en: "Fair and open" },
   "名单按入群通过的先后排好，公布时就锁定了。开奖用的随机数先封存，只公布它的指纹；开奖后公开随机数，谁都能自己算一遍，没人能事先挑人。":
     {

@@ -10,6 +10,19 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "參加的人：前多少名入群的",
     en: "Who takes part: the first how many members to join",
   },
+  "，去掉 {x} 人，{k} 人参加": { tw: "，去掉 {x} 人，{k} 人參加", en: ", {x} taken off, {k} taking part" },
+  "查看名单，选不参加的人": { tw: "查看名單，選不參加的人", en: "See the list, untick who won't take part" },
+  "{k} 人参加": { tw: "{k} 人參加", en: "{k} taking part" },
+  "· {x} 人不参加": { tw: "· {x} 人不參加", en: "· {x} not taking part" },
+  " · {x} 人不参加": { tw: " · {x} 人不參加", en: " · {x} not taking part" },
+  "去掉勾的人不参加抽奖，号码不变，也不会有别人补上。": {
+    tw: "去掉勾的人不參加抽獎，號碼不變，也不會有別人補上。",
+    en: "Unticked members don't take part. Numbers stay the same and nobody takes their place.",
+  },
+  "{name} 参加": { tw: "{name} 參加", en: "{name} takes part" },
+  不参加: { tw: "不參加", en: "Out" },
+  "（{x} 人不参加）": { tw: "（{x} 人不參加）", en: " ({x} not taking part)" },
+  "名单有误，请刷新": { tw: "名單有誤，請重新整理", en: "The list is out of date, please refresh" },
   "按入群通过的先后算，群主和管理员也算，已停用的成员保留名次。": {
     tw: "按入群通過的先後算，群主和管理員也算，已停用的成員保留名次。",
     en: "In the order people were let in. The owner and admins count, and deactivated members keep their place.",
@@ -24,14 +37,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "＋ 再加一种奖品": { tw: "＋ 再加一種獎品", en: "+ Add a prize" },
   开奖日期: { tw: "開獎日期", en: "Draw date" },
   开奖时间: { tw: "開獎時間", en: "Draw time" },
-  "下一站：满多少人再抽（可不填）": {
-    tw: "下一站：滿多少人再抽（可不填）",
-    en: "Next stop: draw again at how many members (optional)",
-  },
-  "没进名单的球友会看到「我们满 200 人的时候见」。": {
-    tw: "沒進名單的球友會看到「我們滿 200 人的時候見」。",
-    en: 'Members not on the list see "See you at 200 members".',
-  },
   "公布后名单就锁定了，大家会收到推送。确定公布吗？": {
     tw: "公布後名單就鎖定了，大家會收到推送。確定公布嗎？",
     en: "Announcing locks the list and sends everyone a notification. Announce it?",
@@ -119,10 +124,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "每种奖品的数量请填 1 到 100": { tw: "每種獎品的數量請填 1 到 100", en: "Each prize's quantity: 1 to 100" },
   奖品比参加的人还多: { tw: "獎品比參加的人還多", en: "There are more prizes than people taking part" },
   请填写开奖时间: { tw: "請填寫開獎時間", en: "Please fill in the draw time" },
-  下一站的人数要比这次参加的人多: {
-    tw: "下一站的人數要比這次參加的人多",
-    en: "The next stop must be more than the number taking part now",
-  },
   "已经有一个抽奖在进行，先开奖或取消它": {
     tw: "已經有一個抽獎在進行，先開獎或取消它",
     en: "A draw is already under way. Draw or cancel it first",

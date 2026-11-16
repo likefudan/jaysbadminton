@@ -36,6 +36,7 @@ const TABLES = [
   "lottery_watchers",
   "lottery_winners",
   "lottery_entries",
+  "lottery_excluded",
   "lotteries",
   "likes",
   "extra_spend",
