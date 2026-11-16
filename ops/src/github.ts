@@ -97,19 +97,17 @@ interface Run {
 }
 
 // The page refreshes itself while a deploy runs; one answer serves every tab for a few seconds, which
-// keeps the token far under GitHub's hourly limit.
-let cached: { at: number; value: Promise<Awaited<ReturnType<typeof read>>> } | null = null;
+// keeps the token far under GitHub's hourly limit. Only the finished answer is kept, never the promise:
+// a promise made by one request cannot settle in another on Workers ("This promise was created by a
+// request that has since ended"), so a tab that asks while another tab's read is still running reads too.
+let cached: { at: number; value: Awaited<ReturnType<typeof read>> } | null = null;
 
 /** Everything the page shows. */
-export function state(env: Env, now = Date.now()) {
-  if (!cached || now - cached.at > 15_000) {
-    const value = read(env);
-    cached = { at: now, value };
-    value.catch(() => {
-      if (cached?.value === value) cached = null;
-    });
-  }
-  return cached.value;
+export async function state(env: Env, now = Date.now()) {
+  if (cached && now - cached.at <= 15_000) return cached.value;
+  const value = await read(env);
+  cached = { at: now, value };
+  return value;
 }
 
 /** Forgets the cached answer, after a release starts. */
