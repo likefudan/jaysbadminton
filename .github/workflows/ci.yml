@@ -84,9 +84,11 @@ jobs:
           echo "tested=$tested" >> "$GITHUB_OUTPUT"
           echo "Tests already passed on the PR with the same code: $tested" >> "$GITHUB_STEP_SUMMARY"
 
-  # Lint, typecheck and every unit test in one job, and every browser test in one other: GitHub bills
-  # each job rounded up to a whole minute, so five short parallel jobs cost more than two longer ones.
-  check:
+  # The tests are split over many runners at once: the repository is public, so Actions minutes on
+  # these runners cost nothing and only the time until the slowest one finishes matters. `check` and
+  # `e2e` are the gates that the deploys, the branch rules and the release site wait for: each is green
+  # only when every one of its parts is.
+  lint:
     needs: [tested-on-pr]
     if: >-
       !cancelled() && needs.tested-on-pr.outputs.tested != 'true' &&
@@ -97,7 +99,6 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
       # node_modules as npm ci left it for this exact lockfile; npm ci runs only when there is none.
       - uses: actions/cache@v6
         id: deps
@@ -108,23 +109,54 @@ jobs:
         run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      # The runner has 2 CPUs, so Vitest would default to one worker and run the files one by one.
-      - run: npm test -- --maxWorkers=2
 
-  # The browser tests: flows.spec.ts (on a real database) and the specs that mock the API.
-  e2e:
+  # The unit tests, a quarter of the files on each runner (each file loads the Worker afresh, so the
+  # cost is per file and splits well).
+  unit:
+    name: unit (${{ matrix.shard }}/4)
     needs: [tested-on-pr]
     if: >-
       !cancelled() && needs.tested-on-pr.outputs.tested != 'true' &&
       !(inputs.tested && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      # node_modules as npm ci left it for this exact lockfile; npm ci runs only when there is none.
+      - uses: actions/cache@v6
+        id: deps
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
+      # The runner has 2 CPUs, so Vitest would default to one worker and run the files one by one.
+      - run: npm test -- --maxWorkers=2 --shard=${{ matrix.shard }}/4
+
+  # The browser tests, split by file over five runners. Each runner starts its own local Worker with a
+  # fresh database and still runs one test at a time, as before, so no test runs under more load than
+  # it did; flows.spec.ts (whose tests build on each other) stays whole on one runner.
+  e2e-shard:
+    name: e2e (${{ matrix.shard }}/5)
+    needs: [tested-on-pr]
+    if: >-
+      !cancelled() && needs.tested-on-pr.outputs.tested != 'true' &&
+      !(inputs.tested && startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
       - uses: actions/cache@v6
         id: deps
         with:
@@ -147,17 +179,48 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
       - name: Browser tests (main flows on a local Worker)
-        run: npx playwright test
+        run: npx playwright test --shard=${{ matrix.shard }}/5
         env:
           WRANGLER_SEND_METRICS: "false"
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/
           retention-days: 7
+
+  # The gates. They run whenever their parts were meant to run (also after a part failed, to say so),
+  # and are skipped together with them when the tests are skipped.
+  check:
+    needs: [tested-on-pr, lint, unit]
+    if: >-
+      !cancelled() && needs.tested-on-pr.outputs.tested != 'true' &&
+      !(inputs.tested && startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lint, typecheck and every unit test passed
+        env:
+          LINT: ${{ needs.lint.result }}
+          UNIT: ${{ needs.unit.result }}
+        run: |
+          echo "lint and typecheck: $LINT, unit tests: $UNIT"
+          [ "$LINT" = success ] && [ "$UNIT" = success ]
+
+  e2e:
+    needs: [tested-on-pr, e2e-shard]
+    if: >-
+      !cancelled() && needs.tested-on-pr.outputs.tested != 'true' &&
+      !(inputs.tested && startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every browser test passed
+        env:
+          E2E: ${{ needs.e2e-shard.result }}
+        run: |
+          echo "browser tests: $E2E"
+          [ "$E2E" = success ]
 
   deploy-staging:
     needs: [tested-on-pr, check, e2e]

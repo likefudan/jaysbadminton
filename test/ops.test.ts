@@ -330,6 +330,20 @@ describe("release progress", () => {
     const red = progressOf([{ name: "e2e", status: "completed", conclusion: "failure" }], ["coco"]);
     expect(red.coco).toEqual({ done: 0, label: "测试没通过", failed: true });
   });
+
+  it("counts the split test jobs, before their gates appear", () => {
+    const parts: Job[] = [
+      done("lint"),
+      done("unit (1/4)"),
+      { name: "e2e (3/5)", status: "in_progress", conclusion: null },
+    ];
+    expect(progressOf(parts, ["coco"]).coco).toEqual({ done: 0, label: "测试中", failed: false });
+    const red = progressOf(
+      [done("lint"), { name: "unit (2/4)", status: "completed", conclusion: "failure" }],
+      ["coco"],
+    );
+    expect(red.coco).toEqual({ done: 0, label: "测试没通过", failed: true });
+  });
 });
 
 describe("all versions and their notes", () => {
