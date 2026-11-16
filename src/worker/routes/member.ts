@@ -54,6 +54,7 @@ import { googleMember, requireSameOrigin } from "../googleAuth";
 import { readCourtPhoto } from "../courtPhoto";
 import { avatarMode, avatarUrl, setAvatarMode, uploadAvatar } from "../avatars";
 import { siteGreeting } from "../site";
+import { announceResults, cheer, memberLottery } from "../lottery";
 import { eventLikes, likeCounts, likeOpen, likeSettings, likeSummary, setLike } from "../likes";
 import {
   calorieReadDays,
@@ -124,6 +125,26 @@ memberRoutes.post("/:token/avatar/mode", async (c) => {
   await setAvatarMode(c.env, c.get("member"), body.mode);
   return c.json({ ok: true });
 });
+
+// 抽奖 (Ke Li 2026-11-16): the one under way, if any; looking counts as watching. Once the last draw
+// has landed, the first to look sends the winners' notices (the cron does it otherwise).
+memberRoutes.get("/:token/lottery", async (c) => {
+  const lottery = await memberLottery(c.env, c.get("member").id);
+  if (lottery?.status === "drawn" && lottery.seed) {
+    const work = announceResults(c.env)
+      .then((sent) => sent && sendSoon(c))
+      .catch((err) => console.error("lottery notices failed:", err));
+    try {
+      c.executionCtx.waitUntil(work);
+    } catch {
+      // No execution context (a direct call in tests): the promise still runs.
+    }
+  }
+  return c.json({ lottery });
+});
+memberRoutes.post("/:token/lottery/cheer", async (c) =>
+  c.json(await cheer(c.env, c.get("member").id, (await readJson(c.req.raw)).n)),
+);
 
 memberRoutes.get("/:token/stats", async (c) => c.json(await myStats(c.env, c.get("member").id)));
 // 自付费用: what they paid themselves for one event in 我的花费 (cents, 0 clears). Theirs alone.

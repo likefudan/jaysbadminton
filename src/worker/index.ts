@@ -37,6 +37,7 @@ import { purgeEndedQueues } from "./courtQueue";
 import { sendReleaseNotices } from "./releaseNotice";
 import { saveUpload } from "./calories";
 import { withBoot } from "./boot";
+import { lotteryCron } from "./lottery";
 
 // A site with its own icon colour (sites.json "icon") gets its icons from public/site-icons/<colour>/,
 // under the usual names, so the home-screen app, tab, share card and link previews all match.
@@ -244,6 +245,12 @@ export default {
       await archiveUnsettled(env); // past their 结算期限 without a Finalize: to history, nothing billed
     } catch (err) {
       console.error("archiving unsettled events failed:", err);
+      await recordCronError(env, err);
+    }
+    try {
+      await lotteryCron(env); // 抽奖: the reminder before, the results after (pushes go out below)
+    } catch (err) {
+      console.error("lottery notices failed:", err);
       await recordCronError(env, err);
     }
     try {

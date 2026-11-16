@@ -7176,3 +7176,464 @@ html[data-nav="in"]::view-transition-new(root) {
   font-size: 0.9rem;
   color: var(--text-2);
 }
+
+/* ---- 抽奖 (Lottery.tsx, pages/AdminLottery.tsx) ---- */
+.lot-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border: none;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #d38a6c, #e3a66f);
+  color: #fff;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+[data-mode="dark"] .lot-card {
+  background: linear-gradient(135deg, #8f5a45, #9c7046);
+}
+.lot-card-icon {
+  font-size: 28px;
+}
+.lot-card-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.lot-card-text strong {
+  font-size: 16px;
+}
+.lot-card-go {
+  font-size: 22px;
+  opacity: 0.8;
+}
+.lot {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lot .card {
+  margin: 0;
+}
+.lot-rehearsal {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-weight: 600;
+  text-align: center;
+}
+.lot-hero {
+  padding: 18px 16px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #d38a6c, #e3a66f);
+  color: #fff;
+  text-align: center;
+}
+[data-mode="dark"] .lot-hero {
+  background: linear-gradient(135deg, #8f5a45, #9c7046);
+}
+.lot-hero h2 {
+  margin: 4px 0;
+  font-size: 22px;
+}
+.lot-hero p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  opacity: 0.95;
+}
+.lot-hero-icon {
+  font-size: 30px;
+}
+.lot-landed {
+  animation: lot-pop 0.5s ease-out;
+}
+.lot-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+.lot-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  animation: lot-blink 1s infinite;
+}
+.lot-count {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.lot-count span {
+  display: flex;
+  flex-direction: column;
+  min-width: 52px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 11px;
+}
+.lot-count b {
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.lot-soon {
+  font-size: 18px !important;
+  font-weight: 700;
+}
+.lot-wall-card {
+  padding: 12px;
+}
+.lot-wall {
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+.lot-face {
+  position: relative;
+  display: flex;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--surface-2);
+  transition:
+    opacity 0.4s,
+    filter 0.4s,
+    transform 0.3s;
+}
+.lot-face .avatar {
+  width: 100% !important;
+  height: 100% !important;
+}
+.lot-initial {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+.lot-face small {
+  position: absolute;
+  right: -2px;
+  bottom: -3px;
+  min-width: 15px;
+  padding: 0 2px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 8.5px;
+  line-height: 12px;
+  text-align: center;
+}
+.lot-face.away {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+.lot-face.me {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+.lot-face.hover {
+  transform: scale(1.15);
+  outline: 2px solid #e0483e;
+  outline-offset: 1px;
+}
+.lot-face.hit {
+  z-index: 2;
+  transform: scale(1.35);
+  outline: 3px solid #e0483e;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 8px rgba(224, 72, 62, 0.18);
+}
+.lot-face.won {
+  opacity: 1;
+  filter: none;
+  outline: 3px solid #c9952b;
+  outline-offset: 1px;
+}
+.lot-prize {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  z-index: 1;
+  max-width: 64px;
+  overflow: hidden;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: #c9952b;
+  color: #fff;
+  font-size: 8.5px;
+  font-style: normal;
+  line-height: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+}
+.lot-shuttle {
+  position: absolute;
+  z-index: 3;
+  margin: -24px 0 0 -6px;
+  pointer-events: none;
+  transition-property: left, top;
+  transition-timing-function: cubic-bezier(0.3, 0.6, 0.4, 1);
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.25));
+  animation: lot-spin 0.6s linear infinite;
+}
+.lot-shuttle.landed {
+  animation: none;
+}
+@keyframes lot-spin {
+  50% {
+    transform: rotate(18deg) translateY(-4px);
+  }
+}
+.lot-burst {
+  position: absolute;
+  z-index: 2;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.lot-burst i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 10px;
+  border-radius: 2px;
+  background: #c9952b;
+  opacity: 0;
+  animation: lot-burst 1.2s ease-out var(--d) forwards;
+}
+.lot-burst i:nth-child(3n) {
+  background: #e0483e;
+}
+.lot-burst i:nth-child(3n + 1) {
+  background: var(--acc);
+}
+@keyframes lot-burst {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--a)) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateY(-70px);
+  }
+}
+@keyframes lot-pop {
+  0% {
+    transform: scale(0.6);
+  }
+  70% {
+    transform: scale(1.1);
+  }
+}
+@keyframes lot-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lot-shuttle,
+  .lot-burst i,
+  .lot-landed,
+  .lot-dot {
+    animation: none;
+  }
+}
+.lot-note {
+  margin: -4px 4px 0;
+}
+.lot-mine-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lot-mine-row > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lot-ball {
+  display: flex;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f2b493, #ad5c3e);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+}
+.lot-ball.later {
+  background: radial-gradient(circle at 35% 30%, #d9d3ca, #8a847c);
+}
+.lot-cheer {
+  margin-top: 12px;
+}
+.lot-cheer b {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.lot-prizes,
+.lot-winners,
+.lot-list,
+.lot-checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lot-prizes li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+.lot-winners li,
+.lot-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.lot-winners li:first-child,
+.lot-list li:first-child {
+  border-top: none;
+}
+.lot-winners li.wait {
+  color: var(--faint);
+}
+.lot-no {
+  width: 34px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.lot-blank {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--surface-2);
+}
+.lot-name {
+  flex: 1;
+  font-weight: 600;
+}
+.lot-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.lot-winners li.wait .lot-tag {
+  background: var(--surface-2);
+  color: var(--faint);
+}
+.lot-goal {
+  margin: 4px 0;
+  color: var(--muted);
+}
+.lot-goal b {
+  color: var(--text);
+  font-size: 20px;
+}
+.lot-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--surface-2);
+}
+.lot-bar span {
+  display: block;
+  height: 100%;
+  background: var(--acc);
+}
+.lot-code {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+.lot-ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+.lot-checks li {
+  padding: 5px 0;
+}
+.lot-prize-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.lot-prize-row input[type="text"] {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+.lot-prize-row input[type="number"] {
+  flex: 0 0 72px;
+  width: 72px;
+}
+.field .lot-prize-row span {
+  flex: none;
+  margin: 0;
+}
+.lot-prize-row .link-button {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 8px;
+}
+.lot-when {
+  display: flex;
+  gap: 10px;
+}
+.lot-when .field {
+  flex: 1;
+  min-width: 0;
+}
+.lot-faces {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 8px 0;
+}
+.lot-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: 12px;
+  font-weight: 600;
+}
+.lot-status.done {
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+}
+.lot-status.locked {
+  background: var(--warn-soft);
+  color: var(--warn);
+}

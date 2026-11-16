@@ -3,6 +3,136 @@
 // and then read over by hand. Kept apart from messages.ts only to keep each file a readable size.
 
 export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
+  // 抽奖
+  抽奖: { tw: "抽獎", en: "Lucky draw" },
+  百人庆祝抽奖: { tw: "百人慶祝抽獎", en: "100-member celebration draw" },
+  "参加的人：前多少名入群的": {
+    tw: "參加的人：前多少名入群的",
+    en: "Who takes part: the first how many members to join",
+  },
+  "按入群通过的先后算，群主和管理员也算，已停用的成员保留名次。": {
+    tw: "按入群通過的先後算，群主和管理員也算，已停用的成員保留名次。",
+    en: "In the order people were let in. The owner and admins count, and deactivated members keep their place.",
+  },
+  "奖品（按开奖顺序，压轴的放最后）": {
+    tw: "獎品（按開獎順序，壓軸的放最後）",
+    en: "Prizes (in draw order, the big one last)",
+  },
+  "例如：黑航空 一桶": { tw: "例如：黑航空 一桶", en: "e.g. a tube of shuttles" },
+  奖品名称: { tw: "獎品名稱", en: "Prize" },
+  数量: { tw: "數量", en: "Quantity" },
+  "＋ 再加一种奖品": { tw: "＋ 再加一種獎品", en: "+ Add a prize" },
+  开奖日期: { tw: "開獎日期", en: "Draw date" },
+  开奖时间: { tw: "開獎時間", en: "Draw time" },
+  "下一站：满多少人再抽（可不填）": {
+    tw: "下一站：滿多少人再抽（可不填）",
+    en: "Next stop: draw again at how many members (optional)",
+  },
+  "没进名单的球友会看到「我们满 200 人的时候见」。": {
+    tw: "沒進名單的球友會看到「我們滿 200 人的時候見」。",
+    en: 'Members not on the list see "See you at 200 members".',
+  },
+  "公布后名单就锁定了，大家会收到推送。确定公布吗？": {
+    tw: "公布後名單就鎖定了，大家會收到推送。確定公布嗎？",
+    en: "Announcing locks the list and sends everyone a notification. Announce it?",
+  },
+  新的抽奖: { tw: "新的抽獎", en: "New draw" },
+  "名单（公布时锁定）": { tw: "名單（公布時鎖定）", en: "The list (locked when announced)" },
+  "现在的前 {n} 名：{k} 人": { tw: "現在的前 {n} 名：{k} 人", en: "The first {n} right now: {k} people" },
+  "（群里一共只有 {k} 人）": { tw: "（群裡一共只有 {k} 人）", en: "(the group has only {k})" },
+  "开了推送的成员：{n} 人。公布、开奖前半小时和开奖时会推送给他们。": {
+    tw: "開了推送的成員：{n} 人。公布、開獎前半小時和開獎時會推送給他們。",
+    en: "Members with notifications on: {n}. They're notified when it's announced, half an hour before and at the draw.",
+  },
+  "预演一遍（只有你看得到）": { tw: "預演一遍（只有你看得到）", en: "Rehearse (only you see it)" },
+  公布抽奖: { tw: "公布抽獎", en: "Announce the draw" },
+  已公布: { tw: "已公布", en: "Announced" },
+  已开奖: { tw: "已開獎", en: "Drawn" },
+  "🔒 群主已锁定": { tw: "🔒 群主已鎖定", en: "🔒 Locked by the owner" },
+  "{time} 倒计时结束自动开奖": { tw: "{time} 倒數結束自動開獎", en: "Draws itself when the countdown ends, {time}" },
+  "{time} 开的奖": { tw: "{time} 開的獎", en: "Drawn {time}" },
+  看倒计时: { tw: "看倒數", en: "Watch the countdown" },
+  开奖时间要在现在之后: { tw: "開獎時間要在現在之後", en: "The draw time must be in the future" },
+  "名单 {n} 人 · 奖品 {k} 份 · {w} 人在看": {
+    tw: "名單 {n} 人 · 獎品 {k} 份 · {w} 人在看",
+    en: "{n} on the list · {k} prizes · {w} watching",
+  },
+  修改时间和奖品: { tw: "修改時間和獎品", en: "Change time and prizes" },
+  解锁: { tw: "解鎖", en: "Unlock" },
+  "锁定（锁定后谁都不能改时间、奖品或取消）": {
+    tw: "鎖定（鎖定後誰都不能改時間、獎品或取消）",
+    en: "Lock (then nobody can change the time or prizes, or cancel it)",
+  },
+  "群主锁定了这个抽奖，要改请找群主解锁。": {
+    tw: "群主鎖定了這個抽獎，要改請找群主解鎖。",
+    en: "The owner locked this draw. Ask them to unlock it to make changes.",
+  },
+  "取消这个抽奖？": { tw: "取消這個抽獎？", en: "Cancel this draw?" },
+  取消抽奖: { tw: "取消抽獎", en: "Cancel the draw" },
+  看开奖: { tw: "看開獎", en: "Watch the draw" },
+  "从大家的「我的活动」里收起这次的结果？": {
+    tw: "從大家的「我的活動」裡收起這次的結果？",
+    en: "Take these results off everyone's My events?",
+  },
+  从我的活动收起: { tw: "從我的活動收起", en: "Take off My events" },
+  修改抽奖: { tw: "修改抽獎", en: "Change the draw" },
+  预演: { tw: "預演", en: "Rehearsal" },
+  检查结果: { tw: "檢查結果", en: "Checks" },
+  "名单 {n} 人，人数够": { tw: "名單 {n} 人，人數夠", en: "{n} on the list, enough" },
+  "名单只有 {n} 人，不到 {size} 人": {
+    tw: "名單只有 {n} 人，不到 {size} 人",
+    en: "Only {n} on the list, fewer than {size}",
+  },
+  每个人都有头像: { tw: "每個人都有頭像", en: "Everyone has a profile photo" },
+  "{n} 人没有头像，墙上显示名字的第一个字": {
+    tw: "{n} 人沒有頭像，牆上顯示名字的第一個字",
+    en: "{n} have no profile photo; the wall shows the first letter of their name",
+  },
+  "预演推送已发到你的 {n} 台设备，看看收到没有": {
+    tw: "預演推送已發到你的 {n} 台裝置，看看收到沒有",
+    en: "A rehearsal notification went to your {n} devices. Check that it arrived",
+  },
+  "你还没开推送，收不到预演推送": {
+    tw: "你還沒開推送，收不到預演推送",
+    en: "Your notifications are off, so no rehearsal notification",
+  },
+  "预演结果已发到你的 Telegram，里面有可复制到微信的文字": {
+    tw: "預演結果已發到你的 Telegram，裡面有可複製到微信的文字",
+    en: "The rehearsal results went to your Telegram, with text to copy to WeChat",
+  },
+  "Telegram 没发出去（没绑定或机器人没设置）": {
+    tw: "Telegram 沒發出去（沒綁定或機器人沒設定）",
+    en: "Telegram didn't go out (not connected, or the bot isn't set up)",
+  },
+  "开了推送的成员：{n} 人": { tw: "開了推送的成員：{n} 人", en: "Members with notifications on: {n}" },
+  "这次预演用的是另一个随机数，和正式开奖的结果没有关系；别人看不到，也收不到通知。": {
+    tw: "這次預演用的是另一個隨機數，和正式開獎的結果沒有關係；別人看不到，也收不到通知。",
+    en: "This rehearsal used a different random number and says nothing about the real result. Nobody else sees it or gets notified.",
+  },
+  请填写抽奖的名字: { tw: "請填寫抽獎的名字", en: "Please name the draw" },
+  "名字最多 {n} 个字": { tw: "名字最多 {n} 個字", en: "The name can be at most {n} characters" },
+  "参加人数请填 1 到 {n}": { tw: "參加人數請填 1 到 {n}", en: "Number taking part: 1 to {n}" },
+  请至少填一个奖品: { tw: "請至少填一個獎品", en: "Please add at least one prize" },
+  "最多 {n} 种奖品": { tw: "最多 {n} 種獎品", en: "Up to {n} kinds of prizes" },
+  请填写奖品名称: { tw: "請填寫獎品名稱", en: "Please name each prize" },
+  "奖品名称最多 {n} 个字": { tw: "獎品名稱最多 {n} 個字", en: "Prize names can be at most {n} characters" },
+  "每种奖品的数量请填 1 到 100": { tw: "每種獎品的數量請填 1 到 100", en: "Each prize's quantity: 1 to 100" },
+  奖品比参加的人还多: { tw: "獎品比參加的人還多", en: "There are more prizes than people taking part" },
+  请填写开奖时间: { tw: "請填寫開獎時間", en: "Please fill in the draw time" },
+  下一站的人数要比这次参加的人多: {
+    tw: "下一站的人數要比這次參加的人多",
+    en: "The next stop must be more than the number taking part now",
+  },
+  "已经有一个抽奖在进行，先开奖或取消它": {
+    tw: "已經有一個抽獎在進行，先開獎或取消它",
+    en: "A draw is already under way. Draw or cancel it first",
+  },
+  "抽奖的状态已经变了，请刷新": { tw: "抽獎的狀態已經變了，請重新整理", en: "The draw has changed. Please refresh" },
+  "群主已锁定这个抽奖，解锁后才能修改": {
+    tw: "群主已鎖定這個抽獎，解鎖後才能修改",
+    en: "The owner locked this draw. It can be changed once unlocked",
+  },
+  找不到这个抽奖: { tw: "找不到這個抽獎", en: "Draw not found" },
   活动结束后多少小时内可以点赞: {
     tw: "活動結束後多少小時內可以點讚",
     en: "Hours after an event during which likes can be given",

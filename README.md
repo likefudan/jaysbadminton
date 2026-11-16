@@ -67,6 +67,7 @@ The UI is available in Simplified Chinese, Traditional Chinese and English (each
 ### After the event
 - **Calories** from iPhone Health via an iOS Shortcut (opt-in).
 - **Likes**: players can anonymously like others who played, within a time window and a cap.
+- **Lucky draw**: in Settings → Lucky draw the Owner or an admin sets up a draw for the first N members to join (prizes drawn in order, a next goal such as 200). Publishing locks the list and seals a random number, showing only its fingerprint; when the countdown ends it draws by itself and every phone watches a shuttle hop across a wall of members' faces and land on each winner. Afterwards the number is published, so anyone can check the result on their phone. Admins can rehearse it as often as they like (only they see it, with a test notification to themselves); the Owner can lock it so nobody changes or cancels it.
 - **Leaderboards**: energy (calories), attendance, hours, progress, streak, bringing friends, queue helpers, early birds and likes. The Owner chooses which boards are public.
 - **Profile**: avatar (Google picture or your own photo), spending chart, attendance heatmap, badges and a yearly review.
 
@@ -138,7 +139,7 @@ npm run lint                  # Biome; `npm run format` fixes what it can
 
 | Path | Contents |
 | --- | --- |
-| `src/worker/` | The Worker: Hono routes (`routes/`), Google sign-in, events, billing, Venmo email (`email/`), cron, Telegram, push, court queue, likes, avatars |
+| `src/worker/` | The Worker: Hono routes (`routes/`), Google sign-in, events, billing, Venmo email (`email/`), cron, Telegram, push, court queue, likes, lucky draw, avatars |
 | `src/web/` | Preact single-page app (built by Vite into `dist/web`), pages in `pages/`, translations in `i18n.ts`, `messages.ts`, `adminMessages.ts` |
 | `src/shared/` | Code used by both sides: types, settlement, time, rules, themes, calendar |
 | `migrations/` | Numbered D1 SQL migrations |

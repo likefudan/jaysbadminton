@@ -3,6 +3,15 @@
 // text names the admin pages' labels as their English version shows them (Payments, Settings › …).
 
 export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
+  "【预演】只发给你，不算数，别人收不到。": {
+    tw: "【預演】只發給你，不算數，別人收不到。",
+    en: "[Rehearsal] Sent to you only. It doesn't count and nobody else gets it.",
+  },
+  "「{title}」开奖结果：": { tw: "「{title}」開獎結果：", en: "{title}: the winners" },
+  "「{title}」{time} 倒计时结束自动开奖，大家的手机会一起看。": {
+    tw: "「{title}」{time} 倒數結束自動開獎，大家的手機會一起看。",
+    en: "{title} draws itself at {time} when the countdown ends, and everyone watches it on their phone.",
+  },
   "—— 可复制到微信 ——": { tw: "—— 可複製到微信 ——", en: "—— Copy to WeChat ——" },
   "管理页（用 Google 登录）：{link}": {
     tw: "管理頁（用 Google 登入）：{link}",

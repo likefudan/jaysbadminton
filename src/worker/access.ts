@@ -248,6 +248,17 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "POST /court-maps/remove": cap("events.create"),
   "POST /court-maps/history": cap("events.create"),
 
+  // 设置 → 抽奖: the Owner and admins (Ke Li 2026-11-16)
+  "GET /lottery": cap("group"),
+  "POST /lottery": cap("group"),
+  "POST /lottery/rehearse": cap("group"),
+  "POST /lottery/:id/edit": cap("group"),
+  "POST /lottery/:id/cancel": cap("group"),
+  "POST /lottery/:id/hide": cap("group"),
+  // 锁定 / 解锁: the Owner only (Ke Li 2026-11-16)
+  "POST /lottery/:id/lock": cap("owner"),
+  "POST /lottery/:id/unlock": cap("owner"),
+
   // event: one event (every event with `group`)
   "GET /events/:id": event(),
   "GET /events/:id/audit": event(),
