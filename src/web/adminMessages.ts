@@ -748,6 +748,16 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   到场: { tw: "到場", en: "Attended" },
   改名: { tw: "改名", en: "Rename" },
   取消这次活动: { tw: "取消這次活動", en: "Cancel this event" },
+  恢复活动: { tw: "恢復活動", en: "Restore event" },
+  只能恢复已取消的活动: { tw: "只能恢復已取消的活動", en: "Only a cancelled event can be restored" },
+  "活动结束已超过结算期限，不能再恢复": {
+    tw: "活動結束已超過結算期限，不能再恢復",
+    en: "This event is past its settle-by time, so it can't be restored",
+  },
+  "恢复这次活动？名单上的人仍然报了名，会收到通知。": {
+    tw: "恢復這次活動？名單上的人仍然報了名，會收到通知。",
+    en: "Restore this event? Everyone on the list is still signed up and will be notified.",
+  },
   拍照登记用量: { tw: "拍照登記用量", en: "Photo check-in usage" },
   张照片: { tw: "張照片", en: "photos" },
   "估价（不全）": { tw: "估價（不全）", en: "Estimate (partial)" },

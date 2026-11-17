@@ -51,6 +51,17 @@ export function settleDueAt(e: Pick<EventRow, "end_at" | "created_at">, cfg: Set
   return from + cfg.hours * 3600_000;
 }
 
+/**
+ * 恢复活动 (Ke Li 2026-11-17): a cancelled event can come back, unless it collects money and is
+ * already past its 结算期限. The cron would only archive it again a minute later.
+ */
+export async function restorable(env: Env, e: EventRow, at: number = Date.now()): Promise<boolean> {
+  if (e.status !== "cancelled") return false;
+  if (e.no_fee) return true;
+  const due = settleDueAt(e, await settleDeadline(env));
+  return due === null || due > at;
+}
+
 /** From the cron: closed, money-collecting events past their 结算期限. */
 export async function archiveUnsettled(env: Env, at: Date = new Date()): Promise<void> {
   const cfg = await settleDeadline(env);

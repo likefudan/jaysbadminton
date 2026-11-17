@@ -344,6 +344,15 @@ describe("what gets pushed", () => {
     expect(msg.title).toBe("Jay 取消了活动");
     expect(msg.tag).toBe(`event-${e.id}`);
     expect(await received(owner)).toEqual([]);
+
+    // Restoring: the same people hear their sign-up is still there.
+    pushes = [];
+    await call(`${eb}/restore`, {}, ctx.admin.cookie);
+    [msg] = await received(a);
+    expect(msg.title).toBe("Jay 恢复了活动");
+    expect(msg.body).toContain("活动恢复了，你的报名还在。");
+    expect(msg.tag).toBe(`event-${e.id}`);
+    expect(await received(owner)).toEqual([]);
   });
 
   it("doesn't send a sign-up change once the event is cancelled", async () => {
@@ -356,6 +365,37 @@ describe("what gets pushed", () => {
     await call(`${ctx.base}/events/${e.id}/roster/add`, { memberId: alice.id, includeSelf: true }, ctx.admin.cookie);
     await env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e.id).run();
     await env.DB.prepare("DELETE FROM push_outbox WHERE kind != 'roster'").run();
+    await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
+    status = 201;
+    pushes = [];
+    await drainPushes(env);
+    expect(pushes).toEqual([]);
+  });
+
+  it("doesn't send 取消了活动 once the event is restored, nor 恢复了活动 once cancelled again", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    const a = await browser("alice");
+    await subscribe(alice.base, a);
+    const e = await createEvent(ctx);
+    const eb = `${ctx.base}/events/${e.id}`;
+    await call(`${eb}/roster/add`, { memberId: alice.id, includeSelf: true }, ctx.admin.cookie);
+    status = 500;
+    await call(`${eb}/cancel`, {}, ctx.admin.cookie);
+    await env.DB.prepare("UPDATE events SET status = 'open' WHERE id = ?").bind(e.id).run();
+    await env.DB.prepare("DELETE FROM push_outbox WHERE kind != 'cancel'").run();
+    await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
+    status = 201;
+    pushes = [];
+    await drainPushes(env);
+    expect(pushes).toEqual([]);
+
+    status = 500;
+    await call(`${eb}/cancel`, {}, ctx.admin.cookie);
+    await call(`${eb}/restore`, {}, ctx.admin.cookie);
+    await env.DB.prepare("UPDATE events SET status = 'cancelled' WHERE id = ?").bind(e.id).run();
+    await env.DB.prepare("DELETE FROM push_outbox WHERE kind != 'restore'").run();
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM push_outbox").first<{ n: number }>())!.n).toBe(1);
     await env.DB.prepare("UPDATE push_outbox SET claimed_at = '2000-01-01T00:00:00.000Z'").run();
     status = 201;
     pushes = [];

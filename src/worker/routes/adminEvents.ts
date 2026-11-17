@@ -86,7 +86,7 @@ import {
 } from "../events";
 import { endNoFeeEvent } from "../noFee";
 import { listReleases } from "../releases";
-import { SETTLE_DEADLINE_MAX_HOURS, settleDeadline } from "../settleDeadline";
+import { SETTLE_DEADLINE_MAX_HOURS, restorable, settleDeadline } from "../settleDeadline";
 import { HttpError, badRequest, readJson, str } from "../http";
 import { checkPassword } from "../auth";
 import { cleanRoundMin, idleAlertPct, queueAccountsView, queueAlways } from "../courtQueue";
@@ -139,6 +139,7 @@ import {
   pushBills,
   pushBrought,
   pushCancelled,
+  pushRestored,
   pushGuestLeft,
   pushNewEvent,
   pushRosterChange,
@@ -581,6 +582,39 @@ adminEventRoutes.post("/events/:id/cancel", async (c) => {
   await remindIfExpired(c.env, e.payee_id);
   if (await pushCancelled(c.env, e, c.get("actor").memberId)) sendSoon(c);
   return c.json({ ok: true });
+});
+
+/**
+ * 恢复活动 (Ke Li 2026-11-17): brings a cancelled event back as it was. The roster was kept, so
+ * everyone on it is still signed up and is told so. Sign-up is open again only if its deadline is
+ * still ahead; otherwise it is closed, ready to settle (重新开放报名 can open it again).
+ */
+adminEventRoutes.post("/events/:id/restore", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  if (e.status !== "cancelled") throw badRequest("只能恢复已取消的活动");
+  if (!(await restorable(c.env, e))) throw badRequest("活动结束已超过结算期限，不能再恢复");
+  // Guarded, so of two clicks at once only one restores it.
+  const res = await c.env.DB.prepare(
+    "UPDATE events SET status = CASE WHEN deadline_at > ?2 THEN 'open' ELSE 'closed' END WHERE id = ?1 AND status = 'cancelled'",
+  )
+    .bind(e.id, now())
+    .run();
+  if (!res.meta.changes) throw badRequest("只能恢复已取消的活动");
+  // Its organizer may have been revoked while it was cancelled: then it goes to the Owner, as
+  // revoking does with live events.
+  await handBackIfRevoked(c.env, e.id, e.manager_id);
+  const after = await getEvent(c.env, e.id);
+  const actor = c.get("actor");
+  await audit(
+    c.env,
+    e.id,
+    actorId(actor),
+    "restore",
+    after.status === "open" ? "恢复活动，继续报名" : "恢复活动，报名已截止",
+  );
+  await syncDeadline(c.env, e.id);
+  if (await pushRestored(c.env, after, actor.memberId)) sendSoon(c);
+  return c.json(await detail(c.env, after, actor.memberId));
 });
 
 /**

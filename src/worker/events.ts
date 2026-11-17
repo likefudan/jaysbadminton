@@ -18,6 +18,7 @@ import { HttpError, badRequest } from "./http";
 import { eventManager, eventPayee, lastKey, ownerId } from "./organizers";
 import { payeeName } from "./payees";
 import { deleteQueue } from "./courtQueue";
+import { restorable } from "./settleDeadline";
 
 export interface EventRow {
   id: number;
@@ -169,11 +170,12 @@ export async function roster(env: Env, eventId: number): Promise<RosterEntry[]> 
 
 /** The admin page's view of an event; `viewer` is whoever is looking (their member id). */
 export async function detail(env: Env, e: EventRow, viewer: string | null): Promise<EventDetail> {
-  const [list, payee, manager, usage] = await Promise.all([
+  const [list, payee, manager, usage, canRestore] = await Promise.all([
     roster(env, e.id),
     eventPayee(env.DB, e),
     eventManager(env.DB, e),
     photoUsage(env, e.id),
+    restorable(env, e),
   ]);
   const payeeLabel = await payeeName(env.DB, payee);
   const managerLabel = manager === payee ? payeeLabel : await payeeName(env.DB, manager);
@@ -183,6 +185,7 @@ export async function detail(env: Env, e: EventRow, viewer: string | null): Prom
     roster: list,
     dunningStopped: e.dunning_stopped === 1,
     deletable: isDeletable(e),
+    restorable: canRestore,
     autoEndAt: new Date(Date.parse(e.end_at) + NO_FEE_END_AFTER_MS).toISOString(),
     deadlineOffsetMin: e.deadline_offset_min,
     payee: { id: payee, name: payeeLabel, isMe: !!payee && payee === viewer },

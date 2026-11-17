@@ -372,6 +372,8 @@ async function sendBatch(env: Env, keys: VapidKeys, endpoint?: string): Promise<
        CASE o.kind
          WHEN 'event' THEN NOT COALESCE((SELECT status = 'open' AND deadline_at > ?2 FROM events WHERE id = o.event_id), 0)
          WHEN 'settle' THEN NOT COALESCE((SELECT status = 'closed' FROM events WHERE id = o.event_id), 0)
+         WHEN 'cancel' THEN NOT COALESCE((SELECT status = 'cancelled' FROM events WHERE id = o.event_id), 0)
+         WHEN 'restore' THEN NOT COALESCE((SELECT status != 'cancelled' FROM events WHERE id = o.event_id), 0)
          WHEN 'roster' THEN NOT COALESCE((SELECT status != 'cancelled' FROM events WHERE id = o.event_id), 0)
          WHEN 'start' THEN NOT COALESCE((SELECT status IN ('open', 'closed') AND start_at > ?2 FROM events WHERE id = o.event_id), 0)
            OR NOT EXISTS (SELECT 1 FROM registrations r WHERE r.event_id = o.event_id AND r.member_id = o.member_id)
@@ -611,6 +613,34 @@ export async function pushCancelled(env: Env, e: EventRow, actor: string | null)
     const res = await env.DB.prepare(
       `INSERT INTO push_outbox (endpoint, member_id, kind, event_id, payload, created_at)
        SELECT s.endpoint, s.member_id, 'cancel', ?1, ?2, ?3 FROM push_subscriptions s JOIN members m ON m.id = s.member_id
+       WHERE m.deleted_at IS NULL AND m.id IS NOT ?4
+         AND m.id IN (SELECT member_id FROM registrations WHERE event_id = ?1)`,
+    )
+      .bind(e.id, JSON.stringify(msg), now(), actor)
+      .run();
+    return res.meta.changes > 0;
+  } catch (err) {
+    console.error("push failed:", err);
+    return false;
+  }
+}
+
+/**
+ * 恢复活动: everyone still on the list (the roster is kept while it is cancelled), not whoever
+ * restored it. Whether anything was queued.
+ */
+export async function pushRestored(env: Env, e: EventRow, actor: string | null): Promise<boolean> {
+  try {
+    const msg: PushMessage = {
+      title: `${await payeeName(env.DB, actor)} 恢复了活动`,
+      body: `${when(e)}\n${venue(e)}\n活动恢复了，你的报名还在。`,
+      url: `/e/${e.code}`,
+      // Replaces the 取消了活动 one if it is still showing.
+      tag: `event-${e.id}`,
+    };
+    const res = await env.DB.prepare(
+      `INSERT INTO push_outbox (endpoint, member_id, kind, event_id, payload, created_at)
+       SELECT s.endpoint, s.member_id, 'restore', ?1, ?2, ?3 FROM push_subscriptions s JOIN members m ON m.id = s.member_id
        WHERE m.deleted_at IS NULL AND m.id IS NOT ?4
          AND m.id IN (SELECT member_id FROM registrations WHERE event_id = ?1)`,
     )
