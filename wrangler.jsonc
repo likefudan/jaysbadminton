@@ -85,6 +85,9 @@
         "SITE_ORIGIN": "https://staging.jaysbadminton.llmat.dev",
         "ENVIRONMENT": "staging",
         "ORGANIZERS": "1",
+        // 总入口 (src/worker/hub.ts): on the test site only for now; a production site gets it when
+        // Ke Li turns that group on.
+        "HUB_ORIGIN": "https://badminton.llmat.dev",
         "SPONSOR_NAME": "Z3 Enterprise",
         "SPONSOR_URL": "https://www.z3enterprise.com/"
       },
