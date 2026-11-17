@@ -69,7 +69,7 @@ describe("抽奖", () => {
 
     // 打气, capped.
     expect((await anon.call(`${amy.base}/lottery/cheer`, { n: 5 })).data).toEqual({ cheers: 5, mine: 5 });
-    expect((await anon.call(`${amy.base}/lottery/cheer`, { n: 500 })).data.mine).toBe(99);
+    expect((await anon.call(`${amy.base}/lottery/cheer`, { n: 50000 })).data.mine).toBe(9999);
 
     const id = mine.id;
     // Before the time announced it waits; at that time it draws by itself, the first to look
@@ -104,7 +104,7 @@ describe("抽奖", () => {
     expect(won?.n).toBe(0); // nobody here has push on; the query ran without error
 
     // The wall shows who cheered.
-    expect(done.entries.find((e: { rank: number }) => e.rank === 2).cheers).toBe(99);
+    expect(done.entries.find((e: { rank: number }) => e.rank === 2).cheers).toBe(9999);
 
     expect((await ctx.admin.call(`${ctx.base}/lottery/${id}/hide`, {})).status).toBe(200);
     expect((await anon.call(`${amy.base}/lottery`)).data.lottery).toBeNull();

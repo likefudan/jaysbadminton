@@ -18,9 +18,12 @@ export const LOTTERY_PRIZE_ROWS = 10;
 export const LOTTERY_PRIZE_NAME_MAX = 30;
 export const LOTTERY_TITLE_MAX = 30;
 /** 打气: taps one member can add (the button is for fun, not a contest). */
-export const LOTTERY_CHEERS_MAX = 99;
+export const LOTTERY_CHEERS_MAX = 9999;
 /** 热度: the levels the group's 打气 total climbs through. */
-export const LOTTERY_HEAT = [20, 50, 100, 200, 400, 800, 1500, 3000, 6000, 10000];
+export const LOTTERY_HEAT = [
+  20, 50, 100, 200, 400, 800, 1500, 3000, 6000, 10000, 20000, 40000, 70000, 100000, 150000, 250000, 400000, 600000,
+  800000, 990000,
+];
 /** The level reached (from 0) and how far along the way to the next (0–1). */
 export function heatOf(cheers: number): { level: number; part: number; next: number | null } {
   const level = LOTTERY_HEAT.filter((n) => cheers >= n).length;
