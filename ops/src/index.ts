@@ -1,16 +1,22 @@
-// 发布管理网站 (badminton.llmat.dev). Anyone may sign in with Google and apply; Ke Li (the owner,
+// 总入口 and, under 开发者设置, the 发布管理网站 (badminton.llmat.dev). The home page (/) is for everyone: it
+// lists the groups a Google account belongs to and their coming events (hub.ts, home.ts). 站点管理
+// (/dev/release) is as before: anyone may sign in with Google and apply; Ke Li (the owner,
 // OPS_EMAIL) approves them as viewers or release engineers (users.ts). Viewers see the page; only the
 // owner and release engineers may release, roll back or restore. The page (page.ts, app.js) reads
 // /api/state and asks /api/release to start the Release workflow, which backs up, migrates and deploys
 // the chosen sites exactly as when it is run by hand in GitHub.
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { forget, MainMoved, release, releaseList, restore, state } from "./github";
+import { devPage, homePage } from "./home";
+import { groupsOf, type HubKey } from "./hub";
 import { type Env, pickSites, randomToken, sha256, sign, sites, TAG, unsign } from "./logic";
 import { isLang, LANG_COOKIE, type Lang, langOf, tr } from "./i18n";
 import { APP_CSS, APP_JS, page } from "./page";
 import { DurableObject } from "cloudflare:workers";
 import { canRelease, type Role, roleOf, type Status, type User, UserBook } from "./users";
 
+/** 站点管理 (the Release Service), under 开发者设置. */
+const RELEASE = "/dev/release";
 const SESSION = "__Host-ops";
 const OAUTH = "__Host-ops-oauth";
 const DAY = 86400;
@@ -111,6 +117,13 @@ async function who(req: Request, env: Env): Promise<Me | null> {
 const label = (env: Env, me: Me) => (me.role === "owner" ? env.OWNER_NAME : me.user?.name || me.email);
 const ROLE_NAME: Record<Role, string> = { owner: "管理者", engineer: "发布工程师", viewer: "只读" };
 
+// The 总入口's signing key: made once in the Durable Object, then kept here for the isolate's life.
+let hubKey: HubKey | null = null;
+async function signingKey(env: Env): Promise<HubKey> {
+  hubKey ??= await book(env).hubKey();
+  return hubKey;
+}
+
 function ready(env: Env, lang: Lang): string | null {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET)
     return tr(lang, "还没有 Google 登录的设置（GOOGLE_CLIENT_ID）");
@@ -119,7 +132,7 @@ function ready(env: Env, lang: Lang): string | null {
   return null;
 }
 
-async function startLogin(env: Env): Promise<Response> {
+async function startLogin(env: Env, dev: boolean): Promise<Response> {
   const state = randomToken();
   const nonce = randomToken();
   const verifier = randomToken() + randomToken();
@@ -135,7 +148,8 @@ async function startLogin(env: Env): Promise<Response> {
     code_challenge_method: "S256",
     prompt: "select_account",
   }).toString();
-  const saved = await sign(env.OPS_SESSION_KEY!, `${state}.${nonce}.${verifier}`, 600);
+  // Where to land afterwards: 站点管理 for whoever signed in from there, else the home page.
+  const saved = await sign(env.OPS_SESSION_KEY!, `${state}.${nonce}.${verifier}.${dev ? "d" : "h"}`, 600);
   return redirect(url.toString(), [cookie(OAUTH, saved, 600)]);
 }
 
@@ -143,7 +157,7 @@ async function finishLogin(req: Request, env: Env, ctx: ExecutionContext): Promi
   const q = new URL(req.url).searchParams;
   const saved = await unsign(env.OPS_SESSION_KEY!, readCookie(req, OAUTH));
   const clear = cookie(OAUTH, "", 0);
-  const [state, nonce, verifier] = saved?.split(".") ?? [];
+  const [state, nonce, verifier, next] = saved?.split(".") ?? [];
   if (!state || !nonce || !verifier || q.get("state") !== state || !q.get("code"))
     return redirect("/?error=login", [clear]);
   try {
@@ -181,7 +195,10 @@ async function finishLogin(req: Request, env: Env, ctx: ExecutionContext): Promi
           `🔑 ${label(env, { email, role, user })}（${ROLE_NAME[role]}）登录了发布管理网站（${from(req)}）`,
         ),
       );
-    return redirect("/", [clear, cookie(SESSION, await sign(env.OPS_SESSION_KEY!, email, 7 * DAY), 7 * DAY)]);
+    return redirect(next === "d" ? RELEASE : "/", [
+      clear,
+      cookie(SESSION, await sign(env.OPS_SESSION_KEY!, email, 7 * DAY), 7 * DAY),
+    ]);
   } catch (err) {
     console.error("ops login failed:", err);
     return redirect("/?error=login", [clear]);
@@ -198,24 +215,59 @@ export default {
     const lang = langOf(req);
     // The 文A menu's links: remember the language for a year and go back to the page.
     const to = path.match(/^\/lang\/([\w-]+)$/)?.[1];
-    if (to && req.method === "GET")
+    if (to && req.method === "GET") {
+      // Back to the page the menu was on (only this site's own pages).
+      const ref = req.headers.get("Referer");
+      const back = ref?.startsWith(`${env.OPS_ORIGIN}/`) ? new URL(ref).pathname : "/";
       return redirect(
-        "/",
+        [RELEASE, "/dev"].includes(back) ? back : "/",
         isLang(to) ? [`${LANG_COOKIE}=${to}; Path=/; Max-Age=${365 * DAY}; Secure; SameSite=Lax`] : [],
       );
+    }
+    // The public half of the key the 总入口 signs its questions to the groups' sites with.
+    if (path === "/.well-known/jwks.json" && req.method === "GET") {
+      try {
+        return json({ keys: [(await signingKey(env)).publicJwk] });
+      } catch (err) {
+        console.error("ops: no signing key:", err);
+        return json({ keys: [] }, 503);
+      }
+    }
 
     // Changes come only from this site's own page.
     if (req.method !== "GET" && req.method !== "HEAD" && req.headers.get("Origin") !== env.OPS_ORIGIN)
       return json({ error: tr(lang, "来源不对") }, 403);
 
     const problem = ready(env, lang);
-    if (path === "/login") return problem ? redirect("/") : startLogin(env);
+    if (path === "/login") return problem ? redirect("/") : startLogin(env, url.searchParams.get("next") === "dev");
     if (path === "/auth/callback") return problem ? redirect("/") : finishLogin(req, env, ctx);
     if (path === "/logout" && req.method === "POST") return redirect("/", [cookie(SESSION, "", 0)]);
 
     const me = problem ? null : await who(req, env);
-    if (path === "/")
-      return respond(
+    const html = (body: string) => respond(body, { type: "text/html; charset=utf-8" });
+    // The home page: the groups this Google account belongs to and their coming events.
+    if (path === "/") {
+      let groups: Awaited<ReturnType<typeof groupsOf>> = [];
+      if (me)
+        try {
+          groups = await groupsOf(env, await signingKey(env), me.email, me.role !== null);
+        } catch (err) {
+          console.error("ops: groups failed:", err);
+        }
+      return html(
+        homePage({
+          lang,
+          email: me?.email ?? null,
+          role: me?.role ?? null,
+          groups,
+          problem,
+          error: url.searchParams.get("error"),
+        }),
+      );
+    }
+    if (path === "/dev") return me ? html(devPage({ lang, email: me.email })) : redirect(RELEASE);
+    if (path === RELEASE)
+      return html(
         page({
           email: me?.email ?? null,
           role: me?.role ?? null,
@@ -225,30 +277,29 @@ export default {
           error: url.searchParams.get("error"),
           lang,
         }),
-        { type: "text/html; charset=utf-8" },
       );
-    if (!me) return path === "/apply" ? redirect("/") : json({ error: tr(lang, "请先登录") }, 401);
+    if (!me) return path === "/apply" ? redirect(RELEASE) : json({ error: tr(lang, "请先登录") }, 401);
     const email = me.email;
 
     // The application form (server-drawn, no script): a new account, or a waiting one changing its note.
     if (path === "/apply" && req.method === "POST") {
-      if (me.role) return redirect("/");
+      if (me.role) return redirect(RELEASE);
       const form = await req.formData().catch(() => null);
       const name = form?.get("name");
-      if (typeof name !== "string" || !name.trim()) return redirect("/?error=name");
+      if (typeof name !== "string" || !name.trim()) return redirect(`${RELEASE}?error=name`);
       const done = await book(env).apply(email, name, typeof form?.get("note") === "string" ? form.get("note") : "");
-      if (!done.ok) return redirect(`/?error=${done.reason}`);
+      if (!done.ok) return redirect(`${RELEASE}?error=${done.reason}`);
       if (done.isNew) {
         console.log(`ops: ${email} applied`);
         const u = done.user;
         ctx.waitUntil(
           notifyDev(
             env,
-            `📝 ${u.name}（${u.email}）申请使用发布管理网站${u.note ? `：${u.note}` : ""}\n请到 ${env.OPS_ORIGIN} 审核`,
+            `📝 ${u.name}（${u.email}）申请使用发布管理网站${u.note ? `：${u.note}` : ""}\n请到 ${env.OPS_ORIGIN}${RELEASE} 审核`,
           ),
         );
       }
-      return redirect("/");
+      return redirect(RELEASE);
     }
     if (!me.role) return json({ error: tr(lang, "还没有批准") }, 403);
 
@@ -309,7 +360,7 @@ export default {
         ctx.waitUntil(
           notifyDev(
             env,
-            `⏪ ${label(env, me)} 从发布管理网站开始恢复备份：${site.name} 的数据库回到迁移之前，再换到 ${tag}\n${env.OPS_ORIGIN}`,
+            `⏪ ${label(env, me)} 从发布管理网站开始恢复备份：${site.name} 的数据库回到迁移之前，再换到 ${tag}\n${env.OPS_ORIGIN}${RELEASE}`,
           ),
         );
         return json({ ok: true });
@@ -340,7 +391,7 @@ export default {
         ctx.waitUntil(
           notifyDev(
             env,
-            `🚀 ${label(env, me)} 从发布管理网站开始发布：${tag ? `把 ${tag} ` : "从 main 打新版本并"}发到 ${names}\n${env.OPS_ORIGIN}`,
+            `🚀 ${label(env, me)} 从发布管理网站开始发布：${tag ? `把 ${tag} ` : "从 main 打新版本并"}发到 ${names}\n${env.OPS_ORIGIN}${RELEASE}`,
           ),
         );
         return json({ ok: true });
@@ -374,5 +425,8 @@ export class OpsUsers extends DurableObject {
   }
   remove(email: string) {
     return this.book.remove(email);
+  }
+  hubKey() {
+    return this.book.hubKey();
   }
 }

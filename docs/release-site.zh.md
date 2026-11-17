@@ -1,6 +1,10 @@
-# 发布管理网站 badminton.llmat.dev
+# 总入口和发布管理网站 badminton.llmat.dev
 
-用手机或电脑打开 https://badminton.llmat.dev ，用 Google 登录。GitHub secret `OPS_EMAIL` 里的邮箱是管理者（Ke Li），什么都能做。
+从 2026-11-17 起，https://badminton.llmat.dev 的首页是所有群的**总入口**：任何人用 Google 登录后，看到这个账号加入的群和近期活动，点进去是各群自己的网站。各群站点照常独立运行、独立登录，总入口只是向它们问「这个账号是不是你的成员」（站点的 `GET /api/hub/me`，设置了 `HUB_ORIGIN` 的站点才回答；现在只有测试站打开）。
+
+发布管理网站（站点管理 / Release Service）搬到了**开发者设置**里：首页右上角「开发者设置」→「站点管理」，地址是 https://badminton.llmat.dev/dev/release 。下面说的都是它。
+
+用手机或电脑打开 https://badminton.llmat.dev/dev/release ，用 Google 登录。GitHub secret `OPS_EMAIL` 里的邮箱是管理者（Ke Li），什么都能做。
 
 ## 用户和权限
 

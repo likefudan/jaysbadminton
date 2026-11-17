@@ -260,6 +260,37 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   下拉刷新: { tw: "下拉重新整理", en: "Pull to refresh" },
   "刷新中…": { tw: "重新整理中…", en: "Refreshing…" },
 
+  // 总入口: the home page and 开发者设置 (home.ts).
+  羽毛球: { tw: "羽毛球", en: "Badminton" },
+  首页: { tw: "首頁", en: "Home" },
+  开发者设置: { tw: "開發者設定", en: "Developer settings" },
+  站点管理: { tw: "站點管理", en: "Site management" },
+  "各站点的版本、发布、回滚和恢复（Release Service）": {
+    tw: "各站點的版本、發布、回滾和恢復（Release Service）",
+    en: "Each site's version, releases, rollbacks and restores (Release Service)",
+  },
+  "用 Google 登录，查看你加入的羽毛球群和近期活动。": {
+    tw: "用 Google 登入，查看你加入的羽毛球群和近期活動。",
+    en: "Sign in with Google to see your badminton groups and their coming events.",
+  },
+  近期活动: { tw: "近期活動", en: "Coming events" },
+  "最近没有活动。": { tw: "最近沒有活動。", en: "No events coming up." },
+  我的群: { tw: "我的群", en: "My groups" },
+  还没有找到你加入的群: { tw: "還沒有找到你加入的群", en: "No groups found for you yet" },
+  "用这个 Google 账号（{email}）在群自己的网站上加入后，群和活动就会出现在这里。": {
+    tw: "用這個 Google 帳號（{email}）在群自己的網站上加入後，群和活動就會出現在這裡。",
+    en: "Once you join a group on its own site with this Google account ({email}), the group and its events show up here.",
+  },
+  已报名: { tw: "已報名", en: "Signed up" },
+  可报名: { tw: "可報名", en: "Open" },
+  "{n} 人": { tw: "{n} 人", en: "{n} going" },
+  等待审核: { tw: "等待審核", en: "Awaiting approval" },
+  "待付 ${amount}": { tw: "待付 ${amount}", en: "${amount} due" },
+  管理: { tw: "管理", en: "Manage" },
+  群主: { tw: "群主", en: "Owner" },
+  管理员: { tw: "管理員", en: "Admin" },
+  组织者: { tw: "組織者", en: "Organizer" },
+
   // Progress labels from logic.ts progressOf and github.ts.
   测试没通过: { tw: "測試沒通過", en: "Tests failed" },
   测试中: { tw: "測試中", en: "Testing" },

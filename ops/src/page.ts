@@ -5,7 +5,7 @@ import { MAX_NOTE, type Role, type User } from "./users";
 // The release site's page: a shell, its stylesheet and its script (no inline code, so the content policy
 // allows only this site's own files). The script draws everything from /api/state.
 
-const esc = (s: string) =>
+export const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 const ERRORS: Record<string, string> = {
@@ -49,6 +49,33 @@ function langSwitch(lang: Lang): string {
   return `<details class="lang-switch"><summary class="lang-btn" aria-label="${esc(tr(lang, "语言：{name}", { name: now.name }))}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor"><text x="1" y="13" font-size="12" font-weight="600">文</text><text x="12.5" y="21.5" font-size="12" font-weight="700">A</text></svg></summary><div class="lang-menu" role="menu">${items}</div></details>`;
 }
 
+/**
+ * Every page's frame: the top bar (a way back, the title, 文A, 退出) around `body`. `title` and
+ * `back.label` are already in the reader's language.
+ */
+export function shell(o: {
+  lang: Lang;
+  title: string;
+  email: string | null;
+  body: string;
+  back?: { href: string; label: string };
+  /** Shown beside 退出, e.g. the way into 开发者设置. */
+  extra?: string;
+}): string {
+  const t = (key: string, vars?: Record<string, string>) => tr(o.lang, key, vars);
+  const out = o.email
+    ? `<form method="post" action="/logout"><button class="link" title="${esc(o.email)}">${t("退出")}</button></form>`
+    : "";
+  const back = o.back ? `<a class="backlink" href="${o.back.href}">‹ ${esc(o.back.label)}</a>` : "";
+  return `<!doctype html><html lang="${o.lang}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex"><title>${esc(o.title)}</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23e8664f'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css"></head><body>
+<header class="top"><span class="lead">${back}<b>${esc(o.title)}</b></span><span class="acts">${o.extra ?? ""}${langSwitch(o.lang)}${out}</span></header><main class="wrap">${o.body}</main></body></html>`;
+}
+
+/** 站点管理 (the Release Service), under 开发者设置: /dev/release. */
 export function page({
   email,
   role = null,
@@ -67,23 +94,21 @@ export function page({
   lang?: Lang;
 }) {
   const t = (key: string, vars?: Record<string, string>) => tr(lang, key, vars);
-  const out = email
-    ? `<form method="post" action="/logout"><button class="link" title="${esc(email)}">${t("退出")}</button></form>`
-    : "";
   let body: string;
   if (problem) body = `<div class="card"><b>${t("还不能用")}</b><p class="muted">${esc(problem)}</p></div>`;
   else if (!email)
     body = `<div class="card login"><p>${t("用 Google 登录。第一次来的人登录后可以申请。")}</p>${
       error && ERRORS[error] ? `<p class="warn">${t(ERRORS[error])}</p>` : ""
-    }<a class="btn p" href="/login">${t("用 Google 登录")}</a></div>`;
+    }<a class="btn p" href="/login?next=dev">${t("用 Google 登录")}</a></div>`;
   else if (!role) body = applyCard(t, email, user, owner, error);
   else body = `<div id="app"><p class="muted center">${t("正在读取…")}</p></div><script src="/app.js"></script>`;
-  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="robots" content="noindex"><title>${t("站点发布管理")}</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23e8664f'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/app.css"></head><body>
-<header class="top"><b>${t("站点发布管理")}</b><span class="acts">${langSwitch(lang)}${out}</span></header><main class="wrap">${body}</main></body></html>`;
+  return shell({
+    lang,
+    title: t("站点发布管理"),
+    email,
+    body,
+    back: email ? { href: "/dev", label: t("开发者设置") } : { href: "/", label: t("首页") },
+  });
 }
 
 export const APP_CSS = `
@@ -93,6 +118,16 @@ export const APP_CSS = `
 body{margin:0;font-family:-apple-system,"PingFang SC","Noto Sans CJK SC",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:15px;-webkit-text-size-adjust:100%}
 .top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
 .top b{font-size:17px}
+.lead{display:flex;align-items:baseline;gap:10px;min-width:0}.lead b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.backlink{color:var(--accent);text-decoration:none;font-size:15px;white-space:nowrap}
+.devlink{color:var(--muted);text-decoration:none;font-size:14px;white-space:nowrap}
+.ev{display:block;color:inherit;text-decoration:none}.ev .when{font-weight:600}.ev .where{margin:4px 0 8px}
+.ev .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted)}
+.grp{display:inline-flex;align-items:center;gap:6px;min-width:0}.grp svg{flex:none}
+.group{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line);min-height:48px}.group:first-child{border-top:0}
+.group .who{flex:1;min-width:0;color:inherit;text-decoration:none}.group .who b{display:block}
+.group .btn{padding:7px 12px;font-size:14px}
+.menu{display:flex;align-items:center;justify-content:space-between;gap:10px;color:inherit;text-decoration:none}.menu b{display:block;margin-bottom:2px}
 .acts{display:flex;align-items:center;gap:10px}
 .lang-switch{position:relative}
 .lang-btn{list-style:none;width:34px;height:34px;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
