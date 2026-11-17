@@ -7,6 +7,8 @@ export interface Env {
   OPS_ORIGIN: string;
   GITHUB_REPO: string;
   MAIN_SITE_DOMAIN: string;
+  /** The test site: the 总入口 lists it too, but only for the developer and those she approved. */
+  STAGING_DOMAIN?: string;
   /** Fine-grained GitHub token for this repository only: Actions read/write, Contents read. */
   OPS_GITHUB_TOKEN?: string;
   /** The owner's Google account (Ke Li's): every power, and the only one who approves others. */

@@ -1,3 +1,4 @@
+import { importJWK, type JWK, jwtVerify } from "jose";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { forget, state } from "../ops/src/github";
@@ -447,15 +448,19 @@ describe("简 / 繁 / English", () => {
   it("remembers the choice from the 文A menu and draws the page in it", async () => {
     const res = await call("/lang/en");
     expect(res.headers.get("Location")).toBe("/");
+    // Back to the page the menu was on, when that is one of this site's own.
+    const from = (Referer: string) => call("/lang/en", { headers: { Referer } });
+    expect((await from("https://badminton.llmat.dev/dev/release")).headers.get("Location")).toBe("/dev/release");
+    expect((await from("https://evil.example/dev/release")).headers.get("Location")).toBe("/");
     expect(res.headers.get("Set-Cookie")).toMatch(/^ops-lang=en; Path=\/; Max-Age=\d+; Secure; SameSite=Lax$/);
     expect((await call("/lang/fr")).headers.get("Set-Cookie")).toBeNull();
-    const page = await (await call("/?error=account", { headers: { Cookie: "ops-lang=en" } })).text();
+    const page = await (await call("/dev/release?error=account", { headers: { Cookie: "ops-lang=en" } })).text();
     expect(page).toContain('<html lang="en">');
     expect(page).toContain("<title>Release Service</title>");
     expect(page).toContain("Sign in with Google");
     expect(page).toContain("This Google account can't be used (its email isn't verified).");
     expect(page).toContain('href="/lang/zh-TW"');
-    const zh = await (await call("/")).text();
+    const zh = await (await call("/dev/release")).text();
     expect(zh).toContain("<title>站点发布管理</title>");
     const res2 = await call("/api/state", { headers: { Cookie: "ops-lang=zh-TW" } });
     expect(await res2.json()).toEqual({ error: "請先登入" });
@@ -531,7 +536,7 @@ describe("users: apply, approve, release engineers", () => {
   });
 
   it("shows a new account the application form and nothing else", async () => {
-    const page = await (await as("new@x.com", "/")).text();
+    const page = await (await as("new@x.com", "/dev/release")).text();
     expect(page).toContain('action="/apply"');
     expect(page).not.toContain("/app.js");
     expect(page).toContain("Ke Li 批准了你才能查看");
@@ -547,15 +552,15 @@ describe("users: apply, approve, release engineers", () => {
       return new Response(null, { status: 204 });
     });
     const env = { ...ENV, TELEGRAM_DEV_BOT_TOKEN: "dev-bot", TELEGRAM_DEV_CHAT_ID: "-100" };
-    expect((await apply("new@x.com", { name: " " }, env)).headers.get("Location")).toBe("/?error=name");
+    expect((await apply("new@x.com", { name: " " }, env)).headers.get("Location")).toBe("/dev/release?error=name");
     expect(await users.get("new@x.com")).toBeNull();
     const res = await apply("new@x.com", { name: "Nina", note: "我是 SBBC 的组织者" }, env);
-    expect(res.headers.get("Location")).toBe("/");
+    expect(res.headers.get("Location")).toBe("/dev/release");
     await apply("new@x.com", { name: "Nina", note: "改一下说明" }, env);
     expect(sent).toEqual([
-      "📝 Nina（new@x.com）申请使用发布管理网站：我是 SBBC 的组织者\n请到 https://badminton.llmat.dev 审核",
+      "📝 Nina（new@x.com）申请使用发布管理网站：我是 SBBC 的组织者\n请到 https://badminton.llmat.dev/dev/release 审核",
     ]);
-    const page = await (await as("new@x.com", "/")).text();
+    const page = await (await as("new@x.com", "/dev/release")).text();
     expect(page).toContain("申请已提交");
     expect(page).toContain("改一下说明");
     expect(page).not.toContain('action="/apply"');
@@ -593,7 +598,7 @@ describe("users: apply, approve, release engineers", () => {
     await users.decide("v@x.com", "viewer");
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json([]));
     expect((await as("v@x.com", "/api/releases")).status).toBe(200);
-    expect((await as("v@x.com", "/")).text()).resolves.toContain("/app.js");
+    expect((await as("v@x.com", "/dev/release")).text()).resolves.toContain("/app.js");
     const refused = await releaseAs("v@x.com");
     expect(refused.status).toBe(403);
     expect(await refused.json()).toEqual({ error: "只有发布工程师可以发布、回滚和恢复" });
@@ -627,6 +632,115 @@ describe("users: apply, approve, release engineers", () => {
     await decide("e@x.com", "rejected");
     expect((await releaseAs("e@x.com")).status).toBe(403);
     expect((await as("e@x.com", "/api/releases")).status).toBe(403);
-    expect(await (await as("e@x.com", "/")).text()).toContain("这个账号没有权限");
+    expect(await (await as("e@x.com", "/dev/release")).text()).toContain("这个账号没有权限");
+  });
+});
+
+describe("总入口: the groups and events of whoever signs in", () => {
+  const as = async (email: string, path: string, headers: Record<string, string> = {}, env = ENV) =>
+    call(path, { headers: { Cookie: await signedIn(email), ...headers } }, env);
+  const answer = {
+    site: { name: "SBBC 羽毛球" },
+    member: { name: "小明", pending: false, role: "organizer", unpaidCents: 2392 },
+    events: [
+      {
+        code: "26-1120",
+        date: "2026-11-20",
+        startTime: "19:00",
+        endTime: "21:00",
+        location: "<b>Bay</b> Badminton",
+        title: "",
+        status: "open",
+        headcount: 7,
+        signedUp: true,
+      },
+      { code: "bad code!", date: "2026-11-21", startTime: "19:00", endTime: "21:00" },
+    ],
+  };
+  /** The sites: sbbc knows the account, Jay's doesn't, the rest are not taking part or down. */
+  function sites(asked: { url: string; token: string }[] = []) {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      asked.push({ url, token: new Headers(init?.headers).get("Authorization")?.replace("Bearer ", "") ?? "" });
+      if (url === "https://sbbc.llmat.dev/api/hub/me") return Response.json(answer);
+      if (url === "https://jaysbadminton.llmat.dev/api/hub/me")
+        return Response.json({ site: { name: "Jay's 羽毛球" }, member: null, events: [] });
+      if (url === "https://coco.llmat.dev/api/hub/me") throw new Error("down");
+      return Response.json({ error: "x" }, { status: 404 });
+    });
+    return asked;
+  }
+
+  it("asks visitors to sign in and asks no site anything", async () => {
+    const asked = sites();
+    const page = await (await call("/")).text();
+    expect(page).toContain('href="/login"');
+    expect(page).toContain("查看你加入的羽毛球群");
+    expect(page).not.toContain("/dev");
+    expect(asked).toEqual([]);
+  });
+
+  it("shows anyone signed in their groups and events, with links to the group's own site", async () => {
+    sites();
+    const page = await (await as("member@x.com", "/")).text();
+    expect(page).toContain("SBBC 羽毛球");
+    expect(page).toContain('href="https://sbbc.llmat.dev/e/26-1120"');
+    expect(page).toContain("19:00–21:00");
+    expect(page).toContain("已报名");
+    expect(page).toContain("小明 · 组织者");
+    expect(page).toContain("待付 $23.92");
+    expect(page).toContain('href="https://sbbc.llmat.dev/admin/google"');
+    // What a site says is text, never markup; an event it describes badly is left out.
+    expect(page).toContain("&lt;b&gt;Bay&lt;/b&gt; Badminton");
+    expect(page).not.toContain("bad code");
+    // Groups the account isn't in are not listed, and neither is the way into 开发者设置.
+    expect(page).not.toContain("Jay's");
+    expect(page).not.toContain('href="/dev"');
+    expect(page).not.toContain("/app.js");
+  });
+
+  it("signs each question for one site only, with a key the sites can check", async () => {
+    const asked = sites();
+    await as("member@x.com", "/");
+    const { keys } = (await (await call("/.well-known/jwks.json")).json()) as { keys: JWK[] };
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).not.toHaveProperty("d");
+    const sbbc = asked.find((a) => a.url.startsWith("https://sbbc.llmat.dev/"))!;
+    const { payload } = await jwtVerify(sbbc.token, await importJWK(keys[0]!, "ES256"), {
+      issuer: "https://badminton.llmat.dev",
+      audience: "https://sbbc.llmat.dev",
+      maxTokenAge: 120,
+    });
+    expect(payload.email).toBe("member@x.com");
+    // The same key every time, and the test site is asked only for those who work on the sites.
+    expect(((await (await call("/.well-known/jwks.json")).json()) as { keys: JWK[] }).keys[0]!.kid).toBe(keys[0]!.kid);
+    const env = { ...ENV, STAGING_DOMAIN: "staging.jaysbadminton.llmat.dev" };
+    asked.length = 0;
+    await as("member@x.com", "/", {}, env);
+    expect(asked.some((a) => a.url.includes("staging."))).toBe(false);
+    await as("owner@example.com", "/", {}, env);
+    expect(asked.some((a) => a.url === "https://staging.jaysbadminton.llmat.dev/api/hub/me")).toBe(true);
+  });
+
+  it("tells someone in no group how to get one listed", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({}, { status: 404 }));
+    const page = await (await as("nobody@x.com", "/")).text();
+    expect(page).toContain("还没有找到你加入的群");
+    expect(page).toContain("nobody@x.com");
+  });
+
+  it("keeps 站点管理 under 开发者设置, for the developer and those she approved", async () => {
+    sites();
+    const home = await (await as("owner@example.com", "/")).text();
+    expect(home).toContain('href="/dev"');
+    const dev = await (await as("owner@example.com", "/dev")).text();
+    expect(dev).toContain('href="/dev/release"');
+    expect(dev).toContain("Release Service");
+    const release = await (await as("owner@example.com", "/dev/release")).text();
+    expect(release).toContain("/app.js");
+    expect(release).toContain('href="/dev"');
+    // Signed out: the Release Service's own sign-in, which comes back to it.
+    expect((await call("/dev")).headers.get("Location")).toBe("/dev/release");
+    expect(await (await call("/dev/release")).text()).toContain('href="/login?next=dev"');
   });
 });

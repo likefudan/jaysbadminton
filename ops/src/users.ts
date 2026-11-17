@@ -4,6 +4,8 @@
 // release, roll back and restore. Kept in one Durable Object (OpsUsers, index.ts), so a change takes effect on the
 // very next request: the login cookie only says who someone is, never what they may do.
 
+import { type HubKey, newHubKey } from "./hub";
+
 export type Role = "owner" | "engineer" | "viewer";
 export type Status = "pending" | "viewer" | "engineer" | "rejected";
 
@@ -43,6 +45,15 @@ export type ApplyResult = { ok: true; user: User; isNew: boolean } | { ok: false
 
 export class UserBook {
   constructor(private store: Storage) {}
+
+  /** The 总入口's signing key (hub.ts), kept beside the list: made the first time it is asked for. */
+  async hubKey(make: () => Promise<HubKey> = newHubKey): Promise<HubKey> {
+    const had = await this.store.get<HubKey>("hubkey");
+    if (had) return had;
+    const key = await make();
+    await this.store.put("hubkey", key);
+    return key;
+  }
 
   async get(email: string): Promise<User | null> {
     return (await this.store.get<User>(key(email))) ?? null;

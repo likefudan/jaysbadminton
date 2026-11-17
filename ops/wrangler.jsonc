@@ -14,6 +14,7 @@
     "GITHUB_REPO": "likefudan/jaysbadminton",
     // Jay's site: the production Worker from wrangler.jsonc; the others come from sites.json.
     "MAIN_SITE_DOMAIN": "jaysbadminton.llmat.dev",
+    "STAGING_DOMAIN": "staging.jaysbadminton.llmat.dev",
     "OWNER_NAME": "Ke Li"
   },
   // Who else may sign in (users.ts): applicants, viewers and release engineers, in one Durable Object.
