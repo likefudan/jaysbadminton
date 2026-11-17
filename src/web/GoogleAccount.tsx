@@ -119,13 +119,18 @@ export function GoogleAccount(props: { onAppearance: () => void }) {
               {administrative ? t("切换为普通成员") : t("切换为管理员")}
             </a>
           ) : (
-            <a class="button secondary block" href="/me" onClick={() => setOpen(false)}>
-              {t("我的活动")}
+            !tabs?.includes("events") && (
+              <a class="button secondary block" href="/me" onClick={() => setOpen(false)}>
+                {t("我的活动")}
+              </a>
+            )
+          )}
+          {/* In the home-screen app the tabs at the bottom are the only way around (Ke Li 2026-11-17). */}
+          {!tabs?.includes("me") && (
+            <a class="button secondary block" href="/me/profile" onClick={() => setOpen(false)}>
+              {t("个人信息")}
             </a>
           )}
-          <a class="button secondary block" href="/me/profile" onClick={() => setOpen(false)}>
-            {t("个人信息")}
-          </a>
           <button
             type="button"
             class="button secondary block"

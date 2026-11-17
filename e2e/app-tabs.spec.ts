@@ -113,6 +113,27 @@ test("those who run events get a 管理 tab instead of 切换为管理员", asyn
   }
 });
 
+/** The tabs are the only way around in the app: the avatar menu keeps just 外观 and 退出登录 (Ke Li 2026-11-17). */
+test("in the home-screen app the avatar menu has no page links", async ({ page }) => {
+  await signedIn(page, { app: true });
+  await page.goto("/me");
+  await page.getByRole("button", { name: /Google 账号/ }).click();
+  const menu = page.getByRole("region", { name: "Google 账号信息" });
+  await expect(menu.getByRole("button", { name: "外观" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "退出登录" })).toBeVisible();
+  await expect(menu.getByRole("link")).toHaveCount(0);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/menu-app.png` });
+});
+
+test("in a browser the avatar menu keeps its page links", async ({ page }) => {
+  await signedIn(page, { app: false });
+  await page.goto("/me");
+  await page.getByRole("button", { name: /Google 账号/ }).click();
+  const menu = page.getByRole("region", { name: "Google 账号信息" });
+  await expect(menu.getByRole("link")).toHaveText(["我的活动", "个人信息"]);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/menu-browser.png` });
+});
+
 test("a browser keeps the tabs at the top", async ({ page }) => {
   await signedIn(page, { app: false, role: "organizer" });
   await page.goto("/");
