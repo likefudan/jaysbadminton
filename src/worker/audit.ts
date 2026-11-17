@@ -26,6 +26,7 @@ export type AuditAction =
   | "close_now"
   | "reopen"
   | "cancel"
+  | "restore"
   | "transfer"
   | "reassign"
   | "roster_add"

@@ -392,6 +392,23 @@ test("signed in with Google: the member sees the roster on shared pages; the Own
   await expect(page.getByRole("link", { name: "切换为管理员", exact: true })).toHaveAttribute("href", "/admin/google");
 });
 
+test("the Owner cancels the event and restores it, roster and all", async ({ page }) => {
+  acceptDialogs(page);
+  await openAdmin(page);
+  await page.locator(".event-link", { hasText: VENUE }).click();
+  const heading = page.getByRole("heading", { name: /^名单（/ });
+  const roster = (await heading.innerText()).match(/名单（\d+）/)![0];
+  await page.getByRole("button", { name: "取消这次活动" }).click();
+  // Back in the list, it is under 已结束 as 已取消; opened again, 恢复活动 is in 更多.
+  await page.locator(".card", { hasText: "已结束" }).locator(".event-link", { hasText: VENUE }).click();
+  await expect(page.getByRole("button", { name: "取消这次活动" })).toHaveCount(0);
+  await page.getByRole("button", { name: /^恢复活动/ }).click();
+  await expect(page.getByRole("button", { name: "取消这次活动" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^恢复活动/ })).toHaveCount(0);
+  await expect(heading).toContainText(roster);
+  await expect(page.getByRole("button", { name: /^立即截止报名/ })).toBeVisible(); // sign-up is open again
+});
+
 test("the Owner closes sign-up and settles; the member sees the bill and a Venmo link", async ({ page }) => {
   acceptDialogs(page);
   await openAdmin(page);

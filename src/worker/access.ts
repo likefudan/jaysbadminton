@@ -270,6 +270,7 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "POST /events/:id/close-now": event(),
   "POST /events/:id/reopen": event(),
   "POST /events/:id/cancel": event(),
+  "POST /events/:id/restore": event(),
   "POST /events/:id/self-signup": event(),
   "POST /events/:id/self-cancel": event(),
   "POST /events/:id/roster/add": event(),

@@ -214,6 +214,8 @@ export interface EventDetail extends EventSummary {
   dunningStopped: boolean;
   /** 从数据库永久删除 is offered: the event is archived (all paid) or cancelled. */
   deletable: boolean;
+  /** 恢复活动 is offered: cancelled, and (when it collects money) not yet past its 结算期限. */
+  restorable: boolean;
   /** 收款人: walk-ins can be hung under them (their bill pays itself). */
   payee: { id: string | null; name: string; isMe: boolean };
   /** 负责人: who runs it, by name (the Owner's included). */

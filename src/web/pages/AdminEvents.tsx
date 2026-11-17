@@ -661,6 +661,10 @@ function EventAdminBody(props: {
     if (!confirm(t("取消后这次活动不产生费用，也不计入统计。确定取消吗？"))) return;
     if (await run(() => api(`${eb}/cancel`, {}))) props.onBack();
   }
+  async function restoreEvent() {
+    if (!confirm(t("恢复这次活动？名单上的人仍然报了名，会收到通知。"))) return;
+    if (await run(() => api(`${eb}/restore`, {}))) props.onChange();
+  }
   async function remove(r: RosterEntry) {
     if (!confirm(t("从名单中删除「{name}」？", { name: r.name }))) return;
     if (await run(() => api(`${eb}/roster/${r.id}/remove`, {}))) props.onChange();
@@ -813,6 +817,7 @@ function EventAdminBody(props: {
         <h2>{t("更多")}</h2>
         {e.status === "open" && <SettingRow label={t("立即截止报名")} onClick={closeNow} />}
         {e.status === "closed" && <SettingRow label={t("重新开放报名")} onClick={() => setMore("reopen")} />}
+        {e.restorable && <SettingRow label={t("恢复活动")} onClick={restoreEvent} />}
         {editable && props.organizers?.canManage && (
           <SettingRow
             label={e.noFee ? t("负责人") : t("负责人和收款人")}
