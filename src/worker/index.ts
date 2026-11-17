@@ -1,3 +1,4 @@
+import { hubRoutes } from "./hub";
 import { appleAppSiteAssociation, assetLinks } from "../shared/apps";
 import { developerRoutes } from "./developer";
 import { Hono } from "hono";
@@ -196,6 +197,7 @@ app.get("/e/:code", async (c) =>
 app.route("/api/developer", developerRoutes);
 app.route("/api/public", publicRoutes);
 app.route("/api/auth", googleRoutes);
+app.route("/api/hub", hubRoutes);
 app.route("/api/m", memberRoutes);
 app.route("/api/admin", adminRoutes);
 

@@ -30,6 +30,9 @@ export interface Env {
   /** A Firebase service account (the JSON key file as one string): pushes to the phone apps go
    *  through it (fcm.ts). Apps can't turn push on while it is missing; browsers don't need it. */
   FCM_SERVICE_ACCOUNT?: string;
+  /** The 总入口's address (https://badminton.llmat.dev): lets it ask this site which of its members a
+   *  Google account is and what events they have coming (hub.ts). Off while missing. */
+  HUB_ORIGIN?: string;
   /** Public site address, for links in messages sent by the cron job (which has no request). */
   SITE_ORIGIN: string;
   /** The release this Worker runs (v2026.11.10 on production sites, main-<sha> on the test site), set by
