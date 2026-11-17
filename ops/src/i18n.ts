@@ -43,9 +43,9 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "還沒有 Google 登入的設定（GOOGLE_CLIENT_ID）",
     en: "Google sign-in isn't set up yet (GOOGLE_CLIENT_ID)",
   },
-  "还没有设置管理者的邮箱（GitHub secret OPS_EMAIL）": {
-    tw: "還沒有設定管理者的信箱（GitHub secret OPS_EMAIL）",
-    en: "The owner's email isn't set yet (GitHub secret OPS_EMAIL)",
+  "还没有设置开发者的邮箱（GitHub secret OPS_EMAIL）": {
+    tw: "還沒有設定開發者的信箱（GitHub secret OPS_EMAIL）",
+    en: "The developer's email isn't set yet (GitHub secret OPS_EMAIL)",
   },
 
   // Applying, and the owner's 用户和权限 panel.
