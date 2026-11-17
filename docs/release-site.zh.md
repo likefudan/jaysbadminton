@@ -4,14 +4,14 @@
 
 发布管理网站（站点管理 / Release Service）搬到了**开发者设置**里：首页右上角「开发者设置」→「站点管理」，地址是 https://badminton.llmat.dev/dev/release 。下面说的都是它。
 
-用手机或电脑打开 https://badminton.llmat.dev/dev/release ，用 Google 登录。GitHub secret `OPS_EMAIL` 里的邮箱是管理者（Ke Li），什么都能做。
+用手机或电脑打开 https://badminton.llmat.dev/dev/release ，用 Google 登录。GitHub secret `OPS_EMAIL` 里的邮箱是开发者（Ke Li），什么都能做。
 
 ## 用户和权限
 
 - 其他人用 Google 登录后只看到一张申请表（名字 + 可不填的说明），看不到任何站点、版本或部署信息。提交后开发群收到一条「📝 谁 申请使用发布管理网站」。
-- 管理者在首页「用户和权限」（有新申请时带红色数字）里处理：**批准（只读）**、**批准为发布工程师**、**拒绝**；之后可以随时改为只读、设为发布工程师、取消权限；被拒绝或取消的人不能再申请，「删除」后可以重新申请。只有管理者能看到和改这里。
+- 开发者在首页「用户和权限」（有新申请时带红色数字）里处理：**批准（只读）**、**批准为发布工程师**、**拒绝**；之后可以随时改为只读、设为发布工程师、取消权限；被拒绝或取消的人不能再申请，「删除」后可以重新申请。只有开发者能看到和改这里。
 - **只读**：能看整个页面（新改动、各站点版本、所有版本和发布说明、最近的部署），但没有发布按钮，也不能选版本。
-- **发布工程师**：和管理者一样可以发布、回滚、恢复备份，只是不能管理用户。开发群的发布通知会写是谁开始的。
+- **发布工程师**：和开发者一样可以发布、回滚、恢复备份，只是不能管理用户。开发群的发布通知会写是谁开始的。
 - 权限每次请求都重新读，取消后对方马上不能再用（不用等 7 天的登录过期）。名单存在这个 Worker 自己的 Durable Object（`OpsUsers`）里，不需要另外设置；最多 200 个账号（含申请中的）。
 
 - **新版本可以发布**：main 上还没发布的改动。勾选要发布的站点，按「发布 v…」。测试站的 CI 没通过时按钮是灰的。发布的就是页面上列出的这些改动：如果页面打开之后 main 上又合并了新的改动，会提示并刷新，看过再按一次。
@@ -25,7 +25,7 @@
 1. **GitHub 令牌**：GitHub → 右上角头像 → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token。Repository access 选 Only select repositories → `jaysbadminton`；Permissions 里 Actions 选 Read and write，Contents 选 Read-only。有效期可以选 1 年（到期后重新生成一个，替换下面的 secret）。生成后复制。
 2. 仓库 → Settings → Secrets and variables → Actions → New repository secret：
    - `OPS_GITHUB_TOKEN`：上一步的令牌。
-   - `OPS_EMAIL`：管理者的 Google 邮箱（批准别人、给发布工程师权限的人）。
+   - `OPS_EMAIL`：开发者的 Google 邮箱（批准别人、给发布工程师权限的人）。
 3. **Google 登录**：Google Cloud → APIs & Services → Credentials → 现有的 OAuth 客户端 → Authorized redirect URIs 加上 `https://badminton.llmat.dev/auth/callback`。
 4. 重新运行一次 main 上的 CI（或者等下一次合并），secret 就会推到网站上。
 

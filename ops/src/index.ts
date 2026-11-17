@@ -115,7 +115,7 @@ async function who(req: Request, env: Env): Promise<Me | null> {
 
 /** How a signed-in person is named in notices and logs. */
 const label = (env: Env, me: Me) => (me.role === "owner" ? env.OWNER_NAME : me.user?.name || me.email);
-const ROLE_NAME: Record<Role, string> = { owner: "管理者", engineer: "发布工程师", viewer: "只读" };
+const ROLE_NAME: Record<Role, string> = { owner: "开发者", engineer: "发布工程师", viewer: "只读" };
 
 // The 总入口's signing key: made once in the Durable Object, then kept here for the isolate's life.
 let hubKey: HubKey | null = null;
@@ -127,7 +127,7 @@ async function signingKey(env: Env): Promise<HubKey> {
 function ready(env: Env, lang: Lang): string | null {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET)
     return tr(lang, "还没有 Google 登录的设置（GOOGLE_CLIENT_ID）");
-  if (!env.OPS_EMAIL) return tr(lang, "还没有设置管理者的邮箱（GitHub secret OPS_EMAIL）");
+  if (!env.OPS_EMAIL) return tr(lang, "还没有设置开发者的邮箱（GitHub secret OPS_EMAIL）");
   if (!env.OPS_SESSION_KEY) return tr(lang, "还没有登录密钥（下次部署时自动生成）");
   return null;
 }
