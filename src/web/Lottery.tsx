@@ -115,7 +115,7 @@ export function LotteryCard(props: { base: string }) {
             {me.optedOut && <span>{t("你已选择不参加")}</span>}
             {me.canOpt && (
               <button type="button" class="text-button" disabled={busy} onClick={() => opt(!me.optedOut)}>
-                {me.optedOut ? t("重新参加") : t("不参加这次抽奖")}
+                {me.optedOut ? t("重新参加") : t("我不想参加这次抽奖")}
               </button>
             )}
             {error && <span class="error">{error}</span>}
@@ -268,11 +268,12 @@ function Header(props: {
   const units = [t("天"), t("时"), t("分"), t("秒")];
   return (
     <section class="lot-hero">
-      <div class="lot-hero-icon" aria-hidden="true">
-        🎉
-      </div>
-      <h2>{v.title}</h2>
-      <p>{t("前 {n} 名入群的球友，抽 {k} 位幸运儿", { n: v.poolSize, k: v.draws })}</p>
+      {/* Short, so the whole page fits one screen (Ke Li 2026-11-17): the 🎉 on the title's line, the
+          time under the countdown on the same line as who takes part, no line for one's own number
+          (it is on the card, and one's own face is ringed on the wall). */}
+      <h2>
+        <span aria-hidden="true">🎉</span> {v.title}
+      </h2>
       {left > 0 ? (
         <div class="lot-count" role="timer">
           {parts.map((p, i) => (
@@ -285,7 +286,9 @@ function Header(props: {
       ) : (
         <p class="lot-soon">{t("开奖啦！")}</p>
       )}
-      <p>{t("{time} 开奖", { time: fmtInstant(v.drawAt) })}</p>
+      <p>
+        {`${t("{time} 开奖", { time: fmtInstant(v.drawAt) })} · ${t("前 {n} 名抽 {k} 位", { n: v.poolSize, k: v.draws })}`}
+      </p>
       <ul class="lot-chips">
         {v.prizes.map((p) => (
           <li key={p.name}>
@@ -293,7 +296,7 @@ function Header(props: {
           </li>
         ))}
       </ul>
-      <Ticket v={v} />
+      {!v.me?.inPool && <Ticket v={v} />}
     </section>
   );
 }
@@ -639,19 +642,19 @@ function Cheer(props: { v: LotteryView; cheer: ReturnType<typeof useCheer> }) {
         <strong>
           <span aria-hidden="true">🔥</span> {t("热度")} Lv.{heat.level}
         </strong>
+        <div
+          class="lot-heat"
+          role="progressbar"
+          aria-valuenow={Math.round(heat.part * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <span style={{ width: `${Math.round(heat.part * 100)}%` }} />
+        </div>
         <span class="lot-heat-n">
           <b>{cheer.all}</b>
           {heat.next !== null && ` / ${heat.next}`}
         </span>
-      </div>
-      <div
-        class="lot-heat"
-        role="progressbar"
-        aria-valuenow={Math.round(heat.part * 100)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <span style={{ width: `${Math.round(heat.part * 100)}%` }} />
       </div>
       {top.length > 0 && (
         <div class="lot-top">
