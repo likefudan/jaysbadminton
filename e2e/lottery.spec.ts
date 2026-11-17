@@ -99,6 +99,7 @@ test("a member sees the 抽奖 on 我的活动, their number, and cheers", async
   await expect(panel).not.toContainText("不影响中奖");
   await expect(panel.locator(".lot-face")).toHaveCount(100);
   await expect(panel.locator(".lot-face.me")).toHaveCount(1);
+  await expect(panel.locator(".lot-online")).toHaveText("在线 81/100");
   await shot(page, "lottery-1-lobby");
   const cheer = panel.getByRole("button", { name: /打气/ });
   await cheer.click();
@@ -110,6 +111,16 @@ test("a member sees the 抽奖 on 我的活动, their number, and cheers", async
   await expect(panel.locator(".lot-heat-n")).toContainText("216");
   await shot(page, "lottery-1b-cheer");
   await expect.poll(() => cheers).toEqual([3]);
+  // Held down, it keeps cheering until it is let go.
+  const box = (await cheer.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(1200);
+  await page.mouse.up();
+  const held = Number((await cheer.locator("b").textContent())?.slice(1));
+  expect(held).toBeGreaterThanOrEqual(10);
+  await page.waitForTimeout(400);
+  await expect(cheer.locator("b")).toHaveText(`×${held}`);
 });
 
 test("a member sits the 抽奖 out from the card, and comes back", async ({ page }) => {
@@ -182,7 +193,7 @@ test("everyone watches the shuttle land on each winner, then can check the resul
   });
   await page.goto("/m/tok?lottery=1");
   const panel = page.getByRole("dialog", { name: "百人庆祝抽奖" });
-  await expect(panel).toContainText("直播开奖中 · 81 人在看");
+  await expect(panel).toContainText("直播开奖中 · 在线 81/100");
   await expect(panel).toContainText("第 4 / 5 次 · 黑航空");
   await expect(panel.locator(".lot-face.won")).toHaveCount(3);
   await expect(panel.locator(".lot-shuttle svg")).toBeVisible();

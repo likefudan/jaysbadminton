@@ -245,7 +245,7 @@ function Header(props: {
       <section class="lot-hero live">
         <p class="lot-live">
           <span class="lot-dot" aria-hidden="true" />
-          {v.rehearsal ? t("预演开奖中") : t("直播开奖中 · {n} 人在看", { n: v.watching })}
+          {v.rehearsal ? t("预演开奖中") : t("直播开奖中 · 在线 {n}/{all}", { n: v.watching, all: v.entries.length })}
         </p>
         {w ? (
           <h2>{t("第 {k} / {n} 次 · {prize}", { k: w.drawNo, n: v.draws, prize: w.prize })}</h2>
@@ -452,6 +452,13 @@ function Wall(props: {
   const angle = at && to ? (Math.atan2(to.row - at.from.row, to.col - at.from.col) * 180) / Math.PI - 90 : 0;
   return (
     <section class="card lot-wall-card">
+      {/* Who of the list has the page open now (Ke Li 2026-11-17: 显示在线人数，比如 30/98). */}
+      {props.dim && (
+        <p class="lot-online">
+          <span class="lot-online-dot" aria-hidden="true" />
+          {t("在线 {n}/{all}", { n: v.watching, all: n })}
+        </p>
+      )}
       <div class={n <= 5 ? "lot-wall few" : "lot-wall"} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {wall.map((e) => {
           const w = won.get(e.rank);
@@ -620,6 +627,9 @@ function useCheering(v: LotteryView, me: string | null, pulse: number): Map<stri
 }
 
 /** 打气: the group's 热度 climbing level by level, the three who cheer most, and the button. */
+const CHEER_HOLD_WAIT_MS = 350;
+const CHEER_HOLD_EVERY_MS = 110;
+
 function Cheer(props: { v: LotteryView; cheer: ReturnType<typeof useCheer> }) {
   const { v, cheer } = props;
   const heat = heatOf(cheer.all);
@@ -636,6 +646,24 @@ function Cheer(props: { v: LotteryView; cheer: ReturnType<typeof useCheer> }) {
     setFlying((f) => [...f, id]);
     setTimeout(() => setFlying((f) => f.filter((x) => x !== id)), 900);
   };
+  // Held down, it keeps cheering (Ke Li 2026-11-17: 可以按着不松): once at the press, then after a
+  // short wait several times a second, until the finger lifts or the most one may cheer is reached.
+  const latest = useRef(tap);
+  latest.current = tap;
+  const hold = useRef<{ wait?: ReturnType<typeof setTimeout>; every?: ReturnType<typeof setInterval> }>({});
+  const release = () => {
+    clearTimeout(hold.current.wait);
+    clearInterval(hold.current.every);
+    hold.current = {};
+  };
+  const press = () => {
+    release();
+    latest.current();
+    hold.current.wait = setTimeout(() => {
+      hold.current.every = setInterval(() => latest.current(), CHEER_HOLD_EVERY_MS);
+    }, CHEER_HOLD_WAIT_MS);
+  };
+  useEffect(() => release, []);
   return (
     <section class="card lot-cheer-card">
       <div class="lot-heat-row">
@@ -669,7 +697,18 @@ function Cheer(props: { v: LotteryView; cheer: ReturnType<typeof useCheer> }) {
         </div>
       )}
       {v.me && (
-        <button type="button" class="lot-cheer" onClick={tap} disabled={!cheer.can}>
+        <button
+          type="button"
+          class="lot-cheer"
+          onPointerDown={press}
+          onPointerUp={release}
+          onPointerLeave={release}
+          onPointerCancel={release}
+          onContextMenu={(e) => e.preventDefault()}
+          // The keyboard (no pointer): one a press.
+          onClick={(e) => e.detail === 0 && tap()}
+          disabled={!cheer.can}
+        >
           {t("📣 打气")}
           {cheer.mine > 0 && <b>×{cheer.mine}</b>}
           {flying.map((id) => (
