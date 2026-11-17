@@ -6,13 +6,19 @@ import { type Lang, tr } from "./i18n";
 import { esc, shell } from "./page";
 import type { Role } from "./users";
 
-const dot = (color: string) =>
-  `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="${esc(color)}"/></svg>`;
+// Each group in the colour of its site's icon: a class, since the content policy allows no inline styles.
+const TONES: Record<string, string> = {
+  "#3d7bd9": "t-ocean",
+  "#3aa564": "t-forest",
+  "#9b7fa8": "t-grape",
+  "#8a63d2": "t-violet",
+};
+const tone = (color: string) => TONES[color] ?? "t-coral";
+const dot = `<i class="gdot"></i>`;
 
-/** 11月18日 周三, Wed, Nov 18: the event's own day, whatever the reader's time zone. */
-function day(lang: Lang, date: string): string {
-  const d = new Date(`${date}T12:00:00Z`);
-  return new Intl.DateTimeFormat(lang, { month: "short", day: "numeric", weekday: "short", timeZone: "UTC" }).format(d);
+/** 周三, Wed: the event's own day, whatever the reader's time zone. */
+function weekday(lang: Lang, date: string): string {
+  return new Intl.DateTimeFormat(lang, { weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 }
 /** Site names end in 羽毛球, which English shows as Badminton (as on the Release Service). */
 const named = (lang: Lang, name: string) => (lang === "en" ? name.replace(/\s*羽毛球$/, " Badminton") : name);
@@ -48,17 +54,21 @@ export function homePage(o: {
   const events = o.groups
     .flatMap((g) => g.events.map((e) => ({ g, e })))
     .sort((a, b) => (a.e.date + a.e.startTime).localeCompare(b.e.date + b.e.startTime));
-  const card = ({ g, e }: { g: Group; e: HubEvent }) =>
-    `<a class="card ev" href="https://${g.site.domain}/e/${encodeURIComponent(e.code)}">
-<div class="row"><span class="when">${esc(day(o.lang, e.date))} ${e.startTime}–${e.endTime}</span>${
-      e.signedUp
-        ? `<span class="pill">${t("已报名")}</span>`
-        : e.status === "open"
-          ? `<span class="pill old">${t("可报名")}</span>`
-          : ""
-    }</div>
-<div class="where">${esc(e.title || e.location)}${e.title && e.location ? `<span class="muted"> · ${esc(e.location)}</span>` : ""}</div>
-<div class="foot"><span class="grp">${dot(g.site.color)}${esc(named(o.lang, g.name))}</span><span>${t("{n} 人", { n: e.headcount })}</span></div></a>`;
+  // The groups' sites' event card: the date large on the group's colour, 报名 / 查看 in the corner.
+  const card = ({ g, e }: { g: Group; e: HubEvent }) => {
+    const [, month, date] = e.date.split("-").map(Number);
+    const status = e.signedUp
+      ? `<span class="status mine"><i></i>${t("我已报名")}</span>`
+      : e.status === "open"
+        ? `<span class="status"><i></i>${t("报名中")}</span>`
+        : `<span class="status shut"><i></i>${t("报名已截止")}</span>`;
+    return `<a class="card ev ${tone(g.site.color)}" href="https://${g.site.domain}/e/${encodeURIComponent(e.code)}">
+<div class="evhead"><div class="evtop">${status}</div>
+<span class="evdate">${month}/${date}<small>${esc(weekday(o.lang, e.date))} ${e.startTime}–${e.endTime}</small></span>
+<span class="evwhat">${esc(e.title || e.location)}${e.title && e.location ? `<small> · ${esc(e.location)}</small>` : ""}</span>
+<span class="evcta">${e.signedUp || e.status !== "open" ? t("查看") : t("报名")}</span></div>
+<div class="evfoot"><span class="grp">${dot}${esc(named(o.lang, g.name))}</span><span>${t("{n} 人", { n: e.headcount })}</span></div></a>`;
+  };
   const group = (g: Group) => {
     const home = `https://${g.site.domain}`;
     const m = g.member;
@@ -69,7 +79,7 @@ export function homePage(o: {
         ? `<span class="pill old">${t("待付 ${amount}", { amount: (m.unpaidCents / 100).toFixed(2) })}</span>`
         : "";
     const manage = ROLES[m.role] ? `<a class="btn" href="${home}/admin/google">${t("管理")}</a>` : "";
-    return `<div class="group">${dot(g.site.color)}<a class="who" href="${home}/me"><b>${esc(named(o.lang, g.name))}</b><span class="muted">${bits}</span></a>${pills}${manage}</div>`;
+    return `<div class="group ${tone(g.site.color)}">${dot}<a class="who" href="${home}/me"><b>${esc(named(o.lang, g.name))}</b><span class="muted">${bits}</span></a>${pills}${manage}</div>`;
   };
   const body = o.groups.length
     ? `<h3>${t("近期活动")}</h3>${

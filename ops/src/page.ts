@@ -49,6 +49,9 @@ function langSwitch(lang: Lang): string {
   return `<details class="lang-switch"><summary class="lang-btn" aria-label="${esc(tr(lang, "语言：{name}", { name: now.name }))}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor"><text x="1" y="13" font-size="12" font-weight="600">文</text><text x="12.5" y="21.5" font-size="12" font-weight="700">A</text></svg></summary><div class="lang-menu" role="menu">${items}</div></details>`;
 }
 
+/** The groups' sites' mark (src/web/components.tsx BridgeMark): the bridge and a shuttlecock. */
+const MARK = `<svg viewBox="0 0 512 512" width="22" height="22" aria-hidden="true" fill="currentColor"><path d="M0 300 Q70 210 132 120 Q256 420 380 120 Q442 210 512 300" fill="none" stroke="currentColor" stroke-width="30" stroke-linejoin="round"/><path d="M99 92L119 92L110 470L90 470ZM165 92L145 92L154 470L174 470Z"/><path d="M347 92L367 92L358 470L338 470ZM413 92L393 92L402 470L422 470Z"/><rect x="99" y="92" width="66" height="20"/><rect x="98" y="141" width="68" height="14"/><rect x="97" y="194" width="71" height="14"/><rect x="95" y="255" width="73" height="14"/><rect x="103" y="74" width="12" height="20"/><rect x="149" y="74" width="12" height="20"/><rect x="347" y="92" width="66" height="20"/><rect x="346" y="141" width="68" height="14"/><rect x="345" y="194" width="71" height="14"/><rect x="343" y="255" width="73" height="14"/><rect x="351" y="74" width="12" height="20"/><rect x="397" y="74" width="12" height="20"/><rect x="0" y="356" width="512" height="34"/><g transform="translate(256 140) scale(.82)"><path d="M-26 22 L-66 -78 Q-50 -94 -33 -80 Q-16 -96 0 -82 Q16 -96 33 -80 Q50 -94 66 -78 L26 22 Z"/><path d="M-30 30 H30 V40 A30 30 0 0 1 -30 40 Z"/></g></svg>`;
+
 /**
  * Every page's frame: the top bar (a way back, the title, 文A, 退出) around `body`. `title` and
  * `back.label` are already in the reader's language.
@@ -66,11 +69,14 @@ export function shell(o: {
   const out = o.email
     ? `<form method="post" action="/logout"><button class="link" title="${esc(o.email)}">${t("退出")}</button></form>`
     : "";
-  const back = o.back ? `<a class="backlink" href="${o.back.href}">‹ ${esc(o.back.label)}</a>` : "";
+  // As on the groups' sites: their bridge mark and the name; inner pages have the way back instead.
+  const back = o.back
+    ? `<a class="backlink" href="${o.back.href}">‹ ${esc(o.back.label)}</a>`
+    : `<span class="logo">${MARK}</span>`;
   return `<!doctype html><html lang="${o.lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex"><title>${esc(o.title)}</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23e8664f'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23d38a6c'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app.css"></head><body>
 <header class="top"><span class="lead">${back}<b>${esc(o.title)}</b></span><span class="acts">${o.extra ?? ""}${langSwitch(o.lang)}${out}</span></header><main class="wrap">${o.body}</main></body></html>`;
 }
@@ -112,18 +118,34 @@ export function page({
 }
 
 export const APP_CSS = `
-:root{--bg:#f4f2ef;--card:#fff;--text:#222;--muted:#888;--line:#eee;--soft:#f0ece7;--accent:#e8664f;--hero:#fff7f4;--ok:#2e8b57;--okbg:#eaf6ee;--warn:#c77700;--warnbg:#fff4e0;--bad:#c0392b;--badbg:#fdecea}
-@media (prefers-color-scheme:dark){:root{--bg:#141414;--card:#1f1f1f;--text:#eee;--muted:#999;--line:#2c2c2c;--soft:#2b2b2b;--hero:#2a1f1c;--ok:#5cc489;--okbg:#18301f;--warn:#e0a040;--warnbg:#33270f;--bad:#ef7b6e;--badbg:#3a1c19}}
+/* The same look as the groups' sites (src/web/styles.css, 简约 with the 珊瑚橙 accent): warm paper, thin lines. */
+:root{--bg:#f7f4ef;--card:#fff;--text:#1f1d1a;--text2:#55504a;--muted:#8a847c;--line:#e9e3da;--soft:#f3efe9;--accent:#d38a6c;--acc:#d38a6c;--ink:#ad5c3e;--hero:#f7ece6;--topbar:rgba(247,244,239,.86);--shadow:0 1px 2px rgba(60,40,20,.04);--ok:#3f8f5c;--okbg:rgba(79,154,105,.13);--warn:#a65a14;--warnbg:rgba(224,154,45,.15);--bad:#c2483e;--badbg:rgba(194,72,62,.1);--shade:linear-gradient(145deg,rgba(255,255,255,.14),rgba(0,0,0,.12));color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#171513;--card:#211e1b;--text:#f3efe9;--text2:#cfc8bf;--muted:#a19a90;--line:#332f2a;--soft:#2b2723;--ink:#e3a78c;--hero:#33261f;--topbar:rgba(23,21,19,.86);--shadow:none;--ok:#7cc495;--okbg:rgba(109,187,136,.15);--warn:#f2b562;--warnbg:rgba(224,154,45,.14);--bad:#ef8a80;--badbg:rgba(239,138,128,.14);--shade:linear-gradient(145deg,rgba(0,0,0,.12),rgba(0,0,0,.5));color-scheme:dark}}
+/* Each group in its own colour, as its site's icon. */
+.t-ocean{--acc:#6d8fb0}.t-forest{--acc:#6f9a7e}.t-grape{--acc:#9686b8}.t-violet{--acc:#8f7ae0}
 *{box-sizing:border-box}
-body{margin:0;font-family:-apple-system,"PingFang SC","Noto Sans CJK SC",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:15px;-webkit-text-size-adjust:100%}
-.top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
-.top b{font-size:17px}
-.lead{display:flex;align-items:baseline;gap:10px;min-width:0}.lead b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body{margin:0;font-family:"Geist Variable",-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:15px;-webkit-text-size-adjust:100%}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top));min-height:55px;background:var(--topbar);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+.top b{font-size:15px;font-weight:600}
+.lead{display:flex;align-items:center;gap:9px;min-width:0}.lead b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.logo{flex:none;width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:var(--hero);color:var(--ink)}
 .backlink{color:var(--accent);text-decoration:none;font-size:15px;white-space:nowrap}
 .devlink{color:var(--muted);text-decoration:none;font-size:14px;white-space:nowrap}
-.ev{display:block;color:inherit;text-decoration:none}.ev .when{font-weight:600}.ev .where{margin:4px 0 8px}
-.ev .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted)}
-.grp{display:inline-flex;align-items:center;gap:6px;min-width:0}.grp svg{flex:none}
+.card.ev{display:block;padding:0;overflow:hidden;border-radius:22px;color:inherit;text-decoration:none}
+.evhead{position:relative;padding:14px 16px 16px;color:#fff;background:var(--shade),var(--acc)}
+.evtop{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:rgba(255,255,255,.92)}
+.status{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;font-size:12px;font-weight:500;white-space:nowrap}
+.status i{width:6px;height:6px;border-radius:50%;background:#b5f2c8;box-shadow:0 0 0 3px rgba(181,242,200,.25)}
+.status.mine i{width:9px;height:5px;margin:-3px 1px 0;border:solid #b5f2c8;border-width:0 0 2px 2px;border-radius:0;background:none;box-shadow:none;transform:rotate(-45deg)}
+.status.shut i{background:rgba(255,255,255,.6);box-shadow:none}
+.evdate{display:block;margin-top:10px;font-size:40px;font-weight:700;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+.evdate small{margin-left:8px;font-size:16px;font-weight:500;letter-spacing:0;opacity:.88}
+.evwhat{display:block;margin-top:6px;padding-right:84px;font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.evwhat small{font-size:14px;font-weight:400;opacity:.82}
+.evcta{position:absolute;right:16px;bottom:16px;display:inline-flex;align-items:center;min-height:38px;padding:0 16px;border-radius:11px;background:#fff;color:#ad5c3e;font-weight:600;font-size:15px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.evfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;font-size:14px;color:var(--muted)}
+.grp{display:inline-flex;align-items:center;gap:7px;min-width:0;color:var(--text2)}
+.gdot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--acc)}
 .group{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line);min-height:48px}.group:first-child{border-top:0}
 .group .who{flex:1;min-width:0;color:inherit;text-decoration:none}.group .who b{display:block}
 .group .btn{padding:7px 12px;font-size:14px}
@@ -137,19 +159,19 @@ body{margin:0;font-family:-apple-system,"PingFang SC","Noto Sans CJK SC",system-
 .lang-menu a{padding:9px 12px;border-radius:9px;color:var(--text);text-decoration:none;font-size:14px;font-weight:500}
 .lang-menu a:hover{background:var(--soft)}
 .lang-menu a.on{color:var(--accent);font-weight:600}.lang-menu a.on::after{content:" ✓"}
-.wrap{padding:12px 14px 40px;max-width:640px;margin:0 auto}
-.card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.wrap{padding:12px 16px 40px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
 .hero{background:var(--hero)}
 .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .muted{color:var(--muted);font-size:13px}.nowrap{white-space:nowrap}
 input{accent-color:var(--accent)}.center{text-align:center}.warn{color:var(--warn)}
-.btn{display:inline-block;border:0;border-radius:10px;padding:9px 14px;font-size:15px;background:var(--soft);color:var(--text);text-decoration:none;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn{display:inline-block;border:0;border-radius:10px;padding:9px 14px;font-size:15px;font-weight:500;background:var(--soft);color:var(--text);text-decoration:none;cursor:pointer;font-family:inherit;white-space:nowrap}
 .btn.p{background:var(--accent);color:#fff}.btn:disabled{opacity:.45;cursor:default}
 .link{border:0;background:none;color:var(--muted);font-size:15px;cursor:pointer;font-family:inherit}
 .tag{font-family:ui-monospace,Menlo,monospace;font-size:14px}
 .pill{display:inline-block;border-radius:99px;padding:2px 9px;font-size:12px;background:var(--okbg);color:var(--ok);white-space:nowrap}
 .pill.old{background:var(--warnbg);color:var(--warn)}.pill.bad{background:var(--badbg);color:var(--bad)}
-h3{margin:16px 2px 8px;font-size:14px;color:var(--muted);font-weight:600}
+h3{margin:22px 2px 10px;font-size:13px;color:var(--text2);font-weight:600}
 .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
 ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{margin:2px 0}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
@@ -166,7 +188,7 @@ ul.changes{margin:8px 0 10px;padding-left:18px;font-size:14px}ul.changes li{marg
 .panel .foot{padding:12px 14px;padding-bottom:max(12px,env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line)}
 .panel .foot .btn{width:100%}
 .back{border:0;background:none;color:var(--accent);font-size:16px;cursor:pointer;padding:0;font-family:inherit}
-.rows{padding:2px 14px}
+.rows{padding:2px 16px}
 .siterow{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line);cursor:pointer;min-height:48px}
 .siterow:first-child{border-top:0}
 .siterow .name{width:112px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
