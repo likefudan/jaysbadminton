@@ -12,7 +12,7 @@ import {
 import { toPacific } from "../../shared/time";
 import { api } from "../api";
 import { Avatar } from "../Avatar";
-import { Card, Field, Load, SettingRow, useAction } from "../components";
+import { Card, Field, Load, useAction } from "../components";
 import { useApi } from "../hooks";
 import { fmtInstant, t, tm } from "../i18n";
 import { LotteryShow, num3, useClock } from "../Lottery";
@@ -25,7 +25,7 @@ import { Panel } from "../Panel";
  * it until they unlock it.
  */
 
-const GiftIcon = () => (
+export const GiftIcon = () => (
   <svg
     viewBox="0 0 24 24"
     width="20"
@@ -43,14 +43,6 @@ const GiftIcon = () => (
 );
 
 /** The menu row in 设置. */
-export function LotteryRow(props: { current?: boolean; onClick: () => void }) {
-  return (
-    <section class="card set-list">
-      <SettingRow icon={<GiftIcon />} label={t("抽奖")} current={props.current} onClick={props.onClick} />
-    </section>
-  );
-}
-
 interface FormValue {
   title: string;
   poolSize: string;

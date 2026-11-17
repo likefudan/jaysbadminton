@@ -89,7 +89,9 @@ test("设置 → 球场图: a photo is read in the background; back later, its p
   await map.locator(".panel-back").click();
   await expect(row).toContainText("正在识别…");
   // Off to another page and back: by then the reader has finished, and the row says so.
-  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
+  // 球场图 sits under 设置 → 小工具 (Ke Li 2026-11-17, option A): its way back goes there.
+  await page.locator(".sub-bar").getByRole("button", { name: "小工具" }).click();
+  await expect(page).toHaveURL(/sub=tools$/);
   await expect(row).toHaveCount(0);
   posts.read = { state: "ready", by: "Ke Li", at: SENT, layout: read };
   await page.getByRole("button", { name: /^球场图/ }).click();
@@ -271,4 +273,27 @@ test("设置 → 球场图: 添加球馆 takes a venue of an earlier event, or o
       venue: "CBA Fremont",
       address: "4700 Calaveras Ave, Fremont",
     });
+});
+
+test("设置 → 小工具 holds 球场图 and 抽奖 (Ke Li 2026-11-17, option A), not a card each on the menu", async ({
+  page,
+}) => {
+  await setUp(page, null);
+  await page.route(`${API}/lottery`, (r) => r.fulfill({ json: { lottery: null, history: [] } }));
+  await page.goto("/admin/test-token?tab=settings");
+  await expect(page.getByRole("button", { name: /^小工具/ })).toContainText("球场图 · 抽奖");
+  await expect(page.getByRole("button", { name: /^球场图/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^抽奖/ })).toHaveCount(0);
+  await page.getByRole("button", { name: /^小工具/ }).click();
+  await expect(page).toHaveURL(/sub=tools$/);
+  await page.screenshot({ path: test.info().outputPath("tools.png"), animations: "disabled" });
+  await page.getByRole("button", { name: /^抽奖/ }).click();
+  await expect(page).toHaveURL(/sub=lottery$/);
+  await page.locator(".sub-bar").getByRole("button", { name: "小工具" }).click();
+  await expect(page).toHaveURL(/sub=tools$/);
+  await page.getByRole("button", { name: /^球场图/ }).click();
+  await expect(page).toHaveURL(/sub=courtMaps$/);
+  await page.locator(".sub-bar").getByRole("button", { name: "小工具" }).click();
+  await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
+  await expect(page).toHaveURL(/\?tab=settings$/);
 });

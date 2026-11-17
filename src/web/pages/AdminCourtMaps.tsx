@@ -14,7 +14,7 @@ import { fmtDay, t } from "../i18n";
  * back an earlier one. For the Owner, admins and organizers.
  */
 
-const MapIcon = () => (
+export const MapIcon = () => (
   <svg
     viewBox="0 0 24 24"
     width="20"

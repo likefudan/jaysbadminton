@@ -28,9 +28,9 @@ import { LANGS, t, tk, tx, fmtInstant } from "../i18n";
 import { goDown, goSide, goUp, useOnReturn } from "../adminNav";
 import { MasterDetail } from "../MasterDetail";
 import { SubBar } from "../SubBar";
-import { CourtMapsPage, CourtMapsRow } from "./AdminCourtMaps";
+import { CourtMapsPage, CourtMapsRow, MapIcon } from "./AdminCourtMaps";
 import { VersionRow, VersionsPage } from "./AdminVersions";
-import { LotteryPage, LotteryRow } from "./AdminLottery";
+import { GiftIcon, LotteryPage } from "./AdminLottery";
 
 const SUBS = [
   "looks",
@@ -44,6 +44,7 @@ const SUBS = [
   "versions",
   "courtMaps",
   "lottery",
+  "tools",
 ] as const;
 type Sub = (typeof SUBS)[number];
 /** An admin's 设置 has all but 账号与安全. */
@@ -55,7 +56,13 @@ const ADMIN_SUBS = SUBS.filter((s) => s !== "security");
  * 账号与安全 that way, and the system's back goes up a level. The menu shows each group's current
  * value; it reloads on the way back.
  */
-const PARENT: Partial<Record<Sub, Sub>> = { sheets: "advanced", appNames: "looks", boards: "looks" };
+const PARENT: Partial<Record<Sub, Sub>> = {
+  sheets: "advanced",
+  appNames: "looks",
+  boards: "looks",
+  courtMaps: "tools",
+  lottery: "tools",
+};
 
 function useSubPages(from: string | undefined, has: readonly Sub[], reload: () => void) {
   // Only the pages this person's 设置 has: an admin given a link to 账号与安全 gets the menu.
@@ -74,19 +81,44 @@ function useSubPages(from: string | undefined, has: readonly Sub[], reload: () =
   return [sub, open, top] as const;
 }
 
-/** 设置 → 球场图, for everyone in the 管理页 (they all create events). */
-function CourtMapsSubPage(props: { base: string; back: () => void }) {
+/**
+ * 设置 → 小工具 (Ke Li 2026-11-17, option A): 球场图 and 抽奖 in one group instead of a card each on
+ * the menu, for the Owner and admins. Organizers have no menu and only 球场图, so theirs stays a row.
+ */
+function ToolsSubPage(props: { open: (s: Sub) => void; back: () => void }) {
   return (
-    <SubPage title={t("球场图")} back={props.back}>
+    <SubPage title={t("小工具")} back={props.back}>
+      <section class="card set-list">
+        <SettingRow
+          icon={<MapIcon />}
+          label={t("球场图")}
+          sub={t("每个球馆的场地号和位置")}
+          onClick={() => props.open("courtMaps")}
+        />
+        <SettingRow
+          icon={<GiftIcon />}
+          label={t("抽奖")}
+          sub={t("发布抽奖、预演、历次抽奖")}
+          onClick={() => props.open("lottery")}
+        />
+      </section>
+    </SubPage>
+  );
+}
+
+/** 设置 → (小工具 →) 球场图, for everyone in the 管理页 (they all create events). */
+function CourtMapsSubPage(props: { base: string; back: () => void; backLabel?: string }) {
+  return (
+    <SubPage title={t("球场图")} back={props.back} backLabel={props.backLabel}>
       <CourtMapsPage base={props.base} />
     </SubPage>
   );
 }
 
-/** 设置 → 抽奖, for the Owner and admins. */
+/** 设置 → 小工具 → 抽奖, for the Owner and admins. */
 function LotterySubPage(props: { base: string; back: () => void }) {
   return (
-    <SubPage title={t("抽奖")} back={props.back}>
+    <SubPage title={t("抽奖")} back={props.back} backLabel={t("小工具")}>
       <LotteryPage base={props.base} />
     </SubPage>
   );
@@ -257,8 +289,10 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
       );
     if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
     if (sub === "versions") return <VersionsSubPage base={props.base} back={home} />;
-    if (sub === "courtMaps") return <CourtMapsSubPage base={props.base} back={home} />;
-    if (sub === "lottery") return <LotterySubPage base={props.base} back={home} />;
+    if (sub === "tools") return <ToolsSubPage open={open} back={home} />;
+    if (sub === "courtMaps")
+      return <CourtMapsSubPage base={props.base} back={() => open("tools")} backLabel={t("小工具")} />;
+    if (sub === "lottery") return <LotterySubPage base={props.base} back={() => open("tools")} />;
 
     return null;
   })();
@@ -288,6 +322,13 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
           onClick={() => open("pay")}
         />
         <SettingRow
+          icon={<ToolsIcon />}
+          label={t("小工具")}
+          value={t("球场图 · 抽奖")}
+          current={top === "tools"}
+          onClick={() => open("tools")}
+        />
+        <SettingRow
           icon={<GearIcon />}
           label={t("高级设置")}
           value={telegramValue(telegram)}
@@ -301,8 +342,6 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
           onClick={() => open("security")}
         />
       </section>
-      <CourtMapsRow current={top === "courtMaps"} onClick={() => open("courtMaps")} />
-      <LotteryRow current={top === "lottery"} onClick={() => open("lottery")} />
       <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
       <AdminGuide base={props.base} telegram={telegram} go={open} />
       <button type="button" class="button secondary block" onClick={logout}>
@@ -435,6 +474,15 @@ const GearIcon = () =>
       <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
     </>,
   );
+const ToolsIcon = () =>
+  icon(
+    <>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.8" />
+      <path d="M17 13.5v7M13.5 17h7" />
+    </>,
+  );
 const LockIcon = () =>
   icon(
     <>
@@ -527,8 +575,10 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
         </SubPage>
       );
     if (sub === "versions") return <VersionsSubPage base={props.base} back={home} />;
-    if (sub === "courtMaps") return <CourtMapsSubPage base={props.base} back={home} />;
-    if (sub === "lottery") return <LotterySubPage base={props.base} back={home} />;
+    if (sub === "tools") return <ToolsSubPage open={open} back={home} />;
+    if (sub === "courtMaps")
+      return <CourtMapsSubPage base={props.base} back={() => open("tools")} backLabel={t("小工具")} />;
+    if (sub === "lottery") return <LotterySubPage base={props.base} back={() => open("tools")} />;
 
     return null;
   })();
@@ -558,6 +608,13 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
           onClick={() => open("join")}
         />
         <SettingRow
+          icon={<ToolsIcon />}
+          label={t("小工具")}
+          value={t("球场图 · 抽奖")}
+          current={top === "tools"}
+          onClick={() => open("tools")}
+        />
+        <SettingRow
           icon={<GearIcon />}
           label={t("高级设置")}
           value={telegramValue(telegram)}
@@ -565,8 +622,6 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
           onClick={() => open("advanced")}
         />
       </section>
-      <CourtMapsRow current={top === "courtMaps"} onClick={() => open("courtMaps")} />
-      <LotteryRow current={top === "lottery"} onClick={() => open("lottery")} />
       <VersionRow base={props.base} current={top === "versions"} onClick={() => open("versions")} />
       <OrganizerGuide
         admin
