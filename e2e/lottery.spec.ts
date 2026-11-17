@@ -88,8 +88,9 @@ test("a member sees the 抽奖 on 我的活动, their number, and cheers", async
   await shot(page, "lottery-0-card");
   await card.click();
   const panel = page.getByRole("dialog", { name: "百人庆祝抽奖" });
-  await expect(panel).toContainText("前 100 名入群的球友，抽 5 位幸运儿");
-  await expect(panel).toContainText("你的抽奖号 037");
+  await expect(panel).toContainText("前 100 名抽 5 位");
+  // One's own number is on the card; on the page one's own face is ringed.
+  await expect(panel).not.toContainText("你的抽奖号");
   await expect(panel).toContainText("亚3 ×3");
   // 热度 and who cheers most; no 公平公开, no lines of small print.
   await expect(panel).toContainText("热度 Lv.4");
@@ -129,7 +130,7 @@ test("a member sits the 抽奖 out from the card, and comes back", async ({ page
   await page.goto("/m/tok");
   const card = page.locator(".lot-ev");
   await expect(card).toContainText("你的抽奖号 037");
-  await card.getByRole("button", { name: "不参加这次抽奖" }).click();
+  await card.getByRole("button", { name: "我不想参加这次抽奖" }).click();
   await expect(card).toContainText("你已选择不参加");
   await expect(card).not.toContainText("你的抽奖号");
   await shot(page, "lottery-0b-opted-out");
@@ -152,6 +153,18 @@ test("the faces on the wall change places while everyone waits", async ({ page }
   await page.clock.runFor(13_000);
   await expect.poll(order).not.toEqual(before);
   expect([...(await order())].sort()).toEqual([...before].sort());
+});
+
+test("the whole page fits one screen of a large phone before the draw", async ({ page }) => {
+  // iPhone 16 Pro Max, less the status bar and the home bar.
+  await page.setViewportSize({ width: 440, height: 860 });
+  await member(page, () => view());
+  await page.goto("/m/tok?lottery=1");
+  const panel = page.getByRole("dialog", { name: "百人庆祝抽奖" });
+  await expect(panel.locator(".lot-face")).toHaveCount(100);
+  const bottom = await panel.locator(".lot-cheer").evaluate((el) => el.getBoundingClientRect().bottom);
+  expect(bottom).toBeLessThanOrEqual(860);
+  await shot(page, "lottery-1c-one-screen");
 });
 
 test("everyone watches the shuttle land on each winner, then can check the result", async ({ page }) => {

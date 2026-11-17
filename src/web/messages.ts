@@ -28,10 +28,6 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   时: { tw: "時", en: "hrs" },
   分: { tw: "分", en: "min" },
   秒: { tw: "秒", en: "sec" },
-  "前 {n} 名入群的球友，抽 {k} 位幸运儿": {
-    tw: "前 {n} 名入群的球友，抽 {k} 位幸運兒",
-    en: "{k} winners from the first {n} members to join",
-  },
   "开奖啦！": { tw: "開獎啦！", en: "Here we go!" },
   "你是第 {n} 位入群的球友": { tw: "你是第 {n} 位入群的球友", en: "You were member number {n} to join" },
   这次你不参加抽奖: { tw: "這次你不參加抽獎", en: "You're not in this draw" },
@@ -41,7 +37,8 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   你已选择不参加: { tw: "你已選擇不參加", en: "You're sitting this one out" },
   重新参加: { tw: "重新參加", en: "Join again" },
-  不参加这次抽奖: { tw: "不參加這次抽獎", en: "Sit this one out" },
+  我不想参加这次抽奖: { tw: "我不想參加這次抽獎", en: "I'd rather sit this one out" },
+  "前 {n} 名抽 {k} 位": { tw: "前 {n} 名抽 {k} 位", en: "{k} winners among the first {n}" },
   抽奖已经开奖或取消了: { tw: "抽獎已經開獎或取消了", en: "The draw has started or was cancelled" },
   "名单已经锁定，不能再改了": { tw: "名單已經鎖定，不能再改了", en: "The list is locked and can't change now" },
   "参加的人不能比奖品少，请联系管理员": {

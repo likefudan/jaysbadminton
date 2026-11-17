@@ -7214,7 +7214,7 @@ html[data-nav="in"]::view-transition-new(root) {
 .lot {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 .lot .card {
   margin: 0;
@@ -7231,14 +7231,14 @@ html[data-nav="in"]::view-transition-new(root) {
 .lot-hero {
   position: relative;
   overflow: hidden;
-  padding: 22px 16px 18px;
+  padding: 14px 14px 14px;
   border-radius: 22px;
   color: #fff;
   text-align: center;
 }
 .lot-hero h2 {
-  margin: 2px 0 4px;
-  font-size: 24px;
+  margin: 0;
+  font-size: 21px;
   letter-spacing: 0.02em;
 }
 .lot-hero p {
@@ -7255,12 +7255,12 @@ html[data-nav="in"]::view-transition-new(root) {
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
-  margin: 12px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
 }
 .lot-chips li {
-  padding: 4px 10px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.2);
   font-size: 13.5px;
@@ -7272,8 +7272,8 @@ html[data-nav="in"]::view-transition-new(root) {
 }
 .lot-hero .lot-ticket {
   display: inline-block;
-  margin: 12px 0 0;
-  padding: 6px 16px;
+  margin: 8px 0 0;
+  padding: 4px 14px;
   border-radius: 999px;
   background: #fff;
   color: var(--acc-ink);
@@ -7307,19 +7307,21 @@ html[data-nav="in"]::view-transition-new(root) {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin: 14px 0 6px;
+  margin: 8px 0 6px;
 }
 .lot-count span {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 3px;
   min-width: 60px;
-  padding: 8px 8px 6px;
+  justify-content: center;
+  padding: 5px 8px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.22);
   font-size: 12px;
 }
 .lot-count b {
-  font-size: 30px;
+  font-size: 24px;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
@@ -7328,7 +7330,7 @@ html[data-nav="in"]::view-transition-new(root) {
   font-weight: 700;
 }
 .lot-wall-card {
-  padding: 12px;
+  padding: 10px;
 }
 .lot-wall {
   position: relative;
@@ -7382,12 +7384,17 @@ html[data-nav="in"]::view-transition-new(root) {
 .lot-cheer-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  padding: 12px;
 }
 .lot-heat-row {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.lot-heat-row strong,
+.lot-heat-n {
+  flex: none;
 }
 .lot-heat-n {
   color: var(--muted);
@@ -7399,6 +7406,7 @@ html[data-nav="in"]::view-transition-new(root) {
   font-size: 18px;
 }
 .lot-heat {
+  flex: 1;
   height: 10px;
   overflow: hidden;
   border-radius: 5px;
@@ -7439,7 +7447,7 @@ html[data-nav="in"]::view-transition-new(root) {
 .lot-cheer {
   position: relative;
   width: 100%;
-  padding: 14px;
+  padding: 11px;
   border: none;
   border-radius: 14px;
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.12)), var(--acc);
@@ -7593,7 +7601,7 @@ html[data-nav="in"]::view-transition-new(root) {
   filter: grayscale(1);
 }
 .lot-face.me {
-  outline: 2px solid var(--acc);
+  outline: 3px solid #e6a23c;
   outline-offset: 1px;
 }
 /* The shuttle is coming down on them: the face grows. */
