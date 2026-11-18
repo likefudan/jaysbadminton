@@ -4,8 +4,10 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
-// `moved`: the copy of the database in US West (scripts/move-d1.mjs), used once it exists. A D1
-// database cannot change region or name.
+// `moved`: the copy of the database in US West (scripts/move-d1.mjs), the one in use since
+// 2026-11-14. A D1 database cannot change region or name. The US East originals under `name` were
+// deleted on 2026-11-18, so a release older than v2026.11.14.3 (which only knows `name`) must never
+// be released again: it would make a new, empty database.
 const ENVS = {
   production: {
     name: "jaysbadminton",
