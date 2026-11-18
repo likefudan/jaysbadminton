@@ -1,5 +1,4 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useState } from "preact/hooks";
 import { useLocation } from "preact-iso";
 import { standalone } from "./Install";
 import { useApi } from "./hooks";
@@ -39,9 +38,8 @@ const LABEL: Record<Tab, string> = { events: tk("活动"), boards: tk("排行榜
 export function AppTabs(props: { tabs: Tab[] }) {
   const { path } = useLocation();
   const current = tabOf(path);
-  const away = useAwayOnScroll(path);
   return (
-    <nav class={`app-tabs${away ? " away" : ""}`} aria-label={t("主导航")}>
+    <nav class="app-tabs" aria-label={t("主导航")}>
       {props.tabs.map((k) => (
         <a
           key={k}
@@ -56,49 +54,6 @@ export function AppTabs(props: { tabs: Tab[] }) {
       ))}
     </nav>
   );
-}
-
-/** How far the page must move one way before the tabs follow, so a shaky finger doesn't flicker them. */
-const STEP = 10;
-
-/**
- * True while the tabs are slid away: the finger pushes the page up (reading on) and they go down
- * out of sight; it pulls the page down and they come back (Ke Li 2026-11-18). Always shown near the
- * top of the page and on a new page. The bounce past either end of the page is ignored.
- */
-function useAwayOnScroll(path: string): boolean {
-  const [away, setAway] = useState(false);
-  useEffect(() => {
-    setAway(false);
-    let last = window.scrollY;
-    let hidden = false;
-    const set = (v: boolean) => {
-      if (v === hidden) return;
-      hidden = v;
-      setAway(v);
-    };
-    const onScroll = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      const y = Math.min(Math.max(window.scrollY, 0), Math.max(max, 0));
-      if (y < 40) {
-        last = y;
-        set(false);
-        return;
-      }
-      const dy = y - last;
-      if (Math.abs(dy) < STEP) return;
-      last = y;
-      set(dy > 0);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [path]);
-  // The queue's legend at the bottom of the screen moves down with the tabs.
-  useEffect(() => {
-    document.documentElement.classList.toggle("tabs-away", away);
-    return () => document.documentElement.classList.remove("tabs-away");
-  }, [away]);
-  return away;
 }
 
 function TabIcon(props: { tab: Tab }) {

@@ -1650,6 +1650,22 @@ details.fold[open] summary {
   backdrop-filter: blur(18px) saturate(1.4);
   border-bottom: 1px solid var(--line);
 }
+/* Slides up out of sight while reading down, back in going up, with the app's tabs (barsAway.ts,
+   Ke Li 2026-11-18). Stays while one of its menus is open. */
+.topbar {
+  transition: transform 0.7s cubic-bezier(0.32, 0.72, 0, 1);
+}
+html.bars-away .topbar:not(:has([aria-expanded="true"])) {
+  transform: translateY(calc(-100% - 2px));
+}
+html.bars-away .cq-bar {
+  top: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .topbar {
+    transition: none;
+  }
+}
 [data-style="aurora"] .topbar {
   border-bottom-color: transparent;
 }
@@ -4429,6 +4445,7 @@ ul.audit li:first-child {
 .cq-bar {
   position: sticky;
   top: var(--topbar-h, 58px);
+  transition: top 0.7s cubic-bezier(0.32, 0.72, 0, 1);
   z-index: 5;
   display: flex;
   gap: 10px;
@@ -6765,7 +6782,7 @@ label.set-row {
   padding-bottom: 9px;
   transition: bottom 0.7s cubic-bezier(0.32, 0.72, 0, 1);
 }
-html.tabs-away .has-app-tabs .cq-legend {
+html.bars-away .has-app-tabs .cq-legend {
   bottom: 0;
   padding-bottom: calc(9px + env(safe-area-inset-bottom));
 }
@@ -6774,7 +6791,7 @@ html.tabs-away .has-app-tabs .cq-legend {
 }
 /* A floating capsule, as in iOS (Ke Li 2026-11-18): very see-through glass with only a light blur
    (more blur would look less clear), sliding away down while the finger pushes the page up and back
-   in when it pulls the page down (AppTabs.tsx sets .away). The slide is slow enough to follow. */
+   in when it pulls the page down (barsAway.ts sets html.bars-away). The slide is slow enough to follow. */
 .app-tabs {
   --tabs-glass: rgba(255, 255, 255, 0.08);
   --tabs-rim: rgba(255, 255, 255, 0.7);
@@ -6815,7 +6832,7 @@ html.tabs-away .has-app-tabs .cq-legend {
 [data-mode="dark"] .app-tabs a.on {
   color: color-mix(in srgb, var(--acc) 40%, white);
 }
-.app-tabs.away {
+html.bars-away .app-tabs {
   transform: translate(-50%, calc(100% + var(--tabs-gap) + 24px));
   opacity: 0;
   pointer-events: none;
@@ -6824,7 +6841,7 @@ html.tabs-away .has-app-tabs .cq-legend {
   .app-tabs {
     transition: opacity 0.3s ease;
   }
-  .app-tabs.away {
+  html.bars-away .app-tabs {
     transform: translateX(-50%);
   }
 }
