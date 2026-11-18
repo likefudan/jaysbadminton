@@ -31,6 +31,7 @@ import { SubBar } from "../SubBar";
 import { CourtMapsPage, CourtMapsRow, MapIcon } from "./AdminCourtMaps";
 import { VersionRow, VersionsPage } from "./AdminVersions";
 import { GiftIcon, LotteryPage } from "./AdminLottery";
+import { GroupLogPage, GroupLogRow } from "./AdminGroupLog";
 
 const SUBS = [
   "looks",
@@ -45,6 +46,7 @@ const SUBS = [
   "courtMaps",
   "lottery",
   "tools",
+  "log",
 ] as const;
 type Sub = (typeof SUBS)[number];
 /** An admin's 设置 has all but 账号与安全. */
@@ -58,6 +60,7 @@ const ADMIN_SUBS = SUBS.filter((s) => s !== "security");
  */
 const PARENT: Partial<Record<Sub, Sub>> = {
   sheets: "advanced",
+  log: "advanced",
   appNames: "looks",
   boards: "looks",
   courtMaps: "tools",
@@ -210,11 +213,12 @@ function SettingsSubPage(props: { base: string; sub: "looks" | "join" | "appName
   );
 }
 
-/** 高级设置's group cards after Telegram and reminders: export, Sheets, AI, calories, past events. */
-function AdvancedCards(props: { base: string; readOnlySheets?: boolean; openSheets: () => void }) {
+/** 高级设置's group cards after Telegram: 群操作记录, reminders, Sheets, export, AI, calories, past events. */
+function AdvancedCards(props: { base: string; readOnlySheets?: boolean; openSheets: () => void; openLog: () => void }) {
   const [s] = useApi<GeneralSettings>(`${props.base}/settings`);
   return (
     <>
+      <GroupLogRow open={props.openLog} />
       <RemindersCard base={props.base} />
       <SheetsRow readOnly={props.readOnlySheets} open={props.openSheets} />
       <ExportCard base={props.base} />
@@ -266,6 +270,12 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
   const detail = (() => {
     if (sub === "looks" || sub === "join" || sub === "appNames" || sub === "boards")
       return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
+    if (sub === "log")
+      return (
+        <SubPage title={t("群操作记录")} back={() => open("advanced")} backLabel={t("高级设置")}>
+          <GroupLogPage base={props.base} />
+        </SubPage>
+      );
     if (sub === "sheets")
       return (
         <SubPage title={t("Google 表格同步")} back={() => open("advanced")} backLabel={t("高级设置")}>
@@ -284,7 +294,7 @@ export function Settings(props: { base: string; sub?: string; viaGoogle: boolean
       return (
         <SubPage title={t("高级设置")} back={home}>
           <TelegramCard base={props.base} status={telegram} reload={reloadTelegram} />
-          <AdvancedCards base={props.base} openSheets={() => open("sheets")} />
+          <AdvancedCards base={props.base} openSheets={() => open("sheets")} openLog={() => open("log")} />
         </SubPage>
       );
     if (sub === "security") return <SecurityPage base={props.base} viaGoogle={props.viaGoogle} back={home} />;
@@ -552,6 +562,12 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
   const detail = (() => {
     if (sub === "looks" || sub === "join" || sub === "appNames" || sub === "boards")
       return <GroupSubPage key={sub} base={props.base} sub={sub} open={open} />;
+    if (sub === "log")
+      return (
+        <SubPage title={t("群操作记录")} back={() => open("advanced")} backLabel={t("高级设置")}>
+          <GroupLogPage base={props.base} />
+        </SubPage>
+      );
     if (sub === "sheets")
       return (
         <SubPage title={t("Google 表格同步")} back={() => open("advanced")} backLabel={t("高级设置")}>
@@ -571,7 +587,12 @@ export function AdminRoleSettings(props: { base: string; sub?: string }) {
       return (
         <SubPage title={t("高级设置")} back={home}>
           <TelegramCard base={props.base} organizer admin status={telegram} reload={reloadTelegram} />
-          <AdvancedCards base={props.base} readOnlySheets openSheets={() => open("sheets")} />
+          <AdvancedCards
+            base={props.base}
+            readOnlySheets
+            openSheets={() => open("sheets")}
+            openLog={() => open("log")}
+          />
         </SubPage>
       );
     if (sub === "versions") return <VersionsSubPage base={props.base} back={home} />;

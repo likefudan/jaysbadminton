@@ -392,6 +392,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "Personal links no longer work; past sign-ups and payments stay in the stats and exports.",
   },
   群操作记录: { tw: "群操作記錄", en: "Group activity log" },
+  "谁通过了申请、改了设置、导出了数据": {
+    tw: "誰通過了申請、改了設定、匯出了資料",
+    en: "Who approved applications, changed settings, exported data",
+  },
   还没有记录: { tw: "還沒有記錄", en: "Nothing logged yet" },
   显示更早的记录: { tw: "顯示更早的記錄", en: "Show older entries" },
   通知邮件发送失败: { tw: "通知郵件傳送失敗", en: "the notice email failed to send" },
@@ -628,10 +632,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "撤銷時頁面會先列出受影響的活動：沒結算的轉給你，在收款的錢繼續付到他帳戶直到收齊。",
     en: "Revoking first lists the events affected: ones not yet finalized pass to you; ones being collected keep paying into their account until fully paid.",
   },
-  "只有你能做：任命和撤销管理员、群主密码和管理链接、清空数据、永久删除活动和收款、删除成员。谁做了什么都记在成员页最下面的「群操作记录」。":
+  "只有你能做：任命和撤销管理员、群主密码和管理链接、清空数据、永久删除活动和收款、删除成员。谁做了什么都记在「设置 › 高级设置 › 群操作记录」。":
     {
-      tw: "只有你能做：任命和撤銷管理員、群主密碼和管理連結、清空資料、永久刪除活動和收款、刪除成員。誰做了什麼都記在成員頁最下面的「群操作記錄」。",
-      en: 'Only you can: appoint and revoke admins, change the owner password and admin link, clear data, permanently delete events and payments, delete members. Who did what is in the "Group activity log" at the bottom of the Members page.',
+      tw: "只有你能做：任命和撤銷管理員、群主密碼和管理連結、清空資料、永久刪除活動和收款、刪除成員。誰做了什麼都記在「設定 › 進階設定 › 群操作記錄」。",
+      en: 'Only you can: appoint and revoke admins, change the owner password and admin link, clear data, permanently delete events and payments, delete members. Who did what is in "Settings › Advanced › Group activity log".',
     },
   忘了管理链接或密码: { tw: "忘了管理連結或密碼", en: "Lost the admin link or password" },
   "忘了链接：在 Telegram 里给机器人发「管理页面」，它把链接发给你。": {
@@ -1162,9 +1166,9 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
       tw: "{b}：新成員申請發給你和每位連了 Telegram 的管理員；他的活動的發起、結算完成、收齊抄送給你。別人把你收款的活動轉走時你會收到通知。",
       en: "{b}: new applications go to you and every admin with Telegram connected; you get copies when their events are created, finalized and fully paid. You're notified when someone hands over an event you collect for.",
     },
-  "{b}：成员页最下面的「群操作记录」写着谁通过了申请、停用了谁、任命了谁、改了什么设置、导出了什么。": {
-    tw: "{b}：成員頁最下面的「群操作記錄」寫著誰通過了申請、停用了誰、任命了誰、改了什麼設定、匯出了什麼。",
-    en: '{b}: the "Group activity log" at the bottom of the members page shows who approved applications, deactivated or appointed whom, changed which settings, and exported what.',
+  "{b}：「设置 › 高级设置 › 群操作记录」写着谁通过了申请、停用了谁、任命了谁、改了什么设置、导出了什么。": {
+    tw: "{b}：「設定 › 進階設定 › 群操作記錄」寫著誰通過了申請、停用了誰、任命了誰、改了什麼設定、匯出了什麼。",
+    en: '{b}: "Settings › Advanced › Group activity log" shows who approved applications, deactivated or appointed whom, changed which settings, and exported what.',
   },
   给管理员的说明: { tw: "給管理員的說明", en: "Notes for admins" },
   给组织者的说明: { tw: "給組織者的說明", en: "Notes for organizers" },
