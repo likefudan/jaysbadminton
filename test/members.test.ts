@@ -282,7 +282,7 @@ describe("member links", () => {
     expect((await s.admin.call(`${s.base}/members/${s.bob.id}/delete`, {})).status).toBe(200);
   });
 
-  it("frees a deleted member's name; the old record keeps it with its ID so history never mixes them up", async () => {
+  it("frees a deleted member's name; the old record is only 已删除成员 with its ID", async () => {
     const ctx = await setUpAdmin();
     const remove = async (id: string) => {
       await ctx.admin.call(`${ctx.base}/members/${id}/deactivate`, {});
@@ -307,15 +307,17 @@ describe("member links", () => {
 
     const list = (await ctx.admin.call(`${ctx.base}/members`)).data;
     expect(list.deleted.map((m: { username: string }) => m.username).sort()).toEqual([
-      `Alice（${first.id}）`,
-      `alice（${second.id}）`,
+      `已删除成员（${first.id}）`,
+      `已删除成员（${second.id}）`,
     ]);
     expect(list.active.find((m: { id: string }) => m.id === third.id).username).toBe("Alice");
     const roster = (await ctx.admin.call(`${ctx.base}/events/${e.id}`)).data.roster.map(
       (r: { name: string }) => r.name,
     );
-    expect(roster).toContain(`Alice（${first.id}）`);
-    expect(roster).toContain("Tom");
+    expect(roster).toContain(`已删除成员（${first.id}）`);
+    // The friend they brought keeps the place, not the name.
+    expect(roster).not.toContain("Tom");
+    expect(roster).toContain(`已删除成员（${first.id}）的朋友1`);
   });
 
   it("members can rename themselves, keeping names unique", async () => {

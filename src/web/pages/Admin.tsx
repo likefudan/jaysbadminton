@@ -544,7 +544,14 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
     props.onChange();
   }
   async function remove(m: MemberSummary) {
-    if (!confirm(t("删除 {name}？删除后他的专属链接永久失效，不能恢复；以前的记录会保留。", { name: m.username })))
+    if (
+      !confirm(
+        t(
+          "删除 {name}？他的登录、名字、头像、邮箱和个人记录会全部删掉，不能恢复；以前的名单和账单会留着，只显示为「已删除成员」。",
+          { name: m.username },
+        ),
+      )
+    )
       return;
     if (await run(() => api(`${props.base}/members/${m.id}/delete`, {}))) props.onChange();
   }

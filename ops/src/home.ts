@@ -34,9 +34,12 @@ export function homePage(o: {
   groups: Group[];
   problem: string | null;
   error: string | null;
+  /** The main site, whose 隐私政策 and 使用条款 cover this page too. */
+  legal: string;
 }): string {
   const t = (key: string, vars?: Record<string, string | number>) => tr(o.lang, key, vars);
   const title = HUB_NAME;
+  const legal = `<p class="legal muted"><a href="https://${o.legal}/privacy">${t("隐私政策")}</a> · <a href="https://${o.legal}/terms">${t("使用条款")}</a></p>`;
   if (o.problem)
     return shell({
       lang: o.lang,
@@ -51,7 +54,7 @@ export function homePage(o: {
       email: null,
       body: `<div class="card login"><p>${t("用 Google 登录，查看你加入的羽毛球群和近期活动。")}</p>${
         o.error ? `<p class="warn">${t("登录没有完成，请再试一次。")}</p>` : ""
-      }<a class="btn p" href="/login">${t("用 Google 登录")}</a></div>`,
+      }<a class="btn p" href="/login">${t("用 Google 登录")}</a></div>${legal}`,
     });
 
   const events = o.groups
@@ -95,7 +98,7 @@ export function homePage(o: {
     lang: o.lang,
     title,
     email: o.email,
-    body,
+    body: body + legal,
     extra: o.role ? `<a class="devlink" href="/dev">${t("开发者设置")}</a>` : "",
   });
 }

@@ -42,6 +42,8 @@ describe("群操作记录", () => {
     await asAdmin(`/members/${bob.id}/deactivate`, {});
     expect((await owner(`/members/${bob.id}/delete`, {})).status).toBe(200);
     await owner(`/members/${bob.id}/delete`, {}); // second click: nothing more
+    // Deleted for good: the log keeps what was done, not the name.
+    const gone = `已删除成员（${bob.id}）`;
     expect(await log()).toEqual([
       {
         id: expect.any(Number),
@@ -62,19 +64,19 @@ describe("群操作记录", () => {
         at: expect.any(String),
         action: "note",
         actor: "Carol",
-        detail: "把 Bob 的备注名改为「周六队长」",
+        detail: `把 ${gone} 的备注名改为「周六队长」`,
       },
       {
         id: expect.any(Number),
         at: expect.any(String),
         action: "link_regen",
         actor: "Carol",
-        detail: "重新生成 Bob 的专属链接",
+        detail: `重新生成 ${gone} 的专属链接`,
       },
-      { id: expect.any(Number), at: expect.any(String), action: "deactivate", actor: "Carol", detail: "停用 Bob" },
-      { id: expect.any(Number), at: expect.any(String), action: "reactivate", actor: "Carol", detail: "恢复 Bob" },
-      { id: expect.any(Number), at: expect.any(String), action: "deactivate", actor: "Carol", detail: "停用 Bob" },
-      { id: expect.any(Number), at: expect.any(String), action: "delete", actor: "Jay", detail: "删除成员 Bob" },
+      { id: expect.any(Number), at: expect.any(String), action: "deactivate", actor: "Carol", detail: `停用 ${gone}` },
+      { id: expect.any(Number), at: expect.any(String), action: "reactivate", actor: "Carol", detail: `恢复 ${gone}` },
+      { id: expect.any(Number), at: expect.any(String), action: "deactivate", actor: "Carol", detail: `停用 ${gone}` },
+      { id: expect.any(Number), at: expect.any(String), action: "delete", actor: "Jay", detail: `删除成员 ${gone}` },
     ]);
   });
 

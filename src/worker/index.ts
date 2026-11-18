@@ -32,6 +32,7 @@ import { memberRoutes } from "./routes/member";
 import { publicRoutes } from "./routes/public";
 import { googleRoutes } from "./googleAuth";
 import { diagnoseOversizedEmail, purgePaymentDiagnostics } from "./paymentDiagnostics";
+import { eraseOldDeleted } from "./erase";
 import { purgeCourtMapHistory, rekeyCourtMaps, tendCourtMapPhotos } from "./courtMap";
 import { purgeCourtPhotos } from "./courtPhoto";
 import { purgeEndedQueues } from "./courtQueue";
@@ -236,6 +237,11 @@ export default {
       await rekeyCourtMaps(env); // and plans kept under an address as it used to be told apart
     } catch (err) {
       console.error("court queue cleanup failed:", err);
+    }
+    try {
+      await eraseOldDeleted(env); // members deleted before deleting removed everything about them
+    } catch (err) {
+      console.error("erasing old deleted members failed:", err);
     }
     try {
       await endDueNoFeeEvents(env); // 无需收款 events an hour past their end go to history

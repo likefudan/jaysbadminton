@@ -364,7 +364,7 @@ describe("Google member access", () => {
     const row = await env.DB.prepare("SELECT google_sub, google_email, deleted_at FROM members WHERE id = ?")
       .bind(old.id)
       .first<Record<string, string | null>>();
-    expect(row).toMatchObject({ google_sub: null, google_email: "carol@gmail.com" });
+    expect(row).toMatchObject({ google_sub: null, google_email: null });
     expect(row!.deleted_at).not.toBeNull();
 
     const cookie = await session("google-carol");

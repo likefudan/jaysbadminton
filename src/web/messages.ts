@@ -1270,4 +1270,50 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "{what}：{label}": { tw: "{what}：{label}", en: "{what}: {label}" },
   "会受影响的活动：": { tw: "會受影響的活動：", en: "Events affected:" },
   设置: { tw: "設定", en: "Settings" },
+  "来打过一次球、这场结算之后，才能看到别人填的密码。": {
+    tw: "來打過一次球、這場結算之後，才能看到別人填的密碼。",
+    en: "You can see passwords others added once you have played one event and it has been billed.",
+  },
+  "来打过一次球之后才能用拍照登记，这次请手动填写": {
+    tw: "來打過一次球之後才能用拍照登記，這次請手動填寫",
+    en: "Photo entry opens once you have played one event. Please fill it in by hand this time",
+  },
+  "今天全站的 AI 识别已经用完（每天最多 {n} 次），请手动填写，明天再用": {
+    tw: "今天全站的 AI 辨識已經用完（每天最多 {n} 次），請手動填寫，明天再用",
+    en: "The site has used up today's AI photo reads (at most {n} a day). Please fill it in by hand and try again tomorrow",
+  },
+  删除账号: { tw: "刪除帳號", en: "Delete account" },
+  "确定删除账号？删除后不能恢复。": {
+    tw: "確定刪除帳號？刪除後不能復原。",
+    en: "Delete your account? This cannot be undone.",
+  },
+  "删除后，你的登录、名字、头像、邮箱、微信名、卡路里、点赞和自付费用记录都会删掉，不能恢复。以前活动的名单和账单会留着，但只显示为「已删除成员」。以后想回来，要重新申请加入。":
+    {
+      tw: "刪除後，你的登入、名字、頭像、信箱、微信名、卡路里、按讚和自付費用記錄都會刪掉，不能復原。以前活動的名單和帳單會留著，但只顯示為「已刪除成員」。以後想回來，要重新申請加入。",
+      en: 'Deleting removes your sign-in, name, avatar, email, WeChat name, calories, likes and own-cost records for good. Past rosters and bills stay, shown only as "Deleted member". To come back you would apply again.',
+    },
+  请先确认要删除账号: {
+    tw: "請先確認要刪除帳號",
+    en: "Please confirm that you want to delete your account",
+  },
+  "群主不能删除自己的账号，请先把群主转交给别人": {
+    tw: "群主不能刪除自己的帳號，請先把群主轉交給別人",
+    en: "The owner cannot delete their own account. Hand the group over to someone else first",
+  },
+  "你还有管理员或组织者身份，请先让群主撤销，再删除账号": {
+    tw: "你還有管理員或組織者身分，請先讓群主撤銷，再刪除帳號",
+    en: "You are still an admin or organizer. Ask the owner to remove that role first, then delete your account",
+  },
+  "你还有 ${amount} 没付清，付清之后才能删除账号": {
+    tw: "你還有 ${amount} 沒付清，付清之後才能刪除帳號",
+    en: "You still owe ${amount}. You can delete your account once it is paid",
+  },
+  "你还在 {date} 活动的名单上。请先取消报名，或者等这场结算、收齐之后，再删除账号": {
+    tw: "你還在 {date} 活動的名單上。請先取消報名，或者等這場結算、收齊之後，再刪除帳號",
+    en: "You are still on the roster for the {date} event. Cancel your sign-up, or wait until it is billed and fully paid, then delete your account",
+  },
+  "你负责的 {date} 活动还没收齐归档，之后才能删除账号": {
+    tw: "你負責的 {date} 活動還沒收齊歸檔，之後才能刪除帳號",
+    en: "The {date} event you run is not fully paid and archived yet. You can delete your account after that",
+  },
 };

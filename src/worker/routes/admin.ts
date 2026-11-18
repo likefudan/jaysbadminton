@@ -1,4 +1,4 @@
-import { forgetAvatar } from "../avatars";
+import { eraseMember, erasedName } from "../erase";
 import { endDeveloperSession } from "../developer";
 import { sendApprovalEmail } from "../approvalEmail";
 import { type Context, Hono } from "hono";
@@ -400,22 +400,12 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
         : `${m.username} 还在 ${pending.date} 活动的名单上，这场还没结算。请先结算这场，或者把这个人从名单上删掉，再删除成员`,
     );
   await assertNotRunning(c.env, m);
-  // History stays; the link, the Google account and the name are released, so the person (or
-  // someone else with that name) can apply again. The old record keeps the name with its ID
-  // appended, e.g. "Alice（M004）", so rosters and rankings never mix the two up.
-  const [deleted] = await c.env.DB.batch([
-    c.env.DB.prepare(
-      "UPDATE members SET deleted_at = ?, token_hash = NULL, token_enc = NULL, google_sub = NULL, username = ? WHERE id = ? AND deleted_at IS NULL",
-    ).bind(now(), deletedName(m), m.id),
-    forgetPush(c.env.DB, m.id),
-    ...forgetAvatar(c.env.DB, m.id),
-  ]);
+  // Everything about the person goes (erase.ts); their rows on old rosters and bills stay under
+  // 「已删除成员（M004）」, so the accounts still add up.
   // A second click finds them deleted already: nothing more to record.
-  if (deleted?.meta.changes) await groupAudit(c.env, c.get("actor"), "delete", m.id, `删除成员 ${m.username}`);
+  if (await eraseMember(c.env, m)) await groupAudit(c.env, c.get("actor"), "delete", m.id, `删除成员 ${erasedName(m)}`);
   return c.json({ ok: true });
 });
-
-export const deletedName = (m: Pick<MemberRow, "id" | "username">) => `${m.username}（${m.id}）`;
 
 async function owingByMember(env: Env, manager: string | null = null): Promise<Map<string, number>> {
   const { results } = await env.DB.prepare(
@@ -539,6 +529,7 @@ const RESET_TABLES = [
   "registrations",
   "ai_usage",
   "court_map_history",
+  "court_map_photos",
   "court_maps",
   "queue_photos",
   "queue_courts",
@@ -558,5 +549,7 @@ const RESET_TABLES = [
   "deleted_events",
   "locations",
   "admin_sessions",
+  "telegram_langs",
+  "member_avatars",
   "members",
 ];

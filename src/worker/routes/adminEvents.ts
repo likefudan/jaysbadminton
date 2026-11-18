@@ -148,8 +148,8 @@ import {
 } from "../push";
 import { actorId, audit, auditRows, billOwner, friendName, groupAudit, money, record, rosterLabel } from "../audit";
 import { DIAGNOSTIC_SETTING, paymentDiagnostics } from "../paymentDiagnostics";
-import { MODEL_RE, aiChoices, aiSettingKey, azureDeployments } from "../ai";
-import { AI_EFFORTS, AI_USES, AI_USE_NAME, type AiEffort } from "../../shared/ai";
+import { MODEL_RE, aiChoices, aiDaily, aiSettingKey, azureDeployments } from "../ai";
+import { AI_DAILY_CAP_MAX, AI_EFFORTS, AI_USES, AI_USE_NAME, type AiEffort } from "../../shared/ai";
 import { autoJoinCap, autoJoinEnabled } from "../joining";
 import {
   APP_NAME_MAX,
@@ -998,6 +998,7 @@ adminEventRoutes.get("/settings", async (c) => {
     ...(await notifySettings(c.env)),
     settleDeadlineHours: (await settleDeadline(c.env)).hours,
     ai: await aiChoices(c.env),
+    aiDaily: await aiDaily(c.env),
   });
 });
 
@@ -1091,6 +1092,14 @@ adminEventRoutes.post("/settings", async (c) => {
     writes.push(setSetting(c.env.DB, aiSettingKey(use, "model"), model));
     writes.push(setSetting(c.env.DB, aiSettingKey(use, "effort"), effort));
     said.push(`${AI_USE_NAME[use]}用 ${model}（${effort}）`);
+  }
+  // AI 每天上限: photos the whole site may send to a model in a day.
+  if (b.aiDailyCap !== undefined) {
+    const n = num(b.aiDailyCap);
+    if (!Number.isInteger(n) || n < 1 || n > AI_DAILY_CAP_MAX)
+      throw badRequest(`AI 每天上限请填 1–${AI_DAILY_CAP_MAX}`);
+    writes.push(setSetting(c.env.DB, "ai_daily_cap", String(n)));
+    said.push(`AI 识别每天最多 ${n} 次`);
   }
   if (b.siteTitle !== undefined) {
     const t = str(b.siteTitle).trim();

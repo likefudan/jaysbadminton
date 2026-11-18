@@ -12,7 +12,7 @@ import {
 } from "../shared/courtMap";
 import { toPacific } from "../shared/time";
 import type { Actor } from "./access";
-import { aiEnabled, aiRequestCost, askAi } from "./ai";
+import { aiEnabled, aiRequestCost, askAi, assertAiBudget } from "./ai";
 import { actorId, groupAudit, OWNER } from "./audit";
 import { now } from "./db";
 import type { Env } from "./env";
@@ -147,6 +147,7 @@ export async function sendCourtMapPhoto(
   if (used?.waiting) throw badRequest("这家球馆有一张照片正在识别，请等它好了再拍");
   if ((used?.here ?? 0) >= COURT_MAP_PHOTOS_MONTH) throw badRequest("这家球馆这个月已经拍了 10 张，请下个月再拍");
   if ((used?.mine ?? 0) >= COURT_MAP_PHOTOS_MONTH) throw badRequest("你这个月已经拍了 10 张，请下个月再拍");
+  await assertAiBudget(env);
   // Counted before the model is asked, so photos sent at once can't get past the limit. What an
   // earlier photo of the venue came to is replaced by this one.
   await env.DB.batch([

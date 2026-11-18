@@ -27,6 +27,8 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   站点发布管理: { tw: "站點發布管理", en: "Release Service" },
   "语言：{name}": { tw: "語言：{name}", en: "Language: {name}" },
   退出: { tw: "登出", en: "Sign out" },
+  隐私政策: { tw: "隱私政策", en: "Privacy Policy" },
+  使用条款: { tw: "使用條款", en: "Terms of Use" },
   还不能用: { tw: "還不能用", en: "Not ready yet" },
   "用 Google 登录。第一次来的人登录后可以申请。": {
     tw: "用 Google 登入。第一次來的人登入後可以申請。",

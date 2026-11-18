@@ -262,6 +262,7 @@ export default {
           groups,
           problem,
           error: url.searchParams.get("error"),
+          legal: env.MAIN_SITE_DOMAIN,
         }),
       );
     }

@@ -3,6 +3,19 @@ export const AI_USES = ["photo", "notes"] as const;
 export type AiUse = (typeof AI_USES)[number];
 export const AI_USE_NAME: Record<AiUse, string> = { photo: "拍照登记", notes: "发版说明" };
 
+/**
+ * AI 每天上限 (Ke Li 2026-11-18: 全站每日封顶，管理员可以设置): how many photos (拍照登记 and 球场图)
+ * the whole site may send to a model in one Pacific day. Counted in photos, not dollars: some
+ * deployments have no price here.
+ */
+export const AI_DAILY_CAP_DEFAULT = 200;
+export const AI_DAILY_CAP_MAX = 9999;
+export interface AiDaily {
+  cap: number;
+  /** Photos sent today (Pacific). */
+  used: number;
+}
+
 export const AI_EFFORTS = ["low", "medium", "high"] as const;
 export type AiEffort = (typeof AI_EFFORTS)[number];
 
