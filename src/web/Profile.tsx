@@ -8,7 +8,7 @@ import { Avatar, AvatarForm } from "./Avatar";
 import { Card, Field, SettingRow, useAction } from "./components";
 import { InstallRow } from "./Install";
 import { PushRow } from "./Push";
-import { fmtDate, fmtDay, month, t, tk, tx } from "./i18n";
+import { fmtDate, fmtDay, month, t, tk, tm, tx } from "./i18n";
 
 const STATUS_LABEL: Record<ActivityDay["status"], string> = {
   done: tk("已参加"),
@@ -332,6 +332,8 @@ function RenameForm(props: { base: string; current: string; onDone: () => void; 
   const { busy, error, run, setError } = useAction();
   async function save(e: Event) {
     e.preventDefault();
+    // Unchanged: nothing to save (an old name with an emoji in it may stay as it is).
+    if (name.trim() === props.current) return props.close();
     const err = checkUsername(name);
     if (err) return setError(err);
     if (await run(() => api(`${props.base}/rename`, { username: name }))) {
@@ -341,7 +343,12 @@ function RenameForm(props: { base: string; current: string; onDone: () => void; 
   }
   return (
     <form onSubmit={save}>
-      <Field label={t("新用户名")} value={name} onInput={setName} />
+      <Field
+        label={t("新用户名")}
+        value={name}
+        onInput={setName}
+        error={name.trim() && name.trim() !== props.current ? tm(checkUsername(name) ?? "") : null}
+      />
       {error && <p class="error">{error}</p>}
       <div class="inline">
         <button type="submit" class="button" disabled={busy}>

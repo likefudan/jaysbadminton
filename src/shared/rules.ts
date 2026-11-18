@@ -10,7 +10,26 @@ export function checkUsername(raw: string): string | null {
   if (!name) return "请填写用户名";
   if ([...name].length > USERNAME_MAX) return `用户名最多 ${USERNAME_MAX} 个字`;
   if (/\s/.test(name)) return "用户名不能包含空格";
+  return checkNameChars(name);
+}
+
+/**
+ * What a name may be made of (Ke Li 2026-11-18): 中文, English letters, digits, spaces and
+ * . - _ ( ), starting with 中文, a letter or a digit, so no emoji, fancy letters or a name of only
+ * dots. （） typed by a Chinese keyboard count as ( ). Names saved before this stay as they are;
+ * it is checked only when a name is typed in new or changed. `name` comes trimmed, and not empty.
+ */
+export function checkNameChars(name: string): string | null {
+  if (!/^[\p{Script=Han}A-Za-z0-9 ._\-()（）]*$/u.test(name)) return NAME_CHARS_ERROR;
+  if (!/^[\p{Script=Han}A-Za-z0-9]/u.test(name)) return "名字要以中文、英文或数字开头";
   return null;
+}
+export const NAME_CHARS_ERROR = "名字只能用中文、英文、数字和 . - _ ( )";
+
+/** A friend's name on a sign-up: may be blank (shown as "<member>的朋友<n>"). */
+export function checkFriendName(raw: string): string | null {
+  const name = raw.trim();
+  return name ? checkNameChars(name) : null;
 }
 
 export function checkNickname(raw: string): string | null {

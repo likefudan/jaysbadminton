@@ -7,6 +7,7 @@ import {
   type GuestChoice,
   type RosterEntry,
 } from "../shared/types";
+import { checkFriendName } from "../shared/rules";
 import { checkStay } from "../shared/stay";
 import { isDate, isTime, pacificToUtc, toPacific } from "../shared/time";
 import { getSettings, now, setSetting } from "./db";
@@ -625,19 +626,26 @@ export async function setSignup(
 ): Promise<{ added: string[]; removed: string[]; missed: string[] }> {
   const ts = now();
   const existing = await env.DB.prepare(
-    "SELECT friend_index, attended, created_at, added_by_owner FROM registrations WHERE event_id = ? AND member_id = ?",
+    "SELECT friend_index, friend_name, attended, created_at, added_by_owner FROM registrations WHERE event_id = ? AND member_id = ?",
   )
     .bind(eventId, memberId)
-    .all<{ friend_index: number; attended: number; created_at: string; added_by_owner: number }>();
+    .all<{
+      friend_index: number;
+      friend_name: string | null;
+      attended: number;
+      created_at: string;
+      added_by_owner: number;
+    }>();
+  checkFriendNames(
+    friends,
+    existing.results.map((r) => r.friend_name),
+  );
   const prev = new Map(existing.results.map((r) => [r.friend_index, r]));
   // Friends keep the numbers they already have, in order, so a gap left by the Owner removing one
   // doesn't shift the rest onto another friend's row (and its 到场 mark); new ones go after them.
   const held = [...prev.keys()].filter((i) => i > 0).sort((a, b) => a - b);
   const indexes = friends.map((_, n) => held[n] ?? (held.at(-1) ?? 0) + n - held.length + 1);
-  const rows = [
-    { i: 0, name: null },
-    ...friends.map((name, n) => ({ i: indexes[n]!, name: name.trim().slice(0, 20) || null })),
-  ];
+  const rows = [{ i: 0, name: null }, ...friends.map((name, n) => ({ i: indexes[n]!, name: friendNameOf(name) }))];
   const own = [
     env.DB.prepare(
       `DELETE FROM registrations WHERE event_id = ? AND member_id = ? AND friend_index > 0
@@ -713,6 +721,22 @@ export async function removeSignup(
     guests: results.filter((r) => r.member_id !== memberId).map((r) => r.member_id),
     paidBy: results.find((r) => r.member_id === memberId && r.friend_index === 0)?.paid_by ?? null,
   };
+}
+
+/** A friend's name as saved: trimmed, at most 20 characters, null when blank. */
+export const friendNameOf = (raw: string) => raw.trim().slice(0, 20) || null;
+
+/**
+ * Turns down friends' names with emoji or other symbols in them (rules.ts checkNameChars). Names
+ * already on the list (`kept`) may stay as they are.
+ */
+export function checkFriendNames(friends: string[], kept: (string | null)[] = []): void {
+  for (const f of friends) {
+    const name = friendNameOf(f);
+    if (!name || kept.includes(name)) continue;
+    const err = checkFriendName(name);
+    if (err) throw badRequest(err);
+  }
 }
 
 /**

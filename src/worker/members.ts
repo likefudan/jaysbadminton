@@ -206,6 +206,8 @@ export async function memberByToken(env: Env, token: string): Promise<MemberRow 
 }
 
 export async function renameMember(env: Env, m: MemberRow, username: string): Promise<void> {
+  // Saving the name as it is: nothing to do, and an old name with an emoji in it may stay.
+  if (username.trim() === m.username) return;
   validateNames(username, m.wechat_nickname);
   if (await usernameTaken(env, username, m.id)) throw takenError();
   await env.DB.prepare("UPDATE members SET username = ? WHERE id = ?").bind(username.trim(), m.id).run();

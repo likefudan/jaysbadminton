@@ -74,6 +74,7 @@ import {
   removeSignup,
   setSignup,
   summaries,
+  checkFriendNames,
   validateFriends,
   validateGuests,
   broughtBy,
@@ -841,6 +842,7 @@ adminEventRoutes.post("/events/:id/roster/add", async (c) => {
   if (m.status !== "active") throw badRequest("只能添加正常状态的成员");
   const includeSelf = b.includeSelf === true;
   const friends = validateFriends(b.friends ?? [], null);
+  checkFriendNames(friends);
   // 带群友: group members brought by this member, on their bill.
   const guests = await validateGuests(c.env, e.id, m.id, b.guests);
   if (!includeSelf && friends.length === 0 && guests.length === 0) throw badRequest("请选择要添加的人");
@@ -900,6 +902,10 @@ adminEventRoutes.post("/events/:id/roster/:rid/rename", async (c) => {
   const b = await readJson(c.req.raw);
   const rid = Number(c.req.param("rid"));
   const was = await rosterLabel(c.env, rid);
+  const before = await c.env.DB.prepare("SELECT friend_name FROM registrations WHERE id = ? AND event_id = ?")
+    .bind(rid, e.id)
+    .first<{ friend_name: string | null }>();
+  checkFriendNames([str(b.name)], [before?.friend_name ?? null]);
   const res = await c.env.DB.prepare(
     "UPDATE registrations SET friend_name = ?, updated_at = ? WHERE id = ? AND event_id = ? AND friend_index > 0",
   )
