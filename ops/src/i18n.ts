@@ -261,7 +261,6 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
   "刷新中…": { tw: "重新整理中…", en: "Refreshing…" },
 
   // 总入口: the home page and 开发者设置 (home.ts).
-  羽毛球: { tw: "羽毛球", en: "Badminton" },
   首页: { tw: "首頁", en: "Home" },
   开发者设置: { tw: "開發者設定", en: "Developer settings" },
   站点管理: { tw: "站點管理", en: "Site management" },

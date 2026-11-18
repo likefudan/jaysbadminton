@@ -26,6 +26,9 @@
   "vars": {
     "SITE_ORIGIN": "https://jaysbadminton.llmat.dev",
     "ENVIRONMENT": "production",
+    // 总入口 (src/worker/hub.ts): lets badminton.llmat.dev list this group for its members (Ke Li 2026-11-18).
+    // Read-only; the site runs the same without it. Sites in sites.json take it only with "hub": true.
+    "HUB_ORIGIN": "https://badminton.llmat.dev",
     "ORGANIZERS": "1",
     "SPONSOR_NAME": "Z3 Enterprise",
     "SPONSOR_URL": "https://www.z3enterprise.com/"

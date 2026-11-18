@@ -22,6 +22,9 @@ function weekday(lang: Lang, date: string): string {
 }
 /** Site names end in 羽毛球, which English shows as Badminton (as on the Release Service). */
 const named = (lang: Lang, name: string) => (lang === "en" ? name.replace(/\s*羽毛球$/, " Badminton") : name);
+/** The 总入口's name, the same in every language (Ke Li 2026-11-18: an English name, short like Keep). */
+export const HUB_NAME = "Rally";
+
 const ROLES: Record<string, string> = { owner: "群主", admin: "管理员", organizer: "组织者" };
 
 export function homePage(o: {
@@ -33,7 +36,7 @@ export function homePage(o: {
   error: string | null;
 }): string {
   const t = (key: string, vars?: Record<string, string | number>) => tr(o.lang, key, vars);
-  const title = t("羽毛球");
+  const title = HUB_NAME;
   if (o.problem)
     return shell({
       lang: o.lang,
