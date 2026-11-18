@@ -287,7 +287,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "他们打开自己的专属链接，在个人信息里点「绑定 Google 账号」就行。": {
     tw: "他們開啟自己的專屬連結，在個人資訊裡點「綁定 Google 帳號」就行。",
-    en: 'They open their personal link and tap "Link Google account" under My info.',
+    en: 'They open their personal link and tap "Link Google account" under Profile.',
   },
   "另有 {n} 个已停用的成员没有绑定 Google。": {
     tw: "另有 {n} 個已停用的成員沒有綁定 Google。",
@@ -511,7 +511,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "有人临时要来：点名单右上角的「＋ 添加」。": {
     tw: "有人臨時要來：點名單右上角的「＋ 新增」。",
-    en: 'Someone joins at the last minute: tap "+ Add" at the top right of the roster.',
+    en: 'Someone joins at the last minute: tap "+ Add" at the top right of the sign-up list.',
   },
   "打完球，填场地费和用球数，先点「预览每人金额」，再点「结算费用」，每个人就收到账单。": {
     tw: "打完球，填場地費和用球數，先點「預覽每人金額」，再點「結算費用」，每個人就收到帳單。",
@@ -752,13 +752,13 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   只能恢复已取消的活动: { tw: "只能恢復已取消的活動", en: "Only a cancelled event can be restored" },
   "活动结束已超过结算期限，不能再恢复": {
     tw: "活動結束已超過結算期限，不能再恢復",
-    en: "This event is past its settle-by time, so it can't be restored",
+    en: "This event is past its settlement deadline, so it can't be restored",
   },
   "恢复这次活动？名单上的人仍然报了名，会收到通知。": {
     tw: "恢復這次活動？名單上的人仍然報了名，會收到通知。",
     en: "Restore this event? Everyone on the list is still signed up and will be notified.",
   },
-  拍照登记用量: { tw: "拍照登記用量", en: "Photo check-in usage" },
+  拍照登记用量: { tw: "拍照登記用量", en: "Photo reading usage" },
   张照片: { tw: "張照片", en: "photos" },
   "估价（不全）": { tw: "估價（不全）", en: "Estimate (partial)" },
   估价: { tw: "估價", en: "Estimate" },
@@ -1044,7 +1044,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "{b}：把网站首页发到微信群，大家点「登录 / 注册」，用 Google 账号申请（新成员只能用 Google）。在「待审核」里通过后，对方直接用 Google 登录就能报名。":
     {
       tw: "{b}：把網站首頁發到微信群，大家點「登入 / 註冊」，用 Google 帳號申請（新成員只能用 Google）。在「待審核」裡通過後，對方直接用 Google 登入就能報名。",
-      en: '{b}: post the home page in the WeChat group; people tap "Sign in / Join" and apply with a Google account (new members can only use Google). Once you approve them under "Pending", they sign in with Google and can sign up.',
+      en: '{b}: post the home page in the WeChat group; people tap "Sign in / Register" and apply with a Google account (new members can only use Google). Once you approve them under "Pending", they sign in with Google and can sign up.',
     },
   邀请成员: { tw: "邀請成員", en: "Invite members" },
   "{b}：在「活动」里新建，然后点「复制活动链接」发到群里。": {
@@ -1126,7 +1126,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "{b}：他的活动的提醒发给他；他没连 Telegram 时改发给你，消息开头写明原因。你另外收到三条抄送：发起、结算完成、收齐。":
     {
       tw: "{b}：他的活動的提醒發給他；他沒連 Telegram 時改發給你，訊息開頭寫明原因。你另外收到三條抄送：發起、結算完成、收齊。",
-      en: "{b}: reminders for their events go to them; if they haven't connected Telegram, they go to you, with the reason at the top. You also get three copies: created, billed, and fully paid.",
+      en: "{b}: reminders for their events go to them; if they haven't connected Telegram, they go to you, with the reason at the top. You also get three copies: created, finalized and fully paid.",
     },
   通知: { tw: "通知", en: "Notifications" },
   "{b}：只能管理自己负责的活动和进了自己账户的收款；「待审核」「成员」只读，看不到成员的专属链接。你能看到、也能修改他的活动，每场的「操作记录」里写着谁改了什么。":
@@ -1162,7 +1162,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "{b}：新成员申请发给你和每位连了 Telegram 的管理员；他的活动的发起、结算完成、收齐抄送给你。别人把你收款的活动转走时你会收到通知。":
     {
       tw: "{b}：新成員申請發給你和每位連了 Telegram 的管理員；他的活動的發起、結算完成、收齊抄送給你。別人把你收款的活動轉走時你會收到通知。",
-      en: "{b}: new applications go to you and every admin with Telegram connected; you get copies when their events are created, billed and fully paid. You're notified when someone hands over an event you collect for.",
+      en: "{b}: new applications go to you and every admin with Telegram connected; you get copies when their events are created, finalized and fully paid. You're notified when someone hands over an event you collect for.",
     },
   "{b}：成员页最下面的「群操作记录」写着谁通过了申请、停用了谁、任命了谁、改了什么设置、导出了什么。": {
     tw: "{b}：成員頁最下面的「群操作記錄」寫著誰通過了申請、停用了誰、任命了誰、改了什麼設定、匯出了什麼。",
@@ -1259,7 +1259,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "群主和管理员能看到并修改你的活动；群主会收到发起、结算完成、收齐三条抄送。你看不到别人的活动和收款，「待审核」「成员」只能看。":
     {
       tw: "群主和管理員能看到並修改你的活動；群主會收到發起、結算完成、收齊三條抄送。你看不到別人的活動和收款，「待審核」「成員」只能看。",
-      en: 'The owner and admins can see and change your events; the owner gets three copies: created, billed and fully paid. You can\'t see other people\'s events or payments; "Pending" and "Members" are view-only.',
+      en: 'The owner and admins can see and change your events; the owner gets three copies: created, finalized and fully paid. You can\'t see other people\'s events or payments; "Pending" and "Members" are view-only.',
     },
   "不想再当管理员时，点下面的「不再当管理员」，弹窗会先列出你的活动会怎么处理。": {
     tw: "不想再當管理員時，點下面的「不再當管理員」，彈窗會先列出你的活動會怎麼處理。",
@@ -1615,7 +1615,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "AI 模型": { tw: "AI 模型", en: "AI models" },
   "还没有设置 Azure 的 key：拍照登记暂时用不了，发版说明直接列改动标题。": {
     tw: "還沒有設定 Azure 的 key：拍照登記暫時用不了，發版說明直接列改動標題。",
-    en: "No Azure key yet: photo check-in doesn't work for now, and release notes just list the change titles.",
+    en: "No Azure key yet: reading from photos doesn't work for now, and release notes just list the change titles.",
   },
   模型: { tw: "模型", en: "Model" },
   "{m}（未部署）": { tw: "{m}（未部署）", en: "{m} (not deployed)" },
@@ -1731,6 +1731,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "這筆 Venmo 付款會回到待確認，可以再關聯到正確的帳單。",
     en: "This Venmo payment goes back to To confirm, where you can match it to the right bill.",
   },
+  // Words that mean something else elsewhere (撤销 a role, 进行中 events, 通过 an application): see lookup().
+  "撤销@undo": { tw: "撤銷", en: "Undo" },
+  "进行中@step": { tw: "進行中", en: "In progress" },
+  "通过@step": { tw: "通過", en: "Passed" },
   "撤销 {memberName} 的这笔{what}？{back}": {
     tw: "撤銷 {memberName} 的這筆{what}？{back}",
     en: "Undo {memberName}'s {what}? {back}",
@@ -1823,7 +1827,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "你负责的活动的提醒和账单通知、组织者活动的抄送（发起、结算完成、收齐），以及入群申请等全群的通知发到连接的这个账号。":
     {
       tw: "你負責的活動的提醒和帳單通知、組織者活動的抄送（發起、結算完成、收齊），以及入群申請等全群的通知發到連線的這個帳號。",
-      en: "Reminders and bill notices for your events, copies of organizers' events (created, billed, fully paid), and group-wide notices such as applications go to the connected account.",
+      en: "Reminders and bill notices for your events, copies of organizers' events (created, finalized, fully paid), and group-wide notices such as applications go to the connected account.",
     },
   "所有提醒和账单通知只发给连接的这一个账号。": {
     tw: "所有提醒和帳單通知只發給連線的這一個帳號。",
@@ -1862,7 +1866,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "在收款設定的帳單提醒時間傳送",
     en: "Sent at the bill reminder time set in Payment settings",
   },
-  拍照登记: { tw: "拍照登記", en: "Photo check-in" },
+  拍照登记: { tw: "拍照登記", en: "Read from photo" },
   发版说明: { tw: "發版說明", en: "Release notes" },
   "密码至少 {n} 位": { tw: "密碼至少 {n} 位", en: "Passwords need at least {n} characters" },
   "每天最多自动通过的人数请填 1–{n}": {

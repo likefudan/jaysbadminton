@@ -337,7 +337,7 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   "暂时无法校验 Venmo 签名，请核对后手动关联": {
     tw: "暫時無法校驗 Venmo 簽名，請核對後手動關聯",
-    en: "The Venmo signature can't be checked right now; please check and link it by hand",
+    en: "The Venmo signature can't be checked right now; please check and match it by hand",
   },
   "🚀 新版本 {tag} 已发布到正式网站": {
     tw: "🚀 新版本 {tag} 已發布到正式網站",
