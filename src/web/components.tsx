@@ -6,6 +6,7 @@ import { useSiteIcon, useSiteTitle, useSponsor, useStaging } from "./site";
 import { DeveloperSwitch } from "./DeveloperTools";
 import { GoogleAccount } from "./GoogleAccount";
 import { AppTabs, tabOf, useAppTabs } from "./AppTabs";
+import { useBarsAway } from "./barsAway";
 import { useLocation } from "preact-iso";
 import { isAdminPath, t, tm, tx } from "./i18n";
 import { fmtInstant } from "./lang";
@@ -31,6 +32,7 @@ export function Page(props: {
   const admin = isAdminPath(path);
   const tabs = useAppTabs();
   const staleAt = useStaleAt();
+  useBarsAway(path);
   useEffect(() => {
     document.title = props.title === site ? site : `${props.title} · ${site}`;
   }, [props.title, site]);

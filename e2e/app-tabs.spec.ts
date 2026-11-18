@@ -99,25 +99,51 @@ test("in the home-screen app the tabs are at the bottom", async ({ page }) => {
   await expect(page.locator(".legal-links")).toBeVisible();
 });
 
-/** The floating capsule slides away while the page is pushed up and comes back when pulled down (Ke Li 2026-11-18). */
-test("the tabs slide away while reading down and come back going up", async ({ page }) => {
+/**
+ * The floating capsule slides down and the top bar up while the page is pushed up, and both come
+ * back when it is pulled down (Ke Li 2026-11-18).
+ */
+test("the bars slide away while reading down and come back going up", async ({ page }) => {
   await signedIn(page, { app: true });
   await page.goto("/me");
   await expect(page.locator(".ev-card").first()).toBeVisible();
   await page.evaluate(() => {
-    document.body.style.minHeight = "3000px";
+    (document.querySelector(".page") as HTMLElement).style.minHeight = "3000px";
   });
-  const tabs = page.getByRole("navigation", { name: "主导航" });
-  await expect(tabs).not.toHaveClass(/away/);
+  const html = page.locator("html");
+  const topbar = page.locator(".topbar");
+  const shown = async () => {
+    await expect(html).not.toHaveClass(/bars-away/);
+    await expect(topbar).toBeInViewport();
+  };
+  await shown();
   await page.evaluate(() => window.scrollTo(0, 400));
-  await expect(tabs).toHaveClass(/away/);
+  await expect(html).toHaveClass(/bars-away/);
+  await expect(topbar).not.toBeInViewport();
   await page.evaluate(() => window.scrollTo(0, 300));
-  await expect(tabs).not.toHaveClass(/away/);
+  await shown();
   await page.evaluate(() => window.scrollTo(0, 800));
-  await expect(tabs).toHaveClass(/away/);
+  await expect(html).toHaveClass(/bars-away/);
+  // The top bar stays while its menu is open.
+  await page.getByRole("button", { name: /Google 账号/ }).evaluate((b) => b.setAttribute("aria-expanded", "true"));
+  await expect(topbar).toBeInViewport();
+  await page.getByRole("button", { name: /Google 账号/ }).evaluate((b) => b.setAttribute("aria-expanded", "false"));
   // Back near the top they always show.
   await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(tabs).not.toHaveClass(/away/);
+  await shown();
+});
+
+test("in a browser the top bar slides away too", async ({ page }) => {
+  await signedIn(page, { app: false });
+  await page.goto("/me");
+  await expect(page.locator(".ev-card").first()).toBeVisible();
+  await page.evaluate(() => {
+    (document.querySelector(".page") as HTMLElement).style.minHeight = "3000px";
+  });
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await expect(page.locator(".topbar")).not.toBeInViewport();
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect(page.locator(".topbar")).toBeInViewport();
 });
 
 test("those who run events get a 管理 tab instead of 切换为管理员", async ({ page }) => {
