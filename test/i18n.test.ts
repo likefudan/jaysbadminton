@@ -114,6 +114,11 @@ describe("t / tm", () => {
     activate("en");
     expect(t("最多 {n} 个朋友", { n: 3 })).toBe("Up to 3 friends");
     expect(t("没有这条")).toBe("没有这条");
+    expect(t("撤销@undo")).toBe("Undo");
+    expect(t("撤销")).toBe("Remove");
+    activate("zh-CN");
+    expect(t("撤销@undo")).toBe("撤销");
+    expect(t("不用加 @")).toBe("不用加 @");
     activate("zh-TW");
     expect(t("我的活动")).toBe("我的活動");
   });

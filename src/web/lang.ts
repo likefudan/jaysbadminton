@@ -89,10 +89,16 @@ export function activate(lang: Lang): Lang {
 
 export const currentLang = () => active;
 
+/**
+ * One Chinese word can need two English ones (撤销: "Remove" a role, "Undo" a payment). The second
+ * use adds a tag the page never shows (撤销@undo) and so gets a translation of its own.
+ */
+const untagged = (zh: string) => zh.replace(/@[a-z]+$/, "");
+
 export function lookup(zh: string): string {
-  if (active === "zh-CN") return zh;
+  if (active === "zh-CN") return untagged(zh);
   const m = MESSAGES[zh];
-  if (!m) return zh;
+  if (!m) return untagged(zh);
   return active === "en" ? m.en : m.tw;
 }
 

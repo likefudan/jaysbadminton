@@ -20,7 +20,7 @@ const OUTCOMES: Record<string, string> = {
   overpaid: tk("多付，需要退款"),
   review: tk("待确认"),
 };
-const STATUS = { processing: tk("进行中"), passed: tk("通过"), failed: tk("未通过"), warning: tk("需留意") };
+const STATUS = { processing: tk("进行中@step"), passed: tk("通过@step"), failed: tk("未通过"), warning: tk("需留意") };
 
 /** All-mail diagnostics stay behind the Owner's own capability (`owner`), including unverified mail. */
 export function PaymentDiagnostics(props: { base: string }) {

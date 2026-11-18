@@ -358,7 +358,7 @@ export function ReceiptList(props: {
           </span>
           {props.onRemove && (props.canRemove?.(r) ?? true) && (
             <button type="button" class="undo" disabled={props.busy} onClick={() => props.onRemove!(r)}>
-              {t("撤销")}
+              {t("撤销@undo")}
             </button>
           )}
         </li>

@@ -273,7 +273,7 @@ export const MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "用 Google 登入，查看你加入的羽毛球群和近期活動。",
     en: "Sign in with Google to see your badminton groups and their coming events.",
   },
-  近期活动: { tw: "近期活動", en: "Coming events" },
+  近期活动: { tw: "近期活動", en: "Upcoming events" },
   "最近没有活动。": { tw: "最近沒有活動。", en: "No events coming up." },
   我的群: { tw: "我的群", en: "My groups" },
   还没有找到你加入的群: { tw: "還沒有找到你加入的群", en: "No groups found for you yet" },
