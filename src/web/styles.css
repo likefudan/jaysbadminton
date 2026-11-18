@@ -1652,17 +1652,21 @@ details.fold[open] summary {
 }
 /* Slides up out of sight while reading down, back in going up, with the app's tabs (barsAway.ts,
    Ke Li 2026-11-18). Stays while one of its menus is open. */
-.topbar {
+.topbar,
+.sub-bar {
   transition: transform 0.7s cubic-bezier(0.32, 0.72, 0, 1);
 }
-html.bars-away .topbar:not(:has([aria-expanded="true"])) {
+/* The 「‹ 上一级」 bar of a page one level down does the same (Ke Li 2026-11-18). */
+html.bars-away .topbar:not(:has([aria-expanded="true"])),
+html.bars-away .sub-bar {
   transform: translateY(calc(-100% - 2px));
 }
 html.bars-away .cq-bar {
   top: 0;
 }
 @media (prefers-reduced-motion: reduce) {
-  .topbar {
+  .topbar,
+  .sub-bar {
     transition: none;
   }
 }
@@ -6699,6 +6703,9 @@ label.set-row {
     text-align: center;
   }
   /* The detail's own bar: no full-bleed edge, no sticking to the very top (the site's top bar stays). */
+  html.bars-away .md-detail > .sub-bar {
+    transform: none;
+  }
   .md-detail > .sub-bar {
     position: static;
     margin: 0 0 14px;

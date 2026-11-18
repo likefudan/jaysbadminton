@@ -77,7 +77,34 @@ test("管理页: back goes up one level, reload stays, tabs replace", async ({ p
   await expect(page).toHaveURL(/\/privacy$/);
 
   // Opened straight into a sub-page (as Google sign-in comes back): 「‹」 goes up in place.
+  // On a wide screen the page sits beside its list with the site's top bar instead.
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin/test-token?tab=settings&sub=pay");
   await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
   await expect(page).toHaveURL(/\?tab=settings$/);
+});
+
+/** The 「‹ 上一级」 bar slides up while reading down and back going up, like the site's top bar (Ke Li 2026-11-18). */
+test("a page one level down: its bar slides away and back", async ({ page }) => {
+  await page.route("**/api/auth/session", (r) => r.fulfill({ json: { signedIn: false } }));
+  await page.route("**/api/admin/test-token/members", (r) =>
+    r.fulfill({ json: { pending: [], active: [], inactive: [], deleted: [], viewer: { caps: ["owner"] } } }),
+  );
+  await page.route("**/api/admin/test-token/events?*", (r) =>
+    r.fulfill({ json: { current: [], past: [], morePast: false } }),
+  );
+  await page.route("**/api/admin/test-token/telegram", (r) => r.fulfill({ json: {} }));
+  await page.route("**/api/admin/test-token/settings", (r) => r.fulfill({ json: {} }));
+  // On a wide screen the page sits beside its list with the site's top bar instead.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/admin/test-token?tab=settings&sub=pay");
+  const bar = page.locator(".sub-bar");
+  await expect(bar).toContainText("收款设置");
+  await page.evaluate(() => {
+    (document.querySelector(".page") as HTMLElement).style.minHeight = "3000px";
+  });
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await expect(bar).not.toBeInViewport();
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect(bar).toBeInViewport();
 });
