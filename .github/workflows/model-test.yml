@@ -1,4 +1,4 @@
-# One-off experiment (not part of the site): read the test photos with the new Azure deployments.
+# One-off experiment (not part of the site): every Azure deployment through the site's askAi.
 name: model-test
 on:
   push:
@@ -9,16 +9,17 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: node experiments/model-test/run.mjs
+          cache: npm
+      - run: npm ci
+      - run: npx esbuild experiments/model-test/all.ts --bundle --platform=node --format=esm --outfile=/tmp/all.mjs
+      - run: node /tmp/all.mjs
         env:
           AZURE_FOUNDRY_API_KEY: ${{ secrets.AZURE_FOUNDRY_API_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PREFIX: tmp-model-test-
-          RUNS: "2"

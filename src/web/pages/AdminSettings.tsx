@@ -1382,7 +1382,9 @@ function AiCard(props: { base: string; initial: Record<AiUse, AiChoice> }) {
           </div>
         );
       })}
-      <p class="muted small">{t("出错时自动改用 claude-sonnet-5-5。")}</p>
+      <p class="muted small">
+        {t("Kimi、DeepSeek 等模型没有思考强度，选了也不起作用。出错时自动改用 claude-sonnet-5-5。")}
+      </p>
       {error && <p class="error">{error}</p>}
       <button
         type="button"
