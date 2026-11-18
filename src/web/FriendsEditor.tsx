@@ -2,7 +2,8 @@ import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
 import type { GuestChoice } from "../shared/types";
 import { Field } from "./components";
-import { t } from "./i18n";
+import { checkFriendName } from "../shared/rules";
+import { t, tm } from "./i18n";
 
 /** One friend they bring: a name (may be blank), or a group member picked with 选群友 (带群友). */
 export interface FriendSlot {
@@ -36,6 +37,10 @@ export function FriendsEditor(props: {
 }) {
   const f = props.friends;
   const [picking, setPicking] = useState<number | null>(null);
+  // Names already saved may stay as they are, even with an emoji in them (the server agrees).
+  const [kept] = useState(() => f.map((s) => s.name.trim()).filter(Boolean));
+  const nameError = (name: string) =>
+    kept.includes(name.trim()) ? null : tm(checkFriendName(name.trim().slice(0, 20)) ?? "") || null;
   const set = (i: number, v: FriendSlot) => props.onChange(f.map((x, j) => (j === i ? v : x)));
   return (
     <div class="friends-editor">
@@ -98,6 +103,7 @@ export function FriendsEditor(props: {
                 {t("选群友")} ▾
               </button>
             </div>
+            {nameError(slot.name) && <small class="error">{nameError(slot.name)}</small>}
           </label>
         ) : (
           <Field
@@ -105,6 +111,7 @@ export function FriendsEditor(props: {
             label={t("朋友 {n} 的名字（选填）", { n: i + 1 })}
             value={slot.name}
             onInput={(v) => set(i, { name: v })}
+            error={nameError(slot.name)}
           />
         ),
       )}

@@ -716,6 +716,14 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   请填写用户名: { tw: "請填寫使用者名稱", en: "Please enter a username" },
   "用户名最多 {n} 个字": { tw: "使用者名稱最多 {n} 個字", en: "Usernames can be at most {n} characters" },
   用户名不能包含空格: { tw: "使用者名稱不能包含空格", en: "Usernames can't contain spaces" },
+  "名字只能用中文、英文、数字和 . - _ ( )": {
+    tw: "名字只能用中文、英文、數字和 . - _ ( )",
+    en: "Names can only use Chinese, English letters, digits and . - _ ( )",
+  },
+  "名字要以中文、英文或数字开头": {
+    tw: "名字要以中文、英文或數字開頭",
+    en: "Names must start with a Chinese character, an English letter or a digit",
+  },
   请填写微信名: { tw: "請填寫微信名", en: "Please enter your WeChat name" },
   "微信名最多 {n} 个字": { tw: "微信名最多 {n} 個字", en: "WeChat names can be at most {n} characters" },
   请填写邮箱: { tw: "請填寫電子郵件", en: "Please enter an email" },

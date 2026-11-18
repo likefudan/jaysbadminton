@@ -237,6 +237,8 @@ export function Field(props: {
   onInput: (v: string) => void;
   type?: HTMLInputTypeAttribute;
   hint?: string;
+  /** Shown under the box in red as they type, in place of the hint. */
+  error?: string | null;
   autocomplete?: string;
   /** Typed exactly as is (usernames, passwords): no capital first letter or autocorrect on phones. */
   verbatim?: boolean;
@@ -253,7 +255,11 @@ export function Field(props: {
         {...verbatim}
         onInput={(e) => props.onInput((e.target as HTMLInputElement).value)}
       />
-      {props.hint && <small class="muted">{props.hint}</small>}
+      {props.error ? (
+        <small class="error">{props.error}</small>
+      ) : (
+        props.hint && <small class="muted">{props.hint}</small>
+      )}
     </label>
   );
 }

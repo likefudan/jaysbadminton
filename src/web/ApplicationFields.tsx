@@ -1,6 +1,6 @@
-import { MESSAGE_MAX } from "../shared/rules";
+import { MESSAGE_MAX, checkUsername } from "../shared/rules";
 import { Field } from "./components";
-import { t } from "./i18n";
+import { t, tm } from "./i18n";
 
 /** The Google sign-up's application form: two names and an optional note. */
 export function ApplicationFields(props: {
@@ -18,6 +18,7 @@ export function ApplicationFields(props: {
         value={props.username}
         onInput={props.setUsername}
         hint={t("报名名单上显示的名字，不能和别人重复")}
+        error={props.username.trim() ? tm(checkUsername(props.username) ?? "") : null}
         autocomplete="nickname"
       />
       <Field
