@@ -6751,8 +6751,8 @@ label.set-row {
 
 /* ---- Bottom tab bar of the app added to the home screen (AppTabs.tsx, Ke Li 2026-11-14, option A) ---- */
 .has-app-tabs {
-  --app-tabs-h: 56px;
-  padding-bottom: calc(var(--app-tabs-h) + 24px + env(safe-area-inset-bottom));
+  --app-tabs-h: 54px;
+  padding-bottom: calc(var(--app-tabs-h) + 32px + env(safe-area-inset-bottom));
 }
 /* The tabs at the top give way to the ones at the bottom; 排行榜 has a tab of its own. */
 .has-app-tabs .page-tabs,
@@ -6761,45 +6761,100 @@ label.set-row {
   display: none;
 }
 .has-app-tabs .cq-legend {
-  bottom: calc(var(--app-tabs-h) + env(safe-area-inset-bottom));
+  bottom: calc(var(--app-tabs-h) + 18px + env(safe-area-inset-bottom));
   padding-bottom: 9px;
+  transition: bottom 0.7s cubic-bezier(0.32, 0.72, 0, 1);
+}
+html.tabs-away .has-app-tabs .cq-legend {
+  bottom: 0;
+  padding-bottom: calc(9px + env(safe-area-inset-bottom));
 }
 .has-app-tabs .developer-tools {
-  bottom: calc(var(--app-tabs-h) + 12px + env(safe-area-inset-bottom));
+  bottom: calc(var(--app-tabs-h) + 20px + env(safe-area-inset-bottom));
 }
+/* A floating capsule, as in iOS (Ke Li 2026-11-18): very see-through glass with only a light blur
+   (more blur would look less clear), sliding away down while the finger pushes the page up and back
+   in when it pulls the page down (AppTabs.tsx sets .away). The slide is slow enough to follow. */
 .app-tabs {
+  --tabs-glass: rgba(255, 255, 255, 0.08);
+  --tabs-rim: rgba(255, 255, 255, 0.7);
+  --tabs-edge: rgba(0, 0, 0, 0.08);
+  --tabs-pill: rgba(255, 255, 255, 0.62);
+  --tabs-halo: rgba(255, 255, 255, 0.85);
+  --tabs-gap: max(10px, calc(env(safe-area-inset-bottom) - 12px));
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 50%;
+  bottom: var(--tabs-gap);
   z-index: 40;
+  width: min(calc(100% - 32px - env(safe-area-inset-left) - env(safe-area-inset-right)), 420px);
   display: flex;
-  justify-content: center;
-  padding: 0 max(8px, env(safe-area-inset-left)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-right));
-  background: var(--surface-raised);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-  backdrop-filter: blur(18px) saturate(1.4);
-  border-top: 1px solid var(--line);
+  justify-content: space-around;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--tabs-glass);
+  -webkit-backdrop-filter: blur(2.5px) saturate(1.1);
+  backdrop-filter: blur(2.5px) saturate(1.1);
+  border: 0.5px solid var(--tabs-edge);
+  box-shadow:
+    inset 0 1px 0 var(--tabs-rim),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.18),
+    0 6px 22px rgba(0, 0, 0, 0.1);
+  transform: translateX(-50%);
+  transition:
+    transform 0.7s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.7s ease;
+}
+[data-mode="dark"] .app-tabs {
+  --tabs-glass: rgba(28, 28, 32, 0.12);
+  --tabs-rim: rgba(255, 255, 255, 0.16);
+  --tabs-edge: rgba(255, 255, 255, 0.1);
+  --tabs-pill: rgba(255, 255, 255, 0.2);
+  --tabs-halo: rgba(0, 0, 0, 0.7);
+}
+[data-mode="dark"] .app-tabs a.on {
+  color: color-mix(in srgb, var(--acc) 40%, white);
+}
+.app-tabs.away {
+  transform: translate(-50%, calc(100% + var(--tabs-gap) + 24px));
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-tabs {
+    transition: opacity 0.3s ease;
+  }
+  .app-tabs.away {
+    transform: translateX(-50%);
+  }
 }
 .app-tabs a {
   flex: 1;
-  max-width: 140px;
+  max-width: 120px;
   height: var(--app-tabs-h);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 500;
+  gap: 1px;
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 10.5px;
+  font-weight: 600;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   user-select: none;
+  /* A faint halo keeps the labels readable over whatever passes underneath the clear glass. */
+  text-shadow: 0 0 6px var(--tabs-halo);
+  transition: background 0.2s ease;
+}
+.app-tabs a svg {
+  filter: drop-shadow(0 0 4px var(--tabs-halo));
 }
 .app-tabs a.on {
   color: var(--acc);
+  background: var(--tabs-pill);
 }
 .boards-page {
   margin-top: 4px;
