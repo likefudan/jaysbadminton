@@ -1032,7 +1032,7 @@ function JoinCard(props: { base: string; initial: GeneralSettings }) {
       <label class="switch-card plain">
         <span>
           <strong>{t("入群不需要审核")}</strong>
-          <small>{t("打开后，申请加入的人直接成为成员，不用在「待审核」里通过")}</small>
+          <small>{t("打开后，申请加入的人直接成为成员，不用审核")}</small>
         </span>
         <input
           type="checkbox"
@@ -1053,7 +1053,7 @@ function JoinCard(props: { base: string; initial: GeneralSettings }) {
               setCap(v);
               setSaved(false);
             }}
-            hint={t("1–{n}，超过的申请回到「待审核」", { n: MAX_AUTO_JOINS_PER_DAY })}
+            hint={t("1–{n}，超过的申请要在「成员」里审核", { n: MAX_AUTO_JOINS_PER_DAY })}
           />
           <button type="button" class="button secondary block" disabled={busy} onClick={saveCap}>
             {saved ? t("已保存") : t("保存")}

@@ -193,7 +193,6 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   链接无效: { tw: "連結無效", en: "Invalid link" },
   "这个管理链接已失效。": { tw: "這個管理連結已失效。", en: "This admin link no longer works." },
   收款: { tw: "收款", en: "Payments" },
-  待审核: { tw: "待審核", en: "Pending" },
   成员: { tw: "成員", en: "Members" },
   管理页登录: { tw: "管理頁登入", en: "Admin sign-in" },
   群主登录: { tw: "群主登入", en: "Owner sign-in" },
@@ -270,12 +269,11 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "They applied with Google ({email}), so there's no link to send: they sign in with that Google account to sign up for events.",
   },
   完成: { tw: "完成", en: "Done" },
-  待审核申请: { tw: "待審核申請", en: "Applications" },
   "只有群主和管理员可以通过或拒绝申请。": {
     tw: "只有群主和管理員可以通過或拒絕申請。",
     en: "Only the owner and admins can approve or reject applications.",
   },
-  没有待审核的申请: { tw: "沒有待審核的申請", en: "No applications waiting" },
+  "待审核申请（{n}）": { tw: "待審核申請（{n}）", en: "Applications ({n})" },
   "留言：{message}": { tw: "留言：{message}", en: "Message: {message}" },
   通过: { tw: "通過", en: "Approve" },
   拒绝: { tw: "拒絕", en: "Reject" },
@@ -578,9 +576,9 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "新成員點「登入 / 註冊」，用 Google 帳號申請。",
     en: 'Newcomers tap "Sign in / Register" and apply with their Google account.',
   },
-  "你在「待审核」里点「通过」，对方用 Google 登录就能报名。": {
-    tw: "你在「待審核」裡點「通過」，對方用 Google 登入就能報名。",
-    en: 'Tap "Approve" under "Pending"; they can then sign in with Google and sign up.',
+  "你在「成员」最上面的待审核申请里点「通过」，对方用 Google 登录就能报名。": {
+    tw: "你在「成員」最上面的待審核申請裡點「通過」，對方用 Google 登入就能報名。",
+    en: 'Tap "Approve" on the application at the top of "Members"; they can then sign in with Google and sign up.',
   },
   "不想每个都审：在「设置 › 入群和报名」打开「入群不需要审核」。": {
     tw: "不想每個都審：在「設定 › 入群和報名」打開「入群不需要審核」。",
@@ -717,7 +715,7 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "你管自己發起的活動和進了你帳戶的收款，看不到別人的活動和收款。",
     en: "You run the events you created and the payments into your account; you can't see other people's events and payments.",
   },
-  "「待审核」和「成员」只能看。": { tw: "「待審核」和「成員」只能看。", en: "Pending and Members are read-only." },
+  "「成员」和待审核申请只能看。": { tw: "「成員」和待審核申請只能看。", en: "Members and applications are read-only." },
   "群主和管理员能看到并修改你的活动；群主会收到发起、结算完成、收齐三条抄送。": {
     tw: "群主和管理員能看到並修改你的活動；群主會收到發起、結算完成、收齊三條副本。",
     en: "The owner and admins can see and change your events; the owner gets three copies: created, finalized, fully paid.",
@@ -1041,10 +1039,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "{b}（「設定 → 外觀和公共頁面」）：網站標題和配色。",
     en: '{b} ("Settings → Look & public page"): site title and colors.',
   },
-  "{b}：把网站首页发到微信群，大家点「登录 / 注册」，用 Google 账号申请（新成员只能用 Google）。在「待审核」里通过后，对方直接用 Google 登录就能报名。":
+  "{b}：把网站首页发到微信群，大家点「登录 / 注册」，用 Google 账号申请（新成员只能用 Google）。在「成员」里通过申请后，对方直接用 Google 登录就能报名。":
     {
-      tw: "{b}：把網站首頁發到微信群，大家點「登入 / 註冊」，用 Google 帳號申請（新成員只能用 Google）。在「待審核」裡通過後，對方直接用 Google 登入就能報名。",
-      en: '{b}: post the home page in the WeChat group; people tap "Sign in / Register" and apply with a Google account (new members can only use Google). Once you approve them under "Pending", they sign in with Google and can sign up.',
+      tw: "{b}：把網站首頁發到微信群，大家點「登入 / 註冊」，用 Google 帳號申請（新成員只能用 Google）。在「成員」裡通過申請後，對方直接用 Google 登入就能報名。",
+      en: '{b}: post the home page in the WeChat group; people tap "Sign in / Register" and apply with a Google account (new members can only use Google). Once you approve them under "Members", they sign in with Google and can sign up.',
     },
   邀请成员: { tw: "邀請成員", en: "Invite members" },
   "{b}：在「活动」里新建，然后点「复制活动链接」发到群里。": {
@@ -1129,10 +1127,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
       en: "{b}: reminders for their events go to them; if they haven't connected Telegram, they go to you, with the reason at the top. You also get three copies: created, finalized and fully paid.",
     },
   通知: { tw: "通知", en: "Notifications" },
-  "{b}：只能管理自己负责的活动和进了自己账户的收款；「待审核」「成员」只读，看不到成员的专属链接。你能看到、也能修改他的活动，每场的「操作记录」里写着谁改了什么。":
+  "{b}：只能管理自己负责的活动和进了自己账户的收款；「成员」和待审核申请只读，看不到成员的专属链接。你能看到、也能修改他的活动，每场的「操作记录」里写着谁改了什么。":
     {
-      tw: "{b}：只能管理自己負責的活動和進了自己帳戶的收款；「待審核」「成員」只讀，看不到成員的專屬連結。你能看到、也能修改他的活動，每場的「操作記錄」裡寫著誰改了什麼。",
-      en: '{b}: they can only manage events they run and payments into their own account; "Pending" and "Members" are read-only, without members\' personal links. You can see and change their events; each event\'s "Change log" says who changed what.',
+      tw: "{b}：只能管理自己負責的活動和進了自己帳戶的收款；「成員」和待審核申請只讀，看不到成員的專屬連結。你能看到、也能修改他的活動，每場的「操作記錄」裡寫著誰改了什麼。",
+      en: '{b}: they can only manage events they run and payments into their own account; "Members" and applications are read-only, without members\' personal links. You can see and change their events; each event\'s "Change log" says who changed what.',
     },
   他能看到什么: { tw: "他能看到什麼", en: "What they can see" },
   "{b}：活动页的「转交」把活动交给另一位组织者或你自己；成员页的「撤销组织者」会先列出受影响的活动：还没结算的转给你，已经在收款的由你接手管理，钱继续付到他的账户直到收齐。":
@@ -1256,10 +1254,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "{b}: appointing admins, passwords and keys, clearing all data, permanent deletes, and changing the owner's and admins' member records.",
   },
   只有群主能做: { tw: "只有群主能做", en: "Only the owner can" },
-  "群主和管理员能看到并修改你的活动；群主会收到发起、结算完成、收齐三条抄送。你看不到别人的活动和收款，「待审核」「成员」只能看。":
+  "群主和管理员能看到并修改你的活动；群主会收到发起、结算完成、收齐三条抄送。你看不到别人的活动和收款，「成员」和待审核申请只能看。":
     {
-      tw: "群主和管理員能看到並修改你的活動；群主會收到發起、結算完成、收齊三條抄送。你看不到別人的活動和收款，「待審核」「成員」只能看。",
-      en: 'The owner and admins can see and change your events; the owner gets three copies: created, finalized and fully paid. You can\'t see other people\'s events or payments; "Pending" and "Members" are view-only.',
+      tw: "群主和管理員能看到並修改你的活動；群主會收到發起、結算完成、收齊三條抄送。你看不到別人的活動和收款，「成員」和待審核申請只能看。",
+      en: "The owner and admins can see and change your events; the owner gets three copies: created, finalized and fully paid. You can't see other people's events or payments; \"Members\" and applications are view-only.",
     },
   "不想再当管理员时，点下面的「不再当管理员」，弹窗会先列出你的活动会怎么处理。": {
     tw: "不想再當管理員時，點下面的「不再當管理員」，彈窗會先列出你的活動會怎麼處理。",
@@ -1557,14 +1555,14 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "桌面图标名称最多 {n} 个字": { tw: "桌面圖示名稱最多 {n} 個字", en: "Each icon name can be at most {n} characters" },
   入群设置: { tw: "入群設定", en: "Joining" },
   入群不需要审核: { tw: "入群不需要審核", en: "Join without approval" },
-  "打开后，申请加入的人直接成为成员，不用在「待审核」里通过": {
-    tw: "開啟後，申請加入的人直接成為成員，不用在「待審核」裡通過",
-    en: 'When on, people who apply become members right away, without approval under "Pending"',
+  "打开后，申请加入的人直接成为成员，不用审核": {
+    tw: "開啟後，申請加入的人直接成為成員，不用審核",
+    en: "When on, people who apply become members right away, without approval",
   },
   每天最多自动通过几人: { tw: "每天最多自動通過幾人", en: "Most people let in automatically per day" },
-  "1–{n}，超过的申请回到「待审核」": {
-    tw: "1–{n}，超過的申請回到「待審核」",
-    en: '1–{n}; applications beyond that go back to "Pending"',
+  "1–{n}，超过的申请要在「成员」里审核": {
+    tw: "1–{n}，超過的申請要在「成員」裡審核",
+    en: '1–{n}; applications beyond that wait for approval under "Members"',
   },
   报名设置: { tw: "報名設定", en: "Sign-up settings" },
   每人最多带几个朋友: { tw: "每人最多帶幾個朋友", en: "Friends each member can bring" },

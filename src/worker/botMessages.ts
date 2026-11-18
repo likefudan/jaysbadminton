@@ -228,9 +228,9 @@ export const BOT_MESSAGES: Record<string, { tw: string; en: string }> = {
   "Google 邮箱：{email}": { tw: "Google 信箱：{email}", en: "Google email: {email}" },
   "邮箱：{email}": { tw: "信箱：{email}", en: "Email: {email}" },
   "留言：{message}": { tw: "留言：{message}", en: "Message: {message}" },
-  "请在管理页「待审核」处理。": {
-    tw: "請在管理頁「待審核」處理。",
-    en: "Please handle it under Pending on the admin page.",
+  "请在管理页「成员」处理。": {
+    tw: "請在管理頁「成員」處理。",
+    en: "Please handle it under Members on the admin page.",
   },
   "不认识的话，可以在管理页「成员」里停用。": {
     tw: "不認識的話，可以在管理頁「成員」裡停用。",

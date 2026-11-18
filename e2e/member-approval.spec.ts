@@ -55,14 +55,16 @@ test("the admin reviews application details, sees email failure and retries with
     emailStatus = "sent";
     return route.fulfill({ json: { emailStatus } });
   });
+  // Old links to the 待审核 tab land on 成员, where the applications now are.
   await page.goto("/admin/test-token?tab=pending");
+  await expect(page.locator(".tabs").getByRole("button", { name: "成员" })).toHaveText("成员2");
   const alice = page.locator(".row", { hasText: "Alice" });
   await expect(alice).toContainText("微信：alice_wx");
   await expect(alice).toContainText("留言：小明介绍的");
   await expect(page.locator(".row", { hasText: "Bob" })).toContainText("微信：bob_wechat · 身份：Bob 身份");
   await alice.getByRole("button", { name: "通过", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("邮件发送失败");
-  await page.getByRole("button", { name: "成员", exact: true }).click();
+  // Approving leaves the result on 成员 itself: the list below already has her.
   // The row says the email didn't go out; the retry is on her page.
   const row = page.locator(".member-row", { hasText: "Alice" });
   await expect(row).toContainText("审核邮件没发出");

@@ -64,17 +64,7 @@ export function Admin(props: { token?: string }) {
               <button type="button" class={tab === "inbound" ? "active" : ""} onClick={() => setTab("inbound")}>
                 {t("收款")}
               </button>
-              <button
-                type="button"
-                class={tab === "pending" ? "active" : ""}
-                onClick={() => {
-                  setTab("pending");
-                  reload();
-                }}
-              >
-                {t("待审核")}
-                {m.pending.length > 0 && ` (${m.pending.length})`}
-              </button>
+              {/* 待审核 lives at the top of 成员 (Ke Li 2026-11-18); the count stays on the tab so a new application is seen. */}
               <button
                 type="button"
                 class={tab === "members" ? "active" : ""}
@@ -84,6 +74,7 @@ export function Admin(props: { token?: string }) {
                 }}
               >
                 {t("成员")}
+                {m.pending.length > 0 && <span class="tab-count">{m.pending.length}</span>}
               </button>
               <button type="button" class={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}>
                 {t("设置")}
@@ -93,9 +84,6 @@ export function Admin(props: { token?: string }) {
               <EventsTab base={base} event={loc.event} members={m.active} organizers={m.organizers} viewer={m.viewer} />
             )}
             {tab === "inbound" && <InboundTab base={base} owner={has(m.viewer, "owner")} />}
-            {tab === "pending" && (
-              <Pending base={base} list={m.pending} readOnly={!has(m.viewer, "group")} onChange={reload} />
-            )}
             {tab === "members" && <Members base={base} open={loc.member} data={m} onChange={reload} />}
             {tab === "settings" &&
               (has(m.viewer, "owner") ? (
@@ -257,7 +245,10 @@ function approvalEmailMessage(status?: ApprovalEmailStatus, byEmail = false): st
   return t("成员已通过审核，可以使用 Google 账号登录。");
 }
 
-/** 待审核: the Owner and admins approve; organizers see it read-only (Ke Li 2026-10-04): the same list, without 通过 / 拒绝. */
+/**
+ * 待审核, at the top of 成员 and only while someone is waiting (Ke Li 2026-11-18; it was a tab of its own).
+ * The Owner and admins approve; organizers see it read-only (Ke Li 2026-10-04): the same list, without 通过 / 拒绝.
+ */
 function Pending(props: { base: string; list: MemberSummary[]; readOnly: boolean; onChange: () => void }) {
   const [issued, setIssued] = useState<{
     name: string;
@@ -313,31 +304,32 @@ function Pending(props: { base: string; list: MemberSummary[]; readOnly: boolean
           </button>
         </Card>
       )}
-      <Card title={t("待审核申请")}>
-        {props.readOnly && <p class="muted small">{t("只有群主和管理员可以通过或拒绝申请。")}</p>}
-        {error && <p class="error">{error}</p>}
-        {props.list.length === 0 && <Empty>{t("没有待审核的申请")}</Empty>}
-        {props.list.map((m) => (
-          <div class="row" key={m.id}>
-            <div>
-              {who(m)}
-              {m.applicationMessage && (
-                <p class="application-message">{t("留言：{message}", { message: m.applicationMessage })}</p>
+      {props.list.length > 0 && (
+        <Card title={t("待审核申请（{n}）", { n: props.list.length })} class="pending-card">
+          {props.readOnly && <p class="muted small">{t("只有群主和管理员可以通过或拒绝申请。")}</p>}
+          {error && <p class="error">{error}</p>}
+          {props.list.map((m) => (
+            <div class="row" key={m.id}>
+              <div>
+                {who(m)}
+                {m.applicationMessage && (
+                  <p class="application-message">{t("留言：{message}", { message: m.applicationMessage })}</p>
+                )}
+              </div>
+              {!props.readOnly && (
+                <div class="actions">
+                  <button type="button" class="button" disabled={busy} onClick={() => approve(m)}>
+                    {t("通过")}
+                  </button>
+                  <button type="button" class="button danger" disabled={busy} onClick={() => reject(m)}>
+                    {t("拒绝")}
+                  </button>
+                </div>
               )}
             </div>
-            {!props.readOnly && (
-              <div class="actions">
-                <button type="button" class="button" disabled={busy} onClick={() => approve(m)}>
-                  {t("通过")}
-                </button>
-                <button type="button" class="button danger" disabled={busy} onClick={() => reject(m)}>
-                  {t("拒绝")}
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-      </Card>
+          ))}
+        </Card>
+      )}
     </>
   );
 }
@@ -655,6 +647,7 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
   return (
     <MasterDetail detail={detail} empty={t("在左边选一位成员")}>
       {!open && linkCard}
+      <Pending base={props.base} list={props.data.pending} readOnly={readOnly} onChange={props.onChange} />
       {props.data.organizers && (
         <Organizers
           block={props.data.organizers}

@@ -10,14 +10,16 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
  * stays where one was, and a push can open one event. Switching tabs replaces the entry instead,
  * so going back does not walk through the tabs; tapping the tab one is on goes back to its first page.
  */
-export type AdminTab = "events" | "inbound" | "pending" | "members" | "settings";
+export type AdminTab = "events" | "inbound" | "members" | "settings";
 export type AdminLoc = { tab: AdminTab; event?: number | "new"; member?: string; sub?: string };
 
-const TABS: AdminTab[] = ["events", "inbound", "pending", "members", "settings"];
+const TABS: AdminTab[] = ["events", "inbound", "members", "settings"];
 
 export function readLoc(search = location.search): AdminLoc {
   const q = new URLSearchParams(search);
-  const tab = TABS.includes(q.get("tab") as AdminTab) ? (q.get("tab") as AdminTab) : "events";
+  // 待审核 was a tab of its own until 2026-11-18: old links (?tab=pending) land on 成员, where it is now.
+  const asked = q.get("tab") === "pending" ? "members" : q.get("tab");
+  const tab = TABS.includes(asked as AdminTab) ? (asked as AdminTab) : "events";
   const loc: AdminLoc = { tab };
   const event = q.get("event");
   if (tab === "events" && event) {

@@ -114,7 +114,9 @@ test("a newcomer finds Google only; an old email applicant still gets their link
   execSync(`npx wrangler d1 execute DB --local --persist-to .wrangler/e2e --command "${sql}"`, { stdio: "ignore" });
 
   await openAdmin(page);
-  await page.locator(".tabs").getByRole("button", { name: "待审核" }).click();
+  // 待审核 sits at the top of 成员 (Ke Li 2026-11-18); the tab shows how many wait.
+  await expect(page.locator(".tabs").getByRole("button", { name: "成员" })).toHaveText("成员1");
+  await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
   await expect(page.locator(".row", { hasText: "小明" })).toContainText("留言：小王介绍的");
   await expect(page.locator(".row", { hasText: "小明" })).toContainText("邮箱：ming.reg@example.com");
   await page.getByRole("button", { name: "通过" }).click();
@@ -560,17 +562,15 @@ test("an organizer signs in with Google and runs their own event", async ({ page
   await page.getByRole("link", { name: "切换为管理员", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/google$/);
   const tabs = page.locator(".tabs");
-  await expect(tabs.getByRole("button")).toHaveText(["活动", "收款", "待审核", "成员", "设置"]);
+  await expect(tabs.getByRole("button")).toHaveText(["活动", "收款", "成员", "设置"]);
 
-  // 成员 and 待审核 read-only: the same people, no buttons; Owner-only endpoints refuse.
+  // 成员 (and 待审核 at its top, shown only while someone waits) read-only: the same people, no buttons; Owner-only endpoints refuse.
   await tabs.getByRole("button", { name: "成员" }).click();
   await expect(page.locator(".member-row", { hasText: "Jay" }).first()).toBeVisible();
   await page.locator(".member-row", { hasText: "Jay" }).first().click();
   for (const name of ["停用", "链接", "重新生成", "生成备用链接", "设为组织者", "撤销组织者", "撤销"])
     await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
   await backToMembers(page);
-  await tabs.getByRole("button", { name: /待审核/ }).click();
-  await expect(page.getByText("只有群主和管理员可以通过或拒绝申请。")).toBeVisible();
   expect((await page.request.get("/api/admin/google/sheets")).status()).toBe(403);
 
   // Only his own events: the Owner's are not listed.
@@ -677,7 +677,7 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   await context.addCookies([{ name: "jb_member", value: ming, url: baseURL! }]);
   await page.goto("/admin/google");
   const tabs = page.locator(".tabs");
-  await expect(tabs.getByRole("button")).toHaveText(["活动", "收款", "待审核 (1)", "成员", "设置"]);
+  await expect(tabs.getByRole("button")).toHaveText(["活动", "收款", "成员1", "设置"]);
 
   // 设置: a menu without 账号与安全; his own payment in 收款设置, his Telegram, the group's reminders and
   // export in 高级设置; none of the Owner's own things anywhere.
@@ -711,7 +711,7 @@ test("an admin signs in with Google and runs the group, but not the Owner's own 
   await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
 
   // 待审核: he approves 小红.
-  await tabs.getByRole("button", { name: /待审核/ }).click();
+  await tabs.getByRole("button", { name: "成员" }).click();
   await page.locator(".row", { hasText: "小红" }).getByRole("button", { name: "通过" }).click();
   await expect(page.getByRole("heading", { name: "已通过 小红" })).toBeVisible();
   await page.getByRole("button", { name: "完成" }).click();
