@@ -138,6 +138,6 @@ describe("入群不需要审核", () => {
     expect(text).toContain("新成员已入群（入群不需要审核）");
     expect(text).toContain("用户名：Dan");
     expect(text).toContain("「成员」里停用");
-    expect(text).not.toContain("待审核」处理");
+    expect(text).not.toContain("请在管理页「成员」处理");
   });
 });

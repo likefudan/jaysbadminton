@@ -21,7 +21,7 @@ export async function sendApplicationNotice(env: Env, m: MemberRow, joined = fal
           ? bt(l, "邮箱：{email}", { email: m.email })
           : "",
       m.application_message ? bt(l, "留言：{message}", { message: m.application_message }) : "",
-      bt(l, joined ? "不认识的话，可以在管理页「成员」里停用。" : "请在管理页「待审核」处理。"),
+      bt(l, joined ? "不认识的话，可以在管理页「成员」里停用。" : "请在管理页「成员」处理。"),
     ];
     return escapeHtml(lines.filter(Boolean).join("\n"));
   };
