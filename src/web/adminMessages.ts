@@ -1618,9 +1618,9 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   模型: { tw: "模型", en: "Model" },
   "{m}（未部署）": { tw: "{m}（未部署）", en: "{m} (not deployed)" },
   思考强度: { tw: "思考強度", en: "Thinking effort" },
-  "出错时自动改用 claude-sonnet-5-5。": {
-    tw: "出錯時自動改用 claude-sonnet-5-5。",
-    en: "Falls back to claude-sonnet-5-5 on errors.",
+  "Kimi、DeepSeek 等模型没有思考强度，选了也不起作用。出错时自动改用 claude-sonnet-5-5。": {
+    tw: "Kimi、DeepSeek 等模型沒有思考強度，選了也不起作用。出錯時自動改用 claude-sonnet-5-5。",
+    en: "Models such as Kimi and DeepSeek have no thinking effort, so that setting does nothing for them. Falls back to claude-sonnet-5-5 on errors.",
   },
   收款设置: { tw: "收款設定", en: "Payment settings" },
   "修改后，成员付款页上的收款账号会立即改变。确定修改吗？": {
