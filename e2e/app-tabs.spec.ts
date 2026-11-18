@@ -99,6 +99,27 @@ test("in the home-screen app the tabs are at the bottom", async ({ page }) => {
   await expect(page.locator(".legal-links")).toBeVisible();
 });
 
+/** The floating capsule slides away while the page is pushed up and comes back when pulled down (Ke Li 2026-11-18). */
+test("the tabs slide away while reading down and come back going up", async ({ page }) => {
+  await signedIn(page, { app: true });
+  await page.goto("/me");
+  await expect(page.locator(".ev-card").first()).toBeVisible();
+  await page.evaluate(() => {
+    document.body.style.minHeight = "3000px";
+  });
+  const tabs = page.getByRole("navigation", { name: "主导航" });
+  await expect(tabs).not.toHaveClass(/away/);
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await expect(tabs).toHaveClass(/away/);
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect(tabs).not.toHaveClass(/away/);
+  await page.evaluate(() => window.scrollTo(0, 800));
+  await expect(tabs).toHaveClass(/away/);
+  // Back near the top they always show.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(tabs).not.toHaveClass(/away/);
+});
+
 test("those who run events get a 管理 tab instead of 切换为管理员", async ({ page }) => {
   await signedIn(page, { app: true, role: "organizer" });
   await page.goto("/me");
