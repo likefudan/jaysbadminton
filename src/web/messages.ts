@@ -535,7 +535,7 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   我的资料: { tw: "我的資料", en: "My details" },
   "微信名、入群时间、入群编号": { tw: "微信名、入群時間、入群編號", en: "WeChat name, join date, member number" },
   入群编号: { tw: "入群編號", en: "Member number" },
-  "{n} 号": { tw: "{n} 號", en: "No. {n}" },
+  "第 {n} 号": { tw: "第 {n} 號", en: "No. {n}" },
   浅色: { tw: "淺色", en: "Light" },
   "测试环境 · 数据和正式网站分开，请不要转发这里的链接": {
     tw: "測試環境 · 資料和正式網站分開，請不要轉發這裡的連結",

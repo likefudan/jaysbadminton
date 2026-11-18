@@ -41,6 +41,14 @@ describe("translations", () => {
     expect(missing).toEqual([]);
   });
 
+  it("never translates one text two ways (the admin pages' file would win once loaded)", () => {
+    // 入群编号 「{n} 号」 came out as "Court {n}" after an admin page loaded (2026-11-17).
+    const clash = Object.keys(ADMIN_MESSAGES).filter(
+      (k) => MEMBER_MESSAGES[k] && JSON.stringify(MEMBER_MESSAGES[k]) !== JSON.stringify(ADMIN_MESSAGES[k]),
+    );
+    expect(clash).toEqual([]);
+  });
+
   it("keeps every text a member's page shows out of the admin pages' file", () => {
     const missing = new Set<string>();
     for (const [file, src] of Object.entries(sources)) {
