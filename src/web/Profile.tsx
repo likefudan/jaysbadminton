@@ -255,7 +255,7 @@ export function MyDetails(props: { profile: MemberProfile }) {
         </div>
         <div>
           <dt>{t("入群编号")}</dt>
-          <dd>{t("{n} 号", { n: memberNumber(p.id) })}</dd>
+          <dd>{t("第 {n} 号", { n: memberNumber(p.id) })}</dd>
         </div>
       </dl>
     </Card>
