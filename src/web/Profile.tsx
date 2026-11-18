@@ -194,9 +194,6 @@ export function ProfileCard(props: {
 
 export interface MeCardProps {
   name: string;
-  wechat: string;
-  /** Unknown while the profile loads (or if it failed). */
-  joinedAt?: string;
   /** 头像: null for the empty one. */
   avatar: string | null;
   onSettings: () => void;
@@ -222,10 +219,6 @@ export function MeCard(props: MeCardProps & { children?: ComponentChildren }) {
           )}
           <div class="grow">
             <h2 class="me-name">{props.name}</h2>
-            <p class="me-sub">
-              {t("微信名 {name}", { name: props.wechat })}
-              {props.joinedAt && ` · ${t("{date}入群", { date: fmtDay(toPacific(props.joinedAt).date) })}`}
-            </p>
           </div>
           <button type="button" class="share-icon me-gear" aria-label={t("设置")} onClick={props.onSettings}>
             <GearIcon />
@@ -234,6 +227,38 @@ export function MeCard(props: MeCardProps & { children?: ComponentChildren }) {
         {props.children}
       </div>
     </section>
+  );
+}
+
+/**
+ * The member number: M037 → 37. Given once, when they applied, and never reused, even after someone
+ * is deleted (Ke Li 2026-11-17: 每个人的编号是永远不变的). Members see only the number, not the ID.
+ */
+export const memberNumber = (id: string) => Number.parseInt(id.slice(1), 10);
+
+/**
+ * 我的数据 → 我的资料: 微信名, 入群时间 and 入群编号, kept off the top card so they aren't seen at a
+ * glance (Ke Li 2026-11-17, option C).
+ */
+export function MyDetails(props: { profile: MemberProfile }) {
+  const p = props.profile;
+  return (
+    <Card class="profile">
+      <dl class="profile-info my-details">
+        <div>
+          <dt>{t("微信名")}</dt>
+          <dd>{p.wechatNickname}</dd>
+        </div>
+        <div>
+          <dt>{t("入群时间")}</dt>
+          <dd>{fmtDay(toPacific(p.joinedAt).date)}</dd>
+        </div>
+        <div>
+          <dt>{t("入群编号")}</dt>
+          <dd>{t("{n} 号", { n: memberNumber(p.id) })}</dd>
+        </div>
+      </dl>
+    </Card>
   );
 }
 

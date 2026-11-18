@@ -19,7 +19,7 @@ import { Card, Empty, Load, Page, SectionTitle, SettingRow, useAction } from "..
 import { CourtsLine, EventHero, FeeLine, MiniEventCard, friendCount, mapLink, mineStatus, onCard } from "../events";
 import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
-import { Heatmap, MeCard, ProfileSettings, activityCounts } from "../Profile";
+import { Heatmap, MeCard, MyDetails, ProfileSettings, activityCounts } from "../Profile";
 import { AvatarForm } from "../Avatar";
 import { RosterList } from "../Roster";
 import { StayPicker } from "../Stay";
@@ -154,7 +154,7 @@ export function MemberProfilePage(props: { token?: string }) {
   const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
   const [stats, reloadStats] = useApi<MyStats>(`${base}/stats`);
   const [calories, reloadCalories] = useApi<MyCalories>(`${base}/calories`);
-  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "settings" | "avatar" | null>(null);
+  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "details" | "settings" | "avatar" | null>(null);
   const close = () => setOpen(null);
   const p = profile.state === "ok" ? profile.data : null;
   const s = stats.state === "ok" && stats.data.history.length > 0 ? stats.data : null;
@@ -164,8 +164,6 @@ export function MemberProfilePage(props: { token?: string }) {
       {(m) => {
         const card = {
           name: m.username,
-          wechat: m.wechatNickname,
-          joinedAt: p?.joinedAt,
           avatar: m.avatar,
           onSettings: () => setOpen("settings"),
           onAvatar: () => setOpen("avatar"),
@@ -217,6 +215,14 @@ export function MemberProfilePage(props: { token?: string }) {
                       onClick={() => setOpen("calories")}
                     />
                   )}
+                  {p && (
+                    <SettingRow
+                      icon={<IdIcon />}
+                      label={t("我的资料")}
+                      sub={t("微信名、入群时间、入群编号")}
+                      onClick={() => setOpen("details")}
+                    />
+                  )}
                 </section>
               </>
             )}
@@ -236,6 +242,11 @@ export function MemberProfilePage(props: { token?: string }) {
             {open === "calories" && c && (
               <Panel title={t("我的卡路里")} label={t("我的卡路里")} onClose={close}>
                 <CaloriesPage c={c} base={base} onChange={reloadCalories} />
+              </Panel>
+            )}
+            {open === "details" && p && (
+              <Panel title={t("我的资料")} label={t("我的资料")} onClose={close}>
+                <MyDetails profile={p} />
               </Panel>
             )}
             {open === "avatar" && (
@@ -273,6 +284,13 @@ const wholeDollars = (cents: number) => `$${Math.round(cents / 100).toLocaleStri
 const ChartIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     <path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />
+  </svg>
+);
+const IdIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <circle cx="9" cy="11" r="2.3" />
+    <path d="M5.8 16.2c.7-1.6 1.8-2.4 3.2-2.4s2.5.8 3.2 2.4M14.5 10h4M14.5 13.5h3" />
   </svg>
 );
 const CalendarIcon = () => (

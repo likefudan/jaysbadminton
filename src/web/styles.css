@@ -3553,6 +3553,13 @@ button.calendar-link {
   margin: 0;
   overflow-wrap: anywhere;
 }
+/* 我的资料: labels on one line in every language ("Member number"), values lined up */
+.my-details dt {
+  white-space: nowrap;
+}
+html[lang="en"] .my-details dt {
+  flex-basis: 8.4em;
+}
 .profile-edit {
   padding: 9px 0;
   border-bottom: 1px solid var(--line);
@@ -3598,11 +3605,6 @@ button.calendar-link {
   line-height: 1.15;
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
-}
-.me-sub {
-  margin: 2px 0 0;
-  font-size: 13.5px;
-  opacity: 0.88;
 }
 /* 资料与设置: one list of rows, each opening underneath */
 .card.set-list {

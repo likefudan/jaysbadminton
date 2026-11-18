@@ -284,8 +284,16 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await expect(page.locator("main")).not.toContainText(/M\d{3}/);
   await expect(page.getByRole("button", { name: /退出/ })).toHaveCount(0);
   const hero = page.locator(".me-card");
-  await expect(hero).toContainText("微信名 xiaoming");
-  await expect(hero).toContainText(/\d{4}年\d{1,2}月\d{1,2}日入群/);
+  // 微信名, 入群时间 and 入群编号 aren't on the top card: 我的数据 → 我的资料 (Ke Li 2026-11-17).
+  await expect(hero).not.toContainText("xiaoming");
+  await expect(hero).not.toContainText("入群");
+  await page.getByRole("button", { name: /我的资料/ }).click();
+  const details = page.getByRole("dialog", { name: "我的资料" });
+  await expect(details).toContainText("xiaoming");
+  await expect(details).toContainText(/\d{4}年\d{1,2}月\d{1,2}日/);
+  await expect(details).toContainText(/入群编号\s*\d+ 号/);
+  await expect(page.locator("main")).not.toContainText(/M\d{3}/);
+  await details.getByRole("button", { name: "返回" }).click();
   // 我的数据 → 活动记录: the map, on a page of its own.
   await page.getByRole("button", { name: /活动记录/ }).click();
   await page.locator(".heatmap-grid .upcoming").click();
