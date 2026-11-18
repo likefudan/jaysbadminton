@@ -357,10 +357,11 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "{name} is now an organizer, but {emailProblem}.",
   },
   "恢复 {name} 为正常成员？": { tw: "恢復 {name} 為正常成員？", en: "Restore {name} as an active member?" },
-  "删除 {name}？删除后他的专属链接永久失效，不能恢复；以前的记录会保留。": {
-    tw: "刪除 {name}？刪除後他的專屬連結永久失效，不能恢復；以前的記錄會保留。",
-    en: "Delete {name}? Their personal link stops working for good and this can't be undone; past records are kept.",
-  },
+  "删除 {name}？他的登录、名字、头像、邮箱和个人记录会全部删掉，不能恢复；以前的名单和账单会留着，只显示为「已删除成员」。":
+    {
+      tw: "刪除 {name}？他的登入、名字、頭像、電子郵件和個人記錄會全部刪掉，不能復原；以前的名單和帳單會留著，只顯示為「已刪除成員」。",
+      en: 'Delete {name}? Their sign-in, name, avatar, email and personal records are removed for good. Past rosters and bills stay, shown only as "Deleted member".',
+    },
   "已生成新链接，旧链接已失效。请重新发给对方。": {
     tw: "已生成新連結，舊連結已失效。請重新發給對方。",
     en: "New link created; the old one no longer works. Please send it to them again.",
@@ -1908,4 +1909,25 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   "正在识别…": { tw: "正在辨識…", en: "Reading…" },
   "识别好了，待核对": { tw: "辨識好了，待核對", en: "Read, to be checked" },
   没有识别出来: { tw: "沒有辨識出來", en: "Couldn't be read" },
+  "任何人都能自己加入并报名。没审核过的新成员要来打过一次球，才能看到球馆账号密码和用拍照登记。": {
+    tw: "任何人都能自己加入並報名。沒審核過的新成員要來打過一次球，才能看到球館帳號密碼和用拍照登記。",
+    en: "Anyone can join and sign up on their own. New members nobody approved see gym account passwords and get photo entry only after they have played one event.",
+  },
+  "请填 1–{n} 的整数": {
+    tw: "請填 1–{n} 的整數",
+    en: "Enter a whole number from 1 to {n}",
+  },
+  "AI 每天上限": { tw: "AI 每天上限", en: "AI daily limit" },
+  全站每天最多识别几张照片: {
+    tw: "全站每天最多辨識幾張照片",
+    en: "Most photos the whole site may read per day",
+  },
+  "拍照登记和球场图一起算，到了上限当天改为手动填写。今天已用 {n} 张": {
+    tw: "拍照登記和球場圖一起算，到了上限當天改為手動填寫。今天已用 {n} 張",
+    en: "Photo entry and court maps count together. At the limit, entry is by hand for the rest of the day. Used today: {n}",
+  },
+  "AI 每天上限请填 1–{n}": {
+    tw: "AI 每天上限請填 1–{n}",
+    en: "Enter 1–{n} for the AI daily limit",
+  },
 };

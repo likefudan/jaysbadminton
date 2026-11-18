@@ -23,6 +23,7 @@ export const QUEUE_SOON_MIN = 5;
 export interface QueueAccount {
   id: number;
   username: string;
+  /** Empty when the viewer may not see it yet (QueueInfo.locked) and didn't add it themselves. */
   password: string;
   /** Who added it, by name. */
   addedBy: string;
@@ -54,6 +55,11 @@ export interface QueueInfo {
   photo: boolean;
   /** 批量删除 / 清空账号 / deleting anyone's account: the viewer is the Owner or an admin. */
   manage: boolean;
+  /**
+   * The viewer came in through 入群不需要审核 and hasn't played yet: others' passwords are left out
+   * and 拍照登记 is off, until an event they were at is settled (Ke Li 2026-11-18).
+   */
+  locked: boolean;
   accounts: QueueAccount[];
   courts: QueueCourt[];
   /**

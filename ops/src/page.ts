@@ -163,7 +163,7 @@ body{margin:0;font-family:"Geist Variable",-apple-system,BlinkMacSystemFont,"SF 
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
 .hero{background:var(--hero)}
 .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.muted{color:var(--muted);font-size:13px}.nowrap{white-space:nowrap}
+.muted{color:var(--muted);font-size:13px}.legal{text-align:center;margin:18px 0 0}.legal a{color:inherit}.nowrap{white-space:nowrap}
 input{accent-color:var(--accent)}.center{text-align:center}.warn{color:var(--warn)}
 .btn{display:inline-block;border:0;border-radius:10px;padding:9px 14px;font-size:15px;font-weight:500;background:var(--soft);color:var(--text);text-decoration:none;cursor:pointer;font-family:inherit;white-space:nowrap}
 .btn.p{background:var(--accent);color:#fff}.btn:disabled{opacity:.45;cursor:default}

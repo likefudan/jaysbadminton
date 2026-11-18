@@ -39,6 +39,8 @@ import type { Env } from "../env";
 import { badRequest, HttpError, invalidLink, readJson, str } from "../http";
 import { type MemberRow, memberByToken, renameMember } from "../members";
 import { developerMember } from "../developer";
+import { assertMayEraseSelf, eraseMember, erasedName } from "../erase";
+import { groupAudit } from "../audit";
 import { fcmConfigured } from "../fcm";
 import {
   endpointOf,
@@ -74,6 +76,7 @@ import {
   queueInfo,
   queueAlways,
   queueLive,
+  queueLocked,
   queueOnCard,
   removeAccount,
   removeCourt,
@@ -176,6 +179,18 @@ memberRoutes.post("/:token/email", async (c) => {
 memberRoutes.post("/:token/rename", async (c) => {
   const body = await readJson(c.req.raw);
   await renameMember(c.env, c.get("member"), str(body.username));
+  return c.json({ ok: true });
+});
+
+// 删除账号: the member's own choice, asked twice on the page. Everything about them goes
+// (erase.ts); the same Google account can apply again as a new member.
+memberRoutes.post("/:token/account/delete", async (c) => {
+  const m = c.get("member");
+  const body = await readJson(c.req.raw);
+  if (body.confirm !== true) throw badRequest("请先确认要删除账号");
+  await assertMayEraseSelf(c.env, m);
+  if (await eraseMember(c.env, m))
+    await groupAudit(c.env, { memberId: m.id }, "delete", m.id, `${erasedName(m)} 自己删除了账号`);
   return c.json({ ok: true });
 });
 
@@ -429,7 +444,9 @@ async function myEvents(
         roster: names,
         // 球场排队: for everyone playing (friends' hosts too) and whoever runs it.
         queue:
-          (onIt || runs) && queueOnCard(row, always) ? await queueInfo(env, row, m.id, managesQueue(env, m)) : null,
+          (onIt || runs) && queueOnCard(row, always)
+            ? await queueInfo(env, row, m.id, managesQueue(env, m), runs || memberRole(env, m) !== "member")
+            : null,
         courts: onIt || runs ? bookedCourts(row) : [],
         kcal: mine.kcalOf(e.id),
         kcalOpen: canRead(row, selfOn, readDays),
@@ -585,7 +602,9 @@ memberRoutes.post("/:token/events/:id/queue/courts", async (c) => {
 
 // 拍照登记: read a photo of the hall's screen; the answer fills the form, nothing is saved as a court.
 memberRoutes.post("/:token/events/:id/queue/photo", async (c) => {
-  const { e, m } = await queueEventFor(c, c.req.param("id"));
+  const { e, m, runs } = await queueEventFor(c, c.req.param("id"));
+  if (!runs && memberRole(c.env, m) === "member" && (await queueLocked(c.env, m.id)))
+    throw badRequest("来打过一次球之后才能用拍照登记，这次请手动填写");
   return c.json(await readCourtPhoto(c.env, e, m.id, await readJson(c.req.raw)));
 });
 

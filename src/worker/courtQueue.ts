@@ -63,12 +63,40 @@ export async function queueAccountsView(env: Env): Promise<QueueAccountsView> {
   return QUEUE_ACCOUNTS_VIEWS.includes(v as QueueAccountsView) ? (v as QueueAccountsView) : "list";
 }
 
-/** Everything the card shows: shared accounts (with who added them) and the courts entered. */
-export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: boolean): Promise<QueueInfo> {
-  const [pct, view, map, accounts, courts] = await Promise.all([
+/**
+ * 球馆账号 passwords and 拍照登记 are for people the group knows (Ke Li 2026-11-18): someone who let
+ * themselves in while 入群不需要审核 was on sees neither until they have played once, that is, until
+ * an event they signed up for themselves and weren't marked absent at is settled. Members an admin
+ * approved, and whoever runs the group or the event, are never held back.
+ */
+export async function queueLocked(env: Env, memberId: string): Promise<boolean> {
+  const row = await env.DB.prepare(
+    `SELECT EXISTS (SELECT 1 FROM group_audit WHERE action = 'auto_join' AND target_id = ?1) AS auto,
+       EXISTS (SELECT 1 FROM registrations r JOIN events e ON e.id = r.event_id
+               WHERE r.member_id = ?1 AND r.friend_index = 0 AND r.attended = 1
+                 AND e.status IN ('finalized', 'settled')) AS played`,
+  )
+    .bind(memberId)
+    .first<{ auto: number; played: number }>();
+  return row?.auto === 1 && row.played !== 1;
+}
+
+/**
+ * Everything the card shows: shared accounts (with who added them) and the courts entered.
+ * `trusted`: the viewer runs the group or this event, so queueLocked doesn't apply to them.
+ */
+export async function queueInfo(
+  env: Env,
+  e: EventRow,
+  viewer: string,
+  manage: boolean,
+  trusted = manage,
+): Promise<QueueInfo> {
+  const [pct, view, map, locked, accounts, courts] = await Promise.all([
     idleAlertPct(env),
     queueAccountsView(env),
     getCourtMap(env, e),
+    trusted ? false : queueLocked(env, viewer),
     env.DB.prepare(
       `SELECT a.id, a.username, a.password, a.member_id, m.username AS by_name
        FROM queue_accounts a JOIN members m ON m.id = a.member_id
@@ -98,12 +126,13 @@ export async function queueInfo(env: Env, e: EventRow, viewer: string, manage: b
   ]);
   return {
     roundMin: e.queue_round_min!,
-    photo: photoEnabled(env),
+    photo: photoEnabled(env) && !locked,
     manage,
+    locked,
     accounts: accounts.results.map((a) => ({
       id: a.id,
       username: a.username,
-      password: a.password,
+      password: locked && a.member_id !== viewer ? "" : a.password,
       addedBy: a.by_name,
       mine: a.member_id === viewer,
     })),

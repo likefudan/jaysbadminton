@@ -1,7 +1,20 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { AI_EFFORTS, AI_USES, type AiChoice, type AiEffort, type AiUse, aiCost, type PhotoUsage } from "../shared/ai";
+import {
+  AI_DAILY_CAP_DEFAULT,
+  AI_DAILY_CAP_MAX,
+  AI_EFFORTS,
+  AI_USES,
+  type AiChoice,
+  type AiDaily,
+  type AiEffort,
+  type AiUse,
+  aiCost,
+  type PhotoUsage,
+} from "../shared/ai";
+import { pacificToUtc, toPacific } from "../shared/time";
 import { getSettings } from "./db";
 import type { Env } from "./env";
+import { badRequest } from "./http";
 
 /**
  * AI 模型 (Ke Li, 2026-10-27): 拍照登记 and the release notice's 发版说明 each use a model the Owner
@@ -59,6 +72,30 @@ export async function azureDeployments(env: Env): Promise<string[]> {
     .filter((d) => d.status === "succeeded" && typeof d.id === "string" && MODEL_RE.test(d.id))
     .map((d) => d.id as string)
     .sort();
+}
+
+/** AI 每天上限 as set in 设置 (200 until changed). */
+export async function aiDailyCap(env: Env): Promise<number> {
+  const n = Number((await getSettings(env.DB, ["ai_daily_cap"])).ai_daily_cap);
+  return Number.isInteger(n) && n >= 1 && n <= AI_DAILY_CAP_MAX ? n : AI_DAILY_CAP_DEFAULT;
+}
+
+/** The cap and how many photos the whole site has sent to a model since midnight (Pacific). */
+export async function aiDaily(env: Env, at = new Date()): Promise<AiDaily> {
+  const since = pacificToUtc(toPacific(at).date, "00:00");
+  const [cap, row] = await Promise.all([
+    aiDailyCap(env),
+    env.DB.prepare("SELECT COUNT(DISTINCT request) AS n FROM ai_usage WHERE use = 'photo' AND created_at >= ?")
+      .bind(since)
+      .first<{ n: number }>(),
+  ]);
+  return { cap, used: row?.n ?? 0 };
+}
+
+/** Before a photo goes to a model: refused once the site has used up the day (the form still works by hand). */
+export async function assertAiBudget(env: Env): Promise<void> {
+  const { cap, used } = await aiDaily(env);
+  if (used >= cap) throw badRequest(`今天全站的 AI 识别已经用完（每天最多 ${cap} 次），请手动填写，明天再用`);
 }
 
 export interface AiRequest {

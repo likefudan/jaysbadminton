@@ -1,6 +1,15 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { AI_EFFORTS, AI_USE_NAME, AI_USES, type AiChoice, type AiEffort, type AiUse } from "../../shared/ai";
+import {
+  AI_DAILY_CAP_MAX,
+  AI_EFFORTS,
+  AI_USE_NAME,
+  AI_USES,
+  type AiChoice,
+  type AiDaily,
+  type AiEffort,
+  type AiUse,
+} from "../../shared/ai";
 import { SHORTCUT_NAME, SHORTCUT_URL_RE } from "../../shared/calories";
 import type { QueueAccountsView } from "../../shared/courtQueue";
 import {
@@ -229,6 +238,7 @@ function AdvancedCards(props: { base: string; readOnlySheets?: boolean; openShee
             <QueueViewCard base={props.base} initial={v} />
             <QueueDayCard base={props.base} initial={v} />
             <AiCard base={props.base} initial={v.ai} />
+            <AiCapCard base={props.base} initial={v.aiDaily} />
             <ShortcutCard base={props.base} initial={v} />
             <DaysCard base={props.base} initial={v} />
             <LikesCard base={props.base} initial={v} />
@@ -933,6 +943,7 @@ interface GeneralSettings {
   queueAlways: boolean;
   calorieShortcut: { url: string; version: number };
   ai: Record<AiUse, AiChoice>;
+  aiDaily: AiDaily;
   venmoUsername: string;
   venmoEmail: string;
   zelleAccount: string;
@@ -1054,6 +1065,11 @@ function JoinCard(props: { base: string; initial: GeneralSettings }) {
         <span>
           <strong>{t("入群不需要审核")}</strong>
           <small>{t("打开后，申请加入的人直接成为成员，不用审核")}</small>
+          {on && (
+            <small>
+              {t("任何人都能自己加入并报名。没审核过的新成员要来打过一次球，才能看到球馆账号密码和用拍照登记。")}
+            </small>
+          )}
         </span>
         <input
           type="checkbox"
@@ -1424,6 +1440,37 @@ function AiCard(props: { base: string; initial: Record<AiUse, AiChoice> }) {
           }
         }}
       >
+        {saved ? t("已保存") : t("保存")}
+      </button>
+    </Card>
+  );
+}
+
+/** AI 每天上限: how many photos the whole site may send to a model in a day, and today's count. */
+function AiCapCard(props: { base: string; initial: AiDaily }) {
+  const [cap, setCap] = useState(String(props.initial.cap));
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run, setError } = useAction();
+  async function save() {
+    const n = Number(cap);
+    if (cap.trim() === "" || !Number.isInteger(n) || n < 1 || n > AI_DAILY_CAP_MAX)
+      return setError(t("请填 1–{n} 的整数", { n: AI_DAILY_CAP_MAX }));
+    if (await run(() => api(`${props.base}/settings`, { aiDailyCap: n }))) setSaved(true);
+  }
+  return (
+    <Card title={t("AI 每天上限")}>
+      <Field
+        label={t("全站每天最多识别几张照片")}
+        type="number"
+        value={cap}
+        onInput={(v) => {
+          setCap(v);
+          setSaved(false);
+        }}
+        hint={t("拍照登记和球场图一起算，到了上限当天改为手动填写。今天已用 {n} 张", { n: props.initial.used })}
+      />
+      {error && <p class="error">{error}</p>}
+      <button type="button" class="button secondary block" disabled={busy} onClick={save}>
         {saved ? t("已保存") : t("保存")}
       </button>
     </Card>

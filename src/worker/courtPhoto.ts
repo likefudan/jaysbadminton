@@ -6,7 +6,7 @@ import {
   type PhotoCourt,
   type PhotoResult,
 } from "../shared/courtQueue";
-import { aiEnabled, askAi } from "./ai";
+import { aiEnabled, askAi, assertAiBudget } from "./ai";
 import { now } from "./db";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
@@ -164,6 +164,7 @@ export async function readCourtPhoto(env: Env, e: EventRow, memberId: string, bo
     .bind(e.id, memberId, new Date(Date.parse(ts) - 3600_000).toISOString())
     .first<{ n: number }>();
   if ((recent?.n ?? 0) >= PER_HOUR) throw badRequest("拍照登记用得太频繁了，请稍后再试或手动填写");
+  await assertAiBudget(env);
   // Only a row to count toward the hourly limit; the photo itself goes to the model and nowhere else.
   const saved = await env.DB.prepare(
     "INSERT INTO queue_photos (event_id, member_id, created_at) VALUES (?, ?, ?) RETURNING id",

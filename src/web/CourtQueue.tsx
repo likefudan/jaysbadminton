@@ -1010,7 +1010,7 @@ function AccountPicker(props: {
               {inline ? (
                 <>
                   <span>{a.username}</span>
-                  <small>{court ? `${a.password} · ${court}` : a.password}</small>
+                  <small>{[a.password, court].filter(Boolean).join(" · ")}</small>
                 </>
               ) : (
                 <>
@@ -1139,6 +1139,7 @@ function AccountsList(props: { base: string; e: MyEvent; q: QueueInfo; bar: Acco
       </form>
       {error && <p class="error">{error}</p>}
       {props.bar.batch && <BatchAdd path={`${path}/batch`} q={props.q} onDone={props.onChange} />}
+      {props.q.locked && <p class="muted small">{t("来打过一次球、这场结算之后，才能看到别人填的密码。")}</p>}
       {shown.length > 0 && (
         <ul class="cq-accounts">
           {shown.map((a) => {
@@ -1146,7 +1147,7 @@ function AccountsList(props: { base: string; e: MyEvent; q: QueueInfo; bar: Acco
             return (
               <li key={a.id} class={on ? "on" : undefined}>
                 <span class="cq-account">
-                  {a.username} · {a.password}
+                  {a.password ? `${a.username} · ${a.password}` : a.username}
                   {on && <small class="cq-on">{t("{n}号", { n: on.join("、") })}</small>}
                 </span>
                 <span class="muted small">
