@@ -46,34 +46,37 @@ export async function assertMayEraseSelf(env: Env, m: MemberRow): Promise<void> 
  * recorded about themselves go. Roster and bill rows stay under 「已删除成员（M012）」, and the ID
  * is never reused. Answers whether this call was the one that deleted them.
  */
-export async function eraseMember(env: Env, m: MemberRow): Promise<boolean> {
+export async function eraseMember(env: Env, m: MemberRow, again = false): Promise<boolean> {
   const db = env.DB;
   const name = erasedName(m);
+  // Deleted before deleting meant everything: the name was kept as 「Alice（M004）」.
+  const suffix = `（${m.id}）`;
+  const was = again && m.username.endsWith(suffix) ? m.username.slice(0, -suffix.length) : m.username;
   const gone = (sql: string) => db.prepare(sql).bind(m.id);
   const [deleted] = await db.batch([
     db
       .prepare(
-        `UPDATE members SET deleted_at = ?1, status = 'inactive', username = ?2, wechat_nickname = '',
+        `UPDATE members SET deleted_at = COALESCE(deleted_at, ?1), status = 'inactive', username = ?2, wechat_nickname = '',
            token_hash = NULL, token_enc = NULL, google_sub = NULL, google_email = NULL, google_picture = NULL,
            avatar = NULL, email = NULL, applicant_name = NULL, wechat_account = NULL, application_message = NULL,
            admin_note = NULL, approval_email_status = NULL, approval_email_sent_at = NULL, link_resent_at = NULL,
            calorie_board = 0, calorie_shortcut_v = NULL
-         WHERE id = ?3 AND deleted_at IS NULL`,
+         WHERE id = ?3 AND (deleted_at IS NULL OR ?4)`,
       )
-      .bind(now(), name, m.id),
+      .bind(now(), name, m.id, again ? 1 : 0),
     ...(m.google_sub ? [db.prepare("DELETE FROM member_sessions WHERE google_sub = ?").bind(m.google_sub)] : []),
     // Friends they brought keep their place on old lists, without their names.
     gone("UPDATE registrations SET friend_name = NULL WHERE member_id = ? AND friend_index > 0"),
     // The logs keep what happened; the name in them goes.
     db
       .prepare("UPDATE group_audit SET detail = replace(detail, ?1, ?2) WHERE target_id = ?3 OR actor_id = ?3")
-      .bind(m.username, name, m.id),
+      .bind(was, name, m.id),
     db
       .prepare(
         `UPDATE event_audit SET detail = replace(detail, ?1, ?2) WHERE instr(detail, ?1) > 0
            AND (actor_id = ?3 OR event_id IN (SELECT event_id FROM registrations WHERE member_id = ?3 OR paid_by = ?3))`,
       )
-      .bind(m.username, name, m.id),
+      .bind(was, name, m.id),
     gone("DELETE FROM push_subscriptions WHERE member_id = ?"),
     gone("DELETE FROM push_outbox WHERE member_id = ?"),
     gone("DELETE FROM member_avatars WHERE member_id = ?"),
@@ -95,4 +98,15 @@ export async function eraseMember(env: Env, m: MemberRow): Promise<boolean> {
     ),
   ]);
   return !!deleted?.meta.changes;
+}
+
+/**
+ * Members deleted before 2026-11-18 kept their name, emails and notes. The cron lets go of those
+ * too, a few at a time, until none is left (no migration: nothing about the tables changes).
+ */
+export async function eraseOldDeleted(env: Env): Promise<void> {
+  const { results } = await env.DB.prepare(
+    "SELECT * FROM members WHERE deleted_at IS NOT NULL AND username NOT LIKE '已删除成员（%' LIMIT 20",
+  ).all<MemberRow>();
+  for (const m of results) await eraseMember(env, m, true);
 }

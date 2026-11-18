@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { AI_DAILY_CAP_DEFAULT } from "../src/shared/ai";
 import { assertAiBudget } from "../src/worker/ai";
+import { eraseOldDeleted } from "../src/worker/erase";
 import {
   Client,
   approveMember,
@@ -85,6 +86,33 @@ describe("删除成员 (Ke Li 2026-11-18: 删了就全删)", () => {
     expect(await count("SELECT COUNT(*) AS n FROM registrations WHERE member_id = ?", alice.id)).toBe(2);
     expect(await count("SELECT COUNT(*) AS n FROM group_audit WHERE detail LIKE '%Alice%'")).toBe(0);
     expect((await anon.call(`${alice.base}/me`)).status).not.toBe(200);
+  });
+});
+
+describe("members deleted before 2026-11-18", () => {
+  it("lose what the old delete kept, on the next cron", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    await ctx.admin.call(`${ctx.base}/members/${alice.id}/note`, { note: "周六队长" });
+    // As the old delete left them.
+    await env.DB.prepare(
+      "UPDATE members SET deleted_at = '2026-10-01T00:00:00.000Z', status = 'inactive', token_hash = NULL, token_enc = NULL, username = ?, google_email = 'alice@gmail.com' WHERE id = ?",
+    )
+      .bind(`Alice（${alice.id}）`, alice.id)
+      .run();
+    await eraseOldDeleted(env);
+    expect(await member(alice.id)).toMatchObject({
+      username: `已删除成员（${alice.id}）`,
+      deleted_at: "2026-10-01T00:00:00.000Z",
+      google_email: null,
+      email: null,
+      admin_note: null,
+      wechat_nickname: "",
+    });
+    expect(await count("SELECT COUNT(*) AS n FROM group_audit WHERE detail LIKE '%Alice%'")).toBe(0);
+    // Nothing left to do the second time.
+    await eraseOldDeleted(env);
+    expect((await member(alice.id)).username).toBe(`已删除成员（${alice.id}）`);
   });
 });
 
