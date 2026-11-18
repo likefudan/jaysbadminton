@@ -16,7 +16,7 @@ const event = (o: object) => ({
 });
 
 type Rank = { rank: number; name: string; value: number };
-const KEYS = ["calories", "attendance", "hours", "progress", "streak", "friends", "queue", "early"];
+const KEYS = ["calories", "attendance", "hours", "progress", "streak", "friends", "queue", "early", "likes"];
 /** A leaderboard as /api/public/home sends it: the given boards' month lists (月度 shows first), years empty. */
 const board = (lists: Record<string, Rank[]>, boards = ["calories", "attendance", "streak", "friends"]) => ({
   year: 2026,
@@ -239,6 +239,38 @@ test("a tie for 1st looks the same on every step after a refresh", async ({ page
   const two = await looks();
   expect(two[0]).toBe(two[1]);
   expect(two[2]).not.toBe(two[1]);
+});
+
+/** 点赞榜 stands the top three on heart-shaped blocks with no crown; the other boards keep theirs (Ke Li 2026-11-18). */
+test("the likes board stands the top three on hearts", async ({ page }) => {
+  const list = [
+    { rank: 1, name: "Lina", value: 9 },
+    { rank: 2, name: "Tom", value: 6 },
+    { rank: 3, name: "Jayz", value: 4 },
+  ];
+  await page.route("**/api/public/home", (route) =>
+    route.fulfill({
+      json: {
+        currentEvents: [],
+        pastEvents: [],
+        leaderboard: board({ likes: list, attendance: list }, ["likes", "attendance"]),
+      },
+    }),
+  );
+  await page.goto("/");
+  await expect(page.locator(".podium .step")).toHaveText(["2", "1", "3"]);
+  await expect(page.locator(".podium .heart-step svg")).toHaveCount(3);
+  await expect(page.locator(".podium .crown")).toHaveCount(0);
+  // Taller for a higher place.
+  const heights = await page
+    .locator(".podium .heart-step")
+    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  expect(heights[1]!).toBeGreaterThan(heights[0]!);
+  expect(heights[0]!).toBeGreaterThan(heights[2]!);
+  await page.locator(".card.board").screenshot({ path: test.info().outputPath("likes-hearts.png") });
+  await page.getByRole("tab", { name: "出勤" }).click();
+  await expect(page.locator(".podium .crown")).toHaveCount(1);
+  await expect(page.locator(".podium .heart-step")).toHaveCount(0);
 });
 
 test.describe("with a mouse", () => {

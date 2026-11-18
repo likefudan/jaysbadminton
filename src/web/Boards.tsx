@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useId, useState } from "preact/hooks";
 import type { BoardKey, Leaderboard, RankEntry } from "../shared/types";
 import { Avatar } from "./Avatar";
 import { kcalText } from "./Calories";
@@ -53,9 +53,70 @@ export function boardTitle(b: Leaderboard, period: Period) {
 /** How many show before 查看全部: the podium plus three rows. */
 const SHOWN = 6;
 
+/** The heart's outline on a 100 × 94 grid, point at the bottom. */
+const HEART =
+  "M50 90C22 70 4 52 4 31C4 15 16 4 30 4C39 4 46 9 50 17C54 9 61 4 70 4C84 4 96 15 96 31C96 52 78 70 50 90Z";
+/** Seen from above at a slant, the heart's top face is squashed to this share of its height. */
+const SLANT = 0.42;
+/** How tall each place's block stands, in hundredths of its width. */
+const HEART_RISE: Record<number, number> = { 1: 58, 2: 40, 3: 27 };
+
+/**
+ * 点赞榜's step (Ke Li 2026-11-18, option G): a pink block whose top face is a heart, seen at a
+ * slant, with the place number on its front. The sides are the top heart, the same heart moved
+ * down, and the band between their widest points, which together are the block's outline.
+ */
+function HeartStep(props: { rank: number }) {
+  const id = useId();
+  const rise = HEART_RISE[props.rank] ?? HEART_RISE[3]!;
+  const top = `matrix(1 0 0 ${SLANT} 0 0)`;
+  const wide = 31 * SLANT; // the heart is widest a third of the way down
+  const tip = 90 * SLANT;
+  const height = tip + rise + 8;
+  const first = props.rank === 1;
+  return (
+    <span class="step heart-step">
+      <svg viewBox={`0 0 100 ${height}`} aria-hidden="true">
+        <defs>
+          <linearGradient id={`${id}s`} x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0" stop-color={first ? "#99163f" : "#c2255c"} />
+            <stop offset=".5" stop-color={first ? "#e64980" : "#f06595"} />
+            <stop offset="1" stop-color={first ? "#99163f" : "#c2255c"} />
+          </linearGradient>
+          <linearGradient id={`${id}t`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-color={first ? "#ff9fbe" : "#ffd0de"} />
+            <stop offset="1" stop-color={first ? "#ec5b8f" : "#f9a3bf"} />
+          </linearGradient>
+          <radialGradient id={`${id}f`}>
+            <stop offset="0" class="heart-shade" />
+            <stop offset="1" stop-color="#000" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+        <ellipse cx="50" cy={tip * 0.85 + rise + 2} rx="50" ry={tip * 0.32} fill={`url(#${id}f)`} />
+        <g fill={`url(#${id}s)`}>
+          <path d={HEART} transform={top} />
+          <path d={HEART} transform={`matrix(1 0 0 ${SLANT} 0 ${rise})`} />
+          <rect x="4" y={wide} width="92" height={rise} />
+        </g>
+        <path d={HEART} transform={top} fill={`url(#${id}t)`} />
+        <path
+          d={HEART}
+          transform={top}
+          fill="none"
+          stroke="#fff"
+          stroke-opacity=".55"
+          stroke-width="1.2"
+          vector-effect="non-scaling-stroke"
+        />
+      </svg>
+      <b style={{ top: `${((tip + rise / 2 - 5) / height) * 100}%` }}>{props.rank}</b>
+    </span>
+  );
+}
+
 /**
  * One board (Ke Li picked the podium): the top three on steps, 1st in the middle with a crown,
- * the rest as rows below.
+ * the rest as rows below. 点赞 stands them on heart-shaped blocks instead, with no crown.
  */
 export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
   const [all, setAll] = useState(false);
@@ -74,15 +135,16 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
   // 2nd, 1st, 3rd from left to right; a missing place stays an empty column.
   const podium = [list[1], list[0], list[2]];
   const rest = list.slice(3, all ? undefined : SHOWN);
+  const hearts = key === "likes";
   return (
-    <div class="card board">
+    <div class={`card board${hearts ? " hearts" : ""}`}>
       <ol class="podium">
         {podium.map((r, i) =>
           r ? (
             // The rank is in the key: Android's Chrome kept a moved step's old look when only its
             // p1/p2/p3 class changed (app on the home screen: the saved list first, then the fresh one).
             <li key={`${r.name}:${r.rank}`} class={`place p${r.rank}`}>
-              {r.rank === 1 && (
+              {r.rank === 1 && !hearts && (
                 <span class="crown" aria-hidden="true">
                   👑
                 </span>
@@ -90,7 +152,7 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
               {withFaces && <Avatar src={r.avatar} size={r.rank === 1 ? 56 : 46} class="podium-av" />}
               <span class="who">{r.name}</span>
               {value(r.value)}
-              <span class="step">{r.rank}</span>
+              {hearts ? <HeartStep rank={r.rank} /> : <span class="step">{r.rank}</span>}
             </li>
           ) : (
             <li key={`empty${i}`} class="place empty" aria-hidden="true" />
