@@ -190,6 +190,67 @@ describe("AI 模型", () => {
     });
   });
 
+  it("calls Kimi, DeepSeek and others that refuse the Responses API through Chat Completions", async () => {
+    await env.DB.prepare(
+      "INSERT INTO settings (key, value) VALUES ('ai_photo_model', 'Kimi-K3.1-Pro'), ('ai_photo_effort', 'high')",
+    ).run();
+    const calls: Call[] = [];
+    // Kimi takes Chat Completions with a schema; "Plain-1" takes no schema and fences its JSON.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const req = new Request(input, init);
+      const body = (await req.json()) as any;
+      calls.push({ url: req.url, key: req.headers.get("api-key"), body });
+      if (req.url === `${HOST}/openai/v1/responses`)
+        return Response.json(
+          { error: { message: "Unsupported parameter: 'reasoning.effort' is not supported with this model." } },
+          { status: 400 },
+        );
+      if (body.model === "Plain-1" && body.response_format)
+        return Response.json({ error: { message: "response_format json_schema is not supported" } }, { status: 400 });
+      const content = body.model === "Plain-1" ? 'Here it is:\n```json\n{"ok":true}\n```' : '{"ok":true}';
+      return Response.json({
+        choices: [{ finish_reason: "stop", message: { role: "assistant", content } }],
+        usage: { prompt_tokens: 30, completion_tokens: 7 },
+      });
+    });
+    const read = () => askAi(AZURE, "photo", { text: "read", image: "AAAA", schema: SCHEMA, maxTokens: 100 });
+    expect(await read()).toEqual({ ok: true });
+    expect(calls.map((c) => c.url)).toEqual([`${HOST}/openai/v1/responses`, `${HOST}/openai/v1/chat/completions`]);
+    expect(calls[1]!.key).toBe("azure-key");
+    expect(calls[1]!.body).toEqual({
+      model: "Kimi-K3.1-Pro",
+      max_tokens: 100,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: "data:image/jpeg;base64,AAAA" } },
+            { type: "text", text: "read" },
+          ],
+        },
+      ],
+      response_format: { type: "json_schema", json_schema: { name: "answer", schema: SCHEMA, strict: true } },
+    });
+    // Its tokens are kept (the refusal reported none).
+    expect(await env.DB.prepare("SELECT model, input_tokens, output_tokens, ok FROM ai_usage").all()).toMatchObject({
+      results: [{ model: "Kimi-K3.1-Pro", input_tokens: 30, output_tokens: 7, ok: 1 }],
+    });
+    // Remembered: the next photo goes straight to Chat Completions.
+    calls.length = 0;
+    expect(await read()).toEqual({ ok: true });
+    expect(calls.map((c) => c.url)).toEqual([`${HOST}/openai/v1/chat/completions`]);
+
+    // A model that won't take a schema gets it in the prompt, and its answer still reads when wrapped.
+    await env.DB.prepare("UPDATE settings SET value = 'Plain-1' WHERE key = 'ai_photo_model'").run();
+    calls.length = 0;
+    expect(await read()).toEqual({ ok: true });
+    expect(calls).toHaveLength(3);
+    expect(calls[2]!.body.response_format).toBeUndefined();
+    expect(calls[2]!.body.messages[0].content[1].text).toContain(
+      "Answer with only a JSON object matching this JSON Schema",
+    );
+  });
+
   it("says when there is no Azure key", async () => {
     const ctx = await setUpAdmin();
     models({});

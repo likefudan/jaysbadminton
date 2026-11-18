@@ -7,7 +7,8 @@ import type { Env } from "./env";
  * AI 模型 (Ke Li, 2026-10-27): 拍照登记 and the release notice's 发版说明 each use a model the Owner
  * or an admin picks in 设置 from what is deployed on Ke Li's Azure (Microsoft Foundry). Claude
  * deployments are called through Foundry's Anthropic Messages API; the others (GPT, Grok) through
- * its OpenAI Responses API, which Foundry doesn't offer for Claude. When the pick fails, Sonnet 5.5
+ * its OpenAI Responses API, which Foundry doesn't offer for Claude, and those that refuse it (Kimi,
+ * DeepSeek: no reasoning effort) through Chat Completions. When the pick fails, Sonnet 5.5
  * on the same Azure answers instead. Azure is the only provider: Ke Li removed the Anthropic API key
  * (2026-10-27).
  */
@@ -117,47 +118,148 @@ function claudeReader(name: string, client: Anthropic, model: string, effort: Ai
   };
 }
 
-function responsesReader(apiKey: string, model: string, effort: AiEffort, callMs: number): Reader {
+/** How a non-Claude deployment takes a request: learnt on its first call, kept while the Worker runs. */
+type OpenAiShape = "responses" | "chat" | "chat-plain";
+const shapes = new Map<string, OpenAiShape>();
+
+/**
+ * Azure refusing the shape of a request (a parameter, response_format or the API itself), not its
+ * content: e.g. "Unsupported parameter: 'reasoning.effort' is not supported with this model." A
+ * missing deployment or a bad photo is not this, and goes straight to the fallback.
+ */
+const refusesShape = (status: number, message: string) =>
+  (status === 400 || status === 404) && /unsupported|not supported|unrecognized request argument/i.test(message);
+
+interface Answer {
+  status: number;
+  message: string;
+  /** The answer's text, or why a 2xx answer can't be used. */
+  text?: string;
+  unusable?: string;
+  usage?: Tokens;
+}
+
+async function postJson(url: string, apiKey: string, callMs: number, payload: unknown) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "api-key": apiKey, "content-type": "application/json" },
+    signal: AbortSignal.timeout(callMs),
+    body: JSON.stringify(payload),
+  });
+  return { res, body: (await res.json().catch(() => null)) as any };
+}
+
+/** GPT, Grok…: the Responses API, with effort and a strict schema. */
+async function viaResponses(
+  apiKey: string,
+  model: string,
+  effort: AiEffort,
+  callMs: number,
+  req: AiRequest,
+): Promise<Answer> {
+  const { res, body } = await postJson(`${AZURE_HOST}/openai/v1/responses`, apiKey, callMs, {
+    model,
+    max_output_tokens: req.maxTokens,
+    reasoning: { effort },
+    input: [
+      {
+        role: "user",
+        content: [
+          ...(req.image ? [{ type: "input_image", image_url: `data:image/jpeg;base64,${req.image}` }] : []),
+          { type: "input_text", text: req.text },
+        ],
+      },
+    ],
+    text: { format: { type: "json_schema", name: "answer", schema: req.schema, strict: true } },
+  });
+  const usage = body?.usage && { input: body.usage.input_tokens ?? 0, output: body.usage.output_tokens ?? 0 };
+  const message = `${body?.error?.message ?? ""}`;
+  if (!res.ok) return { status: res.status, message, usage };
+  if (body?.status !== "completed") return { status: res.status, message, usage, unusable: `status ${body?.status}` };
+  const text = ((body.output ?? []) as { type: string; content?: { type: string; text?: string }[] }[])
+    .filter((o) => o.type === "message")
+    .flatMap((o) => o.content ?? [])
+    .filter((c) => c.type === "output_text")
+    .map((c) => c.text ?? "")
+    .join("");
+  return { status: res.status, message, text, usage };
+}
+
+/**
+ * Kimi, DeepSeek…: Chat Completions, which these take where Responses refuses `reasoning.effort`
+ * (tested on Ke Li's photos 2026-11-18). No effort: they have none to set. "chat-plain" is for a
+ * model that won't take a schema either: the schema goes into the prompt instead.
+ */
+async function viaChat(apiKey: string, model: string, plain: boolean, callMs: number, req: AiRequest): Promise<Answer> {
+  const text = plain
+    ? `${req.text}\n\nAnswer with only a JSON object matching this JSON Schema, nothing else: ${JSON.stringify(req.schema)}`
+    : req.text;
+  const { res, body } = await postJson(`${AZURE_HOST}/openai/v1/chat/completions`, apiKey, callMs, {
+    model,
+    max_tokens: req.maxTokens,
+    messages: [
+      {
+        role: "user",
+        content: [
+          ...(req.image ? [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${req.image}` } }] : []),
+          { type: "text", text },
+        ],
+      },
+    ],
+    ...(plain
+      ? {}
+      : {
+          response_format: { type: "json_schema", json_schema: { name: "answer", schema: req.schema, strict: true } },
+        }),
+  });
+  const usage = body?.usage && { input: body.usage.prompt_tokens ?? 0, output: body.usage.completion_tokens ?? 0 };
+  const message = `${body?.error?.message ?? ""}`;
+  if (!res.ok) return { status: res.status, message, usage };
+  const choice = body?.choices?.[0];
+  if (choice?.finish_reason !== "stop")
+    return { status: res.status, message, usage, unusable: `finished with ${choice?.finish_reason}` };
+  return { status: res.status, message, text: `${choice?.message?.content ?? ""}`, usage };
+}
+
+/** The answer's JSON, also when a model wraps it in a ```json fence or a sentence. */
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start < 0 || end < start) throw err;
+    return JSON.parse(text.slice(start, end + 1));
+  }
+}
+
+function openAiReader(apiKey: string, model: string, effort: AiEffort, callMs: number): Reader {
   return {
     name: `azure ${model}`,
     choice: { model, effort },
     async read(req, spent) {
-      const res = await fetch(`${AZURE_HOST}/openai/v1/responses`, {
-        method: "POST",
-        headers: { "api-key": apiKey, "content-type": "application/json" },
-        signal: AbortSignal.timeout(callMs),
-        body: JSON.stringify({
-          model,
-          max_output_tokens: req.maxTokens,
-          reasoning: { effort },
-          input: [
-            {
-              role: "user",
-              content: [
-                ...(req.image ? [{ type: "input_image", image_url: `data:image/jpeg;base64,${req.image}` }] : []),
-                { type: "input_text", text: req.text },
-              ],
-            },
-          ],
-          text: { format: { type: "json_schema", name: "answer", schema: req.schema, strict: true } },
-        }),
-      });
-      const body = (await res.json().catch(() => null)) as {
-        status?: string;
-        error?: { message?: string } | null;
-        output?: { type: string; content?: { type: string; text?: string }[] }[];
-        usage?: { input_tokens?: number; output_tokens?: number };
-      } | null;
-      if (body?.usage) spent({ input: body.usage.input_tokens ?? 0, output: body.usage.output_tokens ?? 0 });
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${body?.error?.message ?? ""}`);
-      if (body?.status !== "completed") throw new Error(`status ${body?.status}`);
-      const text = (body.output ?? [])
-        .filter((o) => o.type === "message")
-        .flatMap((o) => o.content ?? [])
-        .filter((c) => c.type === "output_text")
-        .map((c) => c.text ?? "")
-        .join("");
-      return JSON.parse(text);
+      // Shape refusals come back within a second, so the tries fit in about one call's time.
+      const total: Tokens = { input: 0, output: 0 };
+      const order: OpenAiShape[] = ["responses", "chat", "chat-plain"];
+      for (const shape of order.slice(order.indexOf(shapes.get(model) ?? "responses"))) {
+        const a =
+          shape === "responses"
+            ? await viaResponses(apiKey, model, effort, callMs, req)
+            : await viaChat(apiKey, model, shape === "chat-plain", callMs, req);
+        if (a.usage) {
+          total.input += a.usage.input;
+          total.output += a.usage.output;
+          spent({ ...total });
+        }
+        if (a.status >= 200 && a.status < 300) {
+          shapes.set(model, shape);
+          if (a.unusable) throw new Error(a.unusable);
+          return parseJson(a.text ?? "");
+        }
+        if (!refusesShape(a.status, a.message)) throw new Error(`HTTP ${a.status} ${a.message}`);
+        console.log(`ai ${model}: ${shape} refused (${a.status} ${a.message}), trying the next way`);
+      }
+      throw new Error(`${model}: no request shape accepted`);
     },
   };
 }
@@ -190,7 +292,7 @@ async function readers(env: Env, use: AiUse, opts: AiOptions): Promise<Reader[]>
   const reader = ({ model, effort }: AiChoice) =>
     isClaude(model)
       ? claudeReader(`azure ${model}`, claude, model, opts.effort ?? effort)
-      : responsesReader(apiKey, model, opts.effort ?? effort, callMs);
+      : openAiReader(apiKey, model, opts.effort ?? effort, callMs);
   const pick = (await aiChoices(env))[use];
   return pick.model === FALLBACK.model ? [reader(pick)] : [reader(pick), reader(FALLBACK)];
 }
