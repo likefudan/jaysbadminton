@@ -207,7 +207,7 @@ describe("AI 模型", () => {
         );
       if (body.model === "Plain-1" && body.response_format)
         return Response.json({ error: { message: "response_format json_schema is not supported" } }, { status: 400 });
-      const content = body.model === "Plain-1" ? '```json\n{"ok":true}\n```' : '{"ok":true}';
+      const content = body.model === "Plain-1" ? 'Here it is:\n```json\n{"ok":true}\n```' : '{"ok":true}';
       return Response.json({
         choices: [{ finish_reason: "stop", message: { role: "assistant", content } }],
         usage: { prompt_tokens: 30, completion_tokens: 7 },
@@ -231,7 +231,7 @@ describe("AI 模型", () => {
       ],
       response_format: { type: "json_schema", json_schema: { name: "answer", schema: SCHEMA, strict: true } },
     });
-    // Its tokens are kept, and only the call that answered counts.
+    // Its tokens are kept (the refusal reported none).
     expect(await env.DB.prepare("SELECT model, input_tokens, output_tokens, ok FROM ai_usage").all()).toMatchObject({
       results: [{ model: "Kimi-K3.1-Pro", input_tokens: 30, output_tokens: 7, ok: 1 }],
     });
@@ -240,7 +240,7 @@ describe("AI 模型", () => {
     expect(await read()).toEqual({ ok: true });
     expect(calls.map((c) => c.url)).toEqual([`${HOST}/openai/v1/chat/completions`]);
 
-    // A model that won't take a schema gets it in the prompt, and its fenced answer still reads.
+    // A model that won't take a schema gets it in the prompt, and its answer still reads when wrapped.
     await env.DB.prepare("UPDATE settings SET value = 'Plain-1' WHERE key = 'ai_photo_model'").run();
     calls.length = 0;
     expect(await read()).toEqual({ ok: true });

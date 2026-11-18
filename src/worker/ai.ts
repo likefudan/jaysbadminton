@@ -122,16 +122,20 @@ function claudeReader(name: string, client: Anthropic, model: string, effort: Ai
 type OpenAiShape = "responses" | "chat" | "chat-plain";
 const shapes = new Map<string, OpenAiShape>();
 
-/** Azure refusing the shape of a request (a parameter or the API itself), not the request's content. */
+/**
+ * Azure refusing the shape of a request (a parameter, response_format or the API itself), not its
+ * content: e.g. "Unsupported parameter: 'reasoning.effort' is not supported with this model." A
+ * missing deployment or a bad photo is not this, and goes straight to the fallback.
+ */
 const refusesShape = (status: number, message: string) =>
-  status === 404 ||
-  (status === 400 &&
-    /unsupported|not supported|unrecognized|unknown|not allowed|invalid.*(param|format)/i.test(message));
+  (status === 400 || status === 404) && /unsupported|not supported|unrecognized request argument/i.test(message);
 
 interface Answer {
   status: number;
   message: string;
+  /** The answer's text, or why a 2xx answer can't be used. */
   text?: string;
+  unusable?: string;
   usage?: Tokens;
 }
 
@@ -171,7 +175,7 @@ async function viaResponses(
   const usage = body?.usage && { input: body.usage.input_tokens ?? 0, output: body.usage.output_tokens ?? 0 };
   const message = `${body?.error?.message ?? ""}`;
   if (!res.ok) return { status: res.status, message, usage };
-  if (body?.status !== "completed") throw new Error(`status ${body?.status}`);
+  if (body?.status !== "completed") return { status: res.status, message, usage, unusable: `status ${body?.status}` };
   const text = ((body.output ?? []) as { type: string; content?: { type: string; text?: string }[] }[])
     .filter((o) => o.type === "message")
     .flatMap((o) => o.content ?? [])
@@ -212,27 +216,44 @@ async function viaChat(apiKey: string, model: string, plain: boolean, callMs: nu
   const message = `${body?.error?.message ?? ""}`;
   if (!res.ok) return { status: res.status, message, usage };
   const choice = body?.choices?.[0];
-  if (choice?.finish_reason !== "stop") throw new Error(`finished with ${choice?.finish_reason}`);
+  if (choice?.finish_reason !== "stop")
+    return { status: res.status, message, usage, unusable: `finished with ${choice?.finish_reason}` };
   return { status: res.status, message, text: `${choice?.message?.content ?? ""}`, usage };
 }
 
-/** The answer's JSON, also when a model wraps it in a ```json fence. */
-const parseJson = (text: string) => JSON.parse(text.trim().replace(/^```(?:json)?\s*|\s*```$/g, ""));
+/** The answer's JSON, also when a model wraps it in a ```json fence or a sentence. */
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start < 0 || end < start) throw err;
+    return JSON.parse(text.slice(start, end + 1));
+  }
+}
 
 function openAiReader(apiKey: string, model: string, effort: AiEffort, callMs: number): Reader {
   return {
     name: `azure ${model}`,
     choice: { model, effort },
     async read(req, spent) {
+      // Shape refusals come back within a second, so the tries fit in about one call's time.
+      const total: Tokens = { input: 0, output: 0 };
       const order: OpenAiShape[] = ["responses", "chat", "chat-plain"];
       for (const shape of order.slice(order.indexOf(shapes.get(model) ?? "responses"))) {
         const a =
           shape === "responses"
             ? await viaResponses(apiKey, model, effort, callMs, req)
             : await viaChat(apiKey, model, shape === "chat-plain", callMs, req);
-        if (a.usage) spent(a.usage);
+        if (a.usage) {
+          total.input += a.usage.input;
+          total.output += a.usage.output;
+          spent({ ...total });
+        }
         if (a.status >= 200 && a.status < 300) {
           shapes.set(model, shape);
+          if (a.unusable) throw new Error(a.unusable);
           return parseJson(a.text ?? "");
         }
         if (!refusesShape(a.status, a.message)) throw new Error(`HTTP ${a.status} ${a.message}`);
