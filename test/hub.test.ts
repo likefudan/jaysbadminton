@@ -49,7 +49,7 @@ async function ask(token: string | null, bindings: object = withHub) {
 
 describe("what a site tells the 总入口", () => {
   it("is off until the site is given the 总入口's address", async () => {
-    expect((await ask(await question("alice@gmail.com"), env)).status).toBe(404);
+    expect((await ask(await question("alice@gmail.com"), { ...env, HUB_ORIGIN: undefined })).status).toBe(404);
   });
 
   it("refuses questions the 总入口 didn't sign for this site", async () => {

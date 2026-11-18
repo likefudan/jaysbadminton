@@ -31,6 +31,8 @@ const config = {
   vars: { ...base.vars, SITE_ORIGIN: `https://${site.domain}`, SITE_ID: id, SITE_NAME: site.name },
   routes: [{ pattern: site.domain, custom_domain: true }],
 };
+// 总入口 (src/worker/hub.ts): only for the sites whose group was let in, "hub": true.
+if (site.hub !== true) delete config.vars.HUB_ORIGIN;
 // wrangler.jsonc runs production's Worker in US East, next to Jay's database. These sites' databases
 // are in US West (WNAM), where their members are: their Workers run wherever the visitor is.
 config.placement = { mode: "off" };
