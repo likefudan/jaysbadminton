@@ -189,6 +189,58 @@ test("ties on the leaderboard share a rank", async ({ page }) => {
   await expect(page.locator(".board-rows .rank-no")).toHaveText(["2", "5"]);
 });
 
+/**
+ * 并列第一 after the list changes in place (the app shows the saved list, then the fresh one):
+ * someone who moves from 3rd to a shared 1st gets the 1st step's height and colour too. Android's
+ * Chrome kept the old short step when only the class changed (Ke Li 2026-11-18).
+ */
+test("a tie for 1st looks the same on every step after a refresh", async ({ page }) => {
+  const before = [
+    { rank: 1, name: "Boyang", value: 12 },
+    { rank: 2, name: "keke", value: 11 },
+    { rank: 3, name: "christine", value: 10 },
+  ];
+  const after = [
+    { rank: 1, name: "Boyang", value: 12 },
+    { rank: 1, name: "christine", value: 12 },
+    { rank: 1, name: "keke", value: 12 },
+    { rank: 4, name: "Terrence", value: 10 },
+  ];
+  const ties = [
+    { rank: 1, name: "Lina", value: 5 },
+    { rank: 1, name: "Tom", value: 5 },
+    { rank: 3, name: "Jayz", value: 4 },
+  ];
+  let first = true;
+  await page.route("**/api/public/home", (route) => {
+    const attendance = first ? before : after;
+    first = false;
+    return route.fulfill({
+      json: { currentEvents: [], pastEvents: [], leaderboard: board({ attendance, streak: ties }) },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("tab", { name: "出勤" }).click();
+  await expect(page.locator(".podium .step")).toHaveText(["2", "1", "3"]);
+  await page.evaluate(() => dispatchEvent(new Event("online")));
+  await expect(page.locator(".podium .step")).toHaveText(["1", "1", "1"]);
+  const looks = () =>
+    page.locator(".podium .step").evaluateAll((els) =>
+      els.map((e) => {
+        const s = getComputedStyle(e);
+        return `${s.height} ${s.backgroundImage}`;
+      }),
+    );
+  const all = await looks();
+  expect(new Set(all).size).toBe(1);
+  // Two tied for 1st: both tall, 3rd short.
+  await page.getByRole("tab", { name: "连续" }).click();
+  await expect(page.locator(".podium .step")).toHaveText(["1", "1", "3"]);
+  const two = await looks();
+  expect(two[0]).toBe(two[1]);
+  expect(two[2]).not.toBe(two[1]);
+});
+
 test.describe("with a mouse", () => {
   test.use({ viewport: { width: 1200, height: 900 }, isMobile: false, hasTouch: false });
 

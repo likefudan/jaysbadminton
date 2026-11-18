@@ -79,7 +79,9 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
       <ol class="podium">
         {podium.map((r, i) =>
           r ? (
-            <li key={r.name} class={`place p${r.rank}`}>
+            // The rank is in the key: Android's Chrome kept a moved step's old look when only its
+            // p1/p2/p3 class changed (app on the home screen: the saved list first, then the fresh one).
+            <li key={`${r.name}:${r.rank}`} class={`place p${r.rank}`}>
               {r.rank === 1 && (
                 <span class="crown" aria-hidden="true">
                   👑
