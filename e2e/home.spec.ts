@@ -267,6 +267,11 @@ test("the likes board stands the top three on hearts", async ({ page }) => {
     .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
   expect(heights[1]!).toBeGreaterThan(heights[0]!);
   expect(heights[0]!).toBeGreaterThan(heights[2]!);
+  // Each place has its own red: deep for 1st, rose for 2nd, light for 3rd.
+  const reds = await page
+    .locator(".podium .heart-step linearGradient stop:nth-child(2)")
+    .evaluateAll((els) => els.filter((_, i) => i % 2 === 0).map((e) => e.getAttribute("stop-color")));
+  expect(new Set(reds).size).toBe(3);
   await page.locator(".card.board").screenshot({ path: test.info().outputPath("likes-hearts.png") });
   await page.getByRole("tab", { name: "出勤" }).click();
   await expect(page.locator(".podium .crown")).toHaveCount(1);

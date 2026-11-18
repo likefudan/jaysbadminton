@@ -2883,7 +2883,7 @@ a.ev-meta {
 .podium .p2 .step {
   height: 44px;
 }
-/* 点赞榜: heart-shaped blocks seen at a slant (HeartStep), pink for 1st instead of the accent. */
+/* 点赞榜: heart-shaped blocks seen at a slant (HeartStep), each place its own red. */
 .board.hearts .podium .step.heart-step {
   position: relative;
   height: auto;
@@ -2918,10 +2918,10 @@ a.ev-meta {
   stop-opacity: 0.55;
 }
 .board.hearts .podium .p1 .value {
-  color: #d6336c;
+  color: #c01730;
 }
 [data-mode="dark"] .board.hearts .podium .p1 .value {
-  color: #f06595;
+  color: #ff6b7d;
 }
 .board.hearts .podium .p1 .podium-av {
   box-shadow:

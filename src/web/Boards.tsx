@@ -58,11 +58,20 @@ const HEART =
   "M50 90C22 70 4 52 4 31C4 15 16 4 30 4C39 4 46 9 50 17C54 9 61 4 70 4C84 4 96 15 96 31C96 52 78 70 50 90Z";
 /** Seen from above at a slant, the heart's top face is squashed to this share of its height. */
 const SLANT = 0.42;
+/**
+ * Each place's reds (Ke Li 2026-11-18): deep red for 1st, rose for 2nd, a light pure red for 3rd.
+ * Sides dark at the edges and light in the middle, then the top face from light to dark.
+ */
+const HEART_REDS: Record<number, { edge: string; mid: string; top: string; topEnd: string }> = {
+  1: { edge: "#6e0a1c", mid: "#c01730", top: "#ef5a6c", topEnd: "#cc2a40" },
+  2: { edge: "#a3205a", mid: "#e8488c", top: "#ffa3c8", topEnd: "#f075a8" },
+  3: { edge: "#c8394c", mid: "#f4707f", top: "#ffd6db", topEnd: "#fba3ad" },
+};
 /** How tall each place's block stands, in hundredths of its width. */
 const HEART_RISE: Record<number, number> = { 1: 58, 2: 40, 3: 27 };
 
 /**
- * 点赞榜's step (Ke Li 2026-11-18, option G): a pink block whose top face is a heart, seen at a
+ * 点赞榜's step (Ke Li 2026-11-18, option G): a red block whose top face is a heart, seen at a
  * slant, with the place number on its front. The sides are the top heart, the same heart moved
  * down, and the band between their widest points, which together are the block's outline.
  */
@@ -73,19 +82,19 @@ function HeartStep(props: { rank: number }) {
   const wide = 31 * SLANT; // the heart is widest a third of the way down
   const tip = 90 * SLANT;
   const height = tip + rise + 8;
-  const first = props.rank === 1;
+  const red = HEART_REDS[props.rank] ?? HEART_REDS[3]!;
   return (
     <span class="step heart-step">
       <svg viewBox={`0 0 100 ${height}`} aria-hidden="true">
         <defs>
           <linearGradient id={`${id}s`} x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0" stop-color={first ? "#99163f" : "#c2255c"} />
-            <stop offset=".5" stop-color={first ? "#e64980" : "#f06595"} />
-            <stop offset="1" stop-color={first ? "#99163f" : "#c2255c"} />
+            <stop offset="0" stop-color={red.edge} />
+            <stop offset=".5" stop-color={red.mid} />
+            <stop offset="1" stop-color={red.edge} />
           </linearGradient>
           <linearGradient id={`${id}t`} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stop-color={first ? "#ff9fbe" : "#ffd0de"} />
-            <stop offset="1" stop-color={first ? "#ec5b8f" : "#f9a3bf"} />
+            <stop offset="0" stop-color={red.top} />
+            <stop offset="1" stop-color={red.topEnd} />
           </linearGradient>
           <radialGradient id={`${id}f`}>
             <stop offset="0" class="heart-shade" />
