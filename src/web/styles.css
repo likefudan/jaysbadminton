@@ -6763,7 +6763,7 @@ label.set-row {
 .has-app-tabs .cq-legend {
   bottom: calc(var(--app-tabs-h) + 18px + env(safe-area-inset-bottom));
   padding-bottom: 9px;
-  transition: bottom 0.55s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: bottom 0.7s cubic-bezier(0.32, 0.72, 0, 1);
 }
 html.tabs-away .has-app-tabs .cq-legend {
   bottom: 0;
@@ -6776,7 +6776,7 @@ html.tabs-away .has-app-tabs .cq-legend {
    (more blur would look less clear), sliding away down while the finger pushes the page up and back
    in when it pulls the page down (AppTabs.tsx sets .away). The slide is slow enough to follow. */
 .app-tabs {
-  --tabs-glass: rgba(255, 255, 255, 0.16);
+  --tabs-glass: rgba(255, 255, 255, 0.08);
   --tabs-rim: rgba(255, 255, 255, 0.7);
   --tabs-edge: rgba(0, 0, 0, 0.08);
   --tabs-pill: rgba(255, 255, 255, 0.62);
@@ -6793,8 +6793,8 @@ html.tabs-away .has-app-tabs .cq-legend {
   padding: 4px;
   border-radius: 999px;
   background: var(--tabs-glass);
-  -webkit-backdrop-filter: blur(5px) saturate(1.15);
-  backdrop-filter: blur(5px) saturate(1.15);
+  -webkit-backdrop-filter: blur(2.5px) saturate(1.1);
+  backdrop-filter: blur(2.5px) saturate(1.1);
   border: 0.5px solid var(--tabs-edge);
   box-shadow:
     inset 0 1px 0 var(--tabs-rim),
@@ -6802,18 +6802,18 @@ html.tabs-away .has-app-tabs .cq-legend {
     0 6px 22px rgba(0, 0, 0, 0.1);
   transform: translateX(-50%);
   transition:
-    transform 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 0.55s ease;
+    transform 0.7s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.7s ease;
 }
 [data-mode="dark"] .app-tabs {
-  --tabs-glass: rgba(28, 28, 32, 0.22);
+  --tabs-glass: rgba(28, 28, 32, 0.12);
   --tabs-rim: rgba(255, 255, 255, 0.16);
   --tabs-edge: rgba(255, 255, 255, 0.1);
   --tabs-pill: rgba(255, 255, 255, 0.2);
   --tabs-halo: rgba(0, 0, 0, 0.7);
 }
 [data-mode="dark"] .app-tabs a.on {
-  color: color-mix(in srgb, var(--acc) 60%, white);
+  color: color-mix(in srgb, var(--acc) 40%, white);
 }
 .app-tabs.away {
   transform: translate(-50%, calc(100% + var(--tabs-gap) + 24px));
