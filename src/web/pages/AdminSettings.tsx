@@ -15,6 +15,8 @@ import type { QueueAccountsView } from "../../shared/courtQueue";
 import {
   APP_NAME_MAX,
   type Greeting,
+  GLASSES,
+  type Glass,
   SITE_LANGS,
   type AppNames,
   MAX_AUTO_JOINS_PER_DAY,
@@ -28,7 +30,7 @@ import { Card, Field, LinkCard, Load, SettingRow, useAction } from "../component
 import { signOutGoogle } from "../GoogleAccount";
 import { revokeSummary } from "../organizers";
 import { type Loaded, useApi, useWide } from "../hooks";
-import { setAppNames, setSiteTheme, setSiteTitle, useAppearance } from "../site";
+import { setAppNames, setSiteGlass, setSiteTheme, setSiteTitle, useAppearance } from "../site";
 import { BoardsPage } from "./AdminBoards";
 import { ExportCard, SheetsCard } from "./AdminExport";
 import { AdminGuide, ForwardingSteps, OrganizerGuide } from "./AdminGuide";
@@ -199,11 +201,14 @@ function SettingsSubPage(props: { base: string; sub: "looks" | "join" | "appName
         <ThemeCard base={props.base} />
         <Load result={s}>
           {(v) => (
-            <PublicPageCard
-              initial={v}
-              openNames={() => props.open("appNames")}
-              openBoards={() => props.open("boards")}
-            />
+            <>
+              <GlassCard base={props.base} initial={v.glass} />
+              <PublicPageCard
+                initial={v}
+                openNames={() => props.open("appNames")}
+                openBoards={() => props.open("boards")}
+              />
+            </>
           )}
         </Load>
       </SubPage>
@@ -929,6 +934,7 @@ function ResetAll(props: { base: string }) {
 
 interface GeneralSettings {
   siteTitle: string;
+  glass: Glass;
   greeting: Greeting;
   appNames: AppNames;
   publicBoards: number;
@@ -1615,6 +1621,49 @@ function ThemeCard(props: { base: string }) {
       </section>
       {a.mine && <p class="set-foot">{t("（你自己选了别的外观，所以这里换了你看不到变化。）")}</p>}
       {error && <p class="error">{error}</p>}
+    </>
+  );
+}
+
+/**
+ * 导航栏透明度 (Ke Li 2026-11-19): how see-through the app's floating tab bar is, one choice for the
+ * whole group. Saved at once; the sample shows it over the colours of an event card.
+ */
+function GlassCard(props: { base: string; initial: Glass }) {
+  const [glass, setGlass] = useState<Glass>(props.initial);
+  const { busy, error, run } = useAction();
+  const names: Record<Glass, string> = { 1: t("最透明"), 2: t("透明"), 3: t("半透明"), 4: t("磨砂") };
+  async function pick(g: Glass) {
+    const was = glass;
+    setGlass(g);
+    setSiteGlass(g);
+    if (!(await run(() => api(`${props.base}/settings`, { glass: g })))) {
+      setGlass(was);
+      setSiteGlass(was);
+    }
+  }
+  return (
+    <>
+      <h3 class="set-head">{t("导航栏透明度")}</h3>
+      <section class="card">
+        <div class="glass-sample" aria-hidden="true">
+          <span class="glass-sample-text">11/21 20:00</span>
+          <span class="glass-sample-bar" data-glass={glass}>
+            <span class="on">{t("活动")}</span>
+            <span>{t("排行榜")}</span>
+            <span>{t("我的")}</span>
+          </span>
+        </div>
+        <div class="seg" role="group" aria-label={t("导航栏透明度")}>
+          {GLASSES.map((g) => (
+            <button key={g} type="button" class={g === glass ? "on" : ""} disabled={busy} onClick={() => pick(g)}>
+              {names[g]}
+            </button>
+          ))}
+        </div>
+        <p class="muted small">{t("加到主屏幕的 App 底部的导航栏。全群统一，每个人看到的都一样。")}</p>
+        {error && <p class="error">{error}</p>}
+      </section>
     </>
   );
 }

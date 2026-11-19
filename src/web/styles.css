@@ -6832,8 +6832,35 @@ html.bars-away .has-app-tabs .cq-legend {
 /* A floating capsule, as in iOS (Ke Li 2026-11-18): very see-through glass with only a light blur
    (more blur would look less clear), sliding away down while the finger pushes the page up and back
    in when it pulls the page down (barsAway.ts sets html.bars-away). The slide is slow enough to follow. */
+/* 导航栏透明度 (设置 › 外观和公共页面, Ke Li 2026-11-19): how much white (or dark) is in the glass
+   and how much it blurs, from 1 = clearest (the default) to 4 = frosted. */
+:root {
+  --glass-fill: 0.08;
+  --glass-fill-dark: 0.12;
+  --glass-blur: 2.5px;
+}
+[data-glass="1"] {
+  --glass-fill: 0.08;
+  --glass-fill-dark: 0.12;
+  --glass-blur: 2.5px;
+}
+[data-glass="2"] {
+  --glass-fill: 0.2;
+  --glass-fill-dark: 0.26;
+  --glass-blur: 5px;
+}
+[data-glass="3"] {
+  --glass-fill: 0.38;
+  --glass-fill-dark: 0.45;
+  --glass-blur: 9px;
+}
+[data-glass="4"] {
+  --glass-fill: 0.62;
+  --glass-fill-dark: 0.68;
+  --glass-blur: 16px;
+}
 .app-tabs {
-  --tabs-glass: rgba(255, 255, 255, 0.08);
+  --tabs-glass: rgba(255, 255, 255, var(--glass-fill));
   --tabs-rim: rgba(255, 255, 255, 0.7);
   --tabs-edge: rgba(0, 0, 0, 0.08);
   --tabs-pill: rgba(255, 255, 255, 0.62);
@@ -6850,8 +6877,8 @@ html.bars-away .has-app-tabs .cq-legend {
   padding: 4px;
   border-radius: 999px;
   background: var(--tabs-glass);
-  -webkit-backdrop-filter: blur(2.5px) saturate(1.1);
-  backdrop-filter: blur(2.5px) saturate(1.1);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
   border: 0.5px solid var(--tabs-edge);
   box-shadow:
     inset 0 1px 0 var(--tabs-rim),
@@ -6862,8 +6889,65 @@ html.bars-away .has-app-tabs .cq-legend {
     transform 0.7s cubic-bezier(0.32, 0.72, 0, 1),
     opacity 0.7s ease;
 }
+/* The sample in 设置 › 外观和公共页面: the tab bar's glass over the colours of an event card. */
+.glass-sample {
+  position: relative;
+  height: 104px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--acc), var(--acc-soft));
+}
+.glass-sample-text {
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--acc-ink);
+  white-space: nowrap;
+}
+.glass-sample-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, var(--glass-fill));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 4px 14px rgba(0, 0, 0, 0.1);
+}
+[data-mode="dark"] .glass-sample-bar {
+  background: rgba(28, 28, 32, var(--glass-fill-dark));
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 4px 14px rgba(0, 0, 0, 0.1);
+}
+.glass-sample-bar span {
+  flex: 1;
+  padding: 9px 0;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.glass-sample-bar span.on {
+  color: var(--acc);
+  background: rgba(255, 255, 255, 0.62);
+}
+[data-mode="dark"] .glass-sample-bar span.on {
+  background: rgba(255, 255, 255, 0.2);
+}
 [data-mode="dark"] .app-tabs {
-  --tabs-glass: rgba(28, 28, 32, 0.12);
+  --tabs-glass: rgba(28, 28, 32, var(--glass-fill-dark));
   --tabs-rim: rgba(255, 255, 255, 0.16);
   --tabs-edge: rgba(255, 255, 255, 0.1);
   --tabs-pill: rgba(255, 255, 255, 0.2);

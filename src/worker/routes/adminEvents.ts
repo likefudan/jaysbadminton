@@ -116,7 +116,7 @@ import {
   savePaymentProfile,
 } from "../payees";
 import { quietBills } from "../health";
-import { SITE_TITLE_MAX, appNameKey, appNames, siteGreeting, siteTheme } from "../site";
+import { SITE_TITLE_MAX, appNameKey, appNames, siteGlass, siteGreeting, siteTheme } from "../site";
 import { isTheme } from "../../shared/themes";
 import { requireMember } from "../members";
 import {
@@ -153,11 +153,14 @@ import { AI_DAILY_CAP_MAX, AI_EFFORTS, AI_USES, AI_USE_NAME, type AiEffort } fro
 import { autoJoinCap, autoJoinEnabled } from "../joining";
 import {
   APP_NAME_MAX,
+  GLASSES,
+  GLASS_NAME,
   GREETINGS,
   GREETING_NAME,
   LIKE_HOURS_MAX,
   SITE_LANGS,
   checkAutoJoinCap,
+  type Glass,
   type Greeting,
 } from "../../shared/rules";
 
@@ -991,6 +994,7 @@ adminEventRoutes.get("/settings", async (c) => {
     // Empty until set: the icon then carries Simplified's name, or the site title.
     appNames: site.names,
     theme: await siteTheme(c.env),
+    glass: await siteGlass(c.env),
     greeting: await siteGreeting(c.env),
     publicBoards: (await boardSettings(c.env)).public.length,
     autoJoin: await autoJoinEnabled(c.env),
@@ -1160,6 +1164,11 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!isTheme(b.theme)) throw badRequest("没有这个配色");
     writes.push(setSetting(c.env.DB, "theme", b.theme));
     said.push(`默认外观 ${b.theme}`);
+  }
+  if (b.glass !== undefined) {
+    if (!GLASSES.includes(b.glass as Glass)) throw badRequest("没有这个透明度");
+    writes.push(setSetting(c.env.DB, "tab_glass", String(b.glass)));
+    said.push(`导航栏透明度 ${GLASS_NAME[b.glass as Glass]}`);
   }
   if (b.reminderEnabled !== undefined) {
     writes.push(setSetting(c.env.DB, "reminder_enabled", b.reminderEnabled === false ? "0" : "1"));

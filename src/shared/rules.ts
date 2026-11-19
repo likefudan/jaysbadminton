@@ -106,6 +106,17 @@ export const likeCap = (players: number, pct: number) =>
   Math.max(1, Math.min(Math.ceil((players * pct) / 100), players - 1));
 
 /**
+ * How see-through the app's floating tab bar is, set for the whole group in 设置 › 外观和公共页面
+ * (Ke Li 2026-11-19): 1 is the clearest glass, 4 is frosted.
+ */
+export type Glass = 1 | 2 | 3 | 4;
+export const GLASSES: readonly Glass[] = [1, 2, 3, 4];
+export const DEFAULT_GLASS: Glass = 1;
+export const normalizeGlass = (v: unknown): Glass =>
+  GLASSES.includes(Number(v) as Glass) ? (Number(v) as Glass) : DEFAULT_GLASS;
+export const GLASS_NAME: Record<Glass, string> = { 1: "最透明", 2: "透明", 3: "半透明", 4: "磨砂" };
+
+/**
  * 我的活动 page's 「你好，名字」 (Ke Li 2026-11-12, an admin setting): the big title as before, a
  * small line beside 我的活动 / 个人信息, or none.
  */

@@ -1,4 +1,12 @@
-import { SITE_LANGS, normalizeGreeting, type AppNames, type Greeting, type SiteLang } from "../shared/rules";
+import {
+  SITE_LANGS,
+  normalizeGlass,
+  normalizeGreeting,
+  type AppNames,
+  type Glass,
+  type Greeting,
+  type SiteLang,
+} from "../shared/rules";
 import { getSettings } from "./db";
 import type { Env } from "./env";
 import { normalizeTheme, type ThemeId } from "../shared/themes";
@@ -28,6 +36,11 @@ export async function appNames(env: Env): Promise<{ names: AppNames; title: stri
 export async function siteTheme(env: Env): Promise<ThemeId> {
   const s = await getSettings(env.DB, ["theme"]);
   return normalizeTheme(s.theme); // a pre-2026 palette name maps to its nearest new look
+}
+
+/** How see-through the app's floating tab bar is (设置 › 外观和公共页面). */
+export async function siteGlass(env: Env): Promise<Glass> {
+  return normalizeGlass((await getSettings(env.DB, ["tab_glass"])).tab_glass);
 }
 
 /** 我的活动's 「你好，名字」: big unless set (设置 › 外观和公共页面). */
