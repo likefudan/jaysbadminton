@@ -238,18 +238,14 @@ export function MeCard(props: MeCardProps & { children?: ComponentChildren }) {
 export const memberNumber = (id: string) => Number.parseInt(id.slice(1), 10);
 
 /**
- * 我的数据 → 我的资料: 微信名, 入群时间 and 入群编号, kept off the top card so they aren't seen at a
- * glance (Ke Li 2026-11-17, option C).
+ * 我的数据 → 我的资料: 入群时间 and 入群编号, kept off the top card so they aren't seen at a glance
+ * (Ke Li 2026-11-17, option C). 微信名 lives in 设置, where it can be changed (Ke Li 2026-11-19).
  */
 export function MyDetails(props: { profile: MemberProfile }) {
   const p = props.profile;
   return (
     <Card class="profile">
       <dl class="profile-info my-details">
-        <div>
-          <dt>{t("微信名")}</dt>
-          <dd>{p.wechatNickname}</dd>
-        </div>
         <div>
           <dt>{t("入群时间")}</dt>
           <dd>{fmtDay(toPacific(p.joinedAt).date)}</dd>

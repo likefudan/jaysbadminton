@@ -219,7 +219,7 @@ export function MemberProfilePage(props: { token?: string }) {
                     <SettingRow
                       icon={<IdIcon />}
                       label={t("我的资料")}
-                      sub={t("微信名、入群时间、入群编号")}
+                      sub={t("入群时间、入群编号")}
                       onClick={() => setOpen("details")}
                     />
                   )}
