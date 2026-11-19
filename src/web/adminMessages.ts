@@ -26,6 +26,9 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
   出勤率: { tw: "出勤率", en: "Attendance" },
   上次来: { tw: "上次來", en: "Last came" },
   报了名没来: { tw: "報了名沒來", en: "No-shows" },
+  "小格子：近 12 周，一格一周": { tw: "小格子：近 12 週，一格一週", en: "Squares: last 12 weeks, one a week" },
+  少: { tw: "少", en: "Less" },
+  多: { tw: "多", en: "More" },
   "近 12 周，一格一周": { tw: "近 12 週，一格一週", en: "Last 12 weeks, one square a week" },
   "出勤率 = 来了几场 ÷ 入群以后这段时间办了几场（取消的不算）。30 天内来过算活跃，30–90 天算少来，更久没来算不活跃。": {
     tw: "出勤率 = 來了幾場 ÷ 入群以後這段時間辦了幾場（取消的不算）。30 天內來過算活躍，30–90 天算少來，更久沒來算不活躍。",

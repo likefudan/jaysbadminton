@@ -88,7 +88,7 @@ function statFor(
   regs: Reg[],
   from: string,
   today: string,
-): AttendanceStat & { joined: string } {
+): Omit<AttendanceStat, "weeks"> & { joined: string } {
   const joined = joinedOn(m);
   const since = from > joined ? from : joined;
   const held = events.filter((e) => e.date >= since).length;
@@ -115,6 +115,20 @@ function statFor(
   };
 }
 
+/** Times they came in each of the last 12 weeks, oldest first (week 11 ends today); null for a week wholly before they joined. */
+function weeksFor(regs: Reg[], dateOf: Map<number, string>, joined: string, today: string): (number | null)[] {
+  const weeks: (number | null)[] = Array.from({ length: 12 }, (_, i) =>
+    daysBefore(today, (11 - i) * 7) < joined ? null : 0,
+  );
+  for (const r of regs) {
+    const date = dateOf.get(r.event_id);
+    if (!date || !r.attended) continue;
+    const i = 11 - Math.floor(daysBetween(date, today) / 7);
+    if (i >= 0 && i < 12) weeks[i] = (weeks[i] ?? 0) + 1;
+  }
+  return weeks;
+}
+
 function byMember(regs: Reg[]): Map<string, Reg[]> {
   const out = new Map<string, Reg[]>();
   for (const r of regs) {
@@ -137,14 +151,15 @@ export async function membersAttendance(env: Env, w: AttendanceWindow): Promise<
     from: from || null,
     held: events.filter((e) => e.date >= from).length,
     members: members.map((m) => {
-      const { joined: _, ...s } = statFor(m, events, dateOf, mine.get(m.id) ?? [], from, today);
-      return s;
+      const own = mine.get(m.id) ?? [];
+      const { joined, ...s } = statFor(m, events, dateOf, own, from, today);
+      return { ...s, weeks: weeksFor(own, dateOf, joined, today) };
     }),
     thresholds: { active: ACTIVE_DAYS, quiet: QUIET_DAYS },
   };
 }
 
-/** One member's 出勤 card: the window's numbers and how many times they came in each of the last 12 weeks. */
+/** One member's 出勤 card: the window's numbers and the last 12 weeks. */
 export async function memberAttendance(env: Env, id: string, w: AttendanceWindow): Promise<AttendanceDetail | null> {
   const today = toPacific(new Date()).date;
   const from = windowStart(w, today);
@@ -152,18 +167,6 @@ export async function memberAttendance(env: Env, id: string, w: AttendanceWindow
   const m = members[0];
   if (!m) return null;
   const dateOf = new Map(events.map((e) => [e.id, e.date]));
-  const s = statFor(m, events, dateOf, regs, from, today);
-  // Week 11 ends today; a week wholly before they joined is null (drawn blank, not as a gap).
-  const weeks: (number | null)[] = Array.from({ length: 12 }, (_, i) =>
-    daysBefore(today, (12 - i) * 7 - 7) < s.joined ? null : 0,
-  );
-  for (const r of regs) {
-    const date = dateOf.get(r.event_id);
-    if (!date || !r.attended) continue;
-    const back = Math.floor(daysBetween(date, today) / 7);
-    const i = 11 - back;
-    if (i >= 0 && i < 12) weeks[i] = (weeks[i] ?? 0) + 1;
-  }
-  const { joined, ...stat } = s;
-  return { ...stat, window: w, joined, weeks };
+  const { joined, ...stat } = statFor(m, events, dateOf, regs, from, today);
+  return { ...stat, window: w, joined, weeks: weeksFor(regs, dateOf, joined, today) };
 }
