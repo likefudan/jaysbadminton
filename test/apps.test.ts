@@ -1,7 +1,7 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { ANDROID_PACKAGE, ANDROID_TEST_CERT, appleAppSiteAssociation, assetLinks } from "../src/shared/apps";
+import { ANDROID_PACKAGE, ANDROID_TEST_CERTS, appleAppSiteAssociation, assetLinks } from "../src/shared/apps";
 import worker from "../src/worker/index";
 import { ORIGIN } from "./helpers";
 
@@ -13,20 +13,17 @@ async function get(path: string, vars: object = {}) {
 }
 
 describe("the files that vouch for the phone apps", () => {
-  it("the test site vouches for the test builds of the Android app", async () => {
-    const res = await get("/.well-known/assetlinks.json", { ENVIRONMENT: "staging" });
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toContain("application/json");
-    expect(await res.json()).toEqual([
+  it("the test site vouches for the test builds of the Android app once their key is listed", async () => {
+    // The key that used to be in the repository is public: nothing vouches for it.
+    expect(ANDROID_TEST_CERTS).toEqual([]);
+    expect((await get("/.well-known/assetlinks.json", { ENVIRONMENT: "staging" })).status).toBe(404);
+    expect(assetLinks(true, ["AA:BB"])).toEqual([
       {
         relation: ["delegate_permission/common.handle_all_urls"],
-        target: {
-          namespace: "android_app",
-          package_name: ANDROID_PACKAGE,
-          sha256_cert_fingerprints: [ANDROID_TEST_CERT],
-        },
+        target: { namespace: "android_app", package_name: ANDROID_PACKAGE, sha256_cert_fingerprints: ["AA:BB"] },
       },
     ]);
+    expect(assetLinks(false, ["AA:BB"])).toBeNull();
   });
 
   it("a real site vouches for nobody until there is a release key, and never for the test key", async () => {

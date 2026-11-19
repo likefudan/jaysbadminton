@@ -1,6 +1,15 @@
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { Context } from "hono";
-import { decryptToken, encryptToken, hashPassword, hmac, randomToken, sha256, verifyPassword } from "./lib/crypto";
+import {
+  decryptToken,
+  encryptToken,
+  hashPassword,
+  hmac,
+  passwordHashIsOld,
+  randomToken,
+  sha256,
+  verifyPassword,
+} from "./lib/crypto";
 import { getSettings, now, setSetting } from "./db";
 import type { Env } from "./env";
 import { HttpError, invalidLink } from "./http";
@@ -63,6 +72,12 @@ export async function checkPassword(env: Env, password: string): Promise<boolean
   const ok = !!s.admin_password_hash && (await verifyPassword(password, s.admin_password_hash, env.TOKEN_KEY));
   if (ok) {
     await setSetting(env.DB, "admin_login_failures", "0").run();
+    // A hash from before the iterations went up is made again now that the password is at hand.
+    // Only if it is still the one that was checked: a password changed meanwhile stays.
+    if (passwordHashIsOld(s.admin_password_hash!))
+      await env.DB.prepare("UPDATE settings SET value = ?1 WHERE key = 'admin_password_hash' AND value = ?2")
+        .bind(await hashPassword(password, env.TOKEN_KEY), s.admin_password_hash)
+        .run();
     return true;
   }
   if (n === MAX_FAILURES) await lock(env, "ON CONFLICT (key) DO UPDATE SET value = excluded.value");
