@@ -132,7 +132,12 @@ function useMedia(q: string): boolean {
     const update = () => setOn(query.matches);
     update();
     query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
+    // Also on resize: a home-screen app opened with the phone already sideways may skip "change".
+    addEventListener("resize", update);
+    return () => {
+      query.removeEventListener("change", update);
+      removeEventListener("resize", update);
+    };
   }, [q]);
   return on;
 }

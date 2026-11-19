@@ -144,3 +144,43 @@ test("on a wide screen the list stays on the left and the member opens on the ri
   await expect(page).not.toHaveURL(/member=/);
   await context.close();
 });
+
+/**
+ * A phone already sideways when the 管理页 opens (Ke Li 2026-11-19): the page is never laid out in
+ * two columns, not even while it loads, because iPhone Safari left the two-column pieces drawn on
+ * top once the page switched to one column.
+ */
+test("the 管理页 opened sideways is in one column from the start", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 932, height: 430 }, locale: "zh-CN" });
+  const page = await context.newPage();
+  let release!: () => void;
+  const loaded = new Promise<void>((r) => {
+    release = r;
+  });
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: { signedIn: false } }));
+  await page.route("**/api/admin/test-token/members", async (route) => {
+    await loaded;
+    await route.fulfill({
+      json: {
+        pending: [],
+        active: [],
+        inactive: [],
+        deleted: [],
+        organizers: null,
+        viewer: {
+          id: "M001",
+          role: "owner",
+          caps: ["owner", "data", "group", "events.create", "event", "payee", "members.read", "self"],
+        },
+      },
+    });
+  });
+  await page.goto("/admin/test-token?tab=members");
+  const body = page.locator(".page-body");
+  await expect(body).toHaveClass(/one-col/);
+  expect(await body.evaluate((el) => getComputedStyle(el).columnCount)).toBe("auto");
+  release();
+  await expect(page.getByText("在左边选一位成员")).toBeVisible();
+  expect(await body.evaluate((el) => getComputedStyle(el).columnCount)).toBe("auto");
+  await context.close();
+});

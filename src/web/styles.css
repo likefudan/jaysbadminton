@@ -6703,8 +6703,10 @@ label.set-row {
   background: var(--acc-soft);
 }
 @media (min-width: 800px) {
-  .page-body:has(> .admin-tabs) {
-    column-count: 1;
+  /* 管理页 is never in columns, not even while it loads: switching a page from two columns to one
+   * left stale pieces on iPhone Safari (Ke Li 2026-11-19). */
+  .page-body.one-col {
+    column-count: auto;
   }
   .md {
     display: grid;

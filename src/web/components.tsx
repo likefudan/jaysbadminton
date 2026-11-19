@@ -21,6 +21,11 @@ export function Page(props: {
   subtitle?: string;
   /** No big title on the page itself (the home page: the top bar already names the site). */
   bare?: boolean;
+  /**
+   * One column on a wide screen as well: the page lays out its own halves (管理页's list and the
+   * page opened beside it).
+   */
+  oneColumn?: boolean;
   children: ComponentChildren;
 }) {
   const site = useSiteTitle();
@@ -72,7 +77,12 @@ export function Page(props: {
             {props.subtitle && <p class="subtitle">{props.subtitle}</p>}
           </div>
         )}
-        <div class="page-body">{props.children}</div>
+        {/* A fresh element when the page switches between one and two columns: iPhone Safari left the
+            old two-column layout's pieces drawn on top (管理页 opened with the phone already sideways,
+            Ke Li 2026-11-19); only turning the phone cleared them. */}
+        <div key={props.oneColumn ? "one" : "two"} class={props.oneColumn ? "page-body one-col" : "page-body"}>
+          {props.children}
+        </div>
       </main>
       {staging && <DeveloperSwitch />}
       <footer class="legal-links">
