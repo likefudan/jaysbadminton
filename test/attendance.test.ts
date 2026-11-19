@@ -105,6 +105,7 @@ describe("出勤统计", () => {
     expect(d.data).toMatchObject({ attended: 1, held: 2, noShows: 1, window: "30" });
     expect(d.data.weeks).toHaveLength(12);
     expect(d.data.weeks[11]).toBe(1); // 5 days ago
+    expect(by[alice.id].weeks).toEqual(d.data.weeks);
     expect(d.data.weeks.reduce((a: number, b: number | null) => a + (b ?? 0), 0)).toBe(2); // 5 and 40 days ago
 
     const n = await ctx.admin.call(`${ctx.base}/members/${newbie.id}/attendance`);

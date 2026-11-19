@@ -142,6 +142,8 @@ export interface AttendanceStat {
   daysSince: number | null;
   /** Days since they joined. */
   joinedDays: number;
+  /** Times they came in each of the last 12 weeks, oldest first; null before they joined. */
+  weeks: (number | null)[];
 }
 
 export interface MemberAttendanceResponse {
@@ -158,8 +160,6 @@ export interface AttendanceDetail extends AttendanceStat {
   window: AttendanceWindow;
   /** Pacific "YYYY-MM-DD". */
   joined: string;
-  /** Times they came in each of the last 12 weeks, oldest first; null before they joined. */
-  weeks: (number | null)[];
 }
 
 export interface MemberProfile {

@@ -173,11 +173,20 @@ export function useAttendance(base: string, enabled: boolean) {
             <b>{sortLabel} ▾</b>
           </Picker>
         </div>
+        {/* Option Z (Ke Li 2026-11-19): small squares under 「几天前」 on each row. */}
+        <div class="att-legend">
+          <span>{t("小格子：近 12 周，一格一周")}</span>
+          <span class="att-scale" aria-hidden="true">
+            {t("少")}
+            <Weeks weeks={[0, 1, 2, 3]} mini />
+            {t("多")}
+          </span>
+        </div>
       </div>
     );
   };
 
-  /** What a row shows on the right: 「18 次 · 69%」 over 「5 天前」. */
+  /** What a row shows on the right: 「18 次 · 69%」 over 「5 天前」 over the last 12 weeks. */
   const right = (m: MemberSummary) => {
     const s = byId.get(m.id);
     if (!s) return null;
@@ -187,6 +196,7 @@ export function useAttendance(base: string, enabled: boolean) {
           <b>{t("{n} 次", { n: s.attended })}</b> · {rateText(s)}
         </span>
         <small class={`att-${activityLevel(s)}`}>{lastCame(s)}</small>
+        <Weeks weeks={s.weeks} mini />
       </span>
     );
   };
@@ -202,6 +212,18 @@ export function useAttendance(base: string, enabled: boolean) {
   };
 
   return { data, filter, controls, arrange, right, dot };
+}
+
+/** The last 12 weeks as squares, darker for more events; blank before they joined. */
+function Weeks(props: { weeks: (number | null)[]; mini?: boolean }) {
+  return (
+    <div class={props.mini ? "att-weeks mini" : "att-weeks"} aria-hidden={props.mini ? "true" : undefined}>
+      {props.weeks.map((n, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: twelve fixed weeks
+        <span key={i} class={n === null ? "none" : `l${Math.min(n, 3)}`} title={n === null ? "" : t("{n} 次", { n })} />
+      ))}
+    </div>
+  );
 }
 
 /** The 「出勤」 card on a member's page. */
@@ -252,16 +274,7 @@ export function AttendanceCard(props: { base: string }) {
         </div>
       </div>
       <p class="att-weeks-head">{t("近 12 周，一格一周")}</p>
-      <div class="att-weeks">
-        {a.weeks.map((n, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: twelve fixed weeks
-          <span
-            key={i}
-            class={n === null ? "none" : `l${Math.min(n, 3)}`}
-            title={n === null ? "" : t("{n} 次", { n })}
-          />
-        ))}
-      </div>
+      <Weeks weeks={a.weeks} />
       <p class="muted small">
         {t(
           "出勤率 = 来了几场 ÷ 入群以后这段时间办了几场（取消的不算）。30 天内来过算活跃，30–90 天算少来，更久没来算不活跃。",
