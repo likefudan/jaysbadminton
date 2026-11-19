@@ -8117,3 +8117,163 @@ html[data-nav="in"]::view-transition-new(root) {
   text-align: center;
   vertical-align: 2px;
 }
+
+/* ---- 出勤统计 on 成员 (Ke Li 2026-11-19, option A): AdminAttendance.tsx ---- */
+.att-controls {
+  margin: 4px 0 2px;
+}
+.att-chips {
+  margin-bottom: 4px;
+}
+.att-chips .chip {
+  min-height: 32px;
+  padding: 0 11px;
+  font-size: 13.5px;
+}
+.att-chips .chip i {
+  margin-left: 4px;
+  font-style: normal;
+  opacity: 0.75;
+}
+.att-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 4px 0 6px;
+}
+.att-meta b {
+  color: var(--accent);
+  font-weight: 500;
+}
+.att-pick {
+  position: relative;
+  display: inline-block;
+}
+.att-pick select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  font-size: 16px; /* iOS doesn't zoom in on a select this size */
+  cursor: pointer;
+}
+.att-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 7px;
+  border-radius: 50%;
+  vertical-align: 2px;
+}
+.att-dot.att-active {
+  background: var(--ok-dot);
+}
+.att-dot.att-quiet {
+  background: var(--warn-dot);
+}
+.att-dot.att-inactive {
+  background: var(--faint);
+}
+.att-right {
+  flex: none;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.att-right b {
+  font-weight: 600;
+}
+.att-right small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+.att-right small.att-quiet {
+  color: var(--warn);
+}
+.att-right small.att-inactive {
+  color: var(--danger);
+}
+.att-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.att-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.att-tag.att-active {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.att-tag.att-quiet {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.att-tag.att-inactive {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.att-card .seg {
+  margin: 8px 0 10px;
+}
+.att-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.att-tiles div {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.att-tiles b {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.att-tiles span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.att-weeks-head {
+  margin: 14px 0 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.att-weeks {
+  display: flex;
+  gap: 5px;
+}
+.att-weeks span {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.att-weeks span.none {
+  background: transparent;
+  box-shadow: none;
+}
+.att-weeks span.l1 {
+  background: color-mix(in srgb, var(--acc-ink) 38%, transparent);
+  box-shadow: none;
+}
+.att-weeks span.l2 {
+  background: color-mix(in srgb, var(--acc-ink) 70%, transparent);
+  box-shadow: none;
+}
+.att-weeks span.l3 {
+  background: var(--acc-ink);
+  box-shadow: none;
+}
+.att-card .att-weeks + p {
+  margin-top: 12px;
+}

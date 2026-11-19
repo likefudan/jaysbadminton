@@ -57,6 +57,8 @@ export function useApi<T>(path: string): [Loaded<T>, () => void] {
     };
   }, []);
   useEffect(() => {
+    // No path: nothing to load (a page that may not ask, such as an organizer's 出勤统计).
+    if (!path) return;
     let alive = true;
     const quiet = tick.quiet;
     if (quiet) settle(1);

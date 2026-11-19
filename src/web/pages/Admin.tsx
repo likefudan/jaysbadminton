@@ -22,6 +22,7 @@ import { t, fmtInstant } from "../i18n";
 import { type AdminTab, goDown, goRoot, goSide, goUp, useAdminLoc } from "../adminNav";
 import { MasterDetail } from "../MasterDetail";
 import { SubBar } from "../SubBar";
+import { AttendanceCard, useAttendance } from "./AdminAttendance";
 import { usd } from "../../shared/settle";
 
 export function Admin(props: { token?: string }) {
@@ -202,6 +203,8 @@ function MemberDetail(props: {
   id: string;
   readOnly: boolean;
   organizers: boolean;
+  /** 出勤 card: the Owner and admins. */
+  stats: boolean;
   /** 管理: roles, links and 停用 for this member (they used to sit on every row of the list). */
   manage?: ComponentChildren;
   onBack: () => void;
@@ -226,6 +229,7 @@ function MemberDetail(props: {
           />
         )}
       </Load>
+      {props.stats && <AttendanceCard base={base} />}
       {props.manage}
     </>
   );
@@ -558,11 +562,15 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
 
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
-  const found = q
-    ? props.data.active.filter((m) =>
-        [m.username, m.wechatAccount, m.wechatNickname, m.adminNote].some((v) => v?.toLowerCase().includes(q)),
-      )
-    : props.data.active;
+  // 出勤统计 (Ke Li 2026-11-19): the Owner and admins; organizers keep the plain list.
+  const att = useAttendance(props.base, !readOnly);
+  const found = att.arrange(
+    q
+      ? props.data.active.filter((m) =>
+          [m.username, m.wechatAccount, m.wechatNickname, m.adminNote].some((v) => v?.toLowerCase().includes(q)),
+        )
+      : props.data.active,
+  );
   // The member open, if they are an active one: their 管理 card goes under the profile.
   const openActive = open ? props.data.active.find((x) => x.id === open) : undefined;
   const actions = (m: MemberSummary) => (
@@ -646,6 +654,7 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
       id={open}
       readOnly={readOnly}
       organizers={!!props.data.organizers}
+      stats={!readOnly}
       onBack={() => goUp({ tab: "members" })}
       onChange={props.onChange}
     />
@@ -678,6 +687,7 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
             />
           </div>
         )}
+        {att.controls(props.data.active)}
         {found.length === 0 && props.data.active.length > 0 && <Empty>{t("没有找到成员")}</Empty>}
         {found.map((m) => (
           <button
@@ -688,6 +698,7 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
             onClick={() => openMember(m)}
           >
             <span class="who">
+              {att.dot(m)}
               <span class="who-name">{m.username}</span>
               {m.adminNote && <span class="note">{t("备注：{note}", { note: m.adminNote })}</span>}
               {m.isOwner && <span class="badge">{t("群主")}</span>}
@@ -698,6 +709,7 @@ function Members(props: { base: string; open?: string; data: MembersResponse; on
                 <small class="error">{t("审核邮件没发出")}</small>
               )}
             </span>
+            {att.right(m)}
             <span class="chevron">›</span>
           </button>
         ))}
