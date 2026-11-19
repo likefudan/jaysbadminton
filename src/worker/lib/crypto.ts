@@ -66,28 +66,43 @@ export async function hmac(text: string, secret: string): Promise<string> {
   return toHex(await crypto.subtle.sign("HMAC", key, enc.encode(text)));
 }
 
-// Few iterations on purpose: the Workers free plan allows ~10 ms of CPU per request.
-// The secret pepper (TOKEN_KEY) keeps a leaked database alone from being brute-forced offline.
-const PBKDF2_ITERATIONS = 5000;
+// 100,000 is the most the Workers runtime allows for PBKDF2. The secret pepper (TOKEN_KEY) keeps a
+// leaked database alone from being brute-forced offline on top of that.
+const PBKDF2_ITERATIONS = 100_000;
+// Hashes made before 2026-11-19 are "salt:hash" and used this many (the free plan's 10 ms of CPU).
+const PBKDF2_ITERATIONS_OLD = 5000;
 
-export async function hashPassword(password: string, pepper: string, saltHex?: string): Promise<string> {
+/** "salt:hash:iterations". */
+export async function hashPassword(
+  password: string,
+  pepper: string,
+  saltHex?: string,
+  iterations = PBKDF2_ITERATIONS,
+): Promise<string> {
   const salt = saltHex ?? toHex(crypto.getRandomValues(new Uint8Array(16)).buffer);
   const base = await crypto.subtle.importKey("raw", enc.encode(await hmac(password, pepper)), "PBKDF2", false, [
     "deriveBits",
   ]);
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt: enc.encode(salt), iterations: PBKDF2_ITERATIONS },
+    { name: "PBKDF2", hash: "SHA-256", salt: enc.encode(salt), iterations },
     base,
     256,
   );
-  return `${salt}:${toHex(bits)}`;
+  return `${salt}:${toHex(bits)}:${iterations}`;
 }
 
+const iterationsOf = (stored: string) => Number(stored.split(":")[2] ?? PBKDF2_ITERATIONS_OLD);
+
 export async function verifyPassword(password: string, stored: string, pepper: string): Promise<boolean> {
-  const [salt] = stored.split(":");
-  if (!salt) return false;
-  return timingSafeEqual(await hashPassword(password, pepper, salt), stored);
+  const [salt, hash] = stored.split(":");
+  const iterations = iterationsOf(stored);
+  if (!salt || !hash || !Number.isInteger(iterations) || iterations < 1 || iterations > PBKDF2_ITERATIONS) return false;
+  const again = await hashPassword(password, pepper, salt, iterations);
+  return timingSafeEqual(again.split(":")[1]!, hash);
 }
+
+/** A hash made with fewer iterations than today's: make it again at the next right password. */
+export const passwordHashIsOld = (stored: string) => iterationsOf(stored) !== PBKDF2_ITERATIONS;
 
 export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;

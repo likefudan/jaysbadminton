@@ -16,20 +16,24 @@ android {
         versionName = "0.1-test"
     }
 
+    // Test builds: the workflow hands over a key kept in the repository's secrets, so every test
+    // build installs over the last one. Without it (a fork, a laptop) the build is signed with
+    // that machine's own debug key. No key is kept in the repository; the Play release has its own.
+    val testKeystore = System.getenv("ANDROID_TEST_KEYSTORE")?.takeIf { it.isNotEmpty() && file(it).exists() }
     signingConfigs {
-        // Test builds only: a throwaway key kept in the repository so every test build installs over
-        // the last one. The Play release is signed with another key that is never committed.
-        create("test") {
-            storeFile = file("test.keystore")
-            storePassword = "badminton-test"
-            keyAlias = "test"
-            keyPassword = "badminton-test"
+        if (testKeystore != null) {
+            create("test") {
+                storeFile = file(testKeystore)
+                storePassword = System.getenv("ANDROID_TEST_KEYSTORE_PASSWORD")
+                keyAlias = "test"
+                keyPassword = System.getenv("ANDROID_TEST_KEYSTORE_PASSWORD")
+            }
         }
     }
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("test")
+            if (testKeystore != null) signingConfig = signingConfigs.getByName("test")
         }
     }
 

@@ -4,19 +4,20 @@
  * /e/ link from a chat) in the app, and lets the Android app show the site without an address bar.
  *
  * Android: the app in android/ (one app for every group's site), by the certificate it is signed
- * with. The test builds are signed with android/app/test.keystore, which the test site vouches
- * for; the real sites vouch for nobody until there is a release key: add its SHA-256 here.
+ * with. The test builds are signed with a key kept in the repository's secrets (android.yml); the
+ * test site vouches for it once its SHA-256 is added here. The key that used to sit in the
+ * repository is public, so nothing vouches for it any more. The real sites vouch for nobody until
+ * there is a release key: add its SHA-256 here.
  * iPhone: no app yet: add "<Team ID>.<bundle id>" here when there is one.
  */
 export const ANDROID_PACKAGE = "dev.llmat.badminton";
-export const ANDROID_TEST_CERT =
-  "11:63:9A:D6:8E:2D:B1:3F:9D:1E:D5:A8:4C:26:D5:5C:FD:27:5B:16:DD:46:17:3B:31:D7:5E:8C:B0:4B:92:E9";
+export const ANDROID_TEST_CERTS: string[] = [];
 export const ANDROID_RELEASE_CERTS: string[] = [];
 export const IOS_APP_IDS: string[] = [];
 
 /** /.well-known/assetlinks.json, or null while this site vouches for no Android app. */
-export function assetLinks(staging: boolean): object[] | null {
-  const certs = staging ? [ANDROID_TEST_CERT, ...ANDROID_RELEASE_CERTS] : ANDROID_RELEASE_CERTS;
+export function assetLinks(staging: boolean, testCerts: string[] = ANDROID_TEST_CERTS): object[] | null {
+  const certs = staging ? [...testCerts, ...ANDROID_RELEASE_CERTS] : ANDROID_RELEASE_CERTS;
   if (certs.length === 0) return null;
   return [
     {
