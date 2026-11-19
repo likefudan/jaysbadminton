@@ -312,12 +312,20 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await field(page, "邮箱").fill("xm@example.com");
   await settings.getByRole("button", { name: "保存" }).click();
   await expect(email).toContainText("xm@example.com");
+  // 微信名 is theirs to change too (Ke Li 2026-11-19), emoji allowed.
+  const wechat = settings.getByRole("button", { name: /微信名/ });
+  await expect(wechat).toContainText("xiaoming");
+  await wechat.click();
+  await field(page, "微信名").fill("小明🏸");
+  await settings.getByRole("button", { name: "保存" }).click();
+  await expect(wechat).toContainText("小明🏸");
 
   await openAdmin(page);
   await page.locator(".tabs").getByRole("button", { name: "成员" }).click();
   await page.locator(".member-row", { hasText: "小明" }).click();
   const detail = page.locator(".card.profile");
   await expect(detail.locator(".profile-info")).toContainText("xm@example.com");
+  await expect(detail.locator(".profile-info")).toContainText("小明🏸");
   await expect(detail.locator(".heatmap-grid .upcoming")).toHaveCount(1);
   await detail.getByRole("button", { name: "添加" }).click();
   await field(page, "备注名（只有群主、管理员和组织者能看到）").fill("周六队长");

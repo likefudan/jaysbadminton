@@ -3,7 +3,7 @@ import { toPacific } from "../shared/time";
 import type { Env } from "./env";
 import { HttpError, badRequest } from "./http";
 import { emailTaken, type MemberRow } from "./members";
-import { checkEmail } from "../shared/rules";
+import { checkEmail, checkNickname } from "../shared/rules";
 
 /** How far back the activity map goes (GitHub-style: about a year). */
 export const ACTIVITY_DAYS = 371;
@@ -53,6 +53,18 @@ export async function setMemberEmail(env: Env, m: MemberRow, raw: string): Promi
   await env.DB.prepare("UPDATE members SET email = ? WHERE id = ?")
     .bind(email || null, m.id)
     .run();
+}
+
+/**
+ * 设置 → 微信名: the member's own WeChat name, so the Owner can find them in the WeChat group. No
+ * character check (it has to match WeChat, emoji and all), only not empty and not too long.
+ */
+export async function setWechatNickname(env: Env, m: MemberRow, raw: string): Promise<void> {
+  const name = raw.trim();
+  if (name === m.wechat_nickname) return;
+  const err = checkNickname(name);
+  if (err) throw badRequest(err);
+  await env.DB.prepare("UPDATE members SET wechat_nickname = ? WHERE id = ?").bind(name, m.id).run();
 }
 
 export async function setAdminNote(env: Env, m: MemberRow, raw: string): Promise<void> {

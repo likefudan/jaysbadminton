@@ -267,6 +267,7 @@ describe("已停用 members", () => {
     expect((await anon.call(`${alice.base}/me`)).status).toBe(200);
     for (const [path, body] of [
       ["/rename", { username: "Alice2" }],
+      ["/wechat", { wechatNickname: "Alice2" }],
       ["/avatar/mode", { mode: "none" }],
       ["/lottery/cheer", { n: 1 }],
       ["/calories/board", { on: true }],
