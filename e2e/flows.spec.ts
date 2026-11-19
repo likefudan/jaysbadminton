@@ -373,31 +373,50 @@ test("public pages show the headcount and a link preview, never names", async ({
   await expect(card.getByRole("button", { name: "分享图片" })).toHaveCount(0);
   await expect(card).toContainText("手机上长按图片即可保存或转发");
 
-  // A phone's own share sheet (AirDrop, 信息, 微信 …): 分享图片 hands it the PNG, 分享链接 the /e/ link.
+  // A phone's own share sheet (AirDrop, 信息, 微信 …): the share icon hands it the image, QR code
+  // and all, straight away; the image is drawn ahead so the sheet opens inside the tap.
   await page.addInitScript(() => {
-    const w = window as unknown as { shared: unknown[] };
+    const w = window as unknown as { shared: unknown[]; ready: boolean; refuse: boolean };
     w.shared = [];
     Object.assign(navigator, {
-      canShare: (d: { files?: File[] }) => !!d.files?.every((f) => f.type === "image/png"),
+      canShare: (d: { files?: File[] }) => {
+        const ok = !!d.files?.every((f) => f.type === "image/png");
+        if (ok && d.files![0].size > 0) w.ready = true;
+        return ok;
+      },
       share: async (d: { files?: File[]; url?: string; text?: string }) => {
+        if (w.refuse) throw new DOMException("no", "NotAllowedError");
         w.shared.push(d.files ? { file: d.files[0].name, size: d.files[0].size } : { url: d.url, text: d.text });
       },
     });
   });
+  type Shared = { file?: string; size?: number; url?: string; text?: string }[];
+  const sharedSoFar = async () =>
+    (await page.evaluate(() => (window as unknown as { shared: Shared }).shared)) as Shared;
   await page.reload();
+  await page.waitForFunction(() => (window as unknown as { ready?: boolean }).ready);
   await page.locator(".card").getByRole("button", { name: "分享", exact: true }).click();
+  await expect.poll(async () => (await sharedSoFar()).length).toBe(1);
+  expect((await sharedSoFar())[0].file).toMatch(/\.png$/);
+  expect((await sharedSoFar())[0].size).toBeGreaterThan(10_000);
+  await expect(card).toHaveCount(0); // no panel in between
+
+  // If the browser refuses the sheet, the tap opens the image on its panel, with 分享图片 / 分享链接.
+  await page.evaluate(() => {
+    (window as unknown as { refuse: boolean }).refuse = true;
+  });
+  await page.locator(".card").getByRole("button", { name: "分享", exact: true }).click();
+  await expect(card.locator("img.sharecard")).toBeVisible();
+  await page.evaluate(() => {
+    (window as unknown as { refuse: boolean }).refuse = false;
+  });
   await card.getByRole("button", { name: "分享图片" }).click();
   await card.getByRole("button", { name: "分享链接" }).click();
-  const shared = (await page.evaluate(() => (window as unknown as { shared: unknown[] }).shared)) as {
-    file?: string;
-    size?: number;
-    url?: string;
-    text?: string;
-  }[];
-  expect(shared[0].file).toMatch(/\.png$/);
-  expect(shared[0].size).toBeGreaterThan(10_000);
-  expect(shared[1].url).toBe(`${new URL(page.url()).origin}/e/${eventCode}`);
-  expect(shared[1].text).toContain("Test Gym");
+  await expect.poll(async () => (await sharedSoFar()).length).toBe(3);
+  const shared = await sharedSoFar();
+  expect(shared[1].file).toMatch(/\.png$/);
+  expect(shared[2].url).toBe(`${new URL(page.url()).origin}/e/${eventCode}`);
+  expect(shared[2].text).toContain("Test Gym");
   await expect(card).not.toContainText("手机上长按图片");
 });
 
