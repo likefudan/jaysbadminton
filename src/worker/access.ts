@@ -229,6 +229,9 @@ export const ADMIN_ACCESS: Record<string, Rule> = {
   "POST /members/:id/revoke": memberTarget(),
   "POST /events/:id/transfer": cap("group"),
   "GET /group-audit": cap("group"),
+  // 出勤统计 on 成员 (Ke Li 2026-11-19): the Owner and admins
+  "GET /members/attendance": cap("group"),
+  "GET /members/:id/attendance": cap("group"),
 
   // members.read: the member and pending pages (they carry no personal links)
   "GET /members": cap("members.read"),

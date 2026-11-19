@@ -3,6 +3,34 @@
 // and then read over by hand. Kept apart from messages.ts only to keep each file a readable size.
 
 export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
+  // 出勤统计 on 成员 (2026-11-19)
+  "近 30 天": { tw: "近 30 天", en: "Last 30 days" },
+  "近 90 天": { tw: "近 90 天", en: "Last 90 days" },
+  最近来过: { tw: "最近來過", en: "Most recent" },
+  次数最多: { tw: "次數最多", en: "Most events" },
+  出勤率最高: { tw: "出勤率最高", en: "Best attendance" },
+  入群先后: { tw: "入群先後", en: "Join order" },
+  "全部@members": { tw: "全部", en: "All" },
+  活跃: { tw: "活躍", en: "Active" },
+  少来: { tw: "少來", en: "Rarely" },
+  不活跃: { tw: "不活躍", en: "Inactive" },
+  从没来过: { tw: "從沒來過", en: "Never came" },
+  今天: { tw: "今天", en: "Today" },
+  "{n} 个月没来": { tw: "{n} 個月沒來", en: "{n} months away" },
+  "{n} 天前": { tw: "{n} 天前", en: "{n} days ago" },
+  按活跃程度筛选: { tw: "按活躍程度篩選", en: "Filter by activity" },
+  统计时间: { tw: "統計時間", en: "Period" },
+  "共办 {n} 场": { tw: "共辦 {n} 場", en: "{n} events held" },
+  排序: { tw: "排序", en: "Sort" },
+  "参加（共办 {n} 场）": { tw: "參加（共辦 {n} 場）", en: "Came (of {n} held)" },
+  出勤率: { tw: "出勤率", en: "Attendance" },
+  上次来: { tw: "上次來", en: "Last came" },
+  报了名没来: { tw: "報了名沒來", en: "No-shows" },
+  "近 12 周，一格一周": { tw: "近 12 週，一格一週", en: "Last 12 weeks, one square a week" },
+  "出勤率 = 来了几场 ÷ 入群以后这段时间办了几场（取消的不算）。30 天内来过算活跃，30–90 天算少来，更久没来算不活跃。": {
+    tw: "出勤率 = 來了幾場 ÷ 入群以後這段時間辦了幾場（取消的不算）。30 天內來過算活躍，30–90 天算少來，更久沒來算不活躍。",
+    en: "Attendance = events they came to ÷ events held in this period since they joined (cancelled ones don't count). Came in the last 30 days: active; 30–90 days: rarely; longer: inactive.",
+  },
   // 抽奖
   抽奖: { tw: "抽獎", en: "Lucky draw" },
   百人庆祝抽奖: { tw: "百人慶祝抽獎", en: "100-member celebration draw" },

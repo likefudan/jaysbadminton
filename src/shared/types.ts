@@ -125,6 +125,43 @@ export interface ActivityDay {
   status: "done" | "absent" | "upcoming";
 }
 
+/** 出勤统计 window: the last 30 or 90 days, this calendar year, or everything. */
+export type AttendanceWindow = "30" | "90" | "year" | "all";
+
+/** One member's 出勤 numbers for a window (worker/attendance.ts). */
+export interface AttendanceStat {
+  id: string;
+  /** Events they came to (their own sign-up, not marked absent). */
+  attended: number;
+  /** Events held in the window since they joined (started, not cancelled). */
+  held: number;
+  /** Signed up but marked absent. */
+  noShows: number;
+  /** The last event they came to (any time), Pacific "YYYY-MM-DD". */
+  lastDate: string | null;
+  daysSince: number | null;
+  /** Days since they joined. */
+  joinedDays: number;
+}
+
+export interface MemberAttendanceResponse {
+  window: AttendanceWindow;
+  /** The window's first day, null for 全部. */
+  from: string | null;
+  /** Events held in the window. */
+  held: number;
+  members: AttendanceStat[];
+  thresholds: { active: number; quiet: number };
+}
+
+export interface AttendanceDetail extends AttendanceStat {
+  window: AttendanceWindow;
+  /** Pacific "YYYY-MM-DD". */
+  joined: string;
+  /** Times they came in each of the last 12 weeks, oldest first; null before they joined. */
+  weeks: (number | null)[];
+}
+
 export interface MemberProfile {
   id: string;
   username: string;

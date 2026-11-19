@@ -34,6 +34,7 @@ import {
   toSummary,
 } from "../members";
 import { memberProfile, setAdminNote } from "../profile";
+import { memberAttendance, membersAttendance, parseWindow } from "../attendance";
 import { googleSession, memberByGoogle, requireSameOrigin } from "../googleAuth";
 import { saveBotToken } from "../telegram";
 
@@ -80,6 +81,17 @@ adminRoutes.get("/:token/members", async (c) => {
     organizers,
     viewer: { id: actor.memberId, role: actor.role, caps: [...ROLE_CAPABILITIES[actor.role]] },
   });
+});
+
+/** 出勤统计: every active member's numbers for the window (?window=30|90|year|all). */
+adminRoutes.get("/:token/members/attendance", async (c) =>
+  c.json(await membersAttendance(c.env, parseWindow(c.req.query("window")))),
+);
+
+adminRoutes.get("/:token/members/:id/attendance", async (c) => {
+  const a = await memberAttendance(c.env, c.req.param("id"), parseWindow(c.req.query("window")));
+  if (!a) throw new HttpError(404, "not_found", "找不到这个成员");
+  return c.json(a);
 });
 
 /** 群操作记录, a page at a time (the Owner and admins). */
