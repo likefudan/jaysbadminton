@@ -45,7 +45,7 @@
   --danger-soft: rgba(194, 72, 62, 0.1);
   --on-acc: #ffffff;
   /* accent: 珊瑚橙 */
-  --acc: #d38a6c;
+  --acc: #b4633f;
   --acc-ink: #ad5c3e;
   --acc-soft: #f7ece6;
   --acc-line: #ecd6cb;
@@ -84,7 +84,7 @@
   color-scheme: dark;
 }
 [data-accent="coral"] {
-  --acc: #d38a6c;
+  --acc: #b4633f;
   --acc-ink: #ad5c3e;
   --acc-soft: #f7ece6;
   --acc-line: #ecd6cb;
