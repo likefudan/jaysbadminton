@@ -340,6 +340,19 @@ describe("site title", () => {
   });
 });
 
+describe("tab bar transparency", () => {
+  it("defaults to the clearest glass, is one choice for the group, takes 1–4 only", async () => {
+    expect((await anon.call("/api/public/site")).data.glass).toBe(1);
+    const { admin, base } = await setUpAdmin();
+    expect((await admin.call(`${base}/settings`)).data.glass).toBe(1);
+    expect((await admin.call(`${base}/settings`, { glass: 3 })).status).toBe(200);
+    expect((await anon.call("/api/public/site")).data.glass).toBe(3);
+    expect((await admin.call(`${base}/settings`)).data.glass).toBe(3);
+    expect((await admin.call(`${base}/settings`, { glass: 5 })).status).toBe(400);
+    expect((await admin.call(`${base}/settings`, { glass: "2" })).status).toBe(400);
+  });
+});
+
 describe("default appearance", () => {
   it("defaults to 简约·珊瑚橙, accepts the eight looks and nothing else", async () => {
     expect((await anon.call("/api/public/site")).data.theme).toBe("minimal-coral");

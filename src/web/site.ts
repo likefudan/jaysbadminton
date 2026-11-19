@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { DEFAULT_THEME, isTheme, normalizeTheme, themeById, type ThemeId } from "../shared/themes";
-import { type AppNames, appNameFor } from "../shared/rules";
+import { DEFAULT_GLASS, type AppNames, appNameFor, normalizeGlass } from "../shared/rules";
 import { api } from "./api";
 import { chosenLang, listeners as langListeners } from "./lang";
 
@@ -10,6 +10,7 @@ import { chosenLang, listeners as langListeners } from "./lang";
 const TITLE_KEY = "site-title";
 const APP_NAME_KEY = "app-name";
 const SITE_THEME_KEY = "site-theme";
+const SITE_GLASS_KEY = "site-glass";
 const MY_THEME_KEY = "my-theme";
 const MY_MODE_KEY = "my-mode";
 const DEFAULT = "Jay's 羽毛球";
@@ -58,6 +59,7 @@ function load() {
       title: string;
       appNames?: AppNames;
       theme: string;
+      glass?: number;
       staging?: boolean;
       icon?: string | null;
       sponsor?: Sponsor | null;
@@ -67,6 +69,7 @@ function load() {
         setSiteTitle(r.title);
         setAppNames(r.appNames ?? null);
         setSiteTheme(r.theme);
+        setSiteGlass(r.glass);
         staging = !!r.staging;
         if (staging)
           document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]').forEach((icon) => {
@@ -227,6 +230,17 @@ function update(next: Partial<Appearance>) {
 export const siteThemeId = (): ThemeId => look.site;
 /** The look this visitor sees: their own pick, else the Owner's default. Personal images use it. */
 export const myThemeId = (): ThemeId => look.mine ?? look.site;
+
+/**
+ * How see-through the app's bottom tabs are, for the whole group (设置 › 外观和公共页面). Kept on
+ * <html data-glass>; the CSS picks the glass for it. Remembered so the next visit starts right.
+ */
+export function setSiteGlass(glass: unknown) {
+  const g = normalizeGlass(glass);
+  document.documentElement.dataset.glass = String(g);
+  write(SITE_GLASS_KEY, g === DEFAULT_GLASS ? "" : String(g));
+}
+setSiteGlass(read(SITE_GLASS_KEY, ""));
 
 /** The Owner's default, from the server or from a change in settings. */
 export function setSiteTheme(theme: string) {

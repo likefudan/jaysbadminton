@@ -5,7 +5,7 @@ import { summaries, type EventRow } from "../events";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
 import { HttpError, readJson, str } from "../http";
-import { appNames, isStaging, siteTheme } from "../site";
+import { appNames, isStaging, siteGlass, siteTheme } from "../site";
 import { boardSettings, leaderboard, onlyBoards } from "../stats";
 import { signedInMember } from "../googleAuth";
 import { readAvatar } from "../avatars";
@@ -16,12 +16,19 @@ export const publicRoutes = new Hono<{ Bindings: Env }>();
 
 /** The site's name, theme and the like: /api/public/site, and written into every page (boot.ts). */
 export async function siteInfo(env: Env) {
-  const [{ names, title }, theme, autoJoin] = await Promise.all([appNames(env), siteTheme(env), autoJoinEnabled(env)]);
+  const [{ names, title }, theme, glass, autoJoin] = await Promise.all([
+    appNames(env),
+    siteTheme(env),
+    siteGlass(env),
+    autoJoinEnabled(env),
+  ]);
   return {
     title,
     // 桌面图标名称 as set, by language: the page picks the visitor's (iPhone offers it when adding).
     appNames: names,
     theme,
+    // How see-through the app's bottom tabs are, 1 (clearest) to 4 (frosted).
+    glass,
     staging: isStaging(env),
     // The site's own icon colour (sites.json "icon"), for the logo in the top bar.
     icon: env.SITE_ICON || null,
