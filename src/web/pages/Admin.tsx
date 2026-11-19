@@ -53,7 +53,7 @@ export function Admin(props: { token?: string }) {
 
   return (
     // No big title (Ke Li 2026-11-13): the tabs sit right under the top bar, as on the member pages.
-    <Page title={t("管理页")} bare>
+    <Page title={t("管理页")} bare oneColumn>
       <Load result={members}>
         {(m) => (
           <>
