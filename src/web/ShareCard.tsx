@@ -306,6 +306,7 @@ function ShareCardSheet(props: { text: CardText; onClose: () => void }) {
     drawShareCard(site, props.text).then(setPng, () => setFailed(true));
   }, [site, props.text.url]);
 
+  const words = [props.text.heading || site, ...props.text.lines].filter(Boolean).join("\n");
   return (
     <Panel title={t("分享")} label={t("分享")} onClose={props.onClose}>
       {failed && <p class="muted">{t("名片生成失败，请刷新后再试。")}</p>}
@@ -313,9 +314,69 @@ function ShareCardSheet(props: { text: CardText; onClose: () => void }) {
       {png && (
         <>
           <img class="sharecard" src={png} alt={t("分享")} />
-          <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>
+          <SystemShare png={png} name={site} words={words} url={props.text.url} />
         </>
       )}
     </Panel>
+  );
+}
+
+type Sharing = Navigator & {
+  share?: (data: { files?: File[]; title?: string; text?: string; url?: string }) => Promise<void>;
+  canShare?: (data: { files?: File[] }) => boolean;
+};
+
+/** A data: URL as a file, without fetch (the page's CSP doesn't allow fetching data: URLs). */
+function pngFile(png: string, name: string): File {
+  const bytes = atob(png.slice(png.indexOf(",") + 1));
+  const buf = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+  return new File([buf], `${name}.png`, { type: "image/png" });
+}
+
+/**
+ * Under a share image: 分享图片 (and 分享链接 when there is a link) open the phone's own share sheet,
+ * with AirDrop, 信息, 微信 and the rest (Ke Li 2026-11-19). Where the browser has no share sheet
+ * (most computers, WeChat's built-in browser) the buttons aren't shown and the long-press hint is.
+ * The file is made before the tap, so the share starts right inside the tap, which Safari requires.
+ */
+export function SystemShare(props: { png: string; name: string; words?: string; url?: string }) {
+  const nav = navigator as Sharing;
+  const [file, setFile] = useState<File | null>(null);
+  useEffect(() => {
+    try {
+      const f = pngFile(props.png, props.name.replace(/[\\/:*?"<>|]/g, "").trim() || "share");
+      setFile(nav.canShare?.({ files: [f] }) ? f : null);
+    } catch {
+      setFile(null);
+    }
+  }, [props.png, props.name]);
+  const share = (data: Parameters<NonNullable<Sharing["share"]>>[0]) => {
+    // A closed sheet rejects with AbortError; nothing to say either way.
+    nav.share?.(data).catch(() => {});
+  };
+  const link = props.url && nav.share;
+  return (
+    <>
+      {(file || link) && (
+        <div class="share-actions">
+          {file && (
+            <button class="button block" type="button" onClick={() => share({ files: [file] })}>
+              {t("分享图片")}
+            </button>
+          )}
+          {link && (
+            <button
+              class={file ? "button secondary block" : "button block"}
+              type="button"
+              onClick={() => share({ title: props.name, text: props.words, url: props.url })}
+            >
+              {t("分享链接")}
+            </button>
+          )}
+        </div>
+      )}
+      {!file && <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>}
+    </>
   );
 }
