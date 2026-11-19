@@ -369,6 +369,36 @@ test("public pages show the headcount and a link preview, never names", async ({
   await expect(card.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
   // No 下载图片 button: only the image, the long-press hint and 返回.
   await expect(card.getByRole("link")).toHaveCount(0);
+  // This browser has no share sheet, so no 分享图片 / 分享链接, only the long-press hint.
+  await expect(card.getByRole("button", { name: "分享图片" })).toHaveCount(0);
+  await expect(card).toContainText("手机上长按图片即可保存或转发");
+
+  // A phone's own share sheet (AirDrop, 信息, 微信 …): 分享图片 hands it the PNG, 分享链接 the /e/ link.
+  await page.addInitScript(() => {
+    const w = window as unknown as { shared: unknown[] };
+    w.shared = [];
+    Object.assign(navigator, {
+      canShare: (d: { files?: File[] }) => !!d.files?.every((f) => f.type === "image/png"),
+      share: async (d: { files?: File[]; url?: string; text?: string }) => {
+        w.shared.push(d.files ? { file: d.files[0].name, size: d.files[0].size } : { url: d.url, text: d.text });
+      },
+    });
+  });
+  await page.reload();
+  await page.locator(".card").getByRole("button", { name: "分享", exact: true }).click();
+  await card.getByRole("button", { name: "分享图片" }).click();
+  await card.getByRole("button", { name: "分享链接" }).click();
+  const shared = (await page.evaluate(() => (window as unknown as { shared: unknown[] }).shared)) as {
+    file?: string;
+    size?: number;
+    url?: string;
+    text?: string;
+  }[];
+  expect(shared[0].file).toMatch(/\.png$/);
+  expect(shared[0].size).toBeGreaterThan(10_000);
+  expect(shared[1].url).toBe(`${new URL(page.url()).origin}/e/${eventCode}`);
+  expect(shared[1].text).toContain("Test Gym");
+  await expect(card).not.toContainText("手机上长按图片");
 });
 
 test("signed in with Google: the member sees the roster on shared pages; the Owner binds Google for the admin page", async ({

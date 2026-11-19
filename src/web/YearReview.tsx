@@ -10,7 +10,7 @@ import { t, tk } from "./i18n";
 import { Panel } from "./Panel";
 import { Avatar } from "./Avatar";
 import { MeCard, type MeCardProps } from "./Profile";
-import { ShareGlyph, fitText, loadImage, roundRect, shareSans } from "./ShareCard";
+import { ShareGlyph, SystemShare, fitText, loadImage, roundRect, shareSans } from "./ShareCard";
 import { myThemeId, useSiteTitle } from "./site";
 
 /** Each badge's name, unit and line icon (24×24 path data, also drawn on the share image). */
@@ -298,7 +298,7 @@ function YearShare(props: { review: YearReview; name: string; onClose: () => voi
       {png && (
         <>
           <img class="sharecard" src={png} alt={t("你的 {year}", { year: props.review.year })} />
-          <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>
+          <SystemShare png={png} name={site} />
         </>
       )}
     </Panel>
