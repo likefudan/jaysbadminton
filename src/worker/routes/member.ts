@@ -92,9 +92,15 @@ memberRoutes.use("/:token/*", async (c, next) => {
   if (session && c.req.method !== "GET") requireSameOrigin(c);
   const m = session ? await googleMember(c) : await memberByToken(c.env, c.req.param("token"));
   if (!m) throw invalidLink();
+  // 已停用: they can still look, pay, cancel and delete what is theirs, but no longer show up in
+  // the group (a new name or photo, the 抽奖, the boards, new pushes).
+  if (m.status === "inactive" && c.req.method !== "GET" && CLOSED_TO_INACTIVE.test(c.req.path))
+    throw badRequest(`你的账号已停用，不能做这个操作。有疑问请联系 ${await ownerName(c.env.DB)}。`);
   c.set("member", m);
   await next();
 });
+const CLOSED_TO_INACTIVE =
+  /\/(avatar|avatar\/mode|rename|lottery\/cheer|lottery\/opt|calories\/board|push\/subscribe|events\/[^/]+\/calories)$/;
 
 memberRoutes.get("/:token/me", async (c) => {
   const m = c.get("member");

@@ -1,6 +1,6 @@
 import { type Context, Hono } from "hono";
 import { calendarEntry, icsFile } from "../../shared/calendar";
-import type { HomeResponse, PublicEvent } from "../../shared/types";
+import type { EventSummary, HomeResponse, PublicEvent } from "../../shared/types";
 import { summaries, type EventRow } from "../events";
 import { adminLinkExists, checkPassword, issueAdminToken, startSession } from "../auth";
 import type { Env } from "../env";
@@ -42,12 +42,19 @@ publicRoutes.get("/home", async (c) => {
     ]),
     publicBoard(c),
   ]);
-  const [currentEvents, pastEvents] = await Promise.all([
-    summaries(c.env, current!.results),
-    summaries(c.env, past!.results),
-  ]);
+  const [currentEvents, pastEvents] = await Promise.all([forViewer(c, current!.results), forViewer(c, past!.results)]);
   return c.json<HomeResponse>({ currentEvents, pastEvents, leaderboard });
 });
+
+/**
+ * Events as whoever is asking may see them: a visitor who isn't signed in gets when, which venue and
+ * how many, but not the street address or the organizer's notes (court numbers, where to meet),
+ * which are for the group.
+ */
+async function forViewer(c: Context<{ Bindings: Env }>, rows: EventRow[]): Promise<EventSummary[]> {
+  const [list, member] = await Promise.all([summaries(c.env, rows), signedInMember(c)]);
+  return member ? list : list.map((e) => ({ ...e, address: "", notes: "" }));
+}
 
 /**
  * 首页排行榜: the boards the Owner or an admin made public, to signed-in members only unless
@@ -75,7 +82,7 @@ publicRoutes.get("/events/:code", async (c) => {
     .first<EventRow>();
   if (!e) throw new HttpError(404, "event_not_found", "找不到这个活动");
   // Public: the head count only, never who signed up.
-  const [summary] = await summaries(c.env, [e]);
+  const [summary] = await forViewer(c, [e]);
   return c.json<PublicEvent>(summary!);
 });
 
@@ -85,7 +92,7 @@ publicRoutes.get("/events/:code/calendar.ics", async (c) => {
     .bind(c.req.param("code").toUpperCase())
     .first<EventRow>();
   if (!e) throw new HttpError(404, "event_not_found", "找不到这个活动");
-  const [summary] = await summaries(c.env, [e]);
+  const [summary] = await forViewer(c, [e]);
   return c.body(icsFile(calendarEntry(summary!, c.env.SITE_ORIGIN)), 200, {
     "Content-Type": "text/calendar; charset=utf-8",
     "Content-Disposition": `inline; filename="badminton-${e.date}.ics"`,

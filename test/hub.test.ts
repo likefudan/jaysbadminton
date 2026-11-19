@@ -81,6 +81,21 @@ describe("what a site tells the 总入口", () => {
     expect(data.events).toEqual([]);
   });
 
+  it("goes by the Google account's own number when the 总入口 sends it, not by the address", async () => {
+    const ctx = await setUpAdmin();
+    const joined = await googleJoin("Alice", "alice-wx", { email: "alice@gmail.com" });
+    await ctx.admin.call(`${ctx.base}/members/${joined.data.id}/approve`, {});
+    const row = await env.DB.prepare("SELECT google_sub FROM members WHERE id = ?")
+      .bind(joined.data.id)
+      .first<{ google_sub: string }>();
+    // The same account under a new address is still Alice.
+    const own = await ask(await question("alice.new@gmail.com", { claims: { sub: row!.google_sub } }));
+    expect(own.data.member).toMatchObject({ name: "Alice" });
+    // Another account that now holds her old address is nobody here.
+    const other = await ask(await question("alice@gmail.com", { claims: { sub: "someone-else" } }));
+    expect(other.data.member).toBeNull();
+  });
+
   it("lists a member's coming events, whether they are on them, and their role", async () => {
     const ctx = await setUpAdmin();
     const joined = await googleJoin("Alice", "alice-wx", { email: "alice@gmail.com" });

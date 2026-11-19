@@ -18,6 +18,9 @@ import { canRelease, type Role, roleOf, type Status, type User, UserBook } from 
 /** 站点管理 (the Release Service), under 开发者设置. */
 const RELEASE = "/dev/release";
 const SESSION = "__Host-ops";
+// The Google account's own number beside the session (which only holds the email): the groups' sites
+// find the member by it, so an address that changed hands never opens someone else's groups.
+const ACCOUNT = "__Host-ops-sub";
 const OAUTH = "__Host-ops-oauth";
 const DAY = 86400;
 const googleKeys = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
@@ -198,6 +201,9 @@ async function finishLogin(req: Request, env: Env, ctx: ExecutionContext): Promi
     return redirect(next === "d" ? RELEASE : "/", [
       clear,
       cookie(SESSION, await sign(env.OPS_SESSION_KEY!, email, 7 * DAY), 7 * DAY),
+      ...(typeof payload.sub === "string" && payload.sub
+        ? [cookie(ACCOUNT, await sign(env.OPS_SESSION_KEY!, `${payload.sub} ${email}`, 7 * DAY), 7 * DAY)]
+        : []),
     ]);
   } catch (err) {
     console.error("ops login failed:", err);
@@ -241,7 +247,8 @@ export default {
     const problem = ready(env, lang);
     if (path === "/login") return problem ? redirect("/") : startLogin(env, url.searchParams.get("next") === "dev");
     if (path === "/auth/callback") return problem ? redirect("/") : finishLogin(req, env, ctx);
-    if (path === "/logout" && req.method === "POST") return redirect("/", [cookie(SESSION, "", 0)]);
+    if (path === "/logout" && req.method === "POST")
+      return redirect("/", [cookie(SESSION, "", 0), cookie(ACCOUNT, "", 0)]);
 
     const me = problem ? null : await who(req, env);
     const html = (body: string) => respond(body, { type: "text/html; charset=utf-8" });
@@ -250,7 +257,15 @@ export default {
       let groups: Awaited<ReturnType<typeof groupsOf>> = [];
       if (me)
         try {
-          groups = await groupsOf(env, await signingKey(env), me.email, me.role !== null);
+          // Signed in before this cookie existed: by email until the next sign-in.
+          const [sub, mail] = ((await unsign(env.OPS_SESSION_KEY!, readCookie(req, ACCOUNT))) ?? "").split(" ");
+          groups = await groupsOf(
+            env,
+            await signingKey(env),
+            me.email,
+            me.role !== null,
+            sub && mail === me.email ? sub : null,
+          );
         } catch (err) {
           console.error("ops: groups failed:", err);
         }

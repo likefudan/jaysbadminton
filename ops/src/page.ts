@@ -119,7 +119,7 @@ export function page({
 
 export const APP_CSS = `
 /* The same look as the groups' sites (src/web/styles.css, 简约 with the 珊瑚橙 accent): warm paper, thin lines. */
-:root{--bg:#f7f4ef;--card:#fff;--text:#1f1d1a;--text2:#55504a;--muted:#8a847c;--line:#e9e3da;--soft:#f3efe9;--accent:#d38a6c;--acc:#d38a6c;--ink:#ad5c3e;--hero:#f7ece6;--topbar:rgba(247,244,239,.86);--shadow:0 1px 2px rgba(60,40,20,.04);--ok:#3f8f5c;--okbg:rgba(79,154,105,.13);--warn:#a65a14;--warnbg:rgba(224,154,45,.15);--bad:#c2483e;--badbg:rgba(194,72,62,.1);--shade:linear-gradient(145deg,rgba(255,255,255,.14),rgba(0,0,0,.12));color-scheme:light}
+:root{--bg:#f7f4ef;--card:#fff;--text:#1f1d1a;--text2:#55504a;--muted:#6f6962;--line:#e9e3da;--soft:#f3efe9;--accent:#d38a6c;--acc:#d38a6c;--ink:#ad5c3e;--hero:#f7ece6;--topbar:rgba(247,244,239,.86);--shadow:0 1px 2px rgba(60,40,20,.04);--ok:#3f8f5c;--okbg:rgba(79,154,105,.13);--warn:#a65a14;--warnbg:rgba(224,154,45,.15);--bad:#c2483e;--badbg:rgba(194,72,62,.1);--shade:linear-gradient(145deg,rgba(255,255,255,.14),rgba(0,0,0,.12));color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#171513;--card:#211e1b;--text:#f3efe9;--text2:#cfc8bf;--muted:#a19a90;--line:#332f2a;--soft:#2b2723;--ink:#e3a78c;--hero:#33261f;--topbar:rgba(23,21,19,.86);--shadow:none;--ok:#7cc495;--okbg:rgba(109,187,136,.15);--warn:#f2b562;--warnbg:rgba(224,154,45,.14);--bad:#ef8a80;--badbg:rgba(239,138,128,.14);--shade:linear-gradient(145deg,rgba(0,0,0,.12),rgba(0,0,0,.5));color-scheme:dark}}
 /* Each group in its own colour, as its site's icon. */
 .t-ocean{--acc:#6d8fb0}.t-forest{--acc:#6f9a7e}.t-grape{--acc:#9686b8}.t-violet{--acc:#8f7ae0}

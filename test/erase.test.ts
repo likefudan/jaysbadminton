@@ -258,3 +258,26 @@ describe("球馆账号密码 for members nobody approved (Ke Li 2026-11-18)", ()
     expect(pw(q.accounts)).toEqual({ gym1: "pw1", gym2: "pw2" });
   });
 });
+
+describe("已停用 members", () => {
+  it("can no longer rename, change their photo or cheer, but still see their page", async () => {
+    const ctx = await setUpAdmin();
+    const alice = await approveMember(ctx, "Alice");
+    await ctx.admin.call(`${ctx.base}/members/${alice.id}/deactivate`, {});
+    expect((await anon.call(`${alice.base}/me`)).status).toBe(200);
+    for (const [path, body] of [
+      ["/rename", { username: "Alice2" }],
+      ["/avatar/mode", { mode: "none" }],
+      ["/lottery/cheer", { n: 1 }],
+      ["/calories/board", { on: true }],
+    ] as const) {
+      const res = await anon.call(`${alice.base}${path}`, body);
+      expect([path, res.status]).toEqual([path, 400]);
+      expect(res.data.error.message).toContain("已停用");
+    }
+    expect((await member(alice.id)).username).toBe("Alice");
+    // Back in the group: allowed again.
+    await ctx.admin.call(`${ctx.base}/members/${alice.id}/reactivate`, {});
+    expect((await anon.call(`${alice.base}/rename`, { username: "Alice2" })).status).toBe(200);
+  });
+});

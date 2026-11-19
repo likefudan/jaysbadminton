@@ -1316,4 +1316,12 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "你負責的 {date} 活動還沒收齊歸檔，之後才能刪除帳號",
     en: "The {date} event you run is not fully paid and archived yet. You can delete your account after that",
   },
+  "你的账号已停用，不能做这个操作。有疑问请联系 {name}。": {
+    tw: "你的帳號已停用，不能做這個操作。有疑問請聯絡 {name}。",
+    en: "Your account is disabled, so this is not available. Questions? Contact {name}.",
+  },
+  "抽奖已经开始，不能再改了": {
+    tw: "抽獎已經開始，不能再改了",
+    en: "The draw has started and can no longer be changed",
+  },
 };
