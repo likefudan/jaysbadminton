@@ -6045,7 +6045,7 @@ label.set-row {
   max-width: 250px;
   padding: 14px;
   border-radius: 18px;
-  background: var(--surface);
+  background: var(--account-menu-bg);
   box-shadow: var(--shadow);
   text-align: center;
 }
