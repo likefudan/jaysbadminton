@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { calendarEntry, googleCalendarUrl, icsFile } from "../src/shared/calendar";
 import type { EventSummary } from "../src/shared/types";
 import { eventMeta, homeMeta, withShareMeta } from "../src/worker/share";
-import { ORIGIN, createTestEvent, setUpAdmin } from "./helpers";
+import { Client, ORIGIN, createTestEvent, googleJoin, request, setUpAdmin } from "./helpers";
 
 const get = (path: string) => exports.default.fetch(`${ORIGIN}${path}`);
 const SHELL = `<!doctype html><html><head><title>Jay's 羽毛球</title>
@@ -98,7 +98,15 @@ describe("加入日历", () => {
     const res = await get(`/api/public/events/${ev.code}/calendar.ics`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/calendar; charset=utf-8");
-    expect(await res.text()).toContain("4004 Wellness Way");
+    // The street address and the notes are for the group: not for a visitor who isn't signed in.
+    expect(await res.text()).not.toContain("4004 Wellness Way");
+    expect((await new Client().call(`/api/public/events/${ev.code}`)).data).toMatchObject({ address: "", notes: "" });
+    const dan = await googleJoin("Dan", "dan_wx");
+    await ctx.admin.call(`${ctx.base}/members/${dan.data.id}/approve`, {});
+    const signedIn = await request(`/api/public/events/${ev.code}/calendar.ics`, dan.cookie);
+    expect(await signedIn.text()).toContain("4004 Wellness Way");
+    const mine = (await (await request(`/api/public/events/${ev.code}`, dan.cookie)).json()) as { address: string };
+    expect(mine.address).toBe("4004 Wellness Way, San Jose, CA 95131");
     expect((await get("/api/public/events/NOPE/calendar.ics")).status).toBe(404);
   });
 });

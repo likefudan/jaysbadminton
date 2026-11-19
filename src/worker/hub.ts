@@ -47,7 +47,7 @@ export interface HubAnswer {
 }
 
 /** The account's email from a question the 总入口 signed for this site, or a 401. */
-async function asker(env: Env, authorization: string | undefined): Promise<string> {
+async function asker(env: Env, authorization: string | undefined): Promise<{ email: string; sub: string | null }> {
   const token = authorization?.match(/^Bearer (.+)$/)?.[1];
   const refused = new HttpError(401, "hub_refused", "总入口的请求无效");
   if (!token) throw refused;
@@ -61,19 +61,24 @@ async function asker(env: Env, authorization: string | undefined): Promise<strin
       maxTokenAge: 120,
     });
     if (typeof payload.email !== "string" || !payload.email) throw refused;
-    return payload.email.toLowerCase();
+    return {
+      email: payload.email.toLowerCase(),
+      sub: typeof payload.sub === "string" && payload.sub ? payload.sub : null,
+    };
   } catch {
     throw refused;
   }
 }
 
-export async function hubAnswer(env: Env, email: string): Promise<HubAnswer> {
+export async function hubAnswer(env: Env, email: string, sub: string | null = null): Promise<HubAnswer> {
   const site = { name: await siteTitle(env) };
+  // By the Google account's own number when the 总入口 sends it: an email address can change hands,
+  // the number can't. By email only for a 总入口 from before it did.
   const m = await env.DB.prepare(
-    `SELECT * FROM members WHERE lower(google_email) = ? AND google_sub IS NOT NULL AND deleted_at IS NULL
-       AND status != 'inactive'`,
+    `SELECT * FROM members WHERE ${sub ? "google_sub = ?" : "lower(google_email) = ? AND google_sub IS NOT NULL"}
+       AND deleted_at IS NULL AND status != 'inactive'`,
   )
-    .bind(email)
+    .bind(sub ?? email)
     .first<MemberRow>();
   if (!m) return { site, member: null, events: [] };
   const pending = m.status === "pending";
@@ -130,6 +135,6 @@ export async function hubAnswer(env: Env, email: string): Promise<HubAnswer> {
 export const hubRoutes = new Hono<{ Bindings: Env }>();
 hubRoutes.get("/me", async (c) => {
   if (!c.env.HUB_ORIGIN) throw new HttpError(404, "not_found", "找不到这个地址");
-  const email = await asker(c.env, c.req.header("Authorization"));
-  return c.json(await hubAnswer(c.env, email), 200, { "Cache-Control": "no-store" });
+  const { email, sub } = await asker(c.env, c.req.header("Authorization"));
+  return c.json(await hubAnswer(c.env, email, sub), 200, { "Cache-Control": "no-store" });
 });

@@ -220,9 +220,13 @@ describe("抽奖", () => {
     const admin = (await ctx.admin.call(`${ctx.base}/lottery`)).data;
     expect(admin.excluded.map((e: { rank: number }) => e.rank)).toEqual([3]);
 
-    // Published, until locked: Bob back on, Cat off.
+    // Published, until locked: Bob back on, Cat off. A changed list gets a new seed, so knowing the
+    // old one says nothing about who wins.
     const id = mine.id;
+    const seed = async () => (await env.DB.prepare("SELECT seed FROM lotteries").first<{ seed: string }>())!.seed;
+    const before = await seed();
     expect((await ctx.admin.call(`${ctx.base}/lottery/${id}/exclude`, { exclude: [catId] })).status).toBe(200);
+    expect(await seed()).not.toBe(before);
     const after = (await anon.call(`${cat.base}/lottery`)).data.lottery;
     expect(after.entries.map((e: { rank: number }) => e.rank)).toEqual([1, 2, 3]);
     expect(after.me).toMatchObject({ rank: 4, inPool: false });
@@ -236,6 +240,12 @@ describe("抽奖", () => {
     await env.DB.prepare("UPDATE lotteries SET draw_at = ?, drawn_at = NULL")
       .bind(new Date(Date.now() - 1000).toISOString())
       .run();
+    // Once the time has come nothing changes any more, even unlocked and before anyone has looked.
+    await env.DB.prepare("UPDATE lotteries SET locked = 0").run();
+    const final = await seed();
+    expect((await ctx.admin.call(`${ctx.base}/lottery/${id}/exclude`, { exclude: [] })).status).toBe(400);
+    expect((await anon.call(`${amy.base}/lottery/opt`, { out: true })).status).toBe(400);
+    expect(await seed()).toBe(final);
     await ctx.admin.call(`${ctx.base}/lottery`);
     const { results } = await env.DB.prepare("SELECT rank FROM lottery_winners").all<{ rank: number }>();
     expect(results.every((w) => w.rank !== 4)).toBe(true);

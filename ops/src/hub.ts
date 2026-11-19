@@ -104,13 +104,19 @@ export function hubSites(env: Env, staff: boolean): Site[] {
  * The groups this Google account belongs to, in the sites' order. Each site is asked at once and
  * given a few seconds; one that is slow, down or not taking part yet is left out.
  */
-export async function groupsOf(env: Env, key: HubKey, email: string, staff: boolean): Promise<Group[]> {
+export async function groupsOf(
+  env: Env,
+  key: HubKey,
+  email: string,
+  staff: boolean,
+  sub: string | null = null,
+): Promise<Group[]> {
   const signer = await importJWK(key.privateJwk, "ES256");
   const answers = await Promise.all(
     hubSites(env, staff).map(async (site) => {
       try {
         const origin = `https://${site.domain}`;
-        const token = await new SignJWT({ email })
+        const token = await new SignJWT(sub ? { email, sub } : { email })
           .setProtectedHeader({ alg: "ES256", kid: key.kid })
           .setIssuer(env.OPS_ORIGIN)
           .setAudience(origin)

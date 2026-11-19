@@ -257,6 +257,20 @@ export async function cheer(env: Env, memberId: string, n: unknown): Promise<{ c
 }
 
 /**
+ * Every change to who takes part or what is drawn gets a new seed, so the result is decided only by
+ * the list as it finally stands: nobody who saw an earlier seed can steer it by taking people off.
+ * Nothing changes once the announced time has come (the draw may already be under way).
+ */
+async function reseed(env: Env, id: number): Promise<D1PreparedStatement> {
+  const seed = newSeed();
+  return env.DB.prepare(
+    "UPDATE lotteries SET seed = ?2, seed_hash = ?3 WHERE id = ?1 AND status = 'open' AND locked = 0 AND draw_at > ?4",
+  ).bind(id, seed, await sha256Hex(seed), now());
+}
+const started = (l: LotteryRow) => Date.now() >= Date.parse(l.draw_at);
+const startedError = () => badRequest("抽奖已经开始，不能再改了");
+
+/**
  * 不参加 / 重新参加 on the 抽奖 card (Ke Li 2026-11-16: 从抽奖活动卡片上 opt out): a member takes themselves
  * off the list, or comes back, until it is locked or drawn. They keep their number; nobody takes
  * their place. Someone an admin took off can't put themselves back.
@@ -265,7 +279,9 @@ export async function optLottery(env: Env, memberId: string, out: boolean): Prom
   const l = await shownLottery(env);
   if (!l || l.status !== "open") throw badRequest("抽奖已经开奖或取消了");
   if (l.locked) throw badRequest("名单已经锁定，不能再改了");
+  if (started(l)) throw startedError();
   const who = [l.id, memberId];
+  const fresh = await reseed(env, l.id);
   // Still open and unlocked when it is written (the draw may start between the check and the write).
   const live = "EXISTS (SELECT 1 FROM lotteries WHERE id = ?1 AND status = 'open' AND locked = 0)";
   if (out) {
@@ -289,6 +305,7 @@ export async function optLottery(env: Env, memberId: string, out: boolean): Prom
          AND EXISTS (SELECT 1 FROM lottery_entries WHERE lottery_id = ?1 AND member_id = ?2)`,
       ).bind(...who),
       env.DB.prepare(`DELETE FROM lottery_entries WHERE lottery_id = ?1 AND member_id = ?2 AND ${live}`).bind(...who),
+      fresh,
     ]);
     return;
   }
@@ -300,6 +317,7 @@ export async function optLottery(env: Env, memberId: string, out: boolean): Prom
     ).bind(...who),
     env.DB.prepare(`DELETE FROM lottery_excluded WHERE lottery_id = ?1 AND member_id = ?2 AND ${own}`).bind(...who),
     env.DB.prepare(`DELETE FROM lottery_optouts WHERE lottery_id = ?1 AND member_id = ?2 AND ${live}`).bind(...who),
+    fresh,
   ]);
 }
 
@@ -532,6 +550,7 @@ export async function editLottery(env: Env, id: number, body: Record<string, unk
   const l = await lotteryById(env, id);
   if (l.status !== "open") throw statusError();
   if (l.locked) throw lockedError();
+  if (started(l)) throw startedError();
   const input = readInput({ ...body, poolSize: l.pool_size });
   const entries = await env.DB.prepare("SELECT COUNT(*) AS n FROM lottery_entries WHERE lottery_id = ?")
     .bind(id)
@@ -545,6 +564,8 @@ export async function editLottery(env: Env, id: number, body: Record<string, unk
     .bind(input.title, JSON.stringify(input.prizes), input.drawAt, id)
     .run();
   if (!res.meta.changes) throw statusError();
+  // Different prizes are a different draw.
+  if (JSON.stringify(input.prizes) !== JSON.stringify(prizesOf(l))) await (await reseed(env, id)).run();
 }
 
 /**
@@ -555,6 +576,7 @@ export async function excludeLottery(env: Env, id: number, body: Record<string, 
   const l = await lotteryById(env, id);
   if (l.status !== "open") throw statusError();
   if (l.locked) throw lockedError();
+  if (started(l)) throw startedError();
   // Whoever left by themselves stays off: only they can come back.
   const out = JSON.stringify([...new Set([...readExclude(body), ...(await selfOutIds(env, id))])]);
   const left = await env.DB.prepare(
@@ -582,6 +604,7 @@ export async function excludeLottery(env: Env, id: number, body: Record<string, 
     env.DB.prepare(
       "DELETE FROM lottery_entries WHERE lottery_id = ?1 AND member_id IN (SELECT value FROM json_each(?2))",
     ).bind(id, out),
+    await reseed(env, id),
   ]);
   return l;
 }
@@ -596,8 +619,8 @@ async function winnersFor(seed: string, ranks: number[], prizes: LotteryPrize[])
 /**
  * 开奖 by itself when the countdown reaches 0 (Ke Li 2026-11-16: 开奖应该是倒计时自动开始): the
  * first to ask after the time announced (a page, or the cron) records it, with the time announced as
- * the draw's clock, so every phone plays it from that moment. The seed decided the winners when the
- * list was locked, so two asking at once write the same thing.
+ * the draw's clock, so every phone plays it from that moment. The seed and the list no longer change
+ * once that time has come, so two asking at once write the same thing.
  */
 async function drawIfDue(env: Env, l: LotteryRow, at: number): Promise<LotteryRow> {
   if (l.status !== "open" || at < Date.parse(l.draw_at)) return l;
@@ -612,12 +635,15 @@ async function drawIfDue(env: Env, l: LotteryRow, at: number): Promise<LotteryRo
   await env.DB.batch([
     // Whoever set it up is whom the winners contact.
     env.DB.prepare(
-      "UPDATE lotteries SET status = 'drawn', drawn_at = draw_at, drawn_by = created_by WHERE id = ? AND status = 'open'",
-    ).bind(l.id),
+      "UPDATE lotteries SET status = 'drawn', drawn_at = draw_at, drawn_by = created_by WHERE id = ? AND status = 'open' AND seed = ?",
+    ).bind(l.id, l.seed),
+    // Only with the seed these winners came from (a change a moment before the time made a new one:
+    // the next to ask draws with that).
     ...winners.map((w) =>
       env.DB.prepare(
-        "INSERT OR IGNORE INTO lottery_winners (lottery_id, draw_no, rank, prize) VALUES (?, ?, ?, ?)",
-      ).bind(l.id, w.drawNo, w.rank, w.prize),
+        `INSERT OR IGNORE INTO lottery_winners (lottery_id, draw_no, rank, prize) SELECT ?1, ?2, ?3, ?4
+         WHERE EXISTS (SELECT 1 FROM lotteries WHERE id = ?1 AND status = 'drawn' AND seed = ?5)`,
+      ).bind(l.id, w.drawNo, w.rank, w.prize, l.seed),
     ),
   ]);
   return (await env.DB.prepare("SELECT * FROM lotteries WHERE id = ?").bind(l.id).first<LotteryRow>()) ?? l;
