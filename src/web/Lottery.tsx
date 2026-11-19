@@ -123,7 +123,7 @@ export function LotteryCard(props: { base: string }) {
         )}
       </section>
       {open && (
-        <Panel title={l.title} label={l.title} onClose={close}>
+        <Panel title={l.title} label={l.title} onClose={close} barAway>
           <LotteryLive base={props.base} first={l} />
         </Panel>
       )}

@@ -535,7 +535,7 @@ function Watch(props: { base: string; first: LotteryView; onClose: () => void })
     };
   }, [props.base]);
   return (
-    <Panel title={view.title} label={view.title} onClose={props.onClose}>
+    <Panel title={view.title} label={view.title} onClose={props.onClose} barAway>
       <LotteryShow view={view} clock={clock} />
     </Panel>
   );
@@ -569,7 +569,7 @@ function Rehearsal(props: Rehearsed & { base: string; onClose: () => void }) {
   }, [view]);
   const ok = (good: boolean) => (good ? "✓" : "⚠️");
   return (
-    <Panel title={t("预演")} label={t("预演")} onClose={props.onClose}>
+    <Panel title={t("预演")} label={t("预演")} onClose={props.onClose} barAway>
       <LotteryShow view={view} clock={clock} />
       <Card title={t("检查结果")}>
         <ul class="lot-checks">
