@@ -3278,7 +3278,10 @@ html.panel-open body {
     transition: none;
   }
 }
-@media (min-width: 640px) {
+/* Below the wide query (phones, an unfolded Android foldable upright) a panel is a whole page, as
+ * on an iPhone; wide screens give it the right half (below). Was a card in the middle from 640px,
+ * which felt different on Android (Ke Li 2026-11-19). Keep in step with WIDE_QUERY. */
+@media (min-width: 800px) {
   .panel {
     position: relative;
     inset: auto;
@@ -7009,7 +7012,7 @@ html.bars-away .app-tabs {
   flex-direction: column;
   gap: 10px;
 }
-@media (min-width: 640px) {
+@media (min-width: 800px) {
   .panel.cm-panel {
     width: min(1040px, calc(100vw - 32px));
     height: min(760px, calc(100vh - 64px));
