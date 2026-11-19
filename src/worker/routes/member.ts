@@ -11,7 +11,7 @@ import type {
   PaymentStatus,
 } from "../../shared/types";
 import { refundOf, savedInput, toSettleRows } from "../billing";
-import { memberProfile, setMemberEmail } from "../profile";
+import { memberProfile, setMemberEmail, setWechatNickname } from "../profile";
 import { myStats, setExtraSpend, yearReview } from "../stats";
 import { can, eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payeeProfile } from "../organizers";
 import { ownerName, payeeName } from "../payees";
@@ -100,7 +100,7 @@ memberRoutes.use("/:token/*", async (c, next) => {
   await next();
 });
 const CLOSED_TO_INACTIVE =
-  /\/(avatar|avatar\/mode|rename|lottery\/cheer|lottery\/opt|calories\/board|push\/subscribe|events\/[^/]+\/calories)$/;
+  /\/(avatar|avatar\/mode|rename|wechat|lottery\/cheer|lottery\/opt|calories\/board|push\/subscribe|events\/[^/]+\/calories)$/;
 
 memberRoutes.get("/:token/me", async (c) => {
   const m = c.get("member");
@@ -179,6 +179,12 @@ memberRoutes.get("/:token/profile", async (c) => c.json(await memberProfile(c.en
 memberRoutes.post("/:token/email", async (c) => {
   const body = await readJson(c.req.raw);
   await setMemberEmail(c.env, c.get("member"), str(body.email));
+  return c.json({ ok: true });
+});
+
+memberRoutes.post("/:token/wechat", async (c) => {
+  const body = await readJson(c.req.raw);
+  await setWechatNickname(c.env, c.get("member"), str(body.wechatNickname));
   return c.json({ ok: true });
 });
 

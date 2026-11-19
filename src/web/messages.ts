@@ -430,6 +430,10 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "往下滑，选「添加到主屏幕」": { tw: "往下滑，選「加入主畫面」", en: 'Scroll down and choose "Add to Home Screen"' },
   待付款: { tw: "待付款", en: "Unpaid" },
   微信名: { tw: "微信名", en: "WeChat name" },
+  "填和微信里一样的名字，方便在群里认出你。": {
+    tw: "填和微信裡一樣的名字，方便在群裡認出你。",
+    en: "Use the same name as in WeChat so people in the group know it’s you.",
+  },
   "微信里不能添加。用浏览器打开这一页，就可以添加到主屏幕了。": {
     tw: "微信裡無法加入。用瀏覽器開啟這一頁，就可以加入主畫面了。",
     en: "WeChat can't add it. Open this page in a browser to add it to your Home Screen.",

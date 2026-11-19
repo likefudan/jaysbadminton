@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { toPacific } from "../shared/time";
 import type { ComponentChildren } from "preact";
 import type { ActivityDay, MeResponse, MemberProfile } from "../shared/types";
-import { checkUsername } from "../shared/rules";
+import { checkNickname, checkUsername } from "../shared/rules";
 import { api } from "./api";
 import { Avatar, AvatarForm } from "./Avatar";
 import { Card, Field, SettingRow, useAction } from "./components";
@@ -308,6 +308,16 @@ export function ProfileSettings(props: {
       />
       {p && (
         <SettingRow
+          icon={<ChatIcon />}
+          label={t("微信名")}
+          value={p.wechatNickname}
+          panel={(close) => (
+            <WechatForm base={props.base} current={p.wechatNickname} onDone={props.onChange} close={close} />
+          )}
+        />
+      )}
+      {p && (
+        <SettingRow
           icon={<MailIcon />}
           label={t("邮箱")}
           value={p.email ?? <span class="muted">{t("未填写")}</span>}
@@ -402,6 +412,37 @@ function RenameForm(props: { base: string; current: string; onDone: () => void; 
   );
 }
 
+/** 设置 → 微信名: what the Owner looks for in the WeChat group. Any characters, emoji too. */
+function WechatForm(props: { base: string; current: string; onDone: () => void; close: () => void }) {
+  const [name, setName] = useState(props.current);
+  const { busy, error, run, setError } = useAction();
+  async function save(e: Event) {
+    e.preventDefault();
+    if (name.trim() === props.current) return props.close();
+    const err = checkNickname(name);
+    if (err) return setError(err);
+    if (await run(() => api(`${props.base}/wechat`, { wechatNickname: name }))) {
+      props.close();
+      props.onDone();
+    }
+  }
+  return (
+    <form onSubmit={save}>
+      <Field label={t("微信名")} value={name} onInput={setName} />
+      <p class="muted small">{t("填和微信里一样的名字，方便在群里认出你。")}</p>
+      {error && <p class="error">{error}</p>}
+      <div class="inline">
+        <button type="submit" class="button" disabled={busy}>
+          {t("保存")}
+        </button>
+        <button class="button secondary" type="button" onClick={props.close}>
+          {t("取消")}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function EmailForm(props: {
   base: string;
   initial: string;
@@ -452,6 +493,14 @@ const FaceIcon = () => (
 const TrashIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />
+  </svg>
+);
+const ChatIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <path d="M12 4c4.7 0 8.5 3.1 8.5 7s-3.8 7-8.5 7c-1 0-2-.1-2.9-.4L5 19.5l1.2-3.4C4.6 14.8 3.5 13 3.5 11c0-3.9 3.8-7 8.5-7z" />
+    <circle cx="8.5" cy="11" r=".6" />
+    <circle cx="12" cy="11" r=".6" />
+    <circle cx="15.5" cy="11" r=".6" />
   </svg>
 );
 const MailIcon = () => (

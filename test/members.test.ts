@@ -326,6 +326,15 @@ describe("member links", () => {
     expect((await anon.call(`/api/m/${token}/rename`, { username: "Danny" })).status).toBe(200);
     expect((await anon.call(`/api/m/${token}/me`)).data.username).toBe("Danny");
   });
+
+  it("members can change their own 微信名, emoji and all, but not to empty", async () => {
+    const { token } = await approvedMember();
+    expect((await anon.call(`/api/m/${token}/wechat`, { wechatNickname: "  " })).status).toBe(400);
+    expect((await anon.call(`/api/m/${token}/wechat`, { wechatNickname: "x".repeat(200) })).status).toBe(400);
+    expect((await anon.call(`/api/m/${token}/wechat`, { wechatNickname: " 小丹🏸 " })).status).toBe(200);
+    expect((await anon.call(`/api/m/${token}/me`)).data.wechatNickname).toBe("小丹🏸");
+    expect((await anon.call(`/api/m/${token}/profile`)).data.wechatNickname).toBe("小丹🏸");
+  });
 });
 
 describe("site title", () => {
