@@ -178,6 +178,26 @@ test("the whole page fits one screen of a large phone before the draw", async ({
   await shot(page, "lottery-1c-one-screen");
 });
 
+test("the 抽奖 page's top bar slides away reading down and back going up, like the site's", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 500 });
+  await member(page, () => view());
+  await page.goto("/m/tok?lottery=1");
+  const panel = page.getByRole("dialog", { name: "百人庆祝抽奖" });
+  await expect(panel.locator(".lot-face")).toHaveCount(100);
+  const bar = panel.locator(".panel-bar");
+  const body = panel.locator(".panel-body");
+  // The first card starts below the bar, not under it.
+  const barBottom = await bar.evaluate((el) => el.getBoundingClientRect().bottom);
+  const heroTop = await panel.locator(".lot-hero").evaluate((el) => el.getBoundingClientRect().top);
+  expect(heroTop).toBeGreaterThanOrEqual(barBottom);
+  await body.evaluate((el) => el.scrollTo(0, 300));
+  await expect(panel).toHaveClass(/bar-away/);
+  await expect(bar).not.toBeInViewport();
+  await body.evaluate((el) => el.scrollTo(0, 150));
+  await expect(panel).not.toHaveClass(/bar-away/);
+  await expect(bar).toBeInViewport();
+});
+
 test("everyone watches the shuttle land on each winner, then can check the result", async ({ page }) => {
   // The 4th draw is in the air: three winners up, the shuttle hopping.
   const drawnAt = Date.now() - (5_000 + 3 * 15_000 + 3_000);

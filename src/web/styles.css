@@ -3255,6 +3255,29 @@ html.panel-open body {
   -webkit-overflow-scrolling: touch;
   padding: 14px 16px calc(24px + env(safe-area-inset-bottom));
 }
+/* 抽奖's bar slides away while reading down, back in going up, like the site's top bar
+   (Panel barAway, Ke Li 2026-11-19). It lies over the body, which starts below it. */
+.panel.bar-slides .panel-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  transition: transform 0.7s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.panel.bar-slides .panel-body {
+  padding-top: calc(14px + var(--panel-bar-h, 51px));
+}
+.panel.bar-away .panel-bar {
+  transform: translateY(calc(-100% - 2px));
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel.bar-slides .panel-bar {
+    transition: none;
+  }
+}
 @media (min-width: 640px) {
   .panel {
     position: relative;

@@ -1,6 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { createPortal } from "preact/compat";
 import { useLayoutEffect, useRef } from "preact/hooks";
+import { followScroll } from "./barsAway";
 import { t } from "./i18n";
 
 /** The panels open now, the last on top (账号管理 opens over 登记球场). */
@@ -27,10 +28,32 @@ export function Panel(props: {
   /** A button on the right of the top bar. */
   action?: ComponentChildren;
   class?: string;
+  /** The top bar slides up while reading down and back in going up, like the site's top bar (抽奖, Ke Li 2026-11-19). */
+  barAway?: boolean;
   children: ComponentChildren;
 }) {
   const close = useRef(props.onClose);
   close.current = props.onClose;
+  const panel = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+
+  // The bar lies over the body then, so sliding it moves nothing under it; the body starts below it.
+  useLayoutEffect(() => {
+    const p = panel.current;
+    const b = bar.current;
+    const el = body.current;
+    if (!props.barAway || !p || !b || !el) return;
+    const size = () => p.style.setProperty("--panel-bar-h", `${b.offsetHeight}px`);
+    size();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(size);
+    ro?.observe(b);
+    const off = followScroll(el, (v) => p.classList.toggle("bar-away", v));
+    return () => {
+      ro?.disconnect();
+      off();
+    };
+  }, [props.barAway]);
 
   // Before paint, so a key pressed the moment the panel shows already finds it on top of the stack.
   useLayoutEffect(() => {
@@ -65,8 +88,13 @@ export function Panel(props: {
     // biome-ignore lint/a11y/noStaticElementInteractions: clicking outside (wide screens) is a mouse shortcut; Esc and 返回 close it too
     // biome-ignore lint/a11y/useKeyWithClickEvents: same as above
     <div class="panel-backdrop" onClick={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class={props.class ? `panel ${props.class}` : "panel"} role="dialog" aria-label={props.label}>
-        <div class="panel-bar">
+      <div
+        ref={panel}
+        class={["panel", props.barAway && "bar-slides", props.class].filter(Boolean).join(" ")}
+        role="dialog"
+        aria-label={props.label}
+      >
+        <div class="panel-bar" ref={bar}>
           <button type="button" class="panel-back" onClick={props.onClose}>
             <svg viewBox="0 0 12 20" width="11" height="18" aria-hidden="true">
               <path
@@ -83,7 +111,9 @@ export function Panel(props: {
           <strong class="panel-title">{props.title}</strong>
           <span class="panel-action">{props.action}</span>
         </div>
-        <div class="panel-body">{props.children}</div>
+        <div class="panel-body" ref={body}>
+          {props.children}
+        </div>
       </div>
     </div>,
     document.body,
