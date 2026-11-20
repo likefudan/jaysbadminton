@@ -12,7 +12,8 @@ let reports = 0;
 function files(dir) {
   return readdirSync(dir).flatMap((f) => {
     const p = join(dir, f);
-    return statSync(p).isDirectory() ? files(p) : p.endsWith(".json") && /\/stress\//.test(p) ? [p] : [];
+    // unit-<shard>-<copy>-<round>.json and e2e-….json, wherever the artifact put them.
+    return statSync(p).isDirectory() ? files(p) : /^(unit|e2e)-[\d-]+\.json$/.test(f) ? [p] : [];
   });
 }
 
@@ -103,3 +104,5 @@ else {
 if (broken.length) out.push("", "**Rounds with errors outside a test:**", "", ...broken.map((b) => `- ${b}`));
 console.log(out.join("\n"));
 writeFileSync("stress-summary.json", `${JSON.stringify({ reports, runs, flaky, broken }, null, 2)}\n`);
+// The run turns red when any test failed, so its result says so at a glance.
+if (flaky.length || broken.length || !reports) process.exitCode = 1;
