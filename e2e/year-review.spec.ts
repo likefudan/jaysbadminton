@@ -75,5 +75,14 @@ test("the year card switches years, shows the badges, and shares an image", asyn
   await expect(page.locator(".buddy")).toHaveText([/Lina.*18/, /arturo.*15/]);
 
   await card.getByRole("button", { name: "分享" }).click();
-  await expect(page.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png/);
+  const img = page.locator("img.sharecard");
+  await expect(img).toHaveAttribute("src", /^data:image\/png/);
+  // The group's QR code is on the card unless they turn it off (Ke Li 2026-11-19); the phone remembers.
+  const qr = page.getByRole("switch", { name: "显示二维码" });
+  await expect(qr).toBeChecked();
+  const withQr = await img.getAttribute("src");
+  await qr.click();
+  await expect(img).not.toHaveAttribute("src", withQr!);
+  expect(await page.evaluate(() => localStorage.getItem("year-card-qr"))).toBe("0");
+  await expect(page.getByText("手机上长按图片即可保存或转发")).toBeVisible();
 });
