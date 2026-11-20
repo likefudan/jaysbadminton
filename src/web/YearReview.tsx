@@ -10,7 +10,7 @@ import { t, tk } from "./i18n";
 import { Panel } from "./Panel";
 import { Avatar } from "./Avatar";
 import { MeCard, type MeCardProps } from "./Profile";
-import { ShareGlyph, SystemShare, fitText, loadImage, roundRect, shareSans } from "./ShareCard";
+import { ShareGlyph, SystemShare, drawQr, fitText, loadImage, roundRect, shareSans } from "./ShareCard";
 import { myThemeId, useSiteTitle } from "./site";
 
 /** Each badge's name, unit and line icon (24×24 path data, also drawn on the share image). */
@@ -277,20 +277,36 @@ function yearTiles(r: YearReview) {
   ];
 }
 
+const QR_KEY = "year-card-qr";
+
 function YearShare(props: { review: YearReview; name: string; onClose: () => void }) {
   const site = useSiteTitle();
   const [png, setPng] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  // Whether the card carries the group's QR code: theirs to choose, remembered on this phone.
+  const [qr, setQr] = useState(() => {
+    try {
+      return localStorage.getItem(QR_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
   useEffect(() => {
     let alive = true;
-    drawYearCard(site, props.name, props.review).then(
+    drawYearCard(site, props.name, props.review, qr).then(
       (p) => alive && setPng(p),
       () => alive && setFailed(true),
     );
     return () => {
       alive = false;
     };
-  }, [site, props.name, props.review]);
+  }, [site, props.name, props.review, qr]);
+  const pick = (on: boolean) => {
+    setQr(on);
+    try {
+      localStorage.setItem(QR_KEY, on ? "1" : "0");
+    } catch {}
+  };
   return (
     <Panel title={t("分享")} label={t("分享")} onClose={props.onClose}>
       {failed && <p class="muted">{t("图片生成失败，请刷新后再试。")}</p>}
@@ -298,6 +314,18 @@ function YearShare(props: { review: YearReview; name: string; onClose: () => voi
       {png && (
         <>
           <img class="sharecard" src={png} alt={t("你的 {year}", { year: props.review.year })} />
+          <label class="switch-card year-qr">
+            <span>
+              <strong>{t("显示二维码")}</strong>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              aria-checked={qr}
+              checked={qr}
+              onChange={(e) => pick((e.target as HTMLInputElement).checked)}
+            />
+          </label>
           <SystemShare png={png} name={site} imageLabel={t("分享图片")} />
         </>
       )}
@@ -309,11 +337,14 @@ function YearShare(props: { review: YearReview; name: string; onClose: () => voi
  * The 年度回顾 share image: the site's logo and name, their name and year, the four numbers and
  * the venue, and the badges they have. Never who they played with: those are other people.
  */
-export async function drawYearCard(siteTitle: string, name: string, r: YearReview): Promise<string> {
+export async function drawYearCard(siteTitle: string, name: string, r: YearReview, qr = false): Promise<string> {
   const W = 1080;
-  const H = 1350;
+  // As tall as what is on it: the link line at the bottom is gone (Ke Li 2026-11-19).
+  const hasBadges = r.milestones.some((m) => m.tier > 0);
+  const H = 360 + 2 * (190 + 24) + (r.venue ? 160 + 24 : 0) + (hasBadges ? 40 + 120 : 0) + 90;
   const SANS = shareSans();
   const logo = await loadImage("/icon.svg");
+  const QRCode = qr ? await import("qrcode") : null;
   await document.fonts?.ready;
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -337,7 +368,7 @@ export async function drawYearCard(siteTitle: string, name: string, r: YearRevie
   ctx.fillStyle = "#fff";
   ctx.textBaseline = "middle";
   ctx.font = `700 46px ${SANS}`;
-  ctx.fillText(fitText(ctx, siteTitle, W - 280), 204, 116);
+  ctx.fillText(fitText(ctx, siteTitle, qr ? W - 460 : W - 280), 204, 116);
 
   ctx.textBaseline = "alphabetic";
   ctx.font = `800 88px ${SANS}`;
@@ -383,11 +414,21 @@ export async function drawYearCard(siteTitle: string, name: string, r: YearRevie
   const left = (W - (shown.length * step - 36)) / 2;
   shown.forEach((m, i) => drawMedal(ctx, m.key, m.tier, left + i * step, y + 40, size));
 
-  // Where to find the group, at the bottom.
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-  ctx.font = `500 34px ${SANS}`;
-  ctx.fillText(location.host, W / 2, H - 70);
+  // The group's QR code, small and top right, beside the group's name: the person is the point of
+  // this card (Ke Li 2026-11-19, option C). No link written out any more.
+  if (QRCode) {
+    const m = QRCode.create(`${location.origin}/`, { errorCorrectionLevel: "H" }).modules;
+    const s = 140;
+    const pad = 12;
+    const x = W - 70 - pad - s;
+    const y = 56;
+    ctx.save();
+    ctx.fillStyle = "#fff";
+    roundRect(ctx, x - pad, y - pad, s + pad * 2, s + pad * 2, 24);
+    ctx.fill();
+    ctx.restore();
+    drawQr(ctx, m, logo, x, y, s, colours.ink);
+  }
   return canvas.toDataURL("image/png");
 }
 

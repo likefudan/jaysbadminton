@@ -137,7 +137,7 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
  * the site's colour, rounded finder eyes, and the logo in the middle. Every colour stays dark enough on
  * white for phone cameras.
  */
-function drawQr(
+export function drawQr(
   ctx: CanvasRenderingContext2D,
   m: { size: number; get(row: number, col: number): number },
   logo: HTMLImageElement,
