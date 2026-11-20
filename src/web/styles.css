@@ -2923,7 +2923,6 @@ a.ev-meta {
 }
 /* 点赞榜: heart-shaped blocks seen at a slant (HeartStep), each place its own red. */
 .board.hearts .podium .step.heart-step {
-  position: relative;
   height: auto;
   padding: 0;
   border-radius: 0;
@@ -2934,19 +2933,6 @@ a.ev-meta {
   width: 100%;
   height: auto;
   overflow: visible;
-}
-.heart-step b {
-  position: absolute;
-  inset-inline: 0;
-  transform: translateY(-50%);
-  color: #fff;
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1;
-  text-shadow: 0 1px 2px rgba(120, 0, 40, 0.45);
-}
-.board.hearts .p1 .heart-step b {
-  font-size: 22px;
 }
 .heart-shade {
   stop-color: #000;
@@ -8446,4 +8432,13 @@ html[data-nav="in"]::view-transition-new(root) {
 }
 .att-card .att-weeks + p {
   margin-top: 12px;
+}
+/* 点赞榜 rows: the number, a small space, then a red heart (Ke Li 2026-11-20). */
+.board.hearts .board-rows .value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.board.hearts .board-rows .value .heart {
+  color: var(--heart);
 }

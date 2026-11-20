@@ -4,6 +4,7 @@ import { Avatar } from "./Avatar";
 import { kcalText } from "./Calories";
 import { Empty, SectionTitle } from "./components";
 import { t, tk } from "./i18n";
+import { HeartIcon } from "./Likes";
 
 /** Each board's tab name, unit and one line on what it counts; in the order of BOARD_KEYS. */
 export const BOARDS: Record<BoardKey, { label: string; unit: string; desc: string }> = {
@@ -67,21 +68,44 @@ const HEART_REDS: Record<number, { edge: string; mid: string; top: string; topEn
   2: { edge: "#a3205a", mid: "#e8488c", top: "#ffa3c8", topEnd: "#f075a8" },
   3: { edge: "#c8394c", mid: "#f4707f", top: "#ffd6db", topEnd: "#fba3ad" },
 };
-/** How tall each place's block stands, in hundredths of its width. */
-const HEART_RISE: Record<number, number> = { 1: 58, 2: 40, 3: 27 };
+/** 1st place's block rises this far, in hundredths of its width. */
+const HEART_TOP_RISE = 58;
+/** The thinnest a block gets, so 3rd place still reads as a block (Ke Li 2026-11-20, option C). */
+const HEART_MIN_RISE = 16;
+/** The heart's tip on the squashed top face, and the room under the block for its shadow. */
+const HEART_TIP = 90 * SLANT;
+const HEART_FOOT = 8;
+/** The middle column is this much wider than the side ones (.podium grid), so its units are bigger. */
+const MIDDLE_WIDTH = 1.15;
+
+/**
+ * How far each podium column's block rises, 2nd, 1st, 3rd from left to right (Ke Li 2026-11-20,
+ * option C): the whole block, top face and side, stands as tall on screen as its share of 1st
+ * place's likes, but never thinner than HEART_MIN_RISE.
+ */
+export function heartRises(values: (number | undefined)[]): (number | undefined)[] {
+  const top = values[1] ?? 0;
+  const full = (HEART_TIP + HEART_TOP_RISE + HEART_FOOT) * MIDDLE_WIDTH; // 1st's height on screen
+  return values.map((v, i) => {
+    if (v === undefined) return undefined;
+    const share = top > 0 ? Math.min(1, v / top) : 1;
+    const rise = (full * share) / (i === 1 ? MIDDLE_WIDTH : 1) - HEART_TIP - HEART_FOOT;
+    return Math.max(HEART_MIN_RISE, rise);
+  });
+}
 
 /**
  * 点赞榜's step (Ke Li 2026-11-18, option G): a red block whose top face is a heart, seen at a
- * slant, with the place number on its front. The sides are the top heart, the same heart moved
+ * slant, as tall as its likes allow (heartRises), with no number on it. The sides are the top heart, the same heart moved
  * down, and the band between their widest points, which together are the block's outline.
  */
-function HeartStep(props: { rank: number }) {
+function HeartStep(props: { rank: number; rise: number }) {
   const id = useId();
-  const rise = HEART_RISE[props.rank] ?? HEART_RISE[3]!;
+  const rise = props.rise;
   const top = `matrix(1 0 0 ${SLANT} 0 0)`;
   const wide = 31 * SLANT; // the heart is widest a third of the way down
-  const tip = 90 * SLANT;
-  const height = tip + rise + 8;
+  const tip = HEART_TIP;
+  const height = tip + rise + HEART_FOOT;
   const red = HEART_REDS[props.rank] ?? HEART_REDS[3]!;
   return (
     <span class="step heart-step">
@@ -118,7 +142,8 @@ function HeartStep(props: { rank: number }) {
           vector-effect="non-scaling-stroke"
         />
       </svg>
-      <b style={{ top: `${((tip + rise / 2 - 5) / height) * 100}%` }}>{props.rank}</b>
+      {/* No number on the front (Ke Li 2026-11-20): the heights say the place; screen readers still hear it. */}
+      <span class="sr-only">{props.rank}</span>
     </span>
   );
 }
@@ -133,18 +158,26 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
   const b = BOARDS[key];
   if (list.length === 0)
     return <Empty>{key === "calories" ? t("还没有人加入能量榜") : t("这段时间还没有人上榜")}</Empty>;
-  const value = (v: number) => (
-    <span class="value">
-      {valueText(key, v)}
-      <small>{t(b.unit)}</small>
-    </span>
-  );
+  const hearts = key === "likes";
+  // 点赞榜 (Ke Li 2026-11-20): the podium shows the bare number, the rows the number and a heart.
+  const value = (v: number, row = false) =>
+    hearts ? (
+      <span class="value">
+        {valueText(key, v)}
+        {row && <HeartIcon size={14} />}
+      </span>
+    ) : (
+      <span class="value">
+        {valueText(key, v)}
+        <small>{t(b.unit)}</small>
+      </span>
+    );
   // 头像 only reach signed-in members; visitors see the names alone, laid out as before.
   const withFaces = list.some((r) => r.avatar !== undefined);
   // 2nd, 1st, 3rd from left to right; a missing place stays an empty column.
   const podium = [list[1], list[0], list[2]];
   const rest = list.slice(3, all ? undefined : SHOWN);
-  const hearts = key === "likes";
+  const rises = hearts ? heartRises(podium.map((r) => r?.value)) : [];
   return (
     <div class={`card board${hearts ? " hearts" : ""}`}>
       <ol class="podium">
@@ -161,7 +194,7 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
               {withFaces && <Avatar src={r.avatar} size={r.rank === 1 ? 56 : 46} class="podium-av" />}
               <span class="who">{r.name}</span>
               {value(r.value)}
-              {hearts ? <HeartStep rank={r.rank} /> : <span class="step">{r.rank}</span>}
+              {hearts ? <HeartStep rank={r.rank} rise={rises[i]!} /> : <span class="step">{r.rank}</span>}
             </li>
           ) : (
             <li key={`empty${i}`} class="place empty" aria-hidden="true" />
@@ -175,7 +208,7 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
               <span class="rank-no">{r.rank}</span>
               {withFaces && <Avatar src={r.avatar} size={30} />}
               <span class="who">{r.name}</span>
-              {value(r.value)}
+              {value(r.value, true)}
             </li>
           ))}
         </ol>
