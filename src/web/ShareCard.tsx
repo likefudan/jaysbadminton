@@ -1,4 +1,5 @@
 import { Panel } from "./Panel";
+import type { ComponentChildren } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { eventCardText, type CardText } from "../shared/shareCard";
 import { shareColours } from "../shared/themes";
@@ -337,7 +338,15 @@ function pngFile(png: string, name: string): File {
  * computers, WeChat's built-in browser) a button it can't do isn't shown.
  * The file is made before the tap, so the share starts right inside the tap, which Safari requires.
  */
-export function SystemShare(props: { png: string; name: string; words?: string; url?: string; imageLabel?: string }) {
+export function SystemShare(props: {
+  png: string;
+  name: string;
+  words?: string;
+  url?: string;
+  imageLabel?: string;
+  /** Shown first in the row of buttons, such as the 年度回顾's 显示二维码 switch. */
+  lead?: ComponentChildren;
+}) {
   const nav = navigator as Sharing;
   const [file, setFile] = useState<File | null>(null);
   useEffect(() => {
@@ -355,9 +364,10 @@ export function SystemShare(props: { png: string; name: string; words?: string; 
   const link = props.url && nav.share;
   return (
     <>
-      <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>
-      {(file || link) && (
+      <p class="muted small center">{t("手机上长按图片即可保存")}</p>
+      {(props.lead || file || link) && (
         <div class="share-actions">
+          {props.lead}
           {link && (
             <button
               class="button block"

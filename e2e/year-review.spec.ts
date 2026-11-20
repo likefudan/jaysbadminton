@@ -84,5 +84,5 @@ test("the year card switches years, shows the badges, and shares an image", asyn
   await qr.click();
   await expect(img).not.toHaveAttribute("src", withQr!);
   expect(await page.evaluate(() => localStorage.getItem("year-card-qr"))).toBe("0");
-  await expect(page.getByText("手机上长按图片即可保存或转发")).toBeVisible();
+  await expect(page.getByText("手机上长按图片即可保存")).toBeVisible();
 });

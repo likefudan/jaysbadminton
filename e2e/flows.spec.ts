@@ -374,7 +374,7 @@ test("public pages show the headcount and a link preview, never names", async ({
   await expect(card.getByRole("link")).toHaveCount(0);
   // This browser has no share sheet, so no 分享链接 / 分享二维码, only the long-press hint.
   await expect(card.getByRole("button", { name: "分享二维码" })).toHaveCount(0);
-  await expect(card).toContainText("手机上长按图片即可保存或转发");
+  await expect(card).toContainText("手机上长按图片即可保存");
 
   // A phone's own share sheet (AirDrop, 信息, 微信 …): the share icon still opens the QR page first;
   // 分享链接 hands the sheet the /e/ link, 分享二维码 the PNG. Long-press to save stays.
@@ -403,7 +403,7 @@ test("public pages show the headcount and a link preview, never names", async ({
   expect(shared[0].size).toBeGreaterThan(10_000);
   expect(shared[1].url).toBe(`${new URL(page.url()).origin}/e/${eventCode}`);
   expect(shared[1].text).toContain("Test Gym");
-  await expect(card).toContainText("手机上长按图片即可保存或转发");
+  await expect(card).toContainText("手机上长按图片即可保存");
 });
 
 test("signed in with Google: the member sees the roster on shared pages; the Owner binds Google for the admin page", async ({
