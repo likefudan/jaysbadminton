@@ -314,19 +314,23 @@ function YearShare(props: { review: YearReview; name: string; onClose: () => voi
       {png && (
         <>
           <img class="sharecard" src={png} alt={t("你的 {year}", { year: props.review.year })} />
-          <label class="switch-card year-qr">
-            <span>
-              <strong>{t("显示二维码")}</strong>
-            </span>
-            <input
-              type="checkbox"
-              role="switch"
-              aria-checked={qr}
-              checked={qr}
-              onChange={(e) => pick((e.target as HTMLInputElement).checked)}
-            />
-          </label>
-          <SystemShare png={png} name={site} imageLabel={t("分享图片")} />
+          <SystemShare
+            png={png}
+            name={site}
+            imageLabel={t("分享图片")}
+            lead={
+              <label class="switch-card share-switch">
+                <strong>{t("显示二维码")}</strong>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-checked={qr}
+                  checked={qr}
+                  onChange={(e) => pick((e.target as HTMLInputElement).checked)}
+                />
+              </label>
+            }
+          />
         </>
       )}
     </Panel>

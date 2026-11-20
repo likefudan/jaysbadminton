@@ -454,9 +454,9 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   分享链接: { tw: "分享連結", en: "Share link" },
   分享二维码: { tw: "分享二維碼", en: "Share QR code" },
   显示二维码: { tw: "顯示二維碼", en: "Show QR code" },
-  手机上长按图片即可保存或转发: {
-    tw: "手機上長按圖片即可儲存或轉發",
-    en: "On a phone, press and hold the image to save or share it",
+  手机上长按图片即可保存: {
+    tw: "手機上長按圖片即可儲存",
+    en: "On a phone, press and hold the image to save it",
   },
   "打开「作为 Web App 打开」（如果有这个开关），点右上角的「添加」": {
     tw: "開啟「作為 Web App 開啟」（如果有這個開關），點右上角的「新增」",

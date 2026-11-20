@@ -4213,6 +4213,17 @@ p.center a {
   flex: 1;
   margin: 0;
 }
+/* 显示二维码 beside 分享图片, as tall as the button. */
+.share-actions .switch-card.share-switch {
+  flex: 1;
+  min-height: 50px;
+  margin: 0;
+  padding: 0 10px 0 16px;
+}
+.share-actions .share-switch strong {
+  font-size: 16px;
+  white-space: nowrap;
+}
 
 /* Staging keeps the same bridge geometry and dimensions, in a distinct violet palette. */
 .logo.logo-staging {
