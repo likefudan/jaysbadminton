@@ -115,7 +115,7 @@ test.describe("on a computer-wide screen", () => {
   });
 });
 
-test("外观 is in the avatar's menu and the footer, not the top bar (Ke Li)", async ({ page }) => {
+test("signed in, 外观 is in the avatar's menu only: not the top bar, not the footer (Ke Li)", async ({ page }) => {
   const email = "demo.member@gmail.com";
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({ json: { enabled: true, signedIn: true, email, hasMember: true } }),
@@ -127,5 +127,5 @@ test("外观 is in the avatar's menu and the footer, not the top bar (Ke Li)", a
   await panel.getByRole("button", { name: "外观" }).click();
   await expect(panel).toHaveCount(0);
   await expect(page.getByRole("dialog", { name: "外观" })).toBeVisible();
-  await expect(page.locator("footer").getByRole("button", { name: "外观" })).toHaveCount(1);
+  await expect(page.locator("footer").getByRole("button", { name: "外观" })).toHaveCount(0);
 });

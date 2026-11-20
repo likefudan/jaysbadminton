@@ -81,12 +81,12 @@ export function Member(props: { token?: string }) {
                   // One block, so on a wide screen its title and its card stay in the same column.
                   <div class="board-block">
                     <Leaders board={home.data.leaderboard} />
-                    {/* 分享 at the very bottom, as on the public home page. */}
-                    <ShareCardButton text={siteCardText(location.origin, t)} />
                   </div>
                 )
               }
             />
+            {/* 分享 the whole group, at the bottom of 我的活动 as on the public home page (Ke Li 2026-11-19). */}
+            <ShareCardButton text={siteCardText(location.origin, t)} />
           </Page>
         );
       }}
@@ -131,7 +131,6 @@ export function MemberBoardsPage() {
           d.leaderboard ? (
             <div class="boards-page">
               <Leaders board={d.leaderboard} />
-              <ShareCardButton text={siteCardText(location.origin, t)} />
             </div>
           ) : (
             <Empty>{t("这段时间还没有人上榜")}</Empty>

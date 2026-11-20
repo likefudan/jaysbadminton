@@ -1,5 +1,5 @@
 import { useLocation } from "preact-iso";
-import { useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { api } from "./api";
 import { useApi } from "./hooks";
 import { useAppTabs } from "./AppTabs";
@@ -21,7 +21,7 @@ export async function signOutGoogle(): Promise<void> {
 }
 
 /** Shows the avatar received from the verified Google profile, with a fallback. */
-export function GoogleAccount(props: { onAppearance: () => void }) {
+export function GoogleAccount(props: { onAppearance: () => void; onShown?: (shown: boolean) => void }) {
   const [session] = useApi<{ signedIn: boolean; email: string | null; picture: string | null; role?: string }>(
     "/api/auth/session",
   );
@@ -52,6 +52,8 @@ export function GoogleAccount(props: { onAppearance: () => void }) {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
+  const shown = session.state === "ok" && session.data.signedIn && !!session.data.email;
+  useEffect(() => props.onShown?.(shown), [shown]);
   if (session.state !== "ok" || !session.data.signedIn || !session.data.email) return null;
   const email = session.data.email;
   // In the home-screen app the 管理 tab at the bottom does the switching (Ke Li 2026-11-14).
