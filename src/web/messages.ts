@@ -452,6 +452,7 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   所有活动: { tw: "所有活動", en: "All events" },
   分享图片: { tw: "分享圖片", en: "Share image" },
   分享链接: { tw: "分享連結", en: "Share link" },
+  分享二维码: { tw: "分享二維碼", en: "Share QR code" },
   手机上长按图片即可保存或转发: {
     tw: "手機上長按圖片即可儲存或轉發",
     en: "On a phone, press and hold the image to save or share it",

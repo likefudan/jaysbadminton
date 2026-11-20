@@ -14,7 +14,6 @@ const TC = `"PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC"`;
 /** Traditional Chinese cards take the TC fonts first, so 掃碼報名 isn't drawn with Simplified glyph shapes. */
 export const shareSans = () =>
   `-apple-system, ${currentLang() === "zh-TW" ? `${TC}, ${SC}` : `${SC}, ${TC}`}, sans-serif`;
-const MONO = `"Geist Mono Variable", ui-monospace, Menlo, monospace`;
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -108,7 +107,7 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  // White panel: QR code, hint and link.
+  // White panel: the QR code and its hint. No link written out: the QR code is the link (Ke Li 2026-11-19).
   const px = 70;
   const pw = W - px * 2;
   const pTop = Math.max(y + 60, PANEL_TOP);
@@ -122,16 +121,13 @@ export async function drawShareCard(siteTitle: string, text: CardText): Promise<
   ctx.fill();
   ctx.restore();
 
-  const Q = Math.min(500, pBottom - pTop - 230);
+  const Q = Math.min(540, pBottom - pTop - 190);
   const qy = pTop + 50;
   drawQr(ctx, qr, logo, (W - Q) / 2, qy, Q, colours.ink);
 
   ctx.fillStyle = "#222";
   ctx.font = `600 42px ${SANS}`;
   ctx.fillText(text.hint, W / 2, qy + Q + 80);
-  ctx.fillStyle = colours.link;
-  ctx.font = `500 34px ${MONO}`;
-  ctx.fillText(fitText(ctx, text.url.replace(/^https?:\/\//, "").replace(/\/$/, ""), pw - 80), W / 2, qy + Q + 140);
 
   return canvas.toDataURL("image/png");
 }
@@ -225,16 +221,9 @@ export function ShareGlyph() {
 /** 分享 (the share icon and the word) that opens the 分享名片: an image to long-press and save or forward. */
 export function ShareCardButton(props: { text: CardText }) {
   const [open, setOpen] = useState(false);
-  const site = useSiteTitle();
-  const tap = useDirectShare(
-    () => drawShareCard(site, props.text),
-    `${site}|${JSON.stringify(props.text)}`,
-    site,
-    () => setOpen(true),
-  );
   return (
     <>
-      <button class="share-site" type="button" onClick={tap}>
+      <button class="share-site" type="button" onClick={() => setOpen(true)}>
         <ShareGlyph />
         {t("分享")}
       </button>
@@ -254,13 +243,12 @@ export function EventActions(props: { e: EventSummary }) {
   const [open, setOpen] = useState(false);
   const calendar = canAddToCalendar(e);
   const share = e.status === "open";
-  const tap = useEventShare(e, share, () => setOpen(true));
   if (!calendar && !share) return null;
   return (
     <div class="calendar">
       {calendar && <CalendarButton e={e} />}
       {share && (
-        <button class="calendar-link" type="button" onClick={tap}>
+        <button class="calendar-link" type="button" onClick={() => setOpen(true)}>
           {t("分享")}
         </button>
       )}
@@ -287,23 +275,15 @@ export function CardCornerIcons(props: { e: EventSummary; calendar: boolean }) {
 /** 分享 as the iOS share icon (a box with an arrow up), in the top corner of an open event's card. */
 export function ShareIconButton(props: { e: EventSummary }) {
   const [open, setOpen] = useState(false);
-  const tap = useEventShare(props.e, props.e.status === "open", () => setOpen(true));
   if (props.e.status !== "open") return null;
   return (
     <>
-      <button class="share-icon" type="button" aria-label={t("分享")} title={t("分享")} onClick={tap}>
+      <button class="share-icon" type="button" aria-label={t("分享")} title={t("分享")} onClick={() => setOpen(true)}>
         <ShareGlyph />
       </button>
       {open && <EventShareSheet e={props.e} onClose={() => setOpen(false)} />}
     </>
   );
-}
-
-/** {@link useDirectShare} for an event's own card, only while it can be shared. */
-function useEventShare(e: EventSummary, can: boolean, fallback: () => void): () => void {
-  const site = useSiteTitle();
-  const text = eventCardText(location.origin, e, t, (d) => fmtDate(d, false));
-  return useDirectShare(() => drawShareCard(site, text), can ? `${site}|${JSON.stringify(text)}` : "", site, fallback);
 }
 
 function EventShareSheet(props: { e: EventSummary; onClose: () => void }) {
@@ -350,72 +330,19 @@ function pngFile(png: string, name: string): File {
   return new File([buf], `${name}.png`, { type: "image/png" });
 }
 
-/** Whether this browser has a share sheet that takes a PNG (phones; not WeChat's browser, nor most computers). */
-function canShareImages(): boolean {
-  const nav = navigator as Sharing;
-  try {
-    return !!nav.share && !!nav.canShare?.({ files: [new File([""], "a.png", { type: "image/png" })] });
-  } catch {
-    return false;
-  }
-}
-
-const safeName = (name: string) => name.replace(/[\\/:*?"<>|]/g, "").trim() || "share";
-
 /**
- * The tap on a 分享 icon: the phone's own share sheet (AirDrop, 信息, 微信 …) with the share image,
- * QR code and all, straight away (Ke Li 2026-11-19). Safari only opens the sheet right inside the tap,
- * so the image is drawn ahead, while the page is idle, as soon as the icon shows. Until it is ready,
- * and where there is no share sheet, the tap opens the image on its panel as before. `key` names
- * what is on the image; "" draws nothing.
- */
-export function useDirectShare(draw: () => Promise<string>, key: string, name: string, fallback: () => void) {
-  const [file, setFile] = useState<File | null>(null);
-  useEffect(() => {
-    setFile(null);
-    if (!key || !canShareImages()) return;
-    let alive = true;
-    const run = () => {
-      draw().then(
-        (png) => {
-          if (!alive) return;
-          const f = pngFile(png, safeName(name));
-          if ((navigator as Sharing).canShare?.({ files: [f] })) setFile(f);
-        },
-        () => {},
-      );
-    };
-    const idle = "requestIdleCallback" in window;
-    const handle = idle ? requestIdleCallback(run, { timeout: 2000 }) : window.setTimeout(run, 300);
-    return () => {
-      alive = false;
-      if (idle) cancelIdleCallback(handle);
-      else clearTimeout(handle);
-    };
-  }, [key]);
-  return () => {
-    const share = (navigator as Sharing).share;
-    if (!file || !share) return fallback();
-    // Closing the sheet rejects with AbortError: nothing to do. Anything else (the browser refused
-    // the sheet) falls back to the image on its panel.
-    share.call(navigator, { files: [file] }).catch((err: unknown) => {
-      if ((err as { name?: string })?.name !== "AbortError") fallback();
-    });
-  };
-}
-
-/**
- * Under a share image: 分享图片 (and 分享链接 when there is a link) open the phone's own share sheet,
- * with AirDrop, 信息, 微信 and the rest (Ke Li 2026-11-19). Where the browser has no share sheet
- * (most computers, WeChat's built-in browser) the buttons aren't shown and the long-press hint is.
+ * Under a share image: 分享链接 and 分享二维码 each open the phone's own share sheet, with AirDrop,
+ * 信息, 微信 and the rest (Ke Li 2026-11-19: the share icon still opens this page first). Pressing and
+ * holding the image to save it stays, with its hint. Where the browser has no share sheet (most
+ * computers, WeChat's built-in browser) a button it can't do isn't shown.
  * The file is made before the tap, so the share starts right inside the tap, which Safari requires.
  */
-export function SystemShare(props: { png: string; name: string; words?: string; url?: string }) {
+export function SystemShare(props: { png: string; name: string; words?: string; url?: string; imageLabel?: string }) {
   const nav = navigator as Sharing;
   const [file, setFile] = useState<File | null>(null);
   useEffect(() => {
     try {
-      const f = pngFile(props.png, safeName(props.name));
+      const f = pngFile(props.png, props.name.replace(/[\\/:*?"<>|]/g, "").trim() || "share");
       setFile(nav.canShare?.({ files: [f] }) ? f : null);
     } catch {
       setFile(null);
@@ -428,25 +355,29 @@ export function SystemShare(props: { png: string; name: string; words?: string; 
   const link = props.url && nav.share;
   return (
     <>
+      <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>
       {(file || link) && (
         <div class="share-actions">
-          {file && (
-            <button class="button block" type="button" onClick={() => share({ files: [file] })}>
-              {t("分享图片")}
-            </button>
-          )}
           {link && (
             <button
-              class={file ? "button secondary block" : "button block"}
+              class="button block"
               type="button"
               onClick={() => share({ title: props.name, text: props.words, url: props.url })}
             >
               {t("分享链接")}
             </button>
           )}
+          {file && (
+            <button
+              class={link ? "button secondary block" : "button block"}
+              type="button"
+              onClick={() => share({ files: [file] })}
+            >
+              {props.imageLabel ?? t("分享二维码")}
+            </button>
+          )}
         </div>
       )}
-      {!file && <p class="muted small center">{t("手机上长按图片即可保存或转发")}</p>}
     </>
   );
 }

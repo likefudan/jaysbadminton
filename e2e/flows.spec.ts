@@ -250,6 +250,9 @@ test("the member signs up with a friend and can add it to a calendar", async ({ 
   // 加入日历 is a calendar icon in the card's top right corner, next to 分享名片's share icon;
   // it opens a short menu of Apple 日历 / Outlook (the .ics) and Google 日历.
   await expect(card.locator(".ev-head .hero-top .share-icon")).toHaveCount(2);
+  // 分享 the whole group sits at the bottom of 我的活动, not under the boards (Ke Li 2026-11-19).
+  await expect(page.locator(".page-body > .share-site")).toHaveCount(1);
+  await expect(page.locator(".board-block .share-site")).toHaveCount(0);
   await expect(card.locator(".calendar")).toHaveCount(0);
   await card.getByRole("button", { name: "加入日历" }).click();
   await expect(card.getByRole("menuitem")).toHaveText(["Apple 日历 / Outlook", "Google 日历"]);
@@ -369,55 +372,38 @@ test("public pages show the headcount and a link preview, never names", async ({
   await expect(card.locator("img.sharecard")).toHaveAttribute("src", /^data:image\/png;base64,/);
   // No 下载图片 button: only the image, the long-press hint and 返回.
   await expect(card.getByRole("link")).toHaveCount(0);
-  // This browser has no share sheet, so no 分享图片 / 分享链接, only the long-press hint.
-  await expect(card.getByRole("button", { name: "分享图片" })).toHaveCount(0);
+  // This browser has no share sheet, so no 分享链接 / 分享二维码, only the long-press hint.
+  await expect(card.getByRole("button", { name: "分享二维码" })).toHaveCount(0);
   await expect(card).toContainText("手机上长按图片即可保存或转发");
 
-  // A phone's own share sheet (AirDrop, 信息, 微信 …): the share icon hands it the image, QR code
-  // and all, straight away; the image is drawn ahead so the sheet opens inside the tap.
+  // A phone's own share sheet (AirDrop, 信息, 微信 …): the share icon still opens the QR page first;
+  // 分享链接 hands the sheet the /e/ link, 分享二维码 the PNG. Long-press to save stays.
   await page.addInitScript(() => {
-    const w = window as unknown as { shared: unknown[]; ready: boolean; refuse: boolean };
+    const w = window as unknown as { shared: unknown[] };
     w.shared = [];
     Object.assign(navigator, {
-      canShare: (d: { files?: File[] }) => {
-        const ok = !!d.files?.every((f) => f.type === "image/png");
-        if (ok && d.files![0].size > 0) w.ready = true;
-        return ok;
-      },
+      canShare: (d: { files?: File[] }) => !!d.files?.every((f) => f.type === "image/png"),
       share: async (d: { files?: File[]; url?: string; text?: string }) => {
-        if (w.refuse) throw new DOMException("no", "NotAllowedError");
         w.shared.push(d.files ? { file: d.files[0].name, size: d.files[0].size } : { url: d.url, text: d.text });
       },
     });
   });
-  type Shared = { file?: string; size?: number; url?: string; text?: string }[];
-  const sharedSoFar = async () =>
-    (await page.evaluate(() => (window as unknown as { shared: Shared }).shared)) as Shared;
   await page.reload();
-  await page.waitForFunction(() => (window as unknown as { ready?: boolean }).ready);
   await page.locator(".card").getByRole("button", { name: "分享", exact: true }).click();
-  await expect.poll(async () => (await sharedSoFar()).length).toBe(1);
-  expect((await sharedSoFar())[0].file).toMatch(/\.png$/);
-  expect((await sharedSoFar())[0].size).toBeGreaterThan(10_000);
-  await expect(card).toHaveCount(0); // no panel in between
-
-  // If the browser refuses the sheet, the tap opens the image on its panel, with 分享图片 / 分享链接.
-  await page.evaluate(() => {
-    (window as unknown as { refuse: boolean }).refuse = true;
-  });
-  await page.locator(".card").getByRole("button", { name: "分享", exact: true }).click();
-  await expect(card.locator("img.sharecard")).toBeVisible();
-  await page.evaluate(() => {
-    (window as unknown as { refuse: boolean }).refuse = false;
-  });
-  await card.getByRole("button", { name: "分享图片" }).click();
+  await expect(card.locator(".share-actions button")).toHaveText(["分享链接", "分享二维码"]);
+  await card.getByRole("button", { name: "分享二维码" }).click();
   await card.getByRole("button", { name: "分享链接" }).click();
-  await expect.poll(async () => (await sharedSoFar()).length).toBe(3);
-  const shared = await sharedSoFar();
-  expect(shared[1].file).toMatch(/\.png$/);
-  expect(shared[2].url).toBe(`${new URL(page.url()).origin}/e/${eventCode}`);
-  expect(shared[2].text).toContain("Test Gym");
-  await expect(card).not.toContainText("手机上长按图片");
+  const shared = (await page.evaluate(() => (window as unknown as { shared: unknown[] }).shared)) as {
+    file?: string;
+    size?: number;
+    url?: string;
+    text?: string;
+  }[];
+  expect(shared[0].file).toMatch(/\.png$/);
+  expect(shared[0].size).toBeGreaterThan(10_000);
+  expect(shared[1].url).toBe(`${new URL(page.url()).origin}/e/${eventCode}`);
+  expect(shared[1].text).toContain("Test Gym");
+  await expect(card).toContainText("手机上长按图片即可保存或转发");
 });
 
 test("signed in with Google: the member sees the roster on shared pages; the Owner binds Google for the admin page", async ({

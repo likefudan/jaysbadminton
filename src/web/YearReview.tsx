@@ -10,7 +10,7 @@ import { t, tk } from "./i18n";
 import { Panel } from "./Panel";
 import { Avatar } from "./Avatar";
 import { MeCard, type MeCardProps } from "./Profile";
-import { ShareGlyph, SystemShare, fitText, useDirectShare, loadImage, roundRect, shareSans } from "./ShareCard";
+import { ShareGlyph, SystemShare, fitText, loadImage, roundRect, shareSans } from "./ShareCard";
 import { myThemeId, useSiteTitle } from "./site";
 
 /** Each badge's name, unit and line icon (24×24 path data, also drawn on the share image). */
@@ -98,13 +98,6 @@ export function YearReviewTop(props: { base: string; me: MeCardProps }) {
 function YearInCard(props: { review: YearReview; name: string; pick: (y: number) => void }) {
   const r = props.review;
   const [sharing, setSharing] = useState(false);
-  const site = useSiteTitle();
-  const tapShare = useDirectShare(
-    () => drawYearCard(site, props.name, r),
-    `${site}|${props.name}|${JSON.stringify(r)}`,
-    site,
-    () => setSharing(true),
-  );
   const i = r.years.indexOf(r.year);
   const older = r.years[i + 1];
   const newer = r.years[i - 1];
@@ -132,7 +125,7 @@ function YearInCard(props: { review: YearReview; name: string; pick: (y: number)
             </button>
           </span>
         )}
-        <button type="button" class="share-icon" aria-label={t("分享")} onClick={tapShare}>
+        <button type="button" class="share-icon" aria-label={t("分享")} onClick={() => setSharing(true)}>
           <ShareGlyph />
         </button>
       </div>
@@ -305,7 +298,7 @@ function YearShare(props: { review: YearReview; name: string; onClose: () => voi
       {png && (
         <>
           <img class="sharecard" src={png} alt={t("你的 {year}", { year: props.review.year })} />
-          <SystemShare png={png} name={site} />
+          <SystemShare png={png} name={site} imageLabel={t("分享图片")} />
         </>
       )}
     </Panel>

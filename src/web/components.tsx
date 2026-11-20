@@ -33,6 +33,7 @@ export function Page(props: {
   const icon = useSiteIcon();
   const sponsor = useSponsor();
   const [looks, setLooks] = useState(false);
+  const [avatar, setAvatar] = useState(false);
   const { path } = useLocation();
   const admin = isAdminPath(path);
   const tabs = useAppTabs();
@@ -61,7 +62,7 @@ export function Page(props: {
         </a>
         <div class="topbar-actions">
           {!admin && !SIGN_IN_PAGES.test(path) && <TopSignIn />}
-          <GoogleAccount onAppearance={() => setLooks(true)} />
+          <GoogleAccount onAppearance={() => setLooks(true)} onShown={setAvatar} />
           <LangSwitch />
         </div>
       </header>
@@ -89,11 +90,16 @@ export function Page(props: {
         <a href="/privacy">{t("隐私政策")}</a>
         <span aria-hidden="true">·</span>
         <a href="/terms">{t("使用条款")}</a>
-        <span aria-hidden="true">·</span>
-        {/* 外观 left the top bar (Ke Li 2026-11-13): here for everyone, and in the avatar's menu. */}
-        <button type="button" class="legal-looks" onClick={() => setLooks(true)}>
-          {t("外观")}
-        </button>
+        {/* 外观 left the top bar (Ke Li 2026-11-13). Signed in, it is in the avatar's menu only (Ke Li
+            2026-11-19); signed out there is no avatar, so it stays here. */}
+        {!avatar && (
+          <>
+            <span aria-hidden="true">·</span>
+            <button type="button" class="legal-looks" onClick={() => setLooks(true)}>
+              {t("外观")}
+            </button>
+          </>
+        )}
         {sponsor && (
           <p class="sponsor">
             <span aria-hidden="true">♥ </span>
