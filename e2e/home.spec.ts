@@ -244,9 +244,10 @@ test("a tie for 1st looks the same on every step after a refresh", async ({ page
 /** 点赞榜 stands the top three on heart-shaped blocks with no crown; the other boards keep theirs (Ke Li 2026-11-18). */
 test("the likes board stands the top three on hearts", async ({ page }) => {
   const list = [
-    { rank: 1, name: "Lina", value: 9 },
-    { rank: 2, name: "Tom", value: 6 },
-    { rank: 3, name: "Jayz", value: 4 },
+    { rank: 1, name: "Lina", value: 19 },
+    { rank: 2, name: "Tom", value: 14 },
+    { rank: 3, name: "Jayz", value: 2 },
+    { rank: 4, name: "Kevin", value: 1 },
   ];
   await page.route("**/api/public/home", (route) =>
     route.fulfill({
@@ -261,12 +262,19 @@ test("the likes board stands the top three on hearts", async ({ page }) => {
   await expect(page.locator(".podium .step")).toHaveText(["2", "1", "3"]);
   await expect(page.locator(".podium .heart-step svg")).toHaveCount(3);
   await expect(page.locator(".podium .crown")).toHaveCount(0);
-  // Taller for a higher place.
+  // Bare numbers on the podium, no number painted on the hearts; the rows have the number and a heart (Ke Li 2026-11-20).
+  await expect(page.locator(".podium .value")).toHaveText(["14", "19", "2"]);
+  await expect(page.locator(".podium .heart-step b")).toHaveCount(0);
+  await expect(page.locator(".board-rows .value")).toHaveText("1");
+  await expect(page.locator(".board-rows .value .heart")).toHaveCount(1);
+  // As tall as their share of 1st place's likes (option C): 14 of 19 is about three quarters of
+  // 1st's height; 2 of 19 would be a sliver, so 3rd stops at the thinnest block.
   const heights = await page
     .locator(".podium .heart-step")
     .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
-  expect(heights[1]!).toBeGreaterThan(heights[0]!);
-  expect(heights[0]!).toBeGreaterThan(heights[2]!);
+  expect(heights[0]! / heights[1]!).toBeCloseTo(14 / 19, 1);
+  expect(heights[2]!).toBeLessThan(heights[0]!);
+  expect(heights[2]! / heights[1]!).toBeGreaterThan(2 / 19 + 0.3);
   // Each place has its own red: deep for 1st, rose for 2nd, light for 3rd.
   const reds = await page
     .locator(".podium .heart-step linearGradient stop:nth-child(2)")
