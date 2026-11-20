@@ -215,17 +215,31 @@ test("draws our courts, playing then queued, one account per quarter", async ({ 
   await page.evaluate(() =>
     window.scrollTo(0, document.querySelector(".cq-grid")!.getBoundingClientRect().top + scrollY - 40),
   );
-  // The top bar's height is measured after load (fonts can change it), so wait for the bar to settle.
-  await expect
-    .poll(async () => {
-      const bar = await cq.locator(".cq-bar").boundingBox();
-      const top = await page.locator(".topbar").boundingBox();
-      return Math.abs(bar!.y - (top!.y + top!.height));
-    })
-    .toBeLessThan(2);
+  // Reading down slides the top bar away (barsAway.ts) and the buttons take the very top. Both slide
+  // for 0.7 s, so wait for where they end, not a moment in between: mid-slide they are less than
+  // 2px apart, and a test that looked then only passed when it was quick enough to catch the slide.
+  await expect(page.locator("html")).toHaveClass(/bars-away/);
+  const gap = async () => {
+    const bar = await cq.locator(".cq-bar").boundingBox();
+    const top = await page.locator(".topbar").boundingBox();
+    return { bar: Math.round(bar!.y), topBottom: Math.round(top!.y + top!.height) };
+  };
+  await expect.poll(gap).toEqual({ bar: 0, topBottom: expect.any(Number) });
+  expect((await gap()).topBottom).toBeLessThanOrEqual(0);
   const key = await cq.locator(".cq-legend").boundingBox();
   expect(key!.y + key!.height).toBeLessThanOrEqual(844 + 1);
   await page.screenshot({ path: test.info().outputPath("court-queue-scrolled.png") });
+  // Going back up a little brings the top bar back, and the buttons sit just under it again. Its
+  // height is measured after load (fonts can change it), so wait for both to settle.
+  await page.evaluate(() => window.scrollBy(0, -30));
+  await expect(page.locator("html")).not.toHaveClass(/bars-away/);
+  await expect
+    .poll(async () => {
+      const { bar, topBottom } = await gap();
+      const top = await page.locator(".topbar").boundingBox();
+      return Math.round(top!.y) === 0 && Math.abs(bar - topBottom) < 2;
+    })
+    .toBe(true);
 
   // Dark mode: the queued courts' net line still shows (it used to vanish into the block).
   await page.emulateMedia({ colorScheme: "dark" });
