@@ -45,7 +45,7 @@
   --danger-soft: rgba(194, 72, 62, 0.1);
   --on-acc: #ffffff;
   /* accent: 珊瑚橙 */
-  --acc: #b4633f;
+  --acc: #d38a6c;
   --acc-ink: #ad5c3e;
   --acc-soft: #f7ece6;
   --acc-line: #ecd6cb;
@@ -84,7 +84,7 @@
   color-scheme: dark;
 }
 [data-accent="coral"] {
-  --acc: #b4633f;
+  --acc: #d38a6c;
   --acc-ink: #ad5c3e;
   --acc-soft: #f7ece6;
   --acc-line: #ecd6cb;
@@ -254,7 +254,15 @@
   --accent: var(--acc-ink);
   --accent-text: var(--on-acc);
   --fill-1: var(--acc);
+  /* Small tags with white text on the accent (chips, leaderboard tabs, number dots). Same as the
+     accent, except light 简约 珊瑚橙, whose #d38a6c is too pale under white text (2.76:1), so tags
+     use a deeper coral (about 4.4:1) while buttons and the rest keep the original (Ke Li 2026-11-19). */
+  --acc-tag: var(--acc);
   --fill-2: var(--acc-2);
+}
+
+html:not([data-mode="dark"]):not([data-style="aurora"]):is([data-accent="coral"], :not([data-accent])) {
+  --acc-tag: #b4633f;
 }
 
 /* ---- Base ---- */
@@ -718,7 +726,7 @@ button.event-link {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--acc);
+  background: var(--acc-tag);
   color: var(--on-acc);
   font-size: 13px;
   font-style: normal;
@@ -2186,7 +2194,7 @@ pre.script,
   box-shadow: none;
 }
 .chip.on {
-  background: var(--acc);
+  background: var(--acc-tag);
   color: var(--on-acc);
 }
 [data-style="aurora"] .chip.on {
@@ -2811,8 +2819,8 @@ a.ev-meta {
   cursor: pointer;
 }
 .board-tabs button.on {
-  border-color: var(--acc);
-  background: var(--acc);
+  border-color: var(--acc-tag);
+  background: var(--acc-tag);
   color: #fff;
   font-weight: 600;
 }
@@ -4814,8 +4822,8 @@ ul.audit li:first-child {
   color: #2e7d4a;
 }
 .cq-court-list button.on {
-  background: var(--acc);
-  border-color: var(--acc);
+  background: var(--acc-tag);
+  border-color: var(--acc-tag);
   color: #fff;
 }
 .cq-search {
@@ -5344,7 +5352,7 @@ ul.audit li:first-child {
   height: 24px;
   margin-top: 1px;
   border-radius: 50%;
-  background: var(--acc);
+  background: var(--acc-tag);
   color: var(--on-acc);
   font-size: 13px;
   font-weight: 700;

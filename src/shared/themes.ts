@@ -8,7 +8,7 @@ export const STYLES = [
     id: "minimal",
     name: "简约",
     accents: [
-      { id: "coral", name: "珊瑚橙", swatch: ["#b4633f", "#b4633f"] },
+      { id: "coral", name: "珊瑚橙", swatch: ["#d38a6c", "#d38a6c"] },
       { id: "ocean", name: "海蓝", swatch: ["#6d8fb0", "#6d8fb0"] },
       { id: "forest", name: "森林绿", swatch: ["#6f9a7e", "#6f9a7e"] },
       { id: "grape", name: "葡萄紫", swatch: ["#9686b8", "#9686b8"] },
