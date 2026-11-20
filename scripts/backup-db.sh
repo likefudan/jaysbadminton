@@ -42,13 +42,28 @@ fi
 
 bucket=${BACKUP_BUCKET:-jaysbadminton-backups}
 key="$stem.sql.gz.enc"
-if ! npx wrangler r2 bucket info "$bucket" > /dev/null 2>&1; then
+# The Cloudflare API sometimes fails a request for a moment (v2026.11.19.2: `bucket info` failed, then
+# `bucket create` said the bucket exists), so the check is tried three times, and "already exists"
+# from create counts as success.
+bucket_exists() {
+  for wait in 0 5 15; do
+    sleep "$wait"
+    if npx wrangler r2 bucket info "$bucket" > /dev/null 2>&1; then return 0; fi
+  done
+  return 1
+}
+if ! bucket_exists; then
   echo "Making the private bucket $bucket (backups are deleted after 90 days)"
-  if ! npx wrangler r2 bucket create "$bucket"; then
+  if created=$(npx wrangler r2 bucket create "$bucket" 2>&1); then
+    echo "$created"
+    npx wrangler r2 bucket lifecycle add "$bucket" expire-after-90-days --expire-days 90 --force
+  elif grep -q "already exists, and you own it" <<< "$created"; then
+    echo "The bucket $bucket already exists (the first check failed for a moment)"
+  else
+    echo "$created"
     echo "::error::Cannot use the R2 bucket $bucket: turn on R2 in the Cloudflare dashboard and give the CLOUDFLARE_API_TOKEN the permission Workers R2 Storage: Edit"
     exit 1
   fi
-  npx wrangler r2 bucket lifecycle add "$bucket" expire-after-90-days --expire-days 90 --force
 fi
 npx wrangler r2 object put "$bucket/$key" --file "$out" --remote
 
