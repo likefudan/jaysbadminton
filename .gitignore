@@ -8,3 +8,7 @@ dist/
 test-results/
 playwright-report/
 wrangler.*.json
+
+# Stress test output (.github/workflows/stress.yml)
+stress/
+stress-summary.json

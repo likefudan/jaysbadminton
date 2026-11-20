@@ -1,0 +1,188 @@
+name: Stress test
+
+# Runs the tests over and over to find flaky ones (a test that sometimes fails on the same code).
+# Only by hand: Actions → Stress test → Run workflow. Never on a push or a pull request.
+# Every runner repeats its part `rounds` times, and `copies` runners run each part side by side,
+# so each unit test runs copies × rounds times, and so does each browser test. The summary at the
+# end lists every test that failed at least once, how often, and its first error.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Which tests: all, unit or e2e"
+        type: choice
+        options: [all, unit, e2e]
+        default: all
+      rounds:
+        description: "Rounds on each runner (1-20)"
+        type: number
+        default: 5
+      copies:
+        description: "Runners for each part, side by side (1-6)"
+        type: number
+        default: 3
+      filter:
+        description: "Only these tests (optional): file names or a pattern, e.g. e2e/admin-back.spec.ts or test/members.test.ts"
+        type: string
+        default: ""
+      load:
+        description: "Keep both CPUs busy in the background, like a slow, crowded runner"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stress-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      copies: ${{ steps.plan.outputs.copies }}
+      rounds: ${{ steps.plan.outputs.rounds }}
+    steps:
+      - id: plan
+        env:
+          COPIES: ${{ inputs.copies }}
+          ROUNDS: ${{ inputs.rounds }}
+        run: |
+          c=$(( COPIES < 1 ? 1 : (COPIES > 6 ? 6 : COPIES) ))
+          r=$(( ROUNDS < 1 ? 1 : (ROUNDS > 20 ? 20 : ROUNDS) ))
+          echo "copies=$(seq -s, 1 "$c" | sed 's/^/[/; s/$/]/')" >> "$GITHUB_OUTPUT"
+          echo "rounds=$r" >> "$GITHUB_OUTPUT"
+          echo "$c runner(s) per part, $r round(s) each" >> "$GITHUB_STEP_SUMMARY"
+
+  unit:
+    name: unit (${{ matrix.shard }}/4 #${{ matrix.copy }})
+    needs: plan
+    if: inputs.suite != 'e2e'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+        copy: ${{ fromJSON(needs.plan.outputs.copies) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: deps
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
+      - if: inputs.load
+        run: |
+          for i in 1 2; do nohup sh -c 'while :; do :; done' > /dev/null 2>&1 & done
+      - name: Unit tests, round after round
+        env:
+          ROUNDS: ${{ needs.plan.outputs.rounds }}
+          SHARD: ${{ matrix.shard }}
+          FILTER: ${{ inputs.filter }}
+        run: |
+          mkdir -p stress
+          # Only files under test/ apply here; e2e names in the filter are for the other job.
+          set -- $(printf '%s\n' $FILTER | grep -v '^e2e/' || true)
+          if [ -n "$FILTER" ] && [ $# -eq 0 ]; then echo "No unit tests in the filter"; exit 0; fi
+          for r in $(seq "$ROUNDS"); do
+            echo "::group::Round $r"
+            npx vitest run "$@" --maxWorkers=2 --shard="$SHARD/4" \
+              --reporter=default --reporter=json --outputFile.json="stress/unit-$SHARD-${{ matrix.copy }}-$r.json" || true
+            echo "::endgroup::"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stress-unit-${{ matrix.shard }}-${{ matrix.copy }}
+          path: stress/
+          retention-days: 7
+
+  e2e:
+    name: e2e (${{ matrix.shard }}/5 #${{ matrix.copy }})
+    needs: plan
+    if: inputs.suite != 'unit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+        copy: ${{ fromJSON(needs.plan.outputs.copies) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: deps
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
+      - if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci
+      - run: npm run build
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: inputs.load
+        run: |
+          for i in 1 2; do nohup sh -c 'while :; do :; done' > /dev/null 2>&1 & done
+      # Each round is a whole `playwright test`: a fresh local Worker and database, as in CI, so tests
+      # that build on each other (flows.spec.ts) start from the beginning every time.
+      - name: Browser tests, round after round
+        env:
+          ROUNDS: ${{ needs.plan.outputs.rounds }}
+          SHARD: ${{ matrix.shard }}
+          FILTER: ${{ inputs.filter }}
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          mkdir -p stress
+          set -- $(printf '%s\n' $FILTER | grep -v '^test/' || true)
+          if [ -n "$FILTER" ] && [ $# -eq 0 ]; then echo "No browser tests in the filter"; exit 0; fi
+          for r in $(seq "$ROUNDS"); do
+            echo "::group::Round $r"
+            PLAYWRIGHT_JSON_OUTPUT_FILE="stress/e2e-$SHARD-${{ matrix.copy }}-$r.json" \
+              npx playwright test "$@" --shard="$SHARD/5" --reporter=list,json \
+              --output="test-results/round-$r" || true
+            echo "::endgroup::"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stress-e2e-${{ matrix.shard }}-${{ matrix.copy }}
+          path: |
+            stress/
+            test-results/
+          retention-days: 7
+
+  summary:
+    needs: [unit, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: stress-*
+          path: results
+      - name: Flaky tests
+        run: node scripts/stress-summary.mjs results | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stress-summary
+          path: stress-summary.json
+          retention-days: 30
