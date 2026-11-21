@@ -125,3 +125,31 @@ export const GREETINGS: readonly Greeting[] = ["big", "small", "none"];
 export const normalizeGreeting = (v: string | null | undefined): Greeting =>
   GREETINGS.includes(v as Greeting) ? (v as Greeting) : "big";
 export const GREETING_NAME: Record<Greeting, string> = { big: "大标题", small: "小字", none: "不显示" };
+
+/**
+ * 比分 (Ke Li 2026-11-21): matches may be recorded from an event's start until this many days after
+ * its end, and one not confirmed by everyone on court within this many days of being recorded lapses.
+ */
+export const SCORE_DAYS = 3;
+/** Games in one match (best of three at most). */
+export const MATCH_GAMES_MAX = 3;
+/** Points in one game: badminton plays to 21 (30 at most); 11 and 15 are common too. */
+export const GAME_POINTS_MAX = 99;
+/** A 路人's name, optional. */
+export const GUEST_NAME_MAX = 20;
+
+/** The games as entered, or why not: 1 to 3, whole numbers 0–99, never a draw. */
+export function checkGames(games: unknown): [number, number][] | string {
+  if (!Array.isArray(games) || games.length < 1 || games.length > MATCH_GAMES_MAX) return "请填 1 到 3 局比分";
+  const out: [number, number][] = [];
+  for (const g of games) {
+    if (!Array.isArray(g) || g.length !== 2) return "请填 1 到 3 局比分";
+    const [a, b] = g as unknown[];
+    const ok = (n: unknown): n is number =>
+      Number.isInteger(n) && (n as number) >= 0 && (n as number) <= GAME_POINTS_MAX;
+    if (!ok(a) || !ok(b)) return "比分要是 0 到 99 的整数";
+    if (a === b) return "一局比分不能打平";
+    out.push([a, b]);
+  }
+  return out;
+}

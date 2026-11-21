@@ -57,6 +57,7 @@ import { readCourtPhoto } from "../courtPhoto";
 import { avatarMode, avatarUrl, setAvatarMode, uploadAvatar } from "../avatars";
 import { siteGreeting } from "../site";
 import { announceResults, cheer, memberLottery, optLottery } from "../lottery";
+import { answerMatch, deleteMatch, recordMatch, scorePeople, scoreSummary } from "../scores";
 import { eventLikes, likeCounts, likeOpen, likeSettings, likeSummary, setLike } from "../likes";
 import {
   calorieReadDays,
@@ -471,6 +472,13 @@ async function myEvents(
           mine.likesOf(e.id),
           likeCfg,
         ),
+        scores: await scoreSummary(
+          env,
+          row,
+          m,
+          selfOn,
+          rows.some((r) => r.friend_index === 0 && r.attended === 1),
+        ),
       };
     }),
   );
@@ -562,6 +570,30 @@ memberRoutes.post("/:token/events/:id/likes", async (c) => {
   const body = await readJson(c.req.raw);
   await setLike(c.env, c.get("member"), e, body.to, body.on === true);
   return c.json(await eventLikes(c.env, c.get("member"), e));
+});
+
+/** 比分: who can be picked; record a match; confirm or reject one; take back one's own. */
+memberRoutes.get("/:token/events/:id/scores/people", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  return c.json(await scorePeople(c.env, c.get("member"), e));
+});
+memberRoutes.post("/:token/events/:id/scores", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  const id = await recordMatch(c.env, c.get("member"), e, await readJson(c.req.raw));
+  sendSoon(c);
+  return c.json({ id });
+});
+memberRoutes.post("/:token/events/:id/scores/:match/answer", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  const body = await readJson(c.req.raw);
+  await answerMatch(c.env, c.get("member"), e, Number(c.req.param("match")), body.ok === true);
+  sendSoon(c);
+  return c.json({ ok: true });
+});
+memberRoutes.post("/:token/events/:id/scores/:match/delete", async (c) => {
+  const e = await getEvent(c.env, Number(c.req.param("id")));
+  await deleteMatch(c.env, c.get("member"), e, Number(c.req.param("match")));
+  return c.json({ ok: true });
 });
 
 /** 球场排队 批量删除 and 清空账号 are for the Owner and admins (群主、管理员). */

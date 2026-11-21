@@ -4,5 +4,6 @@
   "0048_extra_spend.sql": "自付费用表，旧版本不读它",
   "0053_lotteries.sql": "抽奖的四张表，旧版本不读它们",
   "0054_lottery_excluded.sql": "抽奖里手动去掉的人，旧版本不读它",
-  "0055_lottery_optouts.sql": "抽奖里自己选择不参加的人，旧版本不读它"
+  "0055_lottery_optouts.sql": "抽奖里自己选择不参加的人，旧版本不读它",
+  "0056_matches.sql": "比分的两张表，旧版本不读它们"
 }

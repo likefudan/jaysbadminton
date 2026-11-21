@@ -84,6 +84,13 @@ export async function eraseMember(env: Env, m: MemberRow, again = false): Promis
     gone("DELETE FROM calorie_uploads WHERE member_id = ?"),
     gone("DELETE FROM extra_spend WHERE member_id = ?"),
     gone("DELETE FROM likes WHERE from_member = ?1 OR to_member = ?1"),
+    // 比分 they recorded or played in go whole: a match without one of its players means nothing.
+    gone(
+      "DELETE FROM match_players WHERE match_id IN (SELECT match_id FROM match_players WHERE member_id = ?1 UNION SELECT id FROM matches WHERE recorded_by = ?1)",
+    ),
+    gone(
+      "DELETE FROM matches WHERE recorded_by = ?1 OR NOT EXISTS (SELECT 1 FROM match_players p WHERE p.match_id = matches.id)",
+    ),
     gone("DELETE FROM queue_accounts WHERE member_id = ?"),
     gone("DELETE FROM queue_credits WHERE member_id = ?"),
     gone("DELETE FROM lottery_watchers WHERE member_id = ?"),

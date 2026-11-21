@@ -1,3 +1,4 @@
+import { ScoreRow } from "../Scores";
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { Leaders } from "../Boards";
@@ -563,6 +564,8 @@ export function SignupCard(props: { base: string; e: MyEvent; onChange: () => vo
         <CalorieRow base={props.base} e={e} onChange={props.onChange} />
         {/* 点赞 after the game, under 卡路里 (Ke Li 2026-11-11). */}
         <LikeRow base={props.base} e={e} onChange={props.onChange} />
+        {/* 比分 (Ke Li 2026-11-21): from the start, matches recorded and confirmed by those on court. */}
+        <ScoreRow base={props.base} e={e} onChange={props.onChange} />
       </div>
     </section>
   );
