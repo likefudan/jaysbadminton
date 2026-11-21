@@ -2921,36 +2921,87 @@ a.ev-meta {
 .podium .p2 .step {
   height: 44px;
 }
-/* 点赞榜: heart-shaped blocks seen at a slant (HeartStep), each place its own red. */
-.board.hearts .podium .step.heart-step {
-  height: auto;
+/* 能量, 出勤, 点赞 (Ke Li 2026-11-21, option B): a step that fades out downward, a thin line in the
+   place's colour (--tone, set by QuietStep) along its top, and the board's small sign set into the
+   line. The line is two pieces, so the sign needs no patch of background behind it. */
+.board.quiet .podium .step.quiet-step {
+  position: relative;
+  margin-top: 14px;
   padding: 0;
-  border-radius: 0;
-  background: none;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--tone) 16%, transparent),
+    color-mix(in srgb, var(--tone) 2%, transparent)
+  );
+  color: var(--tone);
 }
-.heart-step svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
+[data-mode="dark"] .board.quiet .podium .step.quiet-step {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--tone) 26%, transparent),
+    color-mix(in srgb, var(--tone) 4%, transparent)
+  );
 }
-.heart-shade {
-  stop-color: #000;
-  stop-opacity: 0.22;
+.quiet-step::before,
+.quiet-step::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--tone);
 }
-[data-mode="dark"] .heart-shade {
-  stop-opacity: 0.55;
+.quiet-step::before {
+  left: 0;
+  right: calc(50% + 14px);
 }
-.board.hearts .podium .p1 .value {
-  color: #c01730;
+.quiet-step::after {
+  left: calc(50% + 14px);
+  right: 0;
 }
-[data-mode="dark"] .board.hearts .podium .p1 .value {
-  color: #ff6b7d;
+.quiet-step .step-icon {
+  position: absolute;
+  top: -8px;
 }
-.board.hearts .podium .p1 .podium-av {
+.board.quiet .podium .p1 .quiet-step .step-icon {
+  top: -10px;
+}
+.p1 .quiet-step::before {
+  right: calc(50% + 16px);
+}
+.p1 .quiet-step::after {
+  left: calc(50% + 16px);
+}
+/* 1st place's number and the ring round their face, in the board's colour. */
+.board.quiet-calories {
+  --quiet-ink: #2470ad;
+  --quiet-ring: #57a2dc;
+}
+.board.quiet-attendance {
+  --quiet-ink: #23775a;
+  --quiet-ring: #52ab89;
+}
+.board.quiet-likes {
+  --quiet-ink: #c01730;
+  --quiet-ring: #e64980;
+}
+[data-mode="dark"] .board.quiet-calories {
+  --quiet-ink: #6db3e8;
+}
+[data-mode="dark"] .board.quiet-attendance {
+  --quiet-ink: #6cc4a1;
+}
+[data-mode="dark"] .board.quiet-likes {
+  --quiet-ink: #ff6b7d;
+}
+.board.quiet .podium .p1 .value {
+  color: var(--quiet-ink);
+}
+.board.quiet .podium .p1 .podium-av {
   box-shadow:
     0 0 0 2px var(--surface),
-    0 0 0 4px #e64980;
+    0 0 0 4px var(--quiet-ring);
 }
 .board-rows {
   margin: 0;

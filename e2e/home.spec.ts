@@ -67,10 +67,13 @@ test("the home page leads with the next event and scrolls the small cards sidewa
   await page.getByRole("tab", { name: "时长" }).click();
   await expect(page.locator(".board-desc")).toHaveText("按报名时填的到/走时间算，没填按整场");
   await expect(page.locator(".podium .p1 .value")).toHaveText("12.5小时");
+  await expect(page.locator(".podium .crown")).toHaveCount(1);
   await page.getByRole("tab", { name: "出勤" }).click();
   // A podium for the top three (2nd, 1st, 3rd from the left), rows below it, the rest behind 查看全部.
   await expect(page.locator(".podium .who")).toHaveText(["Dawei", "arturo", "Jayz"]);
-  await expect(page.locator(".podium .crown")).toHaveCount(1);
+  // 出勤 has the quiet steps (Ke Li 2026-11-21): a green tick on each, no crown, no number to see.
+  await expect(page.locator(".podium .crown")).toHaveCount(0);
+  await expect(page.locator(".podium .quiet-step .step-icon")).toHaveCount(3);
   const rows = page.locator(".board-rows li");
   await expect(rows).toHaveCount(3);
   await page.getByRole("button", { name: "查看全部 8 人" }).click();
@@ -241,7 +244,7 @@ test("a tie for 1st looks the same on every step after a refresh", async ({ page
   expect(two[2]).not.toBe(two[1]);
 });
 
-/** 点赞榜 stands the top three on heart-shaped blocks with no crown; the other boards keep theirs (Ke Li 2026-11-18). */
+/** 点赞榜 gives each of the top three a quiet step with one small heart and no crown; 连续 and the like keep theirs (Ke Li 2026-11-21). */
 test("the likes board stands the top three on hearts", async ({ page }) => {
   const list = [
     { rank: 1, name: "Lina", value: 19 },
@@ -254,36 +257,80 @@ test("the likes board stands the top three on hearts", async ({ page }) => {
       json: {
         currentEvents: [],
         pastEvents: [],
-        leaderboard: board({ likes: list, attendance: list }, ["likes", "attendance"]),
+        leaderboard: board({ likes: list, streak: list }, ["likes", "streak"]),
       },
     }),
   );
   await page.goto("/");
   await expect(page.locator(".podium .step")).toHaveText(["2", "1", "3"]);
-  await expect(page.locator(".podium .heart-step svg")).toHaveCount(3);
+  await expect(page.locator(".podium .quiet-step .step-icon")).toHaveCount(3);
   await expect(page.locator(".podium .crown")).toHaveCount(0);
   // Bare numbers on the podium, no number painted on the hearts; the rows have the number and a heart (Ke Li 2026-11-20).
   await expect(page.locator(".podium .value")).toHaveText(["14", "19", "2"]);
-  await expect(page.locator(".podium .heart-step b")).toHaveCount(0);
+  await expect(page.locator(".podium .quiet-step b")).toHaveCount(0);
   await expect(page.locator(".board-rows .value")).toHaveText("1");
   await expect(page.locator(".board-rows .value .heart")).toHaveCount(1);
   // As tall as their share of 1st place's likes (option C): 14 of 19 is about three quarters of
-  // 1st's height; 2 of 19 would be a sliver, so 3rd stops at the thinnest block.
-  const heights = await page
-    .locator(".podium .heart-step")
-    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  // 1st's height; 2 of 19 would be a sliver, so 3rd stops at the shortest step.
+  const boxes = await page
+    .locator(".podium .quiet-step")
+    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+  const heights = boxes.map((b) => b.height);
   expect(heights[0]! / heights[1]!).toBeCloseTo(14 / 19, 1);
   expect(heights[2]!).toBeLessThan(heights[0]!);
-  expect(heights[2]! / heights[1]!).toBeGreaterThan(2 / 19 + 0.3);
+  expect(heights[2]! / heights[1]!).toBeGreaterThan(2 / 19 + 0.2);
+  // The hearts are small (Ke Li 2026-11-21: the old heart-shaped blocks were too big).
+  const hearts = await page
+    .locator(".podium .quiet-step .step-icon")
+    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width));
+  for (const w of hearts) expect(w).toBeLessThan(40);
   // Each place has its own red: deep for 1st, rose for 2nd, light for 3rd.
   const reds = await page
-    .locator(".podium .heart-step linearGradient stop:nth-child(2)")
-    .evaluateAll((els) => els.filter((_, i) => i % 2 === 0).map((e) => e.getAttribute("stop-color")));
+    .locator(".podium .quiet-step .step-icon")
+    .evaluateAll((els) => els.map((e) => getComputedStyle(e).color));
   expect(new Set(reds).size).toBe(3);
   await page.locator(".card.board").screenshot({ path: test.info().outputPath("likes-hearts.png") });
-  await page.getByRole("tab", { name: "出勤" }).click();
+  await page.getByRole("tab", { name: "连续" }).click();
   await expect(page.locator(".podium .crown")).toHaveCount(1);
-  await expect(page.locator(".podium .heart-step")).toHaveCount(0);
+  await expect(page.locator(".podium .quiet-step")).toHaveCount(0);
+});
+
+/** 能量 and 出勤 have the same quiet steps in their own colours: blue sweat, a green tick (Ke Li 2026-11-21). */
+test("the energy and attendance boards have quiet steps in their own colours", async ({ page }) => {
+  const list = [
+    { rank: 1, name: "Lina", value: 9 },
+    { rank: 2, name: "Tom", value: 8 },
+    { rank: 3, name: "Jayz", value: 2 },
+  ];
+  await page.route("**/api/public/home", (route) =>
+    route.fulfill({
+      json: {
+        currentEvents: [],
+        pastEvents: [],
+        leaderboard: board({ calories: list, attendance: list }, ["calories", "attendance"]),
+      },
+    }),
+  );
+  await page.goto("/");
+  const look = async () => {
+    await expect(page.locator(".podium .quiet-step .step-icon")).toHaveCount(3);
+    await expect(page.locator(".podium .crown")).toHaveCount(0);
+    await expect(page.locator(".podium .step")).toHaveText(["2", "1", "3"]);
+    return page
+      .locator(".podium .quiet-step")
+      .evaluateAll((els) =>
+        els.map((e) => ({ colour: getComputedStyle(e).color, height: e.getBoundingClientRect().height })),
+      );
+  };
+  const energy = await look();
+  await page.getByRole("tab", { name: "出勤" }).click();
+  const attendance = await look();
+  for (const steps of [energy, attendance]) {
+    // Three shades, and fixed heights whatever the numbers: 1st tallest, 3rd shortest.
+    expect(new Set(steps.map((s) => s.colour)).size).toBe(3);
+    expect(steps.map((s) => s.height)).toEqual([44, 62, 32]);
+  }
+  expect(energy[1]!.colour).not.toBe(attendance[1]!.colour);
 });
 
 test.describe("with a mouse", () => {
