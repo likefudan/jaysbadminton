@@ -15,6 +15,8 @@ const DAY = 24 * HOUR;
 /** An event that ended `endedAgo` ms ago, with these members on it. */
 async function played(names: string[], endedAgo = HOUR) {
   const ctx = await setUpAdmin();
+  // Off until turned on in 设置 (Ke Li 2026-11-21).
+  await ctx.admin.call(`${ctx.base}/settings`, { scoresOn: true });
   const people = [];
   for (const n of names) people.push(await approveMember(ctx, n));
   const e = await createTestEvent(ctx);
@@ -214,5 +216,34 @@ describe("比分", () => {
       games: [[21, 3]],
     });
     expect(stranger.data.error.message).toBe("只能选这场来打球的人");
+  });
+
+  it("is off until the Owner or an admin turns it on in 设置", async () => {
+    const { ctx, e, people } = await played(["Amy", "Bob"]);
+    const [amy, bob] = people as [(typeof people)[0], (typeof people)[0]];
+    const id = (
+      await anon.call(`${amy.base}/events/${e.id}/scores`, {
+        doubles: false,
+        opponents: [{ id: bob.id }],
+        games: [[21, 3]],
+      })
+    ).data.id;
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.scoresOn).toBe(true);
+    expect((await ctx.admin.call(`${ctx.base}/settings`, { scoresOn: false })).status).toBe(200);
+    expect((await ctx.admin.call(`${ctx.base}/settings`)).data.scoresOn).toBe(false);
+    // Off: no 比分 on the card, and nothing goes through.
+    expect((await card(amy.base, e.id)).scores).toBeNull();
+    for (const [path, body] of [
+      ["scores", { doubles: false, opponents: [{ id: bob.id }], games: [[21, 3]] }],
+      [`scores/${id}/answer`, { ok: true }],
+      [`scores/${id}/delete`, {}],
+    ] as const) {
+      const res = await anon.call(`${(path.endsWith("answer") ? bob : amy).base}/events/${e.id}/${path}`, body);
+      expect(res.data.error.message).toBe("比分记录没有打开");
+    }
+    expect((await anon.call(`${amy.base}/events/${e.id}/scores/people`)).data.error.message).toBe("比分记录没有打开");
+    // On again: the match is still there.
+    await ctx.admin.call(`${ctx.base}/settings`, { scoresOn: true });
+    expect((await card(amy.base, e.id)).scores.matches).toHaveLength(1);
   });
 });

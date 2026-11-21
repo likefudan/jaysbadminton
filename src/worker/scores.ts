@@ -1,7 +1,7 @@
 import { checkGames, GUEST_NAME_MAX, SCORE_DAYS } from "../shared/rules";
 import type { Match, MatchPlayer, MatchStatus, ScorePeople, ScoreSummary } from "../shared/types";
 import { avatarUrl } from "./avatars";
-import { now } from "./db";
+import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
 import { badRequest } from "./http";
@@ -17,6 +17,15 @@ import { pushScore } from "./push";
  */
 
 const DAY = 86_400_000;
+
+/** 比分 is off until the Owner or an admin turns it on in 设置 › 高级设置 (Ke Li 2026-11-21). */
+export async function scoresEnabled(env: Env): Promise<boolean> {
+  return (await getSettings(env.DB, ["scores_on"])).scores_on === "1";
+}
+
+async function mustBeOn(env: Env) {
+  if (!(await scoresEnabled(env))) throw badRequest("比分记录没有打开");
+}
 
 /** Who played, for a registration `r` and its member `m` (as 点赞 has it). */
 const PLAYED = (r: string, m: string) =>
@@ -124,6 +133,7 @@ export async function scoreSummary(
   playedIt: boolean,
 ): Promise<ScoreSummary | null> {
   if (!selfOn || e.status === "cancelled" || Date.now() < Date.parse(e.start_at)) return null;
+  if (!(await scoresEnabled(env))) return null;
   const open = m.status === "active" && playedIt && scoreOpen(e);
   const matches = await eventMatches(env, e.id, m.id);
   if (!open && matches.length === 0) return null;
@@ -143,6 +153,7 @@ export async function scorePeople(env: Env, m: MemberRow, e: EventRow): Promise<
 }
 
 async function mustRecord(env: Env, m: MemberRow, e: EventRow) {
+  await mustBeOn(env);
   if (e.status === "cancelled") throw badRequest("活动已取消");
   if (m.status !== "active" || !(await played(env, e.id, m.id))) throw badRequest("只有来打球的人可以记录比分");
   if (!scoreOpen(e)) throw badRequest(`活动开始后到结束 ${SCORE_DAYS} 天内可以记录比分`);
@@ -232,6 +243,7 @@ const removeMatch = (env: Env, id: number) => [
 
 /** A member on court confirms the score or says it's wrong, while it waits for them. */
 export async function answerMatch(env: Env, m: MemberRow, e: EventRow, matchId: number, ok: boolean): Promise<void> {
+  await mustBeOn(env);
   if (m.status !== "active") throw badRequest("你的账号已停用");
   const x = (await eventMatches(env, e.id, m.id)).find((x) => x.id === matchId);
   if (!x?.toAnswer) throw badRequest("这条比分不用你确认了");
@@ -255,6 +267,7 @@ export async function answerMatch(env: Env, m: MemberRow, e: EventRow, matchId: 
 
 /** The recorder takes back one of their matches that isn't confirmed. */
 export async function deleteMatch(env: Env, m: MemberRow, e: EventRow, matchId: number): Promise<void> {
+  await mustBeOn(env);
   const x = (await eventMatches(env, e.id, m.id)).find((x) => x.id === matchId);
   if (!x?.mine) throw badRequest("只能删除自己记录的比分");
   if (x.status === "confirmed") throw badRequest("已确认的比分不能删除");
