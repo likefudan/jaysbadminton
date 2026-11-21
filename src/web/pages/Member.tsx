@@ -157,15 +157,19 @@ export function MemberProfilePage(props: { token?: string }) {
   const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
   const [stats, reloadStats] = useApi<MyStats>(`${base}/stats`);
   const [calories, reloadCalories] = useApi<MyCalories>(`${base}/calories`);
-  // 「我的上榜设置 ›」 under the boards opens 设置 with 排行榜 open (?boards), once.
-  const [boardsLink] = useState(() => new URLSearchParams(location.search).has("boards"));
+  // 「我的上榜设置 ›」 under the boards opens 设置 with 排行榜 open (?boards), once: the gear
+  // afterwards opens it folded, like every other row (Ke Li 2026-11-21).
+  const [boardsLink, setBoardsLink] = useState(() => new URLSearchParams(location.search).has("boards"));
   useEffect(() => {
     if (boardsLink) history.replaceState(history.state, "", location.pathname);
   }, [boardsLink]);
   const [open, setOpen] = useState<"spend" | "activity" | "calories" | "details" | "settings" | "avatar" | null>(
     boardsLink ? "settings" : null,
   );
-  const close = () => setOpen(null);
+  const close = () => {
+    setOpen(null);
+    setBoardsLink(false);
+  };
   const p = profile.state === "ok" ? profile.data : null;
   const s = stats.state === "ok" && stats.data.history.length > 0 ? stats.data : null;
   const c = calories.state === "ok" && caloriesShown(calories.data) ? calories.data : null;
