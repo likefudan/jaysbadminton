@@ -197,8 +197,10 @@ export function SettingRow(props: {
   panel?: (close: () => void) => ComponentChildren;
   /** The page this row opens is showing beside the list (wide screens). */
   current?: boolean;
+  /** Its panel starts open (a link straight to it, such as 「我的上榜设置」). */
+  startOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!props.startOpen);
   const inner = (
     <>
       {props.icon && (

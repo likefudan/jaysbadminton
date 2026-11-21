@@ -79,6 +79,35 @@ describe("leaderboard", () => {
     }
   });
 
+  it("leaves a member off the boards they turned off, for admins too, and moves the others up", async () => {
+    const { ctx, alice, bob } = await history();
+    const mine = await anon.call(`${alice.base}/boards`);
+    // Every board but 能量 (opt-in) to begin with.
+    expect(mine.data).toMatchObject({ calories: false, attendance: true, likes: true, early: true });
+    const off = await anon.call(`${alice.base}/boards`, { board: "attendance", on: false });
+    expect(off.data.attendance).toBe(false);
+    expect(off.data.streak).toBe(true);
+    // 能量 is the same switch as 加入能量榜.
+    expect((await anon.call(`${alice.base}/boards`, { board: "calories", on: true })).data.calories).toBe(true);
+    expect((await anon.call(`${alice.base}/calories`)).data.board).toBe(true);
+    expect((await anon.call(`${alice.base}/boards`, { board: "nope", on: false })).status).toBe(400);
+
+    const { board } = (await ctx.admin.call(`${ctx.base}/leaderboard`)).data;
+    for (const b of [board, board.monthly]) {
+      expect(b.attendance).toEqual([{ rank: 1, name: "Bob", value: 1, avatar: null }]);
+      expect(b.streak.map((r: { name: string }) => r.name)).toEqual(["Alice", "Bob"]);
+    }
+    // The home page too; and back on, back on the board.
+    await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('leaderboard_anon', '1')").run();
+    const home = (await anon.call("/api/public/home")).data.leaderboard;
+    expect(home.attendance.map((r: { name: string }) => r.name)).toEqual(["Bob"]);
+    await anon.call(`${alice.base}/boards`, { board: "attendance", on: true });
+    const again = (await ctx.admin.call(`${ctx.base}/leaderboard`)).data.board;
+    expect(again.attendance.map((r: { name: string }) => r.name)).toEqual(["Alice", "Bob"]);
+    // Each member has their own switches.
+    expect((await anon.call(`${bob.base}/boards`)).data.attendance).toBe(true);
+  });
+
   it("measures progress against the same stretch a period back", async () => {
     const { ctx, events } = await history();
     // Alice came once at this time last year: two more this year.

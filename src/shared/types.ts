@@ -540,6 +540,12 @@ export type Leaderboard = {
   monthly: Record<BoardKey, RankEntry[]>;
 } & Record<BoardKey, RankEntry[]>;
 
+/**
+ * 排行榜参加开关 (Ke Li 2026-11-21, option A): which boards the member is on. 能量 is
+ * members.calorie_board (off until they join); the others are on unless they turned them off.
+ */
+export type MyBoards = Record<BoardKey, boolean>;
+
 /** 管理页「排行榜」: every board, and which ones the home page shows to whom. */
 export interface LeaderboardAdmin {
   board: Leaderboard;

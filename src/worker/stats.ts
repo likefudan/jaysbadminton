@@ -5,6 +5,7 @@ import {
   type BoardKey,
   DEFAULT_PUBLIC_BOARDS,
   type Leaderboard,
+  type MyBoards,
   type MyStats,
   type RankEntry,
   type SpendEntry,
@@ -15,6 +16,7 @@ import { avatarsById, avatarUrl } from "./avatars";
 import { getSettings } from "./db";
 import { COUNTED_LIKE } from "./likes";
 import type { Env } from "./env";
+import type { MemberRow } from "./members";
 import { badRequest, HttpError } from "./http";
 
 /**
@@ -118,6 +120,8 @@ interface Extra {
   /** 排队: each 球馆账号 added and each court entry put in, by who did it (queue_credits). */
   queue: { member_id: string; date: string }[];
   calories: { member_id: string; date: string; kcal: number }[];
+  /** 排行榜参加开关: "member:board" for each board a member took themselves off. */
+  off: Set<string>;
   /** 点赞: each like received, by whom it went to. */
   likes: { member_id: string; date: string }[];
   names: Map<string, string>;
@@ -157,7 +161,7 @@ function longestRun(events: Iterable<number>, present: (id: number) => boolean):
 const toHours = (min: number) => Math.round(min / 6) / 10;
 
 async function extra(env: Env, since: string): Promise<Extra> {
-  const [early, queue, calories, likes, members] = await env.DB.batch([
+  const [early, queue, calories, likes, members, off] = await env.DB.batch([
     earlyQuery(env, "e.date >= ?", since),
     env.DB.prepare(
       `SELECT q.member_id, e.date FROM queue_credits q JOIN events e ON e.id = q.event_id
@@ -176,6 +180,7 @@ async function extra(env: Env, since: string): Promise<Extra> {
       since,
     ),
     env.DB.prepare("SELECT id, username FROM members WHERE status = 'active'"),
+    env.DB.prepare("SELECT member_id, board FROM board_optouts"),
   ]);
   return {
     early: early!.results as Extra["early"],
@@ -183,6 +188,7 @@ async function extra(env: Env, since: string): Promise<Extra> {
     calories: calories!.results as Extra["calories"],
     likes: likes!.results as Extra["likes"],
     names: new Map((members!.results as { id: string; username: string }[]).map((m) => [m.id, m.username])),
+    off: new Set((off!.results as { member_id: string; board: string }[]).map((o) => `${o.member_id}:${o.board}`)),
   };
 }
 
@@ -227,6 +233,9 @@ function boards(
 
   // Hours to one decimal, from minutes, before ranking: the same hours shown share a rank.
   for (const h of tallies.hours.values()) h.value = toHours(h.value);
+  // 排行榜参加开关 (Ke Li 2026-11-21): off a board means not on it at all, for anyone looking
+  // (admins too); the ones after them move up.
+  for (const k of BOARD_KEYS) for (const id of tallies[k].keys()) if (x.off.has(`${id}:${k}`)) tallies[k].delete(id);
   return Object.fromEntries(BOARD_KEYS.map((k) => [k, top(tallies[k], 10, avatars)])) as Record<BoardKey, RankEntry[]>;
 }
 
@@ -259,6 +268,35 @@ export function onlyBoards(b: Leaderboard, keys: BoardKey[]): Leaderboard {
       out.monthly[k] = [];
     }
   return out;
+}
+
+/** 排行榜参加开关: which boards the member is on (能量 by members.calorie_board). */
+export async function myBoards(env: Env, m: Pick<MemberRow, "id" | "calorie_board">): Promise<MyBoards> {
+  const { results } = await env.DB.prepare("SELECT board FROM board_optouts WHERE member_id = ?")
+    .bind(m.id)
+    .all<{ board: string }>();
+  const off = new Set(results.map((r) => r.board));
+  return Object.fromEntries(
+    BOARD_KEYS.map((k) => [k, k === "calories" ? m.calorie_board === 1 : !off.has(k)]),
+  ) as MyBoards;
+}
+
+/** Turns one board on or off for the member; 能量 is the same switch as 加入能量榜. */
+export async function setMyBoard(env: Env, m: Pick<MemberRow, "id" | "calorie_board">, board: BoardKey, on: boolean) {
+  if (board === "calories") {
+    await env.DB.prepare("UPDATE members SET calorie_board = ? WHERE id = ?")
+      .bind(on ? 1 : 0, m.id)
+      .run();
+    m.calorie_board = on ? 1 : 0;
+    return;
+  }
+  await env.DB.prepare(
+    on
+      ? "DELETE FROM board_optouts WHERE member_id = ? AND board = ?"
+      : "INSERT OR IGNORE INTO board_optouts (member_id, board) VALUES (?, ?)",
+  )
+    .bind(m.id, board)
+    .run();
 }
 
 /** Which boards the home page shows, and whether visitors who aren't signed in see them. */

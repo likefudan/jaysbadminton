@@ -95,6 +95,7 @@ export async function eraseMember(env: Env, m: MemberRow, again = false): Promis
     gone("DELETE FROM queue_credits WHERE member_id = ?"),
     gone("DELETE FROM lottery_watchers WHERE member_id = ?"),
     gone("DELETE FROM lottery_optouts WHERE member_id = ?"),
+    gone("DELETE FROM board_optouts WHERE member_id = ?"),
     gone("DELETE FROM lottery_excluded WHERE member_id = ?"),
     gone("DELETE FROM telegram_langs WHERE chat_id IN (SELECT chat_id FROM telegram_bindings WHERE member_id = ?)"),
     gone("DELETE FROM telegram_bindings WHERE member_id = ?"),

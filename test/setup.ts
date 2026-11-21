@@ -38,6 +38,7 @@ const TABLES = [
   "lottery_entries",
   "lottery_excluded",
   "lottery_optouts",
+  "board_optouts",
   "match_players",
   "matches",
   "lotteries",

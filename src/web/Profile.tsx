@@ -9,6 +9,7 @@ import { Card, Field, SettingRow, useAction } from "./components";
 import { InstallRow } from "./Install";
 import { forgetOfflineData } from "./offline";
 import { PushRow } from "./Push";
+import { BoardsRow } from "./MyBoards";
 import { fmtDate, fmtDay, month, t, tk, tm, tx } from "./i18n";
 
 const STATUS_LABEL: Record<ActivityDay["status"], string> = {
@@ -284,6 +285,8 @@ export function ProfileSettings(props: {
   base: string;
   home: string;
   onChange: () => void;
+  /** 排行榜 opens straight away (from 「我的上榜设置」 under the boards). */
+  boards?: boolean;
 }) {
   const p = props.profile;
   return (
@@ -330,6 +333,7 @@ export function ProfileSettings(props: {
       )}
       <InstallRow home={props.home} />
       <PushRow base={props.base} home={props.home} memberId={props.me.id} />
+      {props.me.active && <BoardsRow base={props.base} startOpen={props.boards} onChange={props.onChange} />}
       <SettingRow
         icon={<TrashIcon />}
         label={t("删除账号")}

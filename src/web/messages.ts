@@ -866,6 +866,33 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "The home page board shows your name and kcal. You can leave any time.",
   },
   能量: { tw: "能量", en: "Energy" },
+  // 个人信息 › 设置 › 排行榜 (Ke Li 2026-11-21).
+  没有参加排行榜: { tw: "沒有參加排行榜", en: "Not on any board" },
+  "参加 {n} 个榜": { tw: "參加 {n} 個榜", en: "On {n} boards" },
+  "关掉的榜上不会出现你的名字和头像，后面的人名次往前顺延。你自己的数据和年度回顾不受影响。": {
+    tw: "關掉的榜上不會出現你的名字和頭像，後面的人名次往前順延。你自己的數據和年度回顧不受影響。",
+    en: "Boards you turn off won't show your name or photo, and the people after you move up. Your own numbers and year review stay the same.",
+  },
+  显示你的名字和千卡数: { tw: "顯示你的名字和大卡數", en: "Shows your name and kcal" },
+  显示你的名字和来打球的次数: { tw: "顯示你的名字和來打球的次數", en: "Shows your name and how often you came" },
+  显示你的名字和在场小时数: { tw: "顯示你的名字和在場小時數", en: "Shows your name and hours on court" },
+  显示你的名字和多来了几次: { tw: "顯示你的名字和多來了幾次", en: "Shows your name and how many more times you came" },
+  显示你的名字和最长连续场数: { tw: "顯示你的名字和最長連續場數", en: "Shows your name and your longest run" },
+  显示你的名字和带朋友的人次: {
+    tw: "顯示你的名字和帶朋友的人次",
+    en: "Shows your name and how many friends you brought",
+  },
+  显示你的名字和帮大家排队的次数: {
+    tw: "顯示你的名字和幫大家排隊的次數",
+    en: "Shows your name and how often you helped with the court queue",
+  },
+  显示你的名字和早报名的次数: {
+    tw: "顯示你的名字和早報名的次數",
+    en: "Shows your name and how often you signed up early",
+  },
+  显示你的名字和收到的赞数: { tw: "顯示你的名字和收到的讚數", en: "Shows your name and the likes you got" },
+  "我的上榜设置 ›": { tw: "我的上榜設定 ›", en: "My board settings ›" },
+  "哪个排行榜？": { tw: "哪個排行榜？", en: "Which board?" },
   "查看全部 {n} 人": { tw: "查看全部 {n} 人", en: "Show all {n}" },
   收起: { tw: "收起", en: "Show less" },
   还没有人加入能量榜: { tw: "還沒有人加入能量榜", en: "Nobody has joined the Energy board yet" },
