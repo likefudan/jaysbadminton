@@ -868,7 +868,10 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   能量: { tw: "能量", en: "Energy" },
   // 个人信息 › 设置 › 排行榜 (Ke Li 2026-11-21).
   隐私: { tw: "隱私", en: "Privacy" },
-  "排行榜、隐私政策、删除账号": { tw: "排行榜、隱私政策、刪除帳號", en: "Leaderboards, privacy policy, delete account" },
+  "排行榜、隐私政策、删除账号": {
+    tw: "排行榜、隱私政策、刪除帳號",
+    en: "Leaderboards, privacy policy, delete account",
+  },
   "隐私政策、删除账号": { tw: "隱私政策、刪除帳號", en: "Privacy policy, delete account" },
   参加的排行榜: { tw: "參加的排行榜", en: "Leaderboards you're on" },
   其他: { tw: "其他", en: "More" },
