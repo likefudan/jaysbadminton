@@ -247,6 +247,7 @@ function AdvancedCards(props: { base: string; readOnlySheets?: boolean; openShee
             <ShortcutCard base={props.base} initial={v} />
             <DaysCard base={props.base} initial={v} />
             <LikesCard base={props.base} initial={v} />
+            <ScoresCard base={props.base} initial={v} />
           </>
         )}
       </Load>
@@ -947,6 +948,7 @@ interface GeneralSettings {
   idleAlertPct: number;
   queueAccountsView: QueueAccountsView;
   queueAlways: boolean;
+  scoresOn: boolean;
   calorieShortcut: { url: string; version: number };
   ai: Record<AiUse, AiChoice>;
   aiDaily: AiDaily;
@@ -1316,6 +1318,39 @@ function LikesCard(props: { base: string; initial: GeneralSettings }) {
       >
         {saved ? t("已保存") : t("保存")}
       </button>
+    </Card>
+  );
+}
+
+/** 比分 (Ke Li 2026-11-21): off until turned on here; off hides it from every card. */
+function ScoresCard(props: { base: string; initial: GeneralSettings }) {
+  const [on, setOn] = useState(props.initial.scoresOn);
+  const { busy, error, run } = useAction();
+  async function toggle(v: boolean) {
+    setOn(v);
+    if (!(await run(() => api(`${props.base}/settings`, { scoresOn: v })))) setOn(!v);
+  }
+  return (
+    <Card title={t("比分")}>
+      <label class="switch-card plain">
+        <span>
+          <strong>{t("记录比分")}</strong>
+          <small>
+            {t(
+              "打开后，来打球的人可以在活动卡片下记录单打、双打比分；场上的群友都确认后才算数。关闭后卡片上不再显示比分。",
+            )}
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          aria-checked={on}
+          checked={on}
+          disabled={busy}
+          onChange={(e) => toggle((e.target as HTMLInputElement).checked)}
+        />
+      </label>
+      {error && <p class="error">{error}</p>}
     </Card>
   );
 }

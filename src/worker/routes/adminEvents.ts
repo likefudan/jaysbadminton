@@ -50,6 +50,7 @@ import { formatInstantZh, isDate, isTime, pacificToUtc, toPacific } from "../../
 import { getSettings, now, setSetting } from "../db";
 import { calorieReadDays, shortcutSetting } from "../calories";
 import { likeSettings } from "../likes";
+import { scoresEnabled } from "../scores";
 import { SHORTCUT_URL_RE } from "../../shared/calories";
 import { QUEUE_ACCOUNTS_VIEWS, type QueueAccountsView } from "../../shared/courtQueue";
 import { clearDeadline, syncAllDeadlines, syncDeadline } from "../deadlines";
@@ -988,6 +989,7 @@ adminEventRoutes.get("/settings", async (c) => {
     idleAlertPct: await idleAlertPct(c.env),
     queueAccountsView: await queueAccountsView(c.env),
     queueAlways: await queueAlways(c.env),
+    scoresOn: await scoresEnabled(c.env),
     calorieShortcut: await shortcutSetting(c.env),
     ...payment,
     siteTitle: site.title,
@@ -1068,6 +1070,11 @@ adminEventRoutes.post("/settings", async (c) => {
     if (!QUEUE_ACCOUNTS_VIEWS.includes(v as QueueAccountsView)) throw badRequest("球馆账号显示方式不对");
     writes.push(setSetting(c.env.DB, "queue_accounts_view", v));
     said.push(v === "tabs" ? "球馆账号 分成两个标签" : "球馆账号 列在登记球场里");
+  }
+  if (b.scoresOn !== undefined) {
+    const on = b.scoresOn === true;
+    writes.push(setSetting(c.env.DB, "scores_on", on ? "1" : "0"));
+    said.push(on ? "比分记录 开" : "比分记录 关");
   }
   if (b.queueAlways !== undefined) {
     const on = b.queueAlways === true;

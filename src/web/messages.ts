@@ -106,6 +106,7 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "It counts once every member who played confirms, and lapses if not confirmed within {n} days.",
   },
   活动已取消: { tw: "活動已取消", en: "The event was cancelled" },
+  比分记录没有打开: { tw: "比分記錄沒有打開", en: "Score recording is turned off" },
   只有来打球的人可以记录比分: { tw: "只有來打球的人可以記錄比分", en: "Only people who played can record scores" },
   "活动开始后到结束 {n} 天内可以记录比分": {
     tw: "活動開始後到結束 {n} 天內可以記錄比分",

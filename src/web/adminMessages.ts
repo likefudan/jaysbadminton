@@ -186,6 +186,10 @@ export const ADMIN_MESSAGES: Record<string, { tw: string; en: string }> = {
     en: "The owner locked this draw. It can be changed once unlocked",
   },
   找不到这个抽奖: { tw: "找不到這個抽獎", en: "Draw not found" },
+  "打开后，来打球的人可以在活动卡片下记录单打、双打比分；场上的群友都确认后才算数。关闭后卡片上不再显示比分。": {
+    tw: "打開後，來打球的人可以在活動卡片下記錄單打、雙打比分；場上的群友都確認後才算數。關閉後卡片上不再顯示比分。",
+    en: "When on, people who played can record singles and doubles scores under the event card; a score counts once every member who played in it confirms. When off, cards show no scores.",
+  },
   活动结束后多少小时内可以点赞: {
     tw: "活動結束後多少小時內可以點讚",
     en: "Hours after an event during which likes can be given",
