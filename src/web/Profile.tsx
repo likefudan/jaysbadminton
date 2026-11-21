@@ -7,9 +7,8 @@ import { api } from "./api";
 import { Avatar, AvatarForm } from "./Avatar";
 import { Card, Field, SettingRow, useAction } from "./components";
 import { InstallRow } from "./Install";
-import { forgetOfflineData } from "./offline";
 import { PushRow } from "./Push";
-import { BoardsRow } from "./MyBoards";
+import { PrivacyRow } from "./Privacy";
 import { fmtDate, fmtDay, month, t, tk, tm, tx } from "./i18n";
 
 const STATUS_LABEL: Record<ActivityDay["status"], string> = {
@@ -285,7 +284,7 @@ export function ProfileSettings(props: {
   base: string;
   home: string;
   onChange: () => void;
-  /** 排行榜 opens straight away (from 「我的上榜设置」 under the boards). */
+  /** 隐私 opens straight away (from 「我的上榜设置」 under the boards). */
   boards?: boolean;
 }) {
   const p = props.profile;
@@ -333,47 +332,8 @@ export function ProfileSettings(props: {
       )}
       <InstallRow home={props.home} />
       <PushRow base={props.base} home={props.home} memberId={props.me.id} />
-      {props.me.active && <BoardsRow base={props.base} startOpen={props.boards} onChange={props.onChange} />}
-      <SettingRow
-        icon={<TrashIcon />}
-        label={t("删除账号")}
-        panel={(close) => <DeleteAccountForm base={props.base} close={close} />}
-      />
+      <PrivacyRow base={props.base} active={props.me.active} startOpen={props.boards} onChange={props.onChange} />
     </section>
-  );
-}
-
-/** 删除账号: told what goes, then asked once more before anything happens. */
-function DeleteAccountForm(props: { base: string; close: () => void }) {
-  const { busy, error, run } = useAction();
-  async function remove() {
-    if (!confirm(t("确定删除账号？删除后不能恢复。"))) return;
-    if (!(await run(() => api(`${props.base}/account/delete`, { confirm: true })))) return;
-    try {
-      await api("/api/auth/logout", {});
-    } catch {
-      /* the account is gone either way */
-    }
-    await forgetOfflineData();
-    window.location.assign("/");
-  }
-  return (
-    <div>
-      <p class="muted small">
-        {t(
-          "删除后，你的登录、名字、头像、邮箱、微信名、卡路里、点赞和自付费用记录都会删掉，不能恢复。以前活动的名单和账单会留着，但只显示为「已删除成员」。以后想回来，要重新申请加入。",
-        )}
-      </p>
-      {error && <p class="error">{error}</p>}
-      <div class="inline">
-        <button type="button" class="button danger" disabled={busy} onClick={remove}>
-          {t("删除账号")}
-        </button>
-        <button class="button secondary" type="button" onClick={props.close}>
-          {t("取消")}
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -488,11 +448,6 @@ const FaceIcon = () => (
     <circle cx="12" cy="12" r="9" />
     <circle cx="12" cy="10" r="3" />
     <path d="M6.5 18.5c1.3-2.2 3.2-3.3 5.5-3.3s4.2 1.1 5.5 3.3" />
-  </svg>
-);
-const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-    <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />
   </svg>
 );
 const ChatIcon = () => (

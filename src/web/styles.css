@@ -3861,6 +3861,9 @@ html[lang="en"] .my-details dt {
 .board-opt input {
   flex: none;
 }
+.board-opts-card {
+  padding: 12px 18px;
+}
 /* 「我的上榜设置 ›」 under the boards. */
 .board-mine {
   display: flex;

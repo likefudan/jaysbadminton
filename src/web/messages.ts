@@ -867,8 +867,14 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   能量: { tw: "能量", en: "Energy" },
   // 个人信息 › 设置 › 排行榜 (Ke Li 2026-11-21).
-  没有参加排行榜: { tw: "沒有參加排行榜", en: "Not on any board" },
-  "参加 {n} 个榜": { tw: "參加 {n} 個榜", en: "On {n} boards" },
+  隐私: { tw: "隱私", en: "Privacy" },
+  "排行榜、隐私政策、删除账号": {
+    tw: "排行榜、隱私政策、刪除帳號",
+    en: "Leaderboards, privacy policy, delete account",
+  },
+  "隐私政策、删除账号": { tw: "隱私政策、刪除帳號", en: "Privacy policy, delete account" },
+  参加的排行榜: { tw: "參加的排行榜", en: "Leaderboards you're on" },
+  其他: { tw: "其他", en: "More" },
   "关掉的榜上不会出现你的名字和头像，后面的人名次往前顺延。你自己的数据和年度回顾不受影响。": {
     tw: "關掉的榜上不會出現你的名字和頭像，後面的人名次往前順延。你自己的數據和年度回顧不受影響。",
     en: "Boards you turn off won't show your name or photo, and the people after you move up. Your own numbers and year review stay the same.",
