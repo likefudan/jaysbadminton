@@ -1,18 +1,21 @@
 import { Hono } from "hono";
 import { settle } from "../../shared/settle";
-import type {
-  MeResponse,
-  MyEvent,
-  MyEventResponse,
-  MyEventsResponse,
-  MyHistoryEvent,
-  MyPayment,
-  MyRosterEntry,
-  PaymentStatus,
+import {
+  BOARD_KEYS,
+  type BoardKey,
+  type MeResponse,
+  type MyBoards,
+  type MyEvent,
+  type MyEventResponse,
+  type MyEventsResponse,
+  type MyHistoryEvent,
+  type MyPayment,
+  type MyRosterEntry,
+  type PaymentStatus,
 } from "../../shared/types";
 import { refundOf, savedInput, toSettleRows } from "../billing";
 import { memberProfile, setMemberEmail, setWechatNickname } from "../profile";
-import { myStats, setExtraSpend, yearReview } from "../stats";
+import { myBoards, myStats, setExtraSpend, setMyBoard, yearReview } from "../stats";
 import { can, eventManager, eventPayee, memberRole, organizersEnabled, ownerId, payeeProfile } from "../organizers";
 import { ownerName, payeeName } from "../payees";
 import {
@@ -101,7 +104,7 @@ memberRoutes.use("/:token/*", async (c, next) => {
   await next();
 });
 const CLOSED_TO_INACTIVE =
-  /\/(avatar|avatar\/mode|rename|wechat|lottery\/cheer|lottery\/opt|calories\/board|push\/subscribe|events\/[^/]+\/calories)$/;
+  /\/(avatar|avatar\/mode|rename|wechat|lottery\/cheer|lottery\/opt|calories\/board|boards|push\/subscribe|events\/[^/]+\/calories)$/;
 
 memberRoutes.get("/:token/me", async (c) => {
   const m = c.get("member");
@@ -683,6 +686,16 @@ memberRoutes.post("/:token/calories/delete", async (c) => {
   else if (body.all === true) await deleteCalories(c.env, c.get("member"));
   else throw badRequest("要删除哪一场？");
   return c.json({ ok: true });
+});
+
+// 排行榜参加开关: one switch per board; 能量's is the same as 我的卡路里's 加入能量榜.
+memberRoutes.get("/:token/boards", async (c) => c.json<MyBoards>(await myBoards(c.env, c.get("member"))));
+
+memberRoutes.post("/:token/boards", async (c) => {
+  const body = await readJson(c.req.raw);
+  if (!BOARD_KEYS.includes(body.board as BoardKey) || typeof body.on !== "boolean") throw badRequest("哪个排行榜？");
+  await setMyBoard(c.env, c.get("member"), body.board as BoardKey, body.on);
+  return c.json<MyBoards>(await myBoards(c.env, c.get("member")));
 });
 
 memberRoutes.post("/:token/calories/board", async (c) => {

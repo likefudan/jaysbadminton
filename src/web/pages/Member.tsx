@@ -1,6 +1,6 @@
 import { ScoreRow } from "../Scores";
 import type { ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { Leaders } from "../Boards";
 import { dollars } from "../../shared/settle";
 import type {
@@ -81,7 +81,10 @@ export function Member(props: { token?: string }) {
                 home.data.leaderboard && (
                   // One block, so on a wide screen its title and its card stay in the same column.
                   <div class="board-block">
-                    <Leaders board={home.data.leaderboard} />
+                    <Leaders
+                      board={home.data.leaderboard}
+                      mine={m.active ? `${props.token ? `/m/${props.token}` : "/me"}/profile?boards` : undefined}
+                    />
                   </div>
                 )
               }
@@ -131,7 +134,7 @@ export function MemberBoardsPage() {
         {(d) =>
           d.leaderboard ? (
             <div class="boards-page">
-              <Leaders board={d.leaderboard} />
+              <Leaders board={d.leaderboard} mine="/me/profile?boards" />
             </div>
           ) : (
             <Empty>{t("这段时间还没有人上榜")}</Empty>
@@ -154,7 +157,14 @@ export function MemberProfilePage(props: { token?: string }) {
   const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
   const [stats, reloadStats] = useApi<MyStats>(`${base}/stats`);
   const [calories, reloadCalories] = useApi<MyCalories>(`${base}/calories`);
-  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "details" | "settings" | "avatar" | null>(null);
+  // 「我的上榜设置 ›」 under the boards opens 设置 with 排行榜 open (?boards), once.
+  const [boardsLink] = useState(() => new URLSearchParams(location.search).has("boards"));
+  useEffect(() => {
+    if (boardsLink) history.replaceState(history.state, "", location.pathname);
+  }, [boardsLink]);
+  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "details" | "settings" | "avatar" | null>(
+    boardsLink ? "settings" : null,
+  );
   const close = () => setOpen(null);
   const p = profile.state === "ok" ? profile.data : null;
   const s = stats.state === "ok" && stats.data.history.length > 0 ? stats.data : null;
@@ -264,9 +274,11 @@ export function MemberProfilePage(props: { token?: string }) {
                   profile={p}
                   base={base}
                   home={home}
+                  boards={boardsLink}
                   onChange={() => {
                     reloadProfile();
                     reloadMe();
+                    reloadCalories();
                   }}
                 />
               </Panel>

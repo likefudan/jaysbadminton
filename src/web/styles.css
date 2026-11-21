@@ -3830,6 +3830,48 @@ html[lang="en"] .my-details dt {
 .set-panel > form > p:first-child {
   margin-top: 0;
 }
+/* 个人信息 › 设置 › 排行榜: one switch per board (Ke Li 2026-11-21, option A). */
+.board-opts-note {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.board-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.board-opt:first-of-type {
+  border-top: 0;
+}
+.board-opt strong {
+  display: block;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+.board-opt small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+.board-opt input {
+  flex: none;
+}
+/* 「我的上榜设置 ›」 under the boards. */
+.board-mine {
+  display: flex;
+  justify-content: flex-end;
+  margin: -6px 2px 12px;
+  font-size: 13px;
+}
+.board-mine a {
+  color: var(--acc-ink);
+  text-decoration: none;
+}
 .heatmap-summary {
   margin: 0 0 10px;
   color: var(--text-2);

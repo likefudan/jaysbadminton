@@ -213,7 +213,11 @@ export function BoardCard(props: { boardKey: BoardKey; list: RankEntry[] }) {
  * 首页排行榜 (Ke Li 2026-11-10, option A): the public boards as a row of tabs that scrolls
  * sideways, 月度 / 年度 beside the title, one line on what the board counts.
  */
-export function Leaders(props: { board: Leaderboard }) {
+export function Leaders(props: {
+  board: Leaderboard;
+  /** Where 「我的上榜设置 ›」 goes (个人信息 › 设置 › 排行榜); none for visitors. */
+  mine?: string;
+}) {
   const keys = props.board.boards;
   const [tab, setTab] = useState<BoardKey>(keys[0]!);
   const [period, setPeriod] = useState<Period>("month");
@@ -248,6 +252,11 @@ export function Leaders(props: { board: Leaderboard }) {
         {key === "progress" && period === "month" ? t("比上个月同期多来了几次") : t(BOARDS[key].desc)}
       </p>
       <BoardCard key={`${key}-${period}`} boardKey={key} list={listOf(props.board, key, period)} />
+      {props.mine && (
+        <p class="board-mine">
+          <a href={props.mine}>{t("我的上榜设置 ›")}</a>
+        </p>
+      )}
     </>
   );
 }
