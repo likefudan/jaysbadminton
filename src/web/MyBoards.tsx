@@ -2,7 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { BOARD_KEYS, type BoardKey, type MyBoards } from "../shared/types";
 import { api } from "./api";
 import { BOARDS } from "./Boards";
-import { SettingRow, useAction } from "./components";
+import { useAction } from "./components";
 import { useApi } from "./hooks";
 import { t, tk } from "./i18n";
 
@@ -20,31 +20,26 @@ const SHOWS: Record<BoardKey, string> = {
 };
 
 /**
- * 个人信息 › 设置 › 排行榜 (Ke Li 2026-11-21, option A): one switch per board. 能量 is the same
- * switch as 我的卡路里's 加入能量榜; the others are on until they turn them off.
+ * 参加的排行榜 on 设置 › 隐私 (Ke Li 2026-11-21): one switch per board. 能量 is the same switch as
+ * 我的卡路里's 加入能量榜; the others are on until they turn them off.
  */
-export function BoardsRow(props: { base: string; startOpen?: boolean; onChange?: () => void }) {
+export function MyBoardsCard(props: { base: string; onChange?: () => void }) {
   const [mine, reload] = useApi<MyBoards>(`${props.base}/boards`);
-  const on = mine.state === "ok" ? BOARD_KEYS.filter((k) => mine.data[k]).length : null;
   return (
-    <SettingRow
-      icon={<TrophyIcon />}
-      label={t("排行榜")}
-      sub={on === null ? undefined : on === 0 ? t("没有参加排行榜") : t("参加 {n} 个榜", { n: on })}
-      startOpen={props.startOpen}
-      panel={() =>
-        mine.state === "ok" ? (
-          <BoardSwitches
-            base={props.base}
-            mine={mine.data}
-            onChange={() => {
-              reload();
-              props.onChange?.();
-            }}
-          />
-        ) : null
-      }
-    />
+    <section class="card board-opts-card">
+      {mine.state === "ok" ? (
+        <BoardSwitches
+          base={props.base}
+          mine={mine.data}
+          onChange={() => {
+            reload();
+            props.onChange?.();
+          }}
+        />
+      ) : mine.state === "error" ? (
+        <p class="error">{mine.message}</p>
+      ) : null}
+    </section>
   );
 }
 
@@ -85,9 +80,3 @@ function BoardSwitches(props: { base: string; mine: MyBoards; onChange: () => vo
     </div>
   );
 }
-
-const TrophyIcon = () => (
-  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-    <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3" />
-  </svg>
-);
