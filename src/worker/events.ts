@@ -1,3 +1,4 @@
+import { deleteEventMatches } from "./scores";
 import {
   BOOKED_COURTS_MAX,
   BOOKED_COURT_MAX,
@@ -218,6 +219,7 @@ export async function deleteEvent(env: Env, e: EventRow): Promise<void> {
     env.DB.prepare("UPDATE ai_usage SET event_id = NULL WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM calories WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM likes WHERE event_id = ?").bind(e.id),
+    ...deleteEventMatches(env, e.id),
     env.DB.prepare("DELETE FROM extra_spend WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM calorie_uploads WHERE event_id = ?").bind(e.id),
     env.DB.prepare("DELETE FROM notification_log WHERE event_id = ?").bind(e.id),

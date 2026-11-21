@@ -329,6 +329,54 @@ export interface MyEvent extends EventSummary {
   kcalInstall: string;
   /** 点赞: once it is over, for members who played themselves; null otherwise. */
   likes: LikeSummary | null;
+  /** 比分: once it starts, for members on the list themselves; null otherwise or when there is nothing to show. */
+  scores: ScoreSummary | null;
+}
+
+/** One player in a recorded match: a member, or a 路人 (id null, name maybe empty). */
+export interface MatchPlayer {
+  id: string | null;
+  name: string;
+  /** A member's answer: null waiting, ok confirmed, no said the score is wrong. Always null for 路人. */
+  answer: "ok" | "no" | null;
+  /** It is the viewer. */
+  me: boolean;
+}
+
+/**
+ * pending: waiting for members on court to confirm; confirmed: all of them did (only these count);
+ * rejected: one said the score is wrong; expired: not all confirmed within SCORE_DAYS.
+ */
+export type MatchStatus = "pending" | "confirmed" | "rejected" | "expired";
+
+/** 比分 (Ke Li 2026-11-21): a match recorded at an event. */
+export interface Match {
+  id: number;
+  doubles: boolean;
+  /** Each game, side 0's points first. */
+  games: [number, number][];
+  /** Side 0 is the recorder's. */
+  sides: [MatchPlayer[], MatchPlayer[]];
+  status: MatchStatus;
+  recorder: string;
+  /** The viewer recorded it (may delete it until it is confirmed). */
+  mine: boolean;
+  /** The viewer is on court and still has to answer. */
+  toAnswer: boolean;
+  createdAt: string;
+}
+
+/** 比分 on an event card. */
+export interface ScoreSummary {
+  /** They may record a match now (they played; from the start until SCORE_DAYS after the end). */
+  open: boolean;
+  /** Confirmed matches, plus the viewer's own ones in any state; oldest first. */
+  matches: Match[];
+}
+
+/** Who can be picked for a match: everyone else who played. */
+export interface ScorePeople {
+  people: { id: string; name: string; avatar: string | null }[];
 }
 
 /** 点赞 on an event card (Ke Li 2026-11-11). Anonymous: only how many, never who. */

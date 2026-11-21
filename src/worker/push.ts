@@ -375,6 +375,7 @@ async function sendBatch(env: Env, keys: VapidKeys, endpoint?: string): Promise<
          WHEN 'cancel' THEN NOT COALESCE((SELECT status = 'cancelled' FROM events WHERE id = o.event_id), 0)
          WHEN 'restore' THEN NOT COALESCE((SELECT status != 'cancelled' FROM events WHERE id = o.event_id), 0)
          WHEN 'roster' THEN NOT COALESCE((SELECT status != 'cancelled' FROM events WHERE id = o.event_id), 0)
+         WHEN 'score' THEN NOT COALESCE((SELECT status != 'cancelled' FROM events WHERE id = o.event_id), 0)
          WHEN 'start' THEN NOT COALESCE((SELECT status IN ('open', 'closed') AND start_at > ?2 FROM events WHERE id = o.event_id), 0)
            OR NOT EXISTS (SELECT 1 FROM registrations r WHERE r.event_id = o.event_id AND r.member_id = o.member_id)
          WHEN 'bill' THEN NOT EXISTS (SELECT 1 FROM payments p WHERE p.event_id = o.event_id
@@ -501,6 +502,22 @@ async function pushTo(env: Env, memberId: string, kind: string, e: EventRow, msg
     .bind(kind, e.id, JSON.stringify(msg), now(), memberId)
     .run();
   return res.meta.changes > 0;
+}
+
+/** 比分: a match to confirm, or one someone said is wrong; to each of these members. */
+export async function pushScore(
+  env: Env,
+  e: EventRow,
+  memberIds: string[],
+  msg: { title: string; body: string; tag: string },
+): Promise<boolean> {
+  try {
+    const sent = await Promise.all(memberIds.map((id) => pushTo(env, id, "score", e, { ...msg, url: `/e/${e.code}` })));
+    return sent.some(Boolean);
+  } catch (err) {
+    console.error("push failed:", err);
+    return false;
+  }
 }
 
 /** What someone else did to a member's rows on an event's list. */

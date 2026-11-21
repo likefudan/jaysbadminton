@@ -554,6 +554,8 @@ const RESET_TABLES = [
   "lottery_entries",
   "lottery_excluded",
   "lottery_optouts",
+  "match_players",
+  "matches",
   "lotteries",
   "calorie_uploads",
   "calories",
