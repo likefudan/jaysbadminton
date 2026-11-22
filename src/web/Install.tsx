@@ -245,24 +245,27 @@ function InstallGuide(props: { kind: InstallKind; onClose: () => void }) {
           </li>
         </ol>
       ) : (
-        <ol class="install-steps illustrated">
-          <li>
-            <span>{t("点 Safari 底部网址左边的图标")}</span>
-            <ArtToolbar />
-          </li>
-          <li>
-            <span>{t("在弹出的菜单里点「Share」（分享）")}</span>
-            <ArtMenu />
-          </li>
-          <li>
-            <span>{t("往下滑，点「Add to Home Screen」（添加到主屏幕）。没看到就先点「View More」")}</span>
-            <ArtShareSheet />
-          </li>
-          <li>
-            <span>{t("先打开「Open as Web App」开关，再点右上角的「Add」（添加）")}</span>
-            <ArtAddSheet />
-          </li>
-        </ol>
+        <>
+          <p class="install-safari">{t("iPhone 上推荐用 Safari 打开来添加，不要用 Chrome。")}</p>
+          <ol class="install-steps illustrated">
+            <li>
+              <span>{t("点 Safari 底部网址左边的图标")}</span>
+              <ArtToolbar />
+            </li>
+            <li>
+              <span>{t("在弹出的菜单里点「Share」（分享）")}</span>
+              <ArtMenu />
+            </li>
+            <li>
+              <span>{t("往下滑，点「Add to Home Screen」（添加到主屏幕）。没看到就先点「View More」")}</span>
+              <ArtShareSheet />
+            </li>
+            <li>
+              <span>{t("先打开「Open as Web App」开关，再点右上角的「Add」（添加）")}</span>
+              <ArtAddSheet />
+            </li>
+          </ol>
+        </>
       )}
       {!wechat && (
         <p class="muted small sheet-note">

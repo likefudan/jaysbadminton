@@ -81,6 +81,7 @@ test.describe("iPhone", () => {
     await page.getByRole("button", { name: "添加到主屏幕" }).click();
     const guide = page.getByRole("dialog", { name: "添加到主屏幕" });
     await expect(guide.getByText("先打开「Open as Web App」开关，再点右上角的「Add」（添加）")).toBeVisible();
+    await expect(guide.getByText("iPhone 上推荐用 Safari 打开来添加，不要用 Chrome。")).toBeVisible();
     // A drawing under each of the four steps.
     await expect(guide.locator("svg.ig-art")).toHaveCount(4);
     await guide.getByRole("button", { name: "返回" }).click();

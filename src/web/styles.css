@@ -4484,6 +4484,14 @@ ul.audit li:first-child {
 }
 
 /* iPhone guide with a drawing under each step (InstallArt.tsx). */
+.install-safari {
+  margin: 0 0 4px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 14px;
+}
 .install-steps.illustrated li {
   flex-wrap: wrap;
   align-items: flex-start;

@@ -522,6 +522,10 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "手機上長按圖片即可儲存",
     en: "On a phone, press and hold the image to save it",
   },
+  "iPhone 上推荐用 Safari 打开来添加，不要用 Chrome。": {
+    tw: "iPhone 上推薦用 Safari 開啟來加入，不要用 Chrome。",
+    en: "On iPhone we recommend adding it from Safari, not Chrome.",
+  },
   "点 Safari 底部网址左边的图标": {
     tw: "點 Safari 底部網址左邊的圖示",
     en: "In Safari, tap the icon to the left of the address at the bottom",
