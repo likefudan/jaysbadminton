@@ -5624,8 +5624,13 @@ ul.audit li:first-child {
 .set-label.grow {
   flex: 1;
 }
-label.set-row {
+label.set-row,
+.set-row.static {
   cursor: default;
+}
+/* Lined up with the values of the rows that have a chevron. */
+.set-row.static .set-value {
+  margin-right: 28px;
 }
 .set-seg {
   padding: 10px 12px;

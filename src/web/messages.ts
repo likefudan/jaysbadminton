@@ -601,8 +601,11 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   比如谁介绍你来的: { tw: "比如誰介紹你來的", en: "For example, who invited you" },
   活动热力图: { tw: "活動熱力圖", en: "Activity map" },
   活动记录: { tw: "活動記錄", en: "Activity" },
-  我的资料: { tw: "我的資料", en: "My details" },
-  "入群时间、入群编号": { tw: "入群時間、入群編號", en: "Join date, member number" },
+  账户信息: { tw: "帳戶資訊", en: "Account" },
+  "头像、名字、微信名、邮箱、通知、隐私": {
+    tw: "頭像、名字、微信名、電子郵件、通知、隱私",
+    en: "Photo, name, WeChat name, email, notifications, privacy",
+  },
   入群编号: { tw: "入群編號", en: "Member number" },
   "第 {n} 号": { tw: "第 {n} 號", en: "No. {n}" },
   浅色: { tw: "淺色", en: "Light" },

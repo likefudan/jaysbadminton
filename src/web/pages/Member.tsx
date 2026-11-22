@@ -20,7 +20,7 @@ import { Card, Empty, Load, Page, SectionTitle, SettingRow, useAction } from "..
 import { CourtsLine, EventHero, FeeLine, MiniEventCard, friendCount, mapLink, mineStatus, onCard } from "../events";
 import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
-import { Heatmap, MeCard, MyDetails, ProfileSettings, activityCounts } from "../Profile";
+import { AccountList, AppSettingsList, Heatmap, MeCard, activityCounts } from "../Profile";
 import { AvatarForm } from "../Avatar";
 import { RosterList } from "../Roster";
 import { StayPicker } from "../Stay";
@@ -179,8 +179,12 @@ export function MemberProfilePage(props: { token?: string }) {
         const card = {
           name: m.username,
           avatar: m.avatar,
-          onSettings: () => setOpen("settings"),
           onAvatar: () => setOpen("avatar"),
+        };
+        const reload = () => {
+          reloadProfile();
+          reloadMe();
+          reloadCalories();
         };
         const spent = s && thisYear(s);
         const days = p && activityCounts(p.activity);
@@ -229,15 +233,24 @@ export function MemberProfilePage(props: { token?: string }) {
                       onClick={() => setOpen("calories")}
                     />
                   )}
-                  {p && (
-                    <SettingRow
-                      icon={<IdIcon />}
-                      label={t("我的资料")}
-                      sub={t("入群时间、入群编号")}
-                      onClick={() => setOpen("details")}
-                    />
-                  )}
                 </section>
+              </>
+            )}
+            {MOCK_B ? (
+              <section class="card set-list">
+                <SettingRow
+                  icon={<AccountIcon />}
+                  label={t("账户信息")}
+                  sub={t("头像、名字、微信名、邮箱、通知、隐私")}
+                  onClick={() => setOpen("settings")}
+                />
+              </section>
+            ) : (
+              <>
+                <SectionTitle>{t("账户信息")}</SectionTitle>
+                <AccountList me={m} profile={p} base={base} onChange={reload} />
+                <SectionTitle>{t("设置")}</SectionTitle>
+                <AppSettingsList me={m} base={base} home={home} boards={boardsLink} onChange={reload} />
               </>
             )}
             {props.token && <GoogleLink token={props.token} />}
@@ -258,11 +271,6 @@ export function MemberProfilePage(props: { token?: string }) {
                 <CaloriesPage c={c} base={base} onChange={reloadCalories} />
               </Panel>
             )}
-            {open === "details" && p && (
-              <Panel title={t("我的资料")} label={t("我的资料")} onClose={close}>
-                <MyDetails profile={p} />
-              </Panel>
-            )}
             {open === "avatar" && (
               <Panel title={t("头像")} label={t("头像")} onClose={close}>
                 <section class="card">
@@ -271,20 +279,10 @@ export function MemberProfilePage(props: { token?: string }) {
               </Panel>
             )}
             {open === "settings" && (
-              <Panel title={t("设置")} label={t("设置")} onClose={close}>
-                {/* Here even if the profile didn't load: push and the home screen don't need it. */}
-                <ProfileSettings
-                  me={m}
-                  profile={p}
-                  base={base}
-                  home={home}
-                  boards={boardsLink}
-                  onChange={() => {
-                    reloadProfile();
-                    reloadMe();
-                    reloadCalories();
-                  }}
-                />
+              <Panel title={t("账户信息")} label={t("账户信息")} onClose={close}>
+                <AccountList me={m} profile={p} base={base} onChange={reload} />
+                <SectionTitle>{t("设置")}</SectionTitle>
+                <AppSettingsList me={m} base={base} home={home} boards={boardsLink} onChange={reload} />
               </Panel>
             )}
           </Page>
@@ -302,13 +300,13 @@ const ChartIcon = () => (
     <path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />
   </svg>
 );
-const IdIcon = () => (
+const AccountIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-    <rect x="3" y="5" width="18" height="14" rx="2.5" />
-    <circle cx="9" cy="11" r="2.3" />
-    <path d="M5.8 16.2c.7-1.6 1.8-2.4 3.2-2.4s2.5.8 3.2 2.4M14.5 10h4M14.5 13.5h3" />
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" />
   </svg>
 );
+const MOCK_B = typeof localStorage !== "undefined" && localStorage.getItem("mockAcct") === "b";
 const CalendarIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     <rect x="3.5" y="5" width="17" height="15" rx="3" />
