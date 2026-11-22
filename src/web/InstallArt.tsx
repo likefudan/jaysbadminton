@@ -37,7 +37,6 @@ const SHARE = "M0 -8v11M-3.5 -4.5L0 -8l3.5 3.5M-4 -1h-2v9h12v-9h-2";
 
 /** Step 1: Safari's bar at the bottom, the page menu left of the address ringed. */
 export function ArtToolbar() {
-  const host = location.host.length > 22 ? `${location.host.slice(0, 21)}…` : location.host;
   return (
     <Art height={88}>
       <rect class="ig-ghost" x="20" y="14" width="150" height="7" rx="3.5" />
@@ -48,9 +47,7 @@ export function ArtToolbar() {
       <circle class="ig-hl" cx="80" cy="62" r="13" />
       <rect class="ig-fill" x="73.5" y="55" width="5.5" height="5.5" rx="1.5" />
       <path class="ig-ink" d="M82 57.8h5M73.5 63.8h13.5M73.5 68.5h9" />
-      <text class="ig-text" x="162" y="66.5" text-anchor="middle">
-        {host}
-      </text>
+      <rect class="ig-ghost" x="118" y="58.5" width="88" height="7" rx="3.5" />
       <path class="ig-ink" d="M247 58.5a6 6 0 1 0 1.8 4.2M247.2 54.5v4.2h-4.2" />
       <circle class="ig-card" cx="286" cy="62" r="17" />
       <rect class="ig-ink" x="279" y="55" width="10" height="10" rx="2.5" />
