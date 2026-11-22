@@ -6,7 +6,8 @@ import { t } from "./i18n";
 
 /**
  * 添加到主屏幕: the site as an app on the phone's home screen, opening straight onto the member's
- * own page. Chrome, Edge and Samsung Internet install it with one tap (beforeinstallprompt);
+ * own page. Chrome, Edge and Samsung Internet install it with one tap (beforeinstallprompt), so
+ * there it says 安装 App (Android puts it in the app list like any other app);
  * iPhone and iPad have no such call, so there the button opens a short guide to Safari's
  * 分享 → 添加到主屏幕. WeChat can't add anything, so it says to open the page in a browser.
  */
@@ -134,13 +135,17 @@ export function InstallPrompt(props: { onShown?: (shown: boolean) => void }) {
           <div class="install-head">
             <img src="/icon-192.png" alt="" width={48} height={48} />
             <div>
-              <strong>{t("把羽毛球添加到主屏幕")}</strong>
+              <strong>{install.kind === "prompt" ? t("安装羽毛球 App") : t("把羽毛球添加到主屏幕")}</strong>
               <p class="muted small">{blurb(install.kind)}</p>
             </div>
           </div>
           <div class="push-actions">
             <button type="button" class="button" onClick={install.add}>
-              {install.kind === "wechat" ? t("怎么打开") : t("添加到主屏幕")}
+              {install.kind === "wechat"
+                ? t("怎么打开")
+                : install.kind === "prompt"
+                  ? t("安装 App")
+                  : t("添加到主屏幕")}
             </button>
             <button type="button" class="button secondary" onClick={dismiss}>
               {t("不用了")}
@@ -156,7 +161,7 @@ export function InstallPrompt(props: { onShown?: (shown: boolean) => void }) {
 function blurb(k: InstallKind) {
   if (k === "wechat") return t("微信里不能添加。用浏览器打开这一页，就可以添加到主屏幕了。");
   if (k === "ios") return t("像 App 一样一点就打开你的页面。iPhone 添加以后才能收到推送通知。");
-  return t("像 App 一样一点就打开你的页面，不用再找链接。");
+  return t("点一下就装好，和其他 App 一样从桌面打开，不用再找链接。");
 }
 
 /**
@@ -171,7 +176,7 @@ export function InstallRow(props: { home: string }) {
     <>
       <SettingRow
         icon={<AddIcon />}
-        label={t("添加到主屏幕")}
+        label={install.kind === "prompt" ? t("安装 App") : t("添加到主屏幕")}
         href={install.kind === "ios" ? `${props.home}?${ADD_PARAM}=1` : undefined}
         onClick={install.kind === "ios" ? undefined : install.add}
       />
