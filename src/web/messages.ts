@@ -360,10 +360,6 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "像 App 一樣一點就開啟你的頁面。iPhone 加入以後才能收到推播通知。",
     en: "Open your page in one tap, like an app. On iPhone, you need this to get notifications.",
   },
-  "像 App 一样一点就打开你的页面，不用再找链接。": {
-    tw: "像 App 一樣一點就開啟你的頁面，不用再找連結。",
-    en: "Open your page in one tap, like an app. No more looking for the link.",
-  },
   入群时间: { tw: "入群時間", en: "Joined" },
   全部: { tw: "全部", en: "all time" },
   关联原有成员: { tw: "關聯原有成員", en: "Link existing member" },
@@ -842,6 +838,12 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "在 iPhone 上打开，问到同名的快捷指令时选「替换」": {
     tw: "在 iPhone 上打開，問到同名的捷徑時選「取代」",
     en: 'Open it on your iPhone and choose "Replace" when asked about the shortcut with the same name',
+  },
+  "安装 App": { tw: "安裝 App", en: "Install app" },
+  "安装羽毛球 App": { tw: "安裝羽毛球 App", en: "Install the Badminton app" },
+  "点一下就装好，和其他 App 一样从桌面打开，不用再找链接。": {
+    tw: "點一下就裝好，和其他 App 一樣從桌面開啟，不用再找連結。",
+    en: "One tap and it's installed. Open it from your home screen like any other app, no more looking for the link.",
   },
   "安装链接还在准备中。": { tw: "安裝連結還在準備中。", en: "The install link isn't ready yet." },
   "已安装，开始读取": { tw: "已安裝，開始讀取", en: "Added it. Start reading" },

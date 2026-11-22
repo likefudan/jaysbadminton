@@ -36,6 +36,7 @@ async function offerInstall(page: Page, outcome: "accepted" | "dismissed") {
 }
 
 const offer = (page: Page) => page.getByText("把羽毛球添加到主屏幕");
+const appOffer = (page: Page) => page.getByText("安装羽毛球 App");
 const pushOffer = (page: Page) => page.getByText("开启推送，新活动开始报名、账单出来时第一时间知道。");
 
 test("Chrome: one tap installs, then push is offered", async ({ page }) => {
@@ -47,11 +48,11 @@ test("Chrome: one tap installs, then push is offered", async ({ page }) => {
   await expect(pushOffer(page)).toBeVisible();
 
   await offerInstall(page, "accepted");
-  await expect(offer(page)).toBeVisible();
+  await expect(appOffer(page)).toBeVisible();
   await expect(pushOffer(page)).toBeHidden();
-  await page.getByRole("button", { name: "添加到主屏幕" }).click();
+  await page.getByRole("button", { name: "安装 App" }).click();
   expect(await page.evaluate(() => (window as any).prompted)).toBe(true);
-  await expect(offer(page)).toBeHidden();
+  await expect(appOffer(page)).toBeHidden();
   await expect(pushOffer(page)).toBeVisible();
 });
 
@@ -60,11 +61,11 @@ test("不用了 keeps the offer off 我的活动, 个人信息 still has it", as
   await page.goto("/m/tok");
   await offerInstall(page, "dismissed");
   await page.locator(".install-offer").getByRole("button", { name: "不用了" }).click();
-  await expect(offer(page)).toBeHidden();
+  await expect(appOffer(page)).toBeHidden();
 
   await page.getByRole("link", { name: "个人信息" }).click();
   await page.getByRole("button", { name: "设置" }).click();
-  await page.getByRole("dialog", { name: "设置" }).getByRole("button", { name: "添加到主屏幕" }).click();
+  await page.getByRole("dialog", { name: "设置" }).getByRole("button", { name: "安装 App" }).click();
   expect(await page.evaluate(() => (window as any).prompted)).toBe(true);
 });
 
