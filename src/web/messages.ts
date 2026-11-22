@@ -492,7 +492,6 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   强调色: { tw: "強調色", en: "Accent color" },
   "当前：普通成员视图": { tw: "當前：普通成員視角", en: "Now: member view" },
   "当前：管理员视图": { tw: "當前：管理員視角", en: "Now: admin view" },
-  "往下滑，选「添加到主屏幕」": { tw: "往下滑，選「加入主畫面」", en: 'Scroll down and choose "Add to Home Screen"' },
   待付款: { tw: "待付款", en: "Unpaid" },
   微信名: { tw: "微信名", en: "WeChat name" },
   "填和微信里一样的名字，方便在群里认出你。": {
@@ -523,9 +522,25 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
     tw: "手機上長按圖片即可儲存",
     en: "On a phone, press and hold the image to save it",
   },
-  "打开「作为 Web App 打开」（如果有这个开关），点右上角的「添加」": {
-    tw: "開啟「作為 Web App 開啟」（如果有這個開關），點右上角的「新增」",
-    en: 'Turn on "Open as Web App" (if you see it), then tap "Add" at the top right',
+  "点 Safari 底部网址左边的图标": {
+    tw: "點 Safari 底部網址左邊的圖示",
+    en: "In Safari, tap the icon to the left of the address at the bottom",
+  },
+  "在弹出的菜单里点「Share」（分享）": {
+    tw: "在彈出的選單裡點「Share」（分享）",
+    en: 'In the menu that opens, tap "Share"',
+  },
+  "往下滑，点「Add to Home Screen」（添加到主屏幕）。没看到就先点「View More」": {
+    tw: "往下滑，點「Add to Home Screen」（加入主畫面）。沒看到就先點「View More」",
+    en: 'Scroll down and tap "Add to Home Screen". If it isn\'t there, tap "View More" first',
+  },
+  "先打开「Open as Web App」开关，再点右上角的「Add」（添加）": {
+    tw: "先打開「Open as Web App」開關，再點右上角的「Add」（加入）",
+    en: 'Turn on "Open as Web App" first, then tap "Add" at the top right',
+  },
+  "图里是英文系统、最新的 iOS。如果 Safari 底部直接有分享按钮，点它就到第 3 步。": {
+    tw: "圖裡是英文系統、最新的 iOS。如果 Safari 底部直接有分享按鈕，點它就到第 3 步。",
+    en: "The pictures show the latest iOS. If Safari has a Share button right at the bottom, tap it and go to step 3.",
   },
   打球: { tw: "打球", en: "Played" },
   找回我的专属链接: { tw: "找回我的專屬連結", en: "Get my personal link again" },
@@ -622,10 +637,6 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   },
   加入日历: { tw: "加入日曆", en: "Add to Calendar" },
   添加到主屏幕: { tw: "加入主畫面", en: "Add to Home Screen" },
-  "点 Safari 的「分享」按钮（新版 Safari 先点右下角的「⋯」）": {
-    tw: "點 Safari 的「分享」按鈕（新版 Safari 先點右下角的「⋯」）",
-    en: 'Tap Safari\'s Share button (in newer Safari, tap "⋯" at the bottom right first)',
-  },
   "点微信右上角的「⋯」": { tw: "點微信右上角的「⋯」", en: 'Tap "⋯" at the top right of WeChat' },
   "球 {amount}": { tw: "球 {amount}", en: "shuttles {amount}" },
   "新成员请用 Google 登录申请入群": {

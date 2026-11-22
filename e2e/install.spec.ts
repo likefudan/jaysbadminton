@@ -80,7 +80,9 @@ test.describe("iPhone", () => {
     await expect(offer(page)).toBeVisible();
     await page.getByRole("button", { name: "添加到主屏幕" }).click();
     const guide = page.getByRole("dialog", { name: "添加到主屏幕" });
-    await expect(guide.getByText("往下滑，选「添加到主屏幕」")).toBeVisible();
+    await expect(guide.getByText("先打开「Open as Web App」开关，再点右上角的「Add」（添加）")).toBeVisible();
+    // A drawing under each of the four steps.
+    await expect(guide.locator("svg.ig-art")).toHaveCount(4);
     await guide.getByRole("button", { name: "返回" }).click();
     await expect(guide).toBeHidden();
     // Closing takes the panel's own history entry off again (a same-page back) before moving on.
