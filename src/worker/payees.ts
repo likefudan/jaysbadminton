@@ -1,5 +1,6 @@
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
+import { ek } from "../shared/translate";
 import { badRequest, str } from "./http";
 import { LIVE_SQL } from "./events";
 import { eventPayee, ownerId } from "./organizers";
@@ -61,9 +62,8 @@ export function readPaymentInput(b: Record<string, unknown>): PaymentInput {
  * whoever is saving (null for the Owner); their own entries never count against them.
  */
 export async function assertAccountFree(db: D1Database, memberId: string | null, input: PaymentInput): Promise<void> {
-  const check = async (field: "venmo_username" | "venmo_email", value: string, what: string) => {
+  const check = async (field: "venmo_username" | "venmo_email", value: string, msg: string) => {
     if (!value) return;
-    const msg = `这个${what}已经是群主或其他组织者的收款账户（或 ${ALIAS_DAYS} 天内用过），请换一个`;
     if (memberId) {
       const s = await getSettings(db, [field]);
       if ((s[field] ?? "").toLowerCase() === value.toLowerCase()) throw badRequest(msg);
@@ -77,8 +77,16 @@ export async function assertAccountFree(db: D1Database, memberId: string | null,
       .first();
     if (taken) throw badRequest(msg);
   };
-  await check("venmo_username", input.venmo, " Venmo 用户名");
-  await check("venmo_email", input.mail, " Venmo 通知邮箱");
+  await check(
+    "venmo_username",
+    input.venmo,
+    ek(`这个 Venmo 用户名已经是群主或其他组织者的收款账户（或 ${ALIAS_DAYS} 天内用过），请换一个`),
+  );
+  await check(
+    "venmo_email",
+    input.mail,
+    ek(`这个 Venmo 通知邮箱已经是群主或其他组织者的收款账户（或 ${ALIAS_DAYS} 天内用过），请换一个`),
+  );
 }
 
 /** Bills not yet paid in full, on events still collecting whose money goes to this person. */

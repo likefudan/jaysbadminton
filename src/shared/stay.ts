@@ -5,6 +5,7 @@
  * by counting minutes from the start. The fee split doesn't use them (Ke Li).
  */
 import { isTime } from "./time";
+import { ek } from "./translate";
 
 export const STAY_STEP_MIN = 15;
 
@@ -55,11 +56,11 @@ export function checkStay(
 ): { arrive: string | null; leave: string | null } | string {
   const a = arrive === null || arrive === undefined || arrive === "" ? null : arrive;
   const l = leave === null || leave === undefined || leave === "" ? null : leave;
-  if (a === null) return l === null ? { arrive: null, leave: null } : "请先选到的时间";
-  if (typeof a !== "string" || !arriveChoices(start, end).includes(a)) return "到的时间不在活动时间内";
+  if (a === null) return l === null ? { arrive: null, leave: null } : ek("请先选到的时间");
+  if (typeof a !== "string" || !arriveChoices(start, end).includes(a)) return ek("到的时间不在活动时间内");
   if (l === null) return { arrive: a, leave: null };
   if (typeof l !== "string" || !isTime(l) || !leaveChoices(start, end, a).includes(l))
-    return "走的时间要在到的时间之后、活动结束之前";
+    return ek("走的时间要在到的时间之后、活动结束之前");
   return { arrive: a, leave: l };
 }
 

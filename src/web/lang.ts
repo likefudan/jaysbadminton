@@ -1,5 +1,6 @@
 import { type SiteLang, isSiteLang } from "../shared/rules";
 import { formatDateZh, toPacific } from "../shared/time";
+import { compilePatterns, fill, matchMessage, type Pattern } from "../shared/translate";
 import { MEMBER_MESSAGES } from "./messages";
 
 /**
@@ -46,7 +47,7 @@ function saved(): Lang | null {
   }
 }
 
-let patterns: { re: RegExp; names: string[]; key: string }[] | null = null;
+let patterns: Pattern[] | null = null;
 
 /**
  * Every text loaded so far: the member and public pages' from the start, the admin pages' once
@@ -107,8 +108,7 @@ export const tk = (zh: string) => zh;
 
 /** The text in the current language, with {name} placeholders filled in. */
 export function t(zh: string, vars?: Record<string, string | number>): string {
-  const s = lookup(zh);
-  return vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
+  return fill(lookup(zh), vars);
 }
 
 /**
@@ -117,30 +117,9 @@ export function t(zh: string, vars?: Record<string, string | number>): string {
  */
 export function tm(message: string): string {
   if (active === "zh-CN" || !message) return message;
-  if (MESSAGES[message]) return t(message);
-  // Only keys with enough words of their own: "{a} 或 {b}" would match any message with 或 in it.
-  patterns ??= Object.keys(MESSAGES)
-    .filter((k) => k.includes("{") && k.replace(/\{\w+\}/g, "").trim().length >= 4)
-    .map((key) => {
-      const names: string[] = [];
-      const src = key
-        .split(/(\{\w+\})/)
-        .map((part) => {
-          const k = /^\{(\w+)\}$/.exec(part)?.[1];
-          if (k) {
-            names.push(k);
-            return "(.+?)";
-          }
-          return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        })
-        .join("");
-      return { re: new RegExp(`^${src}$`), names, key };
-    });
-  for (const p of patterns) {
-    const m = p.re.exec(message);
-    if (m) return t(p.key, Object.fromEntries(p.names.map((n, i) => [n, m[i + 1]!])));
-  }
-  return message;
+  patterns ??= compilePatterns(MESSAGES);
+  const m = matchMessage(MESSAGES, patterns, message);
+  return m ? t(m.key, m.vars) : message;
 }
 
 const WEEK_ZH = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];

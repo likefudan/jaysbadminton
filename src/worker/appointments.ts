@@ -87,7 +87,7 @@ function assertAppointable(m: MemberRow, role: StaffRole = "organizer"): void {
   if (m.is_owner) throw badRequest("群主本来就有全部权限");
   if (m.status !== "active" || m.deleted_at) throw badRequest("只能任命状态正常的成员");
   if (isStaff(m.role) && (m.role === role || role === "organizer"))
-    throw badRequest(`${m.username} 已经是${ROLE_TITLE[m.role]}了`);
+    throw badRequest(m.role === "admin" ? `${m.username} 已经是管理员了` : `${m.username} 已经是组织者了`);
   // The admin pages open for organizers only through Google, and a member link can't swap in
   // another Google account once one is bound, so the link alone never makes someone an organizer.
   if (!m.google_sub) throw badRequest(`${m.username} 还没有关联 Google 账号。请他先用 Google 登录关联，再任命`);
@@ -328,7 +328,7 @@ export async function revokeOrganizer(
   // role changed: null says there was nothing to revoke; the caller checks what `with_` did.
   if (!done[0]!.meta.changes) {
     if (with_.length) return null;
-    throw badRequest(`${m.username} 不是${title}`);
+    throw badRequest(m.role === "admin" ? `${m.username} 不是管理员` : `${m.username} 不是组织者`);
   }
   const doer = by === "self" ? m.id : (actor ?? owner);
   await recordHandBack(env, m, by, doer, done[1]!, done[2]!, title);
@@ -488,7 +488,9 @@ export async function assertNotRunning(env: Env, m: MemberRow): Promise<void> {
     .first<{ date: string; paid: number }>();
   if (e)
     throw badRequest(
-      `${m.username} 是 ${e.date} 活动的${e.paid ? "收款人" : "负责人"}，这场还没收齐归档。请等这场收齐归档${e.paid ? "" : "（或把它转交给别人）"}后再删除成员`,
+      e.paid
+        ? `${m.username} 是 ${e.date} 活动的收款人，这场还没收齐归档。请等这场收齐归档后再删除成员`
+        : `${m.username} 是 ${e.date} 活动的负责人，这场还没收齐归档。请等这场收齐归档（或把它转交给别人）后再删除成员`,
     );
 }
 
