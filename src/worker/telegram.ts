@@ -351,9 +351,10 @@ export async function startBinding(env: Env, who: ChatOwner): Promise<string> {
   if (!(await botToken(env)))
     throw new HttpError(400, "no_bot", "还没有配置 Telegram 机器人：请群主在设置里填上机器人的 token");
   const me = await call<{ username: string }>(env, "getMe", {});
-  if (!me.ok || !me.result) throw new HttpError(502, "telegram", `连接 Telegram 失败：${me.description ?? "未知错误"}`);
+  if (!me.ok || !me.result)
+    throw new HttpError(502, "telegram", `连接 Telegram 失败：${me.description ?? "unknown error"}`);
   const hook = await setWebhook(env);
-  if (!hook.ok) throw new HttpError(502, "telegram", `设置 Telegram 回调失败：${hook.description ?? "未知错误"}`);
+  if (!hook.ok) throw new HttpError(502, "telegram", `设置 Telegram 回调失败：${hook.description ?? "unknown error"}`);
   if (await setCommands(env)) await setSetting(env.DB, "telegram_commands", COMMANDS_VERSION).run();
   const code = randomToken();
   const hash = await sha256(code);
@@ -384,7 +385,7 @@ export async function saveBotToken(env: Env, token: string): Promise<string> {
     throw new HttpError(400, "bad_token", "token 格式不对：应该是 BotFather 给的「数字:字母」那一串");
   const me = await call<{ username: string }>(env, "getMe", {}, token);
   if (!me.ok || !me.result)
-    throw new HttpError(400, "bad_token", `Telegram 不认这个 token：${me.description ?? "未知错误"}`);
+    throw new HttpError(400, "bad_token", `Telegram 不认这个 token：${me.description ?? "unknown error"}`);
   const s = await getSettings(env.DB, ["telegram_bot_username"]);
   const switched = s.telegram_bot_username !== me.result.username;
   await env.DB.batch([

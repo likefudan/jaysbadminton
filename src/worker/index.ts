@@ -9,6 +9,7 @@ import { archiveUnsettled } from "./settleDeadline";
 import { syncAllDeadlines } from "./deadlines";
 export { DeadlineAlarm } from "./deadlines";
 export { PushSender } from "./push";
+import { errorText, requestLang } from "./errorText";
 import { HttpError, readJson } from "./http";
 import {
   MAX_EMAIL_BYTES,
@@ -210,13 +211,17 @@ app.notFound(async (c) => {
     const page = await c.env.ASSETS.fetch(new Request(new URL("/", c.req.url)));
     return withBoot(c, new Response(page.body, page));
   }
-  return c.json({ error: { code: "not_found", message: "找不到这个地址" } }, 404);
+  const message = errorText(requestLang(c.req.header("X-Lang")), "找不到这个地址");
+  return c.json({ error: { code: "not_found", message } }, 404);
 });
 
+// Every error the API answers with, in the language the page reads in (errorText.ts).
 app.onError((err, c) => {
-  if (err instanceof HttpError) return c.json({ error: { code: err.code, message: err.message } }, err.status);
+  const lang = requestLang(c.req.header("X-Lang"));
+  if (err instanceof HttpError)
+    return c.json({ error: { code: err.code, message: errorText(lang, err.message) } }, err.status);
   console.error(err);
-  return c.json({ error: { code: "internal", message: "服务器出错了，请稍后再试" } }, 500);
+  return c.json({ error: { code: "internal", message: errorText(lang, "服务器出错了，请稍后再试") } }, 500);
 });
 
 export default {

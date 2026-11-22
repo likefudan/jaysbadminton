@@ -1,3 +1,4 @@
+import { ek } from "./translate";
 // Validation rules shared by the Worker and the front end so both show the same messages.
 
 export const USERNAME_MAX = 20;
@@ -7,9 +8,9 @@ export const PASSWORD_MIN = 8;
 
 export function checkUsername(raw: string): string | null {
   const name = raw.trim();
-  if (!name) return "请填写用户名";
-  if ([...name].length > USERNAME_MAX) return `用户名最多 ${USERNAME_MAX} 个字`;
-  if (/\s/.test(name)) return "用户名不能包含空格";
+  if (!name) return ek("请填写用户名");
+  if ([...name].length > USERNAME_MAX) return ek(`用户名最多 ${USERNAME_MAX} 个字`);
+  if (/\s/.test(name)) return ek("用户名不能包含空格");
   return checkNameChars(name);
 }
 
@@ -21,10 +22,10 @@ export function checkUsername(raw: string): string | null {
  */
 export function checkNameChars(name: string): string | null {
   if (!/^[\p{Script=Han}A-Za-z0-9 ._\-()（）]*$/u.test(name)) return NAME_CHARS_ERROR;
-  if (!/^[\p{Script=Han}A-Za-z0-9]/u.test(name)) return "名字要以中文、英文或数字开头";
+  if (!/^[\p{Script=Han}A-Za-z0-9]/u.test(name)) return ek("名字要以中文、英文或数字开头");
   return null;
 }
-export const NAME_CHARS_ERROR = "名字只能用中文、英文、数字和 . - _ ( )";
+export const NAME_CHARS_ERROR = ek("名字只能用中文、英文、数字和 . - _ ( )");
 
 /** A friend's name on a sign-up: may be blank (shown as "<member>的朋友<n>"). */
 export function checkFriendName(raw: string): string | null {
@@ -34,8 +35,8 @@ export function checkFriendName(raw: string): string | null {
 
 export function checkNickname(raw: string): string | null {
   const name = raw.trim();
-  if (!name) return "请填写微信名";
-  if ([...name].length > NICKNAME_MAX) return `微信名最多 ${NICKNAME_MAX} 个字`;
+  if (!name) return ek("请填写微信名");
+  if ([...name].length > NICKNAME_MAX) return ek(`微信名最多 ${NICKNAME_MAX} 个字`);
   return null;
 }
 
@@ -45,18 +46,18 @@ const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
 /** An email address someone types in (registering, 找回链接, 个人信息). */
 export function checkEmail(raw: string): string | null {
   const email = raw.trim();
-  if (!email) return "请填写邮箱";
-  if (email.length > EMAIL_MAX || !EMAIL_RE.test(email)) return "邮箱格式不对";
+  if (!email) return ek("请填写邮箱");
+  if (email.length > EMAIL_MAX || !EMAIL_RE.test(email)) return ek("邮箱格式不对");
   return null;
 }
 
 /** 给群主的留言: optional. */
 export function checkMessage(raw: string): string | null {
-  return [...raw.trim()].length > MESSAGE_MAX ? `留言最多 ${MESSAGE_MAX} 个字` : null;
+  return [...raw.trim()].length > MESSAGE_MAX ? ek(`留言最多 ${MESSAGE_MAX} 个字`) : null;
 }
 
 export function checkPassword(raw: string): string | null {
-  if (raw.length < PASSWORD_MIN) return `密码至少 ${PASSWORD_MIN} 位`;
+  if (raw.length < PASSWORD_MIN) return ek(`密码至少 ${PASSWORD_MIN} 位`);
   return null;
 }
 
@@ -90,7 +91,7 @@ export const MAX_AUTO_JOINS_PER_DAY = 999;
 export function checkAutoJoinCap(n: number): string | null {
   return Number.isInteger(n) && n >= 1 && n <= MAX_AUTO_JOINS_PER_DAY
     ? null
-    : `每天最多自动通过的人数请填 1–${MAX_AUTO_JOINS_PER_DAY}`;
+    : ek(`每天最多自动通过的人数请填 1–${MAX_AUTO_JOINS_PER_DAY}`);
 }
 
 /** 点赞 (Ke Li 2026-11-11): from the end of the event for this many hours, as 设置 says. */
@@ -140,15 +141,15 @@ export const GUEST_NAME_MAX = 20;
 
 /** The games as entered, or why not: 1 to 3, whole numbers 0–99, never a draw. */
 export function checkGames(games: unknown): [number, number][] | string {
-  if (!Array.isArray(games) || games.length < 1 || games.length > MATCH_GAMES_MAX) return "请填 1 到 3 局比分";
+  if (!Array.isArray(games) || games.length < 1 || games.length > MATCH_GAMES_MAX) return ek("请填 1 到 3 局比分");
   const out: [number, number][] = [];
   for (const g of games) {
-    if (!Array.isArray(g) || g.length !== 2) return "请填 1 到 3 局比分";
+    if (!Array.isArray(g) || g.length !== 2) return ek("请填 1 到 3 局比分");
     const [a, b] = g as unknown[];
     const ok = (n: unknown): n is number =>
       Number.isInteger(n) && (n as number) >= 0 && (n as number) <= GAME_POINTS_MAX;
-    if (!ok(a) || !ok(b)) return "比分要是 0 到 99 的整数";
-    if (a === b) return "一局比分不能打平";
+    if (!ok(a) || !ok(b)) return ek("比分要是 0 到 99 的整数");
+    if (a === b) return ek("一局比分不能打平");
     out.push([a, b]);
   }
   return out;

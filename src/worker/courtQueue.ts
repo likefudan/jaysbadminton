@@ -16,6 +16,7 @@ import { photoEnabled } from "./courtPhoto";
 import { getSettings, now } from "./db";
 import type { Env } from "./env";
 import type { EventRow } from "./events";
+import { ek } from "../shared/translate";
 import { badRequest, HttpError } from "./http";
 
 /** Courts and accounts stay on the card this long after the event ends, then the part goes away. */
@@ -154,16 +155,22 @@ export async function queueInfo(
   };
 }
 
-function field(v: unknown, what: string): string {
+// Each a whole sentence, so each can be translated (errorText.ts).
+const FIELD_ERRORS = {
+  username: { empty: ek("请填写用户名"), long: ek(`用户名最多 ${FIELD_MAX} 个字`) },
+  password: { empty: ek("请填写密码"), long: ek(`密码最多 ${FIELD_MAX} 个字`) },
+};
+
+function field(v: unknown, what: keyof typeof FIELD_ERRORS): string {
   const s = typeof v === "string" ? v.trim() : "";
-  if (!s) throw badRequest(`请填写${what}`);
-  if ([...s].length > FIELD_MAX) throw badRequest(`${what}最多 ${FIELD_MAX} 个字`);
+  if (!s) throw badRequest(FIELD_ERRORS[what].empty);
+  if ([...s].length > FIELD_MAX) throw badRequest(FIELD_ERRORS[what].long);
   return s;
 }
 
 export async function addAccount(env: Env, e: EventRow, memberId: string, body: Record<string, unknown>) {
-  const username = field(body.username, "用户名");
-  const password = field(body.password, "密码");
+  const username = field(body.username, "username");
+  const password = field(body.password, "password");
   const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM queue_accounts WHERE event_id = ?")
     .bind(e.id)
     .first<{ n: number }>();
@@ -202,7 +209,7 @@ export async function addAccounts(
   if (list.length > ACCOUNTS_MAX) throw badRequest(`每场最多 ${ACCOUNTS_MAX} 个账号`);
   const accounts = list.map((a) => {
     const r = (a ?? {}) as Record<string, unknown>;
-    return { username: field(r.username, "用户名"), password: field(r.password, "密码") };
+    return { username: field(r.username, "username"), password: field(r.password, "password") };
   });
   const { results } = await env.DB.prepare("SELECT username FROM queue_accounts WHERE event_id = ?")
     .bind(e.id)
@@ -283,13 +290,13 @@ function int(v: unknown, min: number, max: number, message: string): number {
  * court it is still on.
  */
 export async function saveCourt(env: Env, e: EventRow, memberId: string, body: Record<string, unknown>) {
-  const court = int(body.court, 1, QUEUE_COURT_MAX, "请选择场号");
-  const position = int(body.position, 0, QUEUE_MAX_POSITION, "请选择在打还是排第几组");
+  const court = int(body.court, 1, QUEUE_COURT_MAX, ek("请选择场号"));
+  const position = int(body.position, 0, QUEUE_MAX_POSITION, ek("请选择在打还是排第几组"));
   const minutes = int(
     body.minutes,
     position === 0 ? 1 : 0,
     QUEUE_MINUTES_MAX,
-    `时间请填 ${position === 0 ? 1 : 0}–${QUEUE_MINUTES_MAX} 分钟`,
+    ek(`时间请填 ${position === 0 ? 1 : 0}–${QUEUE_MINUTES_MAX} 分钟`),
   );
   const picked = Array.isArray(body.accounts) ? body.accounts.filter((a): a is string => typeof a === "string") : [];
   const { results } = await env.DB.prepare("SELECT username FROM queue_accounts WHERE event_id = ?")
@@ -305,7 +312,7 @@ export async function saveCourt(env: Env, e: EventRow, memberId: string, body: R
   const startsAt = position === 0 ? null : at(minutes);
   const endsAt = position === 0 ? at(minutes) : at(minutes + e.queue_round_min!);
   const editing = body.id !== undefined && body.id !== null;
-  const id = editing ? int(body.id, 1, Number.MAX_SAFE_INTEGER, "找不到这条记录") : 0;
+  const id = editing ? int(body.id, 1, Number.MAX_SAFE_INTEGER, ek("找不到这条记录")) : 0;
   if (editing) {
     const found = await env.DB.prepare("SELECT 1 FROM queue_courts WHERE id = ? AND event_id = ?")
       .bind(id, e.id)

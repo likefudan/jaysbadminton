@@ -393,7 +393,9 @@ adminRoutes.post("/:token/members/:id/delete", async (c) => {
   // Disabled before 停用 revoked organizers: 恢复 revokes them, so that comes first.
   if (isStaff(m.role))
     throw badRequest(
-      `${m.username} 还有${ROLE_TITLE[m.role]}身份。请先「恢复」（会撤销${ROLE_TITLE[m.role]}身份），再停用、删除`,
+      m.role === "admin"
+        ? `${m.username} 还有管理员身份。请先「恢复」（会撤销管理员身份），再停用、删除`
+        : `${m.username} 还有组织者身份。请先「恢复」（会撤销组织者身份），再停用、删除`,
     );
   const owing = (await owingByMember(c.env)).get(m.id) ?? 0;
   if (owing > 0) throw badRequest(`${m.username} 还有 $${(owing / 100).toFixed(2)} 没付清，付清或标记已付后才能删除`);

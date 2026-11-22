@@ -1,4 +1,4 @@
-import { tk } from "./i18n";
+import { currentLang, tk } from "./i18n";
 import { keepBoot, noteAnswer } from "./offline";
 
 export class ApiError extends Error {
@@ -53,7 +53,11 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
   try {
     res = await fetch(path, {
       method: body === undefined ? "GET" : "POST",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      // The language this page reads in, so errors come back in it (src/worker/errorText.ts).
+      headers:
+        body === undefined
+          ? { "X-Lang": currentLang() }
+          : { "Content-Type": "application/json", "X-Lang": currentLang() },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {

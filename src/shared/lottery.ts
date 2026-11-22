@@ -1,3 +1,4 @@
+import { ek } from "./translate";
 /**
  * 抽奖 (Ke Li 2026-11-16, 百人庆祝抽奖, option C 百人头像墙). Shared by the Worker, which draws, and
  * the page, which plays the draw and lets anyone check it.
@@ -80,18 +81,18 @@ export async function drawWinners(seed: string, ranks: number[], draws: number):
 
 /** Problems with what 设置 → 抽奖 was given, or null. */
 export function checkLottery(input: { title: string; poolSize: number; prizes: LotteryPrize[] }): string | null {
-  if (!input.title.trim()) return "请填写抽奖的名字";
-  if (input.title.trim().length > LOTTERY_TITLE_MAX) return `名字最多 ${LOTTERY_TITLE_MAX} 个字`;
+  if (!input.title.trim()) return ek("请填写抽奖的名字");
+  if (input.title.trim().length > LOTTERY_TITLE_MAX) return ek(`名字最多 ${LOTTERY_TITLE_MAX} 个字`);
   if (!Number.isInteger(input.poolSize) || input.poolSize < 1 || input.poolSize > LOTTERY_POOL_MAX)
-    return `参加人数请填 1 到 ${LOTTERY_POOL_MAX}`;
-  if (input.prizes.length === 0) return "请至少填一个奖品";
-  if (input.prizes.length > LOTTERY_PRIZE_ROWS) return `最多 ${LOTTERY_PRIZE_ROWS} 种奖品`;
+    return ek(`参加人数请填 1 到 ${LOTTERY_POOL_MAX}`);
+  if (input.prizes.length === 0) return ek("请至少填一个奖品");
+  if (input.prizes.length > LOTTERY_PRIZE_ROWS) return ek(`最多 ${LOTTERY_PRIZE_ROWS} 种奖品`);
   for (const p of input.prizes) {
-    if (!p.name.trim()) return "请填写奖品名称";
-    if (p.name.trim().length > LOTTERY_PRIZE_NAME_MAX) return `奖品名称最多 ${LOTTERY_PRIZE_NAME_MAX} 个字`;
-    if (!Number.isInteger(p.count) || p.count < 1 || p.count > 100) return "每种奖品的数量请填 1 到 100";
+    if (!p.name.trim()) return ek("请填写奖品名称");
+    if (p.name.trim().length > LOTTERY_PRIZE_NAME_MAX) return ek(`奖品名称最多 ${LOTTERY_PRIZE_NAME_MAX} 个字`);
+    if (!Number.isInteger(p.count) || p.count < 1 || p.count > 100) return ek("每种奖品的数量请填 1 到 100");
   }
-  if (prizeSlots(input.prizes).length > input.poolSize) return "奖品比参加的人还多";
+  if (prizeSlots(input.prizes).length > input.poolSize) return ek("奖品比参加的人还多");
   return null;
 }
 
