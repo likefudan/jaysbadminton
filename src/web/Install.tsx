@@ -3,6 +3,7 @@ import { Panel } from "./Panel";
 import { useEffect, useState } from "preact/hooks";
 import { Card, SettingRow } from "./components";
 import { t } from "./i18n";
+import { ArtAddSheet, ArtMenu, ArtShareSheet, ArtToolbar } from "./InstallArt";
 
 /**
  * 添加到主屏幕: the site as an app on the phone's home screen, opening straight onto the member's
@@ -249,20 +250,32 @@ function InstallGuide(props: { kind: InstallKind; onClose: () => void }) {
           </li>
         </ol>
       ) : (
-        <ol class="install-steps">
-          <li>
-            <ShareIcon />
-            <span>{t("点 Safari 的「分享」按钮（新版 Safari 先点右下角的「⋯」）")}</span>
-          </li>
-          <li>
-            <AddIcon />
-            <span>{t("往下滑，选「添加到主屏幕」")}</span>
-          </li>
-          <li>
-            <CheckIcon />
-            <span>{t("打开「作为 Web App 打开」（如果有这个开关），点右上角的「添加」")}</span>
-          </li>
-        </ol>
+        <>
+          <p class="install-safari">{t("iPhone 上推荐用 Safari 打开来添加，不要用 Chrome。")}</p>
+          <ol class="install-steps illustrated">
+            <li>
+              <span>{t("点 Safari 底部网址左边的图标")}</span>
+              <ArtToolbar />
+            </li>
+            <li>
+              <span>{t("在弹出的菜单里点「Share」（分享）")}</span>
+              <ArtMenu />
+            </li>
+            <li>
+              <span>{t("往下滑，点「Add to Home Screen」（添加到主屏幕）。没看到就先点「View More」")}</span>
+              <ArtShareSheet />
+            </li>
+            <li>
+              <span>{t("先打开「Open as Web App」开关，再点右上角的「Add」（添加）")}</span>
+              <ArtAddSheet />
+            </li>
+          </ol>
+        </>
+      )}
+      {!wechat && (
+        <p class="muted small sheet-note">
+          {t("图里是英文系统、最新的 iOS。如果 Safari 底部直接有分享按钮，点它就到第 3 步。")}
+        </p>
       )}
       {!wechat && (
         <p class="muted small sheet-note">{t("添加以后，从主屏幕的「羽毛球」图标打开，就直接到你的页面。")}</p>

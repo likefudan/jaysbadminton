@@ -4483,6 +4483,105 @@ ul.audit li:first-child {
   color: var(--acc-ink);
 }
 
+/* iPhone guide with a drawing under each step (InstallArt.tsx). */
+.install-safari {
+  margin: 0 0 4px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--acc-soft);
+  color: var(--acc-ink);
+  font-size: 14px;
+}
+.install-steps.illustrated li {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 12px 0;
+}
+.install-steps.illustrated li > span {
+  flex: 1;
+  min-width: 0;
+  line-height: 22px;
+}
+.install-steps svg.ig-art {
+  flex: 0 0 100%;
+  width: 100%;
+  height: auto;
+  font-family: var(--font);
+}
+.ig-bg {
+  fill: var(--surface-2);
+}
+.ig-card {
+  fill: var(--surface-raised);
+  stroke: var(--line);
+}
+.ig-ghost {
+  fill: var(--faint);
+  opacity: 0.35;
+}
+.ig-rule {
+  stroke: var(--line);
+}
+.ig-ink {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ig-fill {
+  fill: var(--text-2);
+}
+.ig-text {
+  fill: var(--text);
+  font-size: 12.5px;
+}
+.ig-bold {
+  font-weight: 600;
+}
+.ig-small {
+  fill: var(--text-2);
+  font-size: 9.5px;
+}
+.ig-hl {
+  fill: var(--acc-soft);
+  stroke: var(--acc);
+  stroke-width: 2;
+}
+.ig-ring {
+  fill: none;
+  stroke: var(--acc);
+  stroke-width: 2;
+}
+.ig-tap {
+  fill: var(--acc);
+}
+.ig-badge circle {
+  fill: var(--acc);
+}
+.ig-badge text {
+  fill: var(--on-acc);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.ig-app {
+  fill: var(--acc);
+}
+.ig-blue {
+  fill: #3478f6;
+}
+.ig-on-blue {
+  fill: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.ig-green {
+  fill: #34c759;
+}
+.ig-knob {
+  fill: #fff;
+}
+
 /* 下拉刷新 in the home-screen app (PullToRefresh.tsx). */
 .pull-refresh {
   position: fixed;
