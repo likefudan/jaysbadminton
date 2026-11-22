@@ -148,7 +148,8 @@ export function MemberBoardsPage() {
 /**
  * 个人信息 (Ke Li 2026-11-10, option C): what members come for first (who they are and their
  * year, the badges, who they play with), then 我的数据, one line each that opens a page of its
- * own, and 设置 behind the gear in the top card.
+ * own, and at the bottom 账户信息 and 设置 (Ke Li 2026-11-22: one place for it all, instead of a
+ * gear on the top card and 我的资料 under 我的数据).
  */
 export function MemberProfilePage(props: { token?: string }) {
   const base = `/api/m/${props.token ?? "session"}`;
@@ -157,19 +158,13 @@ export function MemberProfilePage(props: { token?: string }) {
   const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
   const [stats, reloadStats] = useApi<MyStats>(`${base}/stats`);
   const [calories, reloadCalories] = useApi<MyCalories>(`${base}/calories`);
-  // 「我的上榜设置 ›」 under the boards opens 设置 with 排行榜 open (?boards), once: the gear
-  // afterwards opens it folded, like every other row (Ke Li 2026-11-21).
-  const [boardsLink, setBoardsLink] = useState(() => new URLSearchParams(location.search).has("boards"));
+  // 「我的上榜设置 ›」 under the boards opens 设置 › 隐私 straight away (?boards), once.
+  const [boardsLink] = useState(() => new URLSearchParams(location.search).has("boards"));
   useEffect(() => {
     if (boardsLink) history.replaceState(history.state, "", location.pathname);
   }, [boardsLink]);
-  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "details" | "settings" | "avatar" | null>(
-    boardsLink ? "settings" : null,
-  );
-  const close = () => {
-    setOpen(null);
-    setBoardsLink(false);
-  };
+  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "avatar" | null>(null);
+  const close = () => setOpen(null);
   const p = profile.state === "ok" ? profile.data : null;
   const s = stats.state === "ok" && stats.data.history.length > 0 ? stats.data : null;
   const c = calories.state === "ok" && caloriesShown(calories.data) ? calories.data : null;
@@ -236,23 +231,11 @@ export function MemberProfilePage(props: { token?: string }) {
                 </section>
               </>
             )}
-            {MOCK_B ? (
-              <section class="card set-list">
-                <SettingRow
-                  icon={<AccountIcon />}
-                  label={t("账户信息")}
-                  sub={t("头像、名字、微信名、邮箱、通知、隐私")}
-                  onClick={() => setOpen("settings")}
-                />
-              </section>
-            ) : (
-              <>
-                <SectionTitle>{t("账户信息")}</SectionTitle>
-                <AccountList me={m} profile={p} base={base} onChange={reload} />
-                <SectionTitle>{t("设置")}</SectionTitle>
-                <AppSettingsList me={m} base={base} home={home} boards={boardsLink} onChange={reload} />
-              </>
-            )}
+            {/* Everything about the account in one place, at the bottom (Ke Li 2026-11-22, option A). */}
+            <SectionTitle>{t("账户信息")}</SectionTitle>
+            <AccountList me={m} profile={p} base={base} onChange={reload} />
+            <SectionTitle>{t("设置")}</SectionTitle>
+            <AppSettingsList me={m} base={base} home={home} boards={boardsLink} onChange={reload} />
             {props.token && <GoogleLink token={props.token} />}
             {open === "spend" && s && (
               <Panel title={t("我的花费")} label={t("我的花费")} onClose={close}>
@@ -278,13 +261,6 @@ export function MemberProfilePage(props: { token?: string }) {
                 </section>
               </Panel>
             )}
-            {open === "settings" && (
-              <Panel title={t("账户信息")} label={t("账户信息")} onClose={close}>
-                <AccountList me={m} profile={p} base={base} onChange={reload} />
-                <SectionTitle>{t("设置")}</SectionTitle>
-                <AppSettingsList me={m} base={base} home={home} boards={boardsLink} onChange={reload} />
-              </Panel>
-            )}
           </Page>
         );
       }}
@@ -300,13 +276,6 @@ const ChartIcon = () => (
     <path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />
   </svg>
 );
-const AccountIcon = () => (
-  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-    <circle cx="12" cy="8" r="4" />
-    <path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" />
-  </svg>
-);
-const MOCK_B = typeof localStorage !== "undefined" && localStorage.getItem("mockAcct") === "b";
 const CalendarIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     <rect x="3.5" y="5" width="17" height="15" rx="3" />

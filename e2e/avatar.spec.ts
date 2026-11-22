@@ -50,7 +50,7 @@ test("a member crops a photo into their avatar, and can go back to none", async 
   await page.goto("/m/tok/profile");
   // No Google account, no photo: the empty face.
   await expect(page.locator(".me-card .avatar svg")).toBeVisible();
-  await page.getByRole("button", { name: "头像" }).click();
+  await page.locator(".me-card").getByRole("button", { name: "头像" }).click();
   const panel = page.getByRole("dialog", { name: "头像" });
   await expect(panel).toContainText("还没有头像");
   await expect(panel.getByRole("button", { name: "不用头像" })).toHaveCount(0);
@@ -79,7 +79,7 @@ test("a member crops a photo into their avatar, and can go back to none", async 
   if (SHOTS) {
     await page.getByRole("button", { name: "返回" }).click();
     await page.screenshot({ path: `${SHOTS}/3-profile.png` });
-    await page.getByRole("button", { name: "头像" }).click();
+    await page.locator(".me-card").getByRole("button", { name: "头像" }).click();
   }
   await panel.getByRole("button", { name: "不用头像" }).click();
   await expect(panel).toContainText("现在不显示头像");
