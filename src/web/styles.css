@@ -3699,13 +3699,6 @@ button.calendar-link {
   margin: 0;
   overflow-wrap: anywhere;
 }
-/* 我的资料: labels on one line in every language ("Member number"), values lined up */
-.my-details dt {
-  white-space: nowrap;
-}
-html[lang="en"] .my-details dt {
-  flex-basis: 8.4em;
-}
 .profile-edit {
   padding: 9px 0;
   border-bottom: 1px solid var(--line);
@@ -5723,8 +5716,13 @@ ul.audit li:first-child {
 .set-label.grow {
   flex: 1;
 }
-label.set-row {
+label.set-row,
+.set-row.static {
   cursor: default;
+}
+/* Lined up with the values of the rows that have a chevron. */
+.set-row.static .set-value {
+  margin-right: 28px;
 }
 .set-seg {
   padding: 10px 12px;
@@ -6179,16 +6177,10 @@ label.set-row {
   color: var(--muted);
 }
 
-/* 个人信息 top card (option C): 设置 behind the gear, the year (年度回顾) inside the same card. */
+/* 个人信息 top card: who they are, the year (年度回顾) inside the same card. */
 .me-top .grow {
   flex: 1;
   min-width: 0;
-}
-.share-icon.me-gear {
-  align-self: flex-start;
-  width: 34px;
-  height: 34px;
-  margin: 0;
 }
 .year-card.me-year {
   margin: 16px 0 0;

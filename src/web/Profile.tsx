@@ -197,14 +197,13 @@ export interface MeCardProps {
   name: string;
   /** 头像: null for the empty one. */
   avatar: string | null;
-  onSettings: () => void;
   /** A tap on the avatar opens 头像 (left out where it can't be changed). */
   onAvatar?: () => void;
 }
 
 /**
  * The top of a member's own 个人信息, in the accent like the next-event card on 我的活动: who they
- * are, 设置 behind the gear, and the year (年度回顾) underneath.
+ * are and the year (年度回顾) underneath.
  */
 export function MeCard(props: MeCardProps & { children?: ComponentChildren }) {
   return (
@@ -221,9 +220,6 @@ export function MeCard(props: MeCardProps & { children?: ComponentChildren }) {
           <div class="grow">
             <h2 class="me-name">{props.name}</h2>
           </div>
-          <button type="button" class="share-icon me-gear" aria-label={t("设置")} onClick={props.onSettings}>
-            <GearIcon />
-          </button>
         </div>
         {props.children}
       </div>
@@ -238,35 +234,6 @@ export function MeCard(props: MeCardProps & { children?: ComponentChildren }) {
 export const memberNumber = (id: string) => Number.parseInt(id.slice(1), 10);
 
 /**
- * 我的数据 → 我的资料: 入群时间 and 入群编号, kept off the top card so they aren't seen at a glance
- * (Ke Li 2026-11-17, option C). 微信名 lives in 设置, where it can be changed (Ke Li 2026-11-19).
- */
-export function MyDetails(props: { profile: MemberProfile }) {
-  const p = props.profile;
-  return (
-    <Card class="profile">
-      <dl class="profile-info my-details">
-        <div>
-          <dt>{t("入群时间")}</dt>
-          <dd>{fmtDay(toPacific(p.joinedAt).date)}</dd>
-        </div>
-        <div>
-          <dt>{t("入群编号")}</dt>
-          <dd>{t("第 {n} 号", { n: memberNumber(p.id) })}</dd>
-        </div>
-      </dl>
-    </Card>
-  );
-}
-
-const GearIcon = () => (
-  <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-  </svg>
-);
-
-/**
  * 我的数据 → 活动记录 before it opens: this year's counts, the same stretch as 我的花费 and 年度回顾
  * next to it (the map itself goes a year back).
  */
@@ -276,16 +243,17 @@ export function activityCounts(activity: ActivityDay[]) {
   return { done: countOf(mine, "done"), absent: countOf(mine, "absent") };
 }
 
-/** 设置 (the gear on 个人信息): one row each, opening underneath to change it. */
-export function ProfileSettings(props: {
+/**
+ * 账户信息 at the bottom of 个人信息 (Ke Li 2026-11-22): who they are here, in one place: 头像, 名字,
+ * 微信名 and 邮箱 open underneath to change them; 入群时间 and 入群编号 are only shown. It replaces the
+ * gear's 设置 and 我的数据 → 我的资料, which held the same things in two places.
+ */
+export function AccountList(props: {
   me: MeResponse;
-  /** Null while it loads (or if it failed): the rest doesn't need it. */
+  /** Null while it loads (or if it failed): 头像 and 名字 don't need it. */
   profile: MemberProfile | null;
   base: string;
-  home: string;
   onChange: () => void;
-  /** 隐私 opens straight away (from 「我的上榜设置」 under the boards). */
-  boards?: boolean;
 }) {
   const p = props.profile;
   return (
@@ -330,10 +298,43 @@ export function ProfileSettings(props: {
           )}
         />
       )}
+      {p && <InfoRow icon={<CalendarDayIcon />} label={t("入群时间")} value={fmtDay(toPacific(p.joinedAt).date)} />}
+      {/* The member number: given once and never reused (Ke Li 2026-11-17). Never the raw M037. */}
+      {p && <InfoRow icon={<IdIcon />} label={t("入群编号")} value={t("第 {n} 号", { n: memberNumber(p.id) })} />}
+    </section>
+  );
+}
+
+/** 设置 under 账户信息: the phone (主屏幕, 推送通知) and 隐私. */
+export function AppSettingsList(props: {
+  me: MeResponse;
+  base: string;
+  home: string;
+  onChange: () => void;
+  /** 隐私 opens straight away (from 「我的上榜设置」 under the boards). */
+  boards?: boolean;
+}) {
+  return (
+    <section class="card set-list">
       <InstallRow home={props.home} />
       <PushRow base={props.base} home={props.home} memberId={props.me.id} />
       <PrivacyRow base={props.base} active={props.me.active} startOpen={props.boards} onChange={props.onChange} />
     </section>
+  );
+}
+
+/** A line that is only shown, not changed: no chevron, no tap. */
+function InfoRow(props: { icon: ComponentChildren; label: string; value: ComponentChildren }) {
+  return (
+    <div class="set-item">
+      <div class="set-row static">
+        <span class="set-icon" aria-hidden="true">
+          {props.icon}
+        </span>
+        <span class="set-label">{props.label}</span>
+        <span class="set-value">{props.value}</span>
+      </div>
+    </div>
   );
 }
 
@@ -456,6 +457,19 @@ const ChatIcon = () => (
     <circle cx="8.5" cy="11" r=".6" />
     <circle cx="12" cy="11" r=".6" />
     <circle cx="15.5" cy="11" r=".6" />
+  </svg>
+);
+const CalendarDayIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <rect x="3.5" y="5" width="17" height="15" rx="3" />
+    <path d="M3.5 10h17M8 3v4M16 3v4M12 13.5v3" />
+  </svg>
+);
+const IdIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <circle cx="9" cy="11" r="2.3" />
+    <path d="M5.8 16.2c.7-1.6 1.8-2.4 3.2-2.4s2.5.8 3.2 2.4M14.5 10h4M14.5 13.5h3" />
   </svg>
 );
 const MailIcon = () => (

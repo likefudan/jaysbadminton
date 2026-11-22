@@ -289,25 +289,22 @@ test("the member sees their 个人信息 and the Owner adds a 备注名", async 
   await expect(page.locator("main")).not.toContainText(/M\d{3}/);
   await expect(page.getByRole("button", { name: /退出/ })).toHaveCount(0);
   const hero = page.locator(".me-card");
-  // 微信名, 入群时间 and 入群编号 aren't on the top card: 我的数据 → 我的资料 (Ke Li 2026-11-17).
+  // 微信名, 入群时间 and 入群编号 aren't on the top card: 账户信息 at the bottom (Ke Li 2026-11-17, 2026-11-22).
   await expect(hero).not.toContainText("xiaoming");
   await expect(hero).not.toContainText("入群");
-  await page.getByRole("button", { name: /我的资料/ }).click();
-  const details = page.getByRole("dialog", { name: "我的资料" });
-  await expect(details).not.toContainText("xiaoming"); // 微信名 is in 设置 now (Ke Li 2026-11-19)
-  await expect(details).toContainText(/\d{4}年\d{1,2}月\d{1,2}日/);
-  await expect(details).toContainText(/入群编号\s*第 \d+ 号/);
+  await expect(hero.getByRole("button", { name: "设置" })).toHaveCount(0); // no gear: 账户信息 holds it all
+  await expect(page.getByRole("button", { name: /我的资料/ })).toHaveCount(0);
+  const settings = page.locator("section.set-list", { hasText: "入群编号" });
+  await expect(settings).toContainText(/入群时间\s*\d{4}年\d{1,2}月\d{1,2}日/);
+  await expect(settings).toContainText(/入群编号\s*第 \d+ 号/);
   await expect(page.locator("main")).not.toContainText(/M\d{3}/);
-  await details.getByRole("button", { name: "返回" }).click();
   // 我的数据 → 活动记录: the map, on a page of its own.
   await page.getByRole("button", { name: /活动记录/ }).click();
   await page.locator(".heatmap-grid .upcoming").click();
   await expect(page.locator(".heatmap-detail")).toContainText(VENUE);
   await page.getByRole("button", { name: "返回" }).click();
 
-  // 设置 behind the gear on the top card.
-  await hero.getByRole("button", { name: "设置" }).click();
-  const settings = page.getByRole("dialog", { name: "设置" });
+  // 账户信息: each row opens underneath to change it.
   await expect(settings.getByRole("button", { name: /名字/ })).toBeVisible();
   const email = settings.getByRole("button", { name: /邮箱/ });
   await expect(email).toContainText("ming.reg@example.com");

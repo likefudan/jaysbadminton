@@ -20,7 +20,7 @@ import { Card, Empty, Load, Page, SectionTitle, SettingRow, useAction } from "..
 import { CourtsLine, EventHero, FeeLine, MiniEventCard, friendCount, mapLink, mineStatus, onCard } from "../events";
 import { type FriendSlot, FriendsEditor, fromSlots, toSlots } from "../FriendsEditor";
 import { PaymentBox } from "../PaymentBox";
-import { Heatmap, MeCard, MyDetails, ProfileSettings, activityCounts } from "../Profile";
+import { AccountList, AppSettingsList, Heatmap, MeCard, activityCounts } from "../Profile";
 import { AvatarForm } from "../Avatar";
 import { RosterList } from "../Roster";
 import { StayPicker } from "../Stay";
@@ -148,7 +148,8 @@ export function MemberBoardsPage() {
 /**
  * 个人信息 (Ke Li 2026-11-10, option C): what members come for first (who they are and their
  * year, the badges, who they play with), then 我的数据, one line each that opens a page of its
- * own, and 设置 behind the gear in the top card.
+ * own, and at the bottom 账户信息 and 设置 (Ke Li 2026-11-22: one place for it all, instead of a
+ * gear on the top card and 我的资料 under 我的数据).
  */
 export function MemberProfilePage(props: { token?: string }) {
   const base = `/api/m/${props.token ?? "session"}`;
@@ -157,19 +158,13 @@ export function MemberProfilePage(props: { token?: string }) {
   const [profile, reloadProfile] = useApi<MemberProfile>(`${base}/profile`);
   const [stats, reloadStats] = useApi<MyStats>(`${base}/stats`);
   const [calories, reloadCalories] = useApi<MyCalories>(`${base}/calories`);
-  // 「我的上榜设置 ›」 under the boards opens 设置 with 排行榜 open (?boards), once: the gear
-  // afterwards opens it folded, like every other row (Ke Li 2026-11-21).
-  const [boardsLink, setBoardsLink] = useState(() => new URLSearchParams(location.search).has("boards"));
+  // 「我的上榜设置 ›」 under the boards opens 设置 › 隐私 straight away (?boards), once.
+  const [boardsLink] = useState(() => new URLSearchParams(location.search).has("boards"));
   useEffect(() => {
     if (boardsLink) history.replaceState(history.state, "", location.pathname);
   }, [boardsLink]);
-  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "details" | "settings" | "avatar" | null>(
-    boardsLink ? "settings" : null,
-  );
-  const close = () => {
-    setOpen(null);
-    setBoardsLink(false);
-  };
+  const [open, setOpen] = useState<"spend" | "activity" | "calories" | "avatar" | null>(null);
+  const close = () => setOpen(null);
   const p = profile.state === "ok" ? profile.data : null;
   const s = stats.state === "ok" && stats.data.history.length > 0 ? stats.data : null;
   const c = calories.state === "ok" && caloriesShown(calories.data) ? calories.data : null;
@@ -179,8 +174,12 @@ export function MemberProfilePage(props: { token?: string }) {
         const card = {
           name: m.username,
           avatar: m.avatar,
-          onSettings: () => setOpen("settings"),
           onAvatar: () => setOpen("avatar"),
+        };
+        const reload = () => {
+          reloadProfile();
+          reloadMe();
+          reloadCalories();
         };
         const spent = s && thisYear(s);
         const days = p && activityCounts(p.activity);
@@ -229,17 +228,14 @@ export function MemberProfilePage(props: { token?: string }) {
                       onClick={() => setOpen("calories")}
                     />
                   )}
-                  {p && (
-                    <SettingRow
-                      icon={<IdIcon />}
-                      label={t("我的资料")}
-                      sub={t("入群时间、入群编号")}
-                      onClick={() => setOpen("details")}
-                    />
-                  )}
                 </section>
               </>
             )}
+            {/* Everything about the account in one place, at the bottom (Ke Li 2026-11-22, option A). */}
+            <SectionTitle>{t("账户信息")}</SectionTitle>
+            <AccountList me={m} profile={p} base={base} onChange={reload} />
+            <SectionTitle>{t("设置")}</SectionTitle>
+            <AppSettingsList me={m} base={base} home={home} boards={boardsLink} onChange={reload} />
             {props.token && <GoogleLink token={props.token} />}
             {open === "spend" && s && (
               <Panel title={t("我的花费")} label={t("我的花费")} onClose={close}>
@@ -258,33 +254,11 @@ export function MemberProfilePage(props: { token?: string }) {
                 <CaloriesPage c={c} base={base} onChange={reloadCalories} />
               </Panel>
             )}
-            {open === "details" && p && (
-              <Panel title={t("我的资料")} label={t("我的资料")} onClose={close}>
-                <MyDetails profile={p} />
-              </Panel>
-            )}
             {open === "avatar" && (
               <Panel title={t("头像")} label={t("头像")} onClose={close}>
                 <section class="card">
                   <AvatarForm base={base} me={m} onDone={reloadMe} />
                 </section>
-              </Panel>
-            )}
-            {open === "settings" && (
-              <Panel title={t("设置")} label={t("设置")} onClose={close}>
-                {/* Here even if the profile didn't load: push and the home screen don't need it. */}
-                <ProfileSettings
-                  me={m}
-                  profile={p}
-                  base={base}
-                  home={home}
-                  boards={boardsLink}
-                  onChange={() => {
-                    reloadProfile();
-                    reloadMe();
-                    reloadCalories();
-                  }}
-                />
               </Panel>
             )}
           </Page>
@@ -300,13 +274,6 @@ const wholeDollars = (cents: number) => `$${Math.round(cents / 100).toLocaleStri
 const ChartIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     <path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />
-  </svg>
-);
-const IdIcon = () => (
-  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-    <rect x="3" y="5" width="18" height="14" rx="2.5" />
-    <circle cx="9" cy="11" r="2.3" />
-    <path d="M5.8 16.2c.7-1.6 1.8-2.4 3.2-2.4s2.5.8 3.2 2.4M14.5 10h4M14.5 13.5h3" />
   </svg>
 );
 const CalendarIcon = () => (
