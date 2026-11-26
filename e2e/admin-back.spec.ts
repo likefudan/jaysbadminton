@@ -15,12 +15,16 @@ test("管理页: back goes up one level, reload stays, tabs replace", async ({ p
   );
   await page.route("**/api/admin/test-token/telegram", (r) => r.fulfill({ json: {} }));
   // Everything 高级设置's cards read: one that throws while drawing leaves the page before it on
-  // screen (it was drawn twice here about one run in five, when this answered {}).
+  // screen, so going back now and then showed 高级设置's bar twice (when this answered {}, and again
+  // after AI 每天上限 came without its aiDaily here). Any such throw now fails the test.
   const settings = {
     likes: { hours: 48, pct: 50 },
     calorieShortcut: { url: "", version: 1 },
     ai: { photo: { model: "m", effort: "low" }, notes: { model: "m", effort: "low" } },
+    aiDaily: { cap: 100, used: 0 },
   };
+  const thrown: string[] = [];
+  page.on("pageerror", (e) => thrown.push(e.message));
   await page.route("**/api/admin/test-token/settings", (r) => r.fulfill({ json: settings }));
   await page.route("**/api/admin/test-token/settings/ai-models", (r) =>
     r.fulfill({ json: { models: ["m"], ready: true } }),
@@ -82,6 +86,7 @@ test("管理页: back goes up one level, reload stays, tabs replace", async ({ p
   await page.goto("/admin/test-token?tab=settings&sub=pay");
   await page.locator(".sub-bar").getByRole("button", { name: "设置" }).click();
   await expect(page).toHaveURL(/\?tab=settings$/);
+  expect(thrown).toEqual([]);
 });
 
 /** The 「‹ 上一级」 bar slides up while reading down and back going up, like the site's top bar (Ke Li 2026-11-18). */
