@@ -100,6 +100,41 @@ export function courtPhase(c: Pick<QueueCourt, "startsAt" | "endsAt">, now: numb
   return { phase: "done" };
 }
 
+/**
+ * One group at a time on a court (Ke Li 2026-11-25): a waiting group can't go on before the one
+ * ahead of it on that court comes off. Entries are saved one by one, so their times can disagree
+ * (SBBC 17号: one pair on until 21:44, the next shown going on at 21:13); this gives every entry
+ * the times the card shows. On each court, the waiting groups in the order they go on: each
+ * starts no earlier than the one before it ends, nor while a group entered as playing (from when
+ * it was entered until its time is up) is on; its round keeps its length. Groups entered as
+ * playing are as the hall's screen said and stay. Only ever later, never earlier: the gap before
+ * a group may be other people's.
+ */
+export function queueChain<T extends Pick<QueueCourt, "id" | "court" | "startsAt" | "endsAt" | "updatedAt">>(
+  courts: T[],
+): T[] {
+  const ms = Date.parse;
+  const moved = new Map<number, { startsAt: string; endsAt: string }>();
+  for (const court of new Set(courts.map((c) => c.court))) {
+    const here = courts.filter((c) => c.court === court);
+    const playing = here.filter((c) => c.startsAt === null).map((c) => ({ from: ms(c.updatedAt), to: ms(c.endsAt) }));
+    const waiting = here
+      .filter((c) => c.startsAt !== null)
+      .sort((a, b) => ms(a.startsAt!) - ms(b.startsAt!) || a.id - b.id);
+    let free = Number.NEGATIVE_INFINITY;
+    for (const c of waiting) {
+      const start = ms(c.startsAt!);
+      const round = ms(c.endsAt) - start;
+      let s = Math.max(start, free);
+      const inTheWay = () => playing.find((p) => p.from < s + round && p.to > s);
+      for (let on = inTheWay(); on; on = inTheWay()) s = on.to;
+      free = s + round;
+      if (s !== start) moved.set(c.id, { startsAt: new Date(s).toISOString(), endsAt: new Date(free).toISOString() });
+    }
+  }
+  return courts.map((c) => (moved.has(c.id) ? { ...c, ...moved.get(c.id)! } : c));
+}
+
 /** Minutes left for the group playing on `court` now, from the card; null when none is entered. */
 export function courtLeft(courts: Pick<QueueCourt, "court" | "startsAt" | "endsAt">[], court: number, now: number) {
   for (const c of courts) {

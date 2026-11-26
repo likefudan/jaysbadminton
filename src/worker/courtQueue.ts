@@ -10,6 +10,9 @@ import {
   QUEUE_ROUND_MIN,
   type QueueAccountsView,
   type QueueInfo,
+  courtPhase,
+  queueChain,
+  replacedBy,
 } from "../shared/courtQueue";
 import { toPacific } from "../shared/time";
 import { photoEnabled } from "./courtPhoto";
@@ -137,18 +140,21 @@ export async function queueInfo(
       addedBy: a.by_name,
       mine: a.member_id === viewer,
     })),
-    courts: courts.results.map((c) => ({
-      id: c.id,
-      court: c.court,
-      position: c.position,
-      startsAt: c.starts_at,
-      endsAt: c.ends_at,
-      accounts: JSON.parse(c.accounts) as string[],
-      createdBy: c.created_name,
-      createdAt: c.created_at,
-      updatedBy: c.updated_name,
-      updatedAt: c.updated_at,
-    })),
+    // As the card shows them: a waiting group never on before the one ahead of it is off.
+    courts: queueChain(
+      courts.results.map((c) => ({
+        id: c.id,
+        court: c.court,
+        position: c.position,
+        startsAt: c.starts_at,
+        endsAt: c.ends_at,
+        accounts: JSON.parse(c.accounts) as string[],
+        createdBy: c.created_name,
+        createdAt: c.created_at,
+        updatedBy: c.updated_name,
+        updatedAt: c.updated_at,
+      })),
+    ),
     idleAlert: pct ? { pct, from: e.start_at, to: e.end_at } : null,
     accountsView: view,
     map,
@@ -324,17 +330,48 @@ export async function saveCourt(env: Env, e: EventRow, memberId: string, body: R
       .first<{ n: number }>();
     if ((n?.n ?? 0) >= COURTS_MAX) throw badRequest("登记的球场太多了，请先删掉打完的");
   }
+  // What is playing and waiting is judged as the card shows it (queueChain): a group pushed back
+  // behind the one ahead of it is still waiting, though its own entered time has come.
+  const stored = await env.DB.prepare(
+    "SELECT id, court, starts_at, ends_at, accounts, updated_at FROM queue_courts WHERE event_id = ?",
+  )
+    .bind(e.id)
+    .all<{
+      id: number;
+      court: number;
+      starts_at: string | null;
+      ends_at: string;
+      accounts: string;
+      updated_at: string;
+    }>();
+  const shown = queueChain(
+    stored.results.map((r) => ({
+      id: r.id,
+      court: r.court,
+      startsAt: r.starts_at,
+      endsAt: r.ends_at,
+      accounts: JSON.parse(r.accounts) as string[],
+      updatedAt: r.updated_at,
+    })),
+  ).filter((x) => x.id !== id);
+  const nowMs = Date.parse(ts);
+  const idList = (ids: number[]) => (ids.length ? ids.join(", ") : "NULL");
+  const replacedIds = idList(
+    shown.filter((x) => replacedBy(x, { court, position, accounts: group as string[] }, nowMs)).map((x) => x.id),
+  );
+  const activeIds = idList(shown.filter((x) => courtPhase(x, nowMs).phase !== "done").map((x) => x.id));
   // Run together with the write, so two phones entering the same court at once still leave one.
   const replaced =
     position === 0
       ? env.DB.prepare(
-          `DELETE FROM queue_courts WHERE event_id = ? AND court = ? AND id != ? AND ends_at > ?
-             AND (starts_at IS NULL OR starts_at <= ?)`,
-        ).bind(e.id, court, id, ts, ts)
+          `DELETE FROM queue_courts WHERE event_id = ? AND court = ? AND id != ?
+             AND ((ends_at > ? AND starts_at IS NULL) OR id IN (${replacedIds}))`,
+        ).bind(e.id, court, id, ts)
       : env.DB.prepare(
-          `DELETE FROM queue_courts WHERE event_id = ? AND court = ? AND id != ? AND starts_at > ?
-             AND EXISTS (SELECT 1 FROM json_each(queue_courts.accounts) j
-                         WHERE lower(j.value) IN (SELECT lower(value) FROM json_each(?)))`,
+          `DELETE FROM queue_courts WHERE event_id = ? AND court = ? AND id != ?
+             AND (id IN (${replacedIds}) OR (starts_at > ?
+               AND EXISTS (SELECT 1 FROM json_each(queue_courts.accounts) j
+                           WHERE lower(j.value) IN (SELECT lower(value) FROM json_each(?)))))`,
         ).bind(e.id, court, id, ts, accounts);
   const write = editing
     ? env.DB.prepare(
@@ -351,7 +388,7 @@ export async function saveCourt(env: Env, e: EventRow, memberId: string, body: R
     `UPDATE queue_courts SET accounts = (
        SELECT json_group_array(j.value) FROM json_each(queue_courts.accounts) j
         WHERE lower(j.value) NOT IN (SELECT lower(value) FROM json_each(?)))
-     WHERE event_id = ? AND id != ? AND ends_at > ?
+     WHERE event_id = ? AND id != ? AND (ends_at > ? OR id IN (${activeIds}))
        AND EXISTS (SELECT 1 FROM json_each(queue_courts.accounts) j
                    WHERE lower(j.value) IN (SELECT lower(value) FROM json_each(?)))`,
   ).bind(accounts, e.id, id, ts, accounts);

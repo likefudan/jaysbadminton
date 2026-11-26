@@ -6,6 +6,7 @@ import {
   idleAccounts,
   idleTooMany,
   parseAccountList,
+  queueChain,
   queueGroupNow,
   queueGroups,
   queueWait,
@@ -363,6 +364,51 @@ describe("球场排队", () => {
     expect(courts.filter((c: any) => c.court === 9).map((c: any) => c.id)).toEqual([group.id]);
   });
 
+  it("a waiting group is shown going on after the one ahead of it, and stays when that one is entered again", async () => {
+    const { e, alice, q, card } = await scenario(45);
+    for (const username of ["Cat", "Jwz", "Keke", "Long"])
+      await anon.call(`${alice.base}${q}/accounts`, { username, password: "1" });
+    const save = (body: object) => anon.call(`${alice.base}${q}/courts`, body);
+    const courts = async () => (await card(alice.base))!.queue.courts as any[];
+    // Cat's pair goes on in 5 minutes (until 50); Keke's is entered as going on in 15.
+    await save({ court: 17, position: 1, minutes: 5, accounts: ["Cat", "Jwz"] });
+    await save({ court: 17, position: 2, minutes: 15, accounts: ["Keke", "Long"] });
+    let rows = await courts();
+    expect(rows.map((c) => [c.accounts[0], minutesFrom(c.startsAt), minutesFrom(c.endsAt)])).toEqual([
+      ["Cat", 5, 50],
+      ["Keke", 50, 95],
+    ]);
+    // 20 minutes on: Cat's pair is playing, Keke's entered time has come but it is still waiting.
+    const back = (iso: string) => new Date(Date.parse(iso) - 20 * 60_000).toISOString();
+    for (const r of (
+      await env.DB.prepare("SELECT id, starts_at, ends_at, updated_at FROM queue_courts WHERE event_id = ?")
+        .bind(e.id)
+        .all<{ id: number; starts_at: string; ends_at: string; updated_at: string }>()
+    ).results)
+      await env.DB.prepare("UPDATE queue_courts SET starts_at = ?, ends_at = ?, updated_at = ? WHERE id = ?")
+        .bind(back(r.starts_at), back(r.ends_at), back(r.updated_at), r.id)
+        .run();
+    rows = await courts();
+    expect(rows.map((c) => [c.accounts[0], minutesFrom(c.startsAt), minutesFrom(c.endsAt)])).toEqual([
+      ["Cat", -15, 30],
+      ["Keke", 30, 75],
+    ]);
+    // The screen is read again: Cat's pair playing, 25 left. Keke's pair is not taken for the
+    // group playing and replaced; it waits those 25 minutes.
+    await save({ court: 17, position: 0, minutes: 25, accounts: ["Cat", "Jwz"] });
+    rows = await courts();
+    expect(rows.map((c) => [c.accounts[0], c.startsAt && minutesFrom(c.startsAt), minutesFrom(c.endsAt)])).toEqual([
+      ["Cat", null, 25],
+      ["Keke", 25, 70],
+    ]);
+    // Keke's account entered on another court leaves this queue, though its entered time is past.
+    await save({ court: 3, position: 0, minutes: 30, accounts: ["Keke", "Long"] });
+    expect((await courts()).map((c) => [c.court, c.accounts])).toEqual([
+      [3, ["Keke", "Long"]],
+      [17, ["Cat", "Jwz"]],
+    ]);
+  });
+
   it("an account is in one place at a time: entered on another court, it leaves the old one", async () => {
     const { alice, q, card } = await scenario(45);
     for (const username of ["Jiazl", "Lei", "Xiaoh", "Sail"])
@@ -507,6 +553,57 @@ describe("courtPhase / queueWait", () => {
     expect(courtPhase(c, now)).toEqual({ phase: "queued", minutes: 49 });
     expect(courtPhase(c, now + 50 * 60_000)).toEqual({ phase: "playing", minutes: 44 });
     expect(courtPhase(c, now + 94 * 60_000)).toEqual({ phase: "done" });
+  });
+
+  it("queueChain: a waiting group never goes on before the one ahead of it on that court is off", () => {
+    const t = (hm: string) => `2030-10-25T${hm}:00.000Z`;
+    const c = (id: number, court: number, startsAt: string | null, endsAt: string, updatedAt = t("04:00")) => ({
+      id,
+      court,
+      startsAt,
+      endsAt,
+      updatedAt,
+    });
+    const times = (rows: ReturnType<typeof c>[]) =>
+      Object.fromEntries(
+        queueChain(rows).map((x) => [x.id, [x.startsAt?.slice(11, 16) ?? null, x.endsAt.slice(11, 16)]]),
+      );
+    // SBBC 17号: one pair on 04:59–05:44, the next entered as going on at 05:12. It waits until 05:44.
+    expect(times([c(2, 17, t("05:12"), t("05:57")), c(1, 17, t("04:59"), t("05:44"))])).toEqual({
+      1: ["04:59", "05:44"],
+      2: ["05:44", "06:29"],
+    });
+    // A chain of three, and another court left alone; a gap is kept (other people may be in it).
+    expect(
+      times([
+        c(1, 8, t("05:00"), t("05:45")),
+        c(2, 8, t("05:10"), t("05:55")),
+        c(3, 8, t("05:20"), t("06:05")),
+        c(4, 8, t("08:00"), t("08:45")),
+        c(5, 9, t("05:10"), t("05:55")),
+      ]),
+    ).toEqual({
+      1: ["05:00", "05:45"],
+      2: ["05:45", "06:30"],
+      3: ["06:30", "07:15"],
+      4: ["08:00", "08:45"],
+      5: ["05:10", "05:55"],
+    });
+    // A group entered as playing (at 05:20, until 05:40) is as the screen said: the group whose
+    // entered time had come waits for it; one that was over before then is left alone.
+    expect(
+      times([
+        c(1, 3, null, t("05:40"), t("05:20")),
+        c(2, 3, t("05:12"), t("05:57")),
+        c(3, 3, t("04:00"), t("04:45")),
+        c(4, 3, t("05:50"), t("06:35")),
+      ]),
+    ).toEqual({
+      1: [null, "05:40"],
+      2: ["05:40", "06:25"],
+      3: ["04:00", "04:45"],
+      4: ["06:25", "07:10"],
+    });
   });
 
   it("queueGroups: two of our groups waiting on one court never share a number", () => {
