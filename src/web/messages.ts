@@ -1107,6 +1107,8 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   "球馆账号（{n}）": { tw: "球館帳號（{n}）", en: "Venue accounts ({n})" },
   "⚠️ {n} 个账号空着（{share}%）": { tw: "⚠️ {n} 個帳號空著（{share}%）", en: "⚠️ {n} accounts idle ({share}%)" },
   "在打 · {n} 片": { tw: "在打 · {n} 片", en: "Playing · {n}" },
+  "{time} 下场": { tw: "{time} 下場", en: "Off {time}" },
+  "{time} 上场": { tw: "{time} 上場", en: "On {time}" },
   "剩 {n} 分": { tw: "剩 {n} 分", en: "{n} min left" },
   "排队 · {n} 组": { tw: "排隊 · {n} 組", en: "Queued · {n}" },
   "第{k}组 ≈{n}分": { tw: "第{k}組 ≈{n}分", en: "#{k} · ≈{n} min" },
@@ -1156,9 +1158,9 @@ export const MEMBER_MESSAGES: Record<string, { tw: string; en: string }> = {
   状态: { tw: "狀態", en: "Status" },
   "排第 {k} 组": { tw: "排第 {k} 組", en: "Queue #{k}" },
   分钟: { tw: "分鐘", en: "min" },
-  "按每轮 {r} 分钟估算：大约 {n} 分钟后上场。": {
-    tw: "按每輪 {r} 分鐘估算：大約 {n} 分鐘後上場。",
-    en: "At {r} minutes a round: on court in about {n} minutes.",
+  "按每轮 {r} 分钟估算：大约 {time} 上场（{n} 分钟后）。": {
+    tw: "按每輪 {r} 分鐘估算：大約 {time} 上場（{n} 分鐘後）。",
+    en: "At {r} minutes a round: on court about {time} (in {n} min).",
   },
   "前面有人提前下场或退出，就把时间改短。到点会自动变成「在打」。": {
     tw: "前面有人提前下場或退出，就把時間改短。到點會自動變成「在打」。",
