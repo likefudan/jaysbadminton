@@ -437,6 +437,28 @@ function CourtSheet(props: {
       minutes: wait ?? n,
       accounts: picked,
     };
+    // Queued behind themselves (Ke Li 2026-11-25, SBBC 25号: the pair playing there was saved as
+    // 排2 and showed up as a second group waiting): ask before a group on this court goes to its queue.
+    if (position > 0) {
+      const names = new Set(picked.map((a) => a.toLowerCase()));
+      const on = props.q.courts.find(
+        (x) =>
+          x.court === body.court &&
+          courtPhase(x, Date.now()).phase === "playing" &&
+          x.accounts.some((a) => names.has(a.toLowerCase())),
+      );
+      if (
+        on &&
+        !confirm(
+          t("{list} 现在正在 {n}号场上打。确定要登记成排第 {k} 组吗？", {
+            list: on.accounts.filter((a) => names.has(a.toLowerCase())).join("、"),
+            n: body.court,
+            k: position,
+          }),
+        )
+      )
+        return;
+    }
     // An account is in one place at a time (Ke Li): one already on another court leaves it on save.
     const busy = busyAccounts(props.q, Date.now(), body.id ?? null);
     const elsewhere = picked.flatMap((name) => {
