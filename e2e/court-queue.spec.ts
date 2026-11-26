@@ -446,6 +446,34 @@ test("a queued group with no minutes typed waits for the group playing on that c
   expect(posts).toHaveLength(before);
 });
 
+test("a group playing on a court is only queued there after a confirm", async ({ page }) => {
+  const posts = await setUp(page);
+  const asked: string[] = [];
+  let answer = false;
+  page.on("dialog", (d) => {
+    asked.push(d.message());
+    return answer ? d.accept() : d.dismiss();
+  });
+  // 16号: Wenxi and Am are playing there. The same pair as 排2 on 16 is asked about first.
+  await page.getByRole("button", { name: "＋ 登记球场" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByRole("spinbutton", { name: "场号" }).fill("16");
+  await sheet.getByRole("button", { name: "排第 2 组" }).click();
+  await sheet.getByRole("button", { name: "Wenxi" }).click();
+  await sheet.getByRole("button", { name: /^Am\b/ }).click();
+  await sheet.getByRole("button", { name: "保存" }).click();
+  await expect.poll(() => asked).toEqual(["Wenxi、Am 现在正在 16号场上打。确定要登记成排第 2 组吗？"]);
+  // No: nothing is saved and the sheet stays.
+  expect(posts).toHaveLength(0);
+  await expect(sheet).toBeVisible();
+  // Yes: saved as asked.
+  answer = true;
+  await sheet.getByRole("button", { name: "保存" }).click();
+  await expect.poll(() => posts.length).toBe(1);
+  expect(asked).toHaveLength(2);
+  expect(posts[0]!.body).toMatchObject({ court: 16, position: 2, accounts: ["Wenxi", "Am"] });
+});
+
 test("hall accounts: everyone's are listed, yours can be removed, and more added", async ({ page }) => {
   const posts = await setUp(page);
   const sheet = await openAccounts(page);
