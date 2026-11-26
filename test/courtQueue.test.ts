@@ -7,6 +7,7 @@ import {
   idleTooMany,
   parseAccountList,
   queueGroupNow,
+  queueGroups,
   queueWait,
   replacedBy,
 } from "../src/shared/courtQueue";
@@ -506,6 +507,40 @@ describe("courtPhase / queueWait", () => {
     expect(courtPhase(c, now)).toEqual({ phase: "queued", minutes: 49 });
     expect(courtPhase(c, now + 50 * 60_000)).toEqual({ phase: "playing", minutes: 44 });
     expect(courtPhase(c, now + 94 * 60_000)).toEqual({ phase: "done" });
+  });
+
+  it("queueGroups: two of our groups waiting on one court never share a number", () => {
+    const now = Date.parse("2030-10-25T04:00:00Z");
+    const at = (m: number) => new Date(now + m * 60_000).toISOString();
+    const c = (id: number, court: number, position: number, wait: number) => ({
+      id,
+      court,
+      position,
+      startsAt: at(wait),
+      endsAt: at(wait + 45),
+    });
+    // 25号 as Ke Li saw it: both entered as 排1, 17 and 23 minutes to wait.
+    const g = queueGroups(
+      [c(1, 25, 1, 23), c(2, 25, 1, 17), c(3, 16, 1, 12), c(4, 16, 2, 56), c(5, 11, 1, 13)],
+      now,
+      45,
+    );
+    expect([...g.entries()].sort((a, b) => a[0] - b[0])).toEqual([
+      [1, 2],
+      [2, 1],
+      [3, 1],
+      [4, 2],
+      [5, 1],
+    ]);
+    // Playing courts get no number; a later group keeps a number further back when it has one.
+    const h = queueGroups(
+      [{ id: 9, court: 3, position: 0, startsAt: null, endsAt: at(10) }, c(6, 3, 1, 5), c(7, 3, 3, 95)],
+      now,
+      45,
+    );
+    expect(h.has(9)).toBe(false);
+    expect(h.get(6)).toBe(1);
+    expect(h.get(7)).toBe(3);
   });
 
   it("queueGroupNow: a waiting group moves up as rounds ahead of it end", () => {
