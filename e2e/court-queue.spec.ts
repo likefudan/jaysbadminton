@@ -5,6 +5,16 @@ import { plan } from "./fixtures/courtPlan";
 const at = (min: number) => new Date(Date.now() + min * 60_000).toISOString();
 const ago = (min: number) => at(-min);
 const names = (...n: string[]) => n;
+/** A time as the card shows it: Pacific, 24-hour, no leading zero on the hour. */
+const clock = (iso: string | number) =>
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hourCycle: "h23",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+    .format(new Date(iso))
+    .replace(/^0(?=\d:)/, "");
 const court = (id: number, n: number, position: number, start: number | null, end: number, accounts: string[]) => ({
   id,
   court: n,
@@ -205,7 +215,12 @@ test("draws our courts, playing then queued, one account per quarter", async ({ 
   // Two accounts hold half the court, across the net; the other two quarters are striped.
   await expect(tiles.nth(4).locator(".cq-q")).toHaveText(["Wenxi", "", "Am", ""]);
   await expect(tiles.nth(4).locator(".cq-q:not(.ours)")).toHaveCount(2);
-  await expect(tiles.nth(6).locator(".cq-court-head small")).toHaveText("第2组 ≈49分");
+  // Under the minutes, the estimated clock time (Ke Li 2026-11-25, option B).
+  await expect(tiles.nth(6).locator(".cq-court-head small")).toHaveText([
+    "第2组 ≈49分",
+    `${clock(queue.courts[6]!.startsAt!)} 上场`,
+  ]);
+  await expect(tiles.nth(0).locator(".cq-court-head small.cq-at")).toHaveText(`${clock(queue.courts[0]!.endsAt)} 下场`);
   await expect(cq.locator(".cq-head")).toContainText("Arturo 更新于");
   await page.screenshot({ path: test.info().outputPath("court-queue-card.png") });
 
@@ -364,7 +379,7 @@ test("a new queued court works out the wait from the screen", async ({ page }) =
   await expect(sheet.getByRole("spinbutton", { name: "场号" })).toHaveValue("52");
   await sheet.getByRole("button", { name: "排第 3 组" }).click();
   await sheet.getByRole("spinbutton", { name: "正在打的还剩几分钟" }).fill("10");
-  await expect(sheet).toContainText("大约 100 分钟后上场");
+  await expect(sheet).toContainText("（100 分钟后）");
   // 场号 and the status share a row; the minutes box has its slider beside it.
   const box = async (l: ReturnType<typeof sheet.getByRole>) => (await l.boundingBox())!;
   const no = await box(sheet.getByRole("spinbutton", { name: "场号" }));
@@ -415,7 +430,7 @@ test("a queued group with no minutes typed waits for the group playing on that c
   const left = Number(await box.getAttribute("placeholder"));
   expect(left).toBeGreaterThanOrEqual(43);
   expect(left).toBeLessThanOrEqual(44);
-  await expect(sheet).toContainText(`大约 ${left} 分钟后上场`);
+  await expect(sheet).toContainText(`（${left} 分钟后）`);
   await sheet.getByRole("button", { name: "Chris" }).click();
   await sheet.getByRole("button", { name: "保存" }).click();
   await expect.poll(() => posts.at(-1)?.body).toEqual({ court: 4, position: 1, minutes: left, accounts: ["Chris"] });

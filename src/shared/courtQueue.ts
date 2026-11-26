@@ -142,6 +142,33 @@ export const queueWait = (minutesLeft: number, position: number, roundMin: numbe
 export const queueGroupNow = (entered: number, minutesLeft: number, roundMin: number): number =>
   Math.max(1, Math.min(entered, Math.ceil(minutesLeft / Math.max(1, roundMin))));
 
+/**
+ * 第N组 for every waiting entry on the card. Each is queueGroupNow, except that two of our groups
+ * waiting on the same court never share a number (Ke Li 2026-11-25: 25号 showed two 第1组): on a
+ * court, the one going on later is at least one group behind the one before it.
+ */
+export function queueGroups(
+  courts: Pick<QueueCourt, "id" | "court" | "position" | "startsAt" | "endsAt">[],
+  now: number,
+  roundMin: number,
+): Map<number, number> {
+  const waiting = courts
+    .flatMap((c) => {
+      const p = courtPhase(c, now);
+      return p.phase === "queued" ? [{ c, minutes: p.minutes }] : [];
+    })
+    .sort((a, b) => a.c.court - b.c.court || a.minutes - b.minutes || a.c.position - b.c.position || a.c.id - b.c.id);
+  const out = new Map<number, number>();
+  let court = -1;
+  let before = 0;
+  for (const { c, minutes } of waiting) {
+    if (c.court !== court) [court, before] = [c.court, 0];
+    before = Math.max(queueGroupNow(c.position, minutes, roundMin), before + 1);
+    out.set(c.id, before);
+  }
+  return out;
+}
+
 /** 拍照登记: the photo is shrunk on the phone to this many pixels on its long side (Ke Li). */
 export const PHOTO_MAX_SIDE = 1600;
 

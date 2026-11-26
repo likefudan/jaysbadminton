@@ -4777,6 +4777,11 @@ ul.audit li:first-child {
 .cq-court.soon .cq-court-head small {
   color: var(--warn);
 }
+/* The estimated clock time under the minutes stays quiet grey, whatever the court's colour. */
+.cq-court .cq-court-head small.cq-at {
+  font-weight: 500;
+  color: var(--text-2);
+}
 .cq-block {
   position: relative;
   display: grid;

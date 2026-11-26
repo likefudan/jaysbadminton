@@ -12,7 +12,7 @@ import {
   QUEUE_GROUP_MAX,
   QUEUE_MAX_POSITION,
   QUEUE_SOON_MIN,
-  queueGroupNow,
+  queueGroups,
   type QueueAccount,
   type QueueCourt,
   parseAccountList,
@@ -28,6 +28,9 @@ import { CourtMap, showsCourtMap } from "./CourtMap";
 import { useAction } from "./components";
 import { shrinkPhoto } from "./photo";
 import { t } from "./i18n";
+
+/** A Pacific wall-clock time for a tile, as the site shows times elsewhere: 20:42, 9:05. */
+const clock = (iso: string | number) => toPacific(new Date(iso)).time.replace(/^0(?=\d:)/, "");
 
 /** Over this many accounts, the lists get a search box. */
 const SEARCH_FROM = 8;
@@ -82,6 +85,7 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
     return p.phase === "done" ? [] : [{ c, p }];
   });
   const playing = shown.filter((x) => x.p.phase === "playing").sort((a, b) => a.c.court - b.c.court);
+  const groups = queueGroups(q.courts, now, q.roundMin);
   const queued = shown
     .filter((x) => x.p.phase === "queued")
     .sort((a, b) => a.p.minutes - b.p.minutes || a.c.court - b.c.court);
@@ -152,6 +156,7 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
               c={c}
               tone={p.minutes <= QUEUE_SOON_MIN ? "soon" : "play"}
               line={t("剩 {n} 分", { n: p.minutes })}
+              at={t("{time} 下场", { time: clock(c.endsAt) })}
               picked={choosing ? picked.has(c.id) : undefined}
               onOpen={() => open(c)}
             />
@@ -167,7 +172,8 @@ export function CourtQueue(props: { base: string; e: MyEvent; onChange: () => vo
                 key={c.id}
                 c={c}
                 tone="queue"
-                line={t("第{k}组 ≈{n}分", { k: queueGroupNow(c.position, p.minutes, q.roundMin), n: p.minutes })}
+                line={t("第{k}组 ≈{n}分", { k: groups.get(c.id) ?? c.position, n: p.minutes })}
+                at={t("{time} 上场", { time: clock(c.startsAt!) })}
                 picked={choosing ? picked.has(c.id) : undefined}
                 onOpen={() => open(c)}
               />
@@ -276,6 +282,8 @@ function CourtTile(props: {
   c: QueueCourt;
   tone: "play" | "soon" | "queue";
   line: string;
+  /** The estimated clock time under it: when the court comes free, or when we go on (Ke Li, option B). */
+  at: string;
   /** While choosing courts to delete: whether this one is ticked. */
   picked?: boolean;
   onOpen: () => void;
@@ -291,6 +299,7 @@ function CourtTile(props: {
       <span class="cq-court-head">
         <b>{t("{n}号", { n: props.c.court })}</b>
         <small>{props.line}</small>
+        <small class="cq-at">{props.at}</small>
         {choosing && <i class="cq-check" aria-hidden="true" />}
       </span>
       <span class="cq-block">
@@ -346,7 +355,11 @@ function CourtSheet(props: {
   const phase = c ? courtPhase(c, props.now) : null;
   // A queued group whose time has come is edited as playing; one still waiting, at the group it is
   // in now (it moves up as rounds ahead of it end).
-  const startPos = !c ? 0 : phase?.phase === "queued" ? queueGroupNow(c.position, phase.minutes, props.q.roundMin) : 0;
+  const startPos = !c
+    ? 0
+    : phase?.phase === "queued"
+      ? Math.min(QUEUE_MAX_POSITION, queueGroups(props.q.courts, props.now, props.q.roundMin).get(c.id) ?? c.position)
+      : 0;
   const [court, setCourt] = useState(c ? String(c.court) : "");
   const [position, setPosition] = useState(startPos);
   const [minutes, setMinutes] = useState(phase && phase.phase !== "done" ? String(phase.minutes) : "");
@@ -575,7 +588,11 @@ function CourtSheet(props: {
         {noMinutes && minutes === "" && <p class="cq-unsure-note small">{t("照片上没读出剩余时间，请看屏幕填写。")}</p>}
         <p class="muted small">
           {wait !== null
-            ? t("按每轮 {r} 分钟估算：大约 {n} 分钟后上场。", { r: props.q.roundMin, n: wait })
+            ? t("按每轮 {r} 分钟估算：大约 {time} 上场（{n} 分钟后）。", {
+                r: props.q.roundMin,
+                n: wait,
+                time: clock(props.now + wait * 60_000),
+              })
             : position > 0
               ? t("前面有人提前下场或退出，就把时间改短。到点会自动变成「在打」。")
               : t("屏幕上的 Minutes Left。保存后从现在开始倒计时。")}
